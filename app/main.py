@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request, HTTPException
 from aiogram.types import Update
 from contextlib import asynccontextmanager
 import httpx
+import json
 
 print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
@@ -106,9 +107,19 @@ async def image_callback(request: Request):
     
     # Parse request body
     try:
-        payload = await request.json()
-    except Exception as e:
+        body = await request.body()
+        print(f"[IMAGE-CALLBACK] Raw body: {body.decode('utf-8') if body else 'empty'}")
+        
+        if not body:
+            raise HTTPException(status_code=400, detail="Empty request body")
+        
+        payload = json.loads(body)
+    except json.JSONDecodeError as e:
+        print(f"[IMAGE-CALLBACK] JSON parse error: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+    except Exception as e:
+        print(f"[IMAGE-CALLBACK] Error reading body: {e}")
+        raise HTTPException(status_code=400, detail=f"Error: {e}")
     
     status = payload.get("status", "").upper()
     output = payload.get("output", {})
