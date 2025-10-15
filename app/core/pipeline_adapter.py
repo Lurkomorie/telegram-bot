@@ -150,9 +150,6 @@ def build_llm_messages(
     persona_prompt = persona.get("system_prompt") if isinstance(persona, dict) else persona.system_prompt
     persona_prompt = persona_prompt or ""
     
-    # Add safety guard
-    safety = prompts_config["system"]["safety_guard"]
-    
     # Add conversation state context
     state_context = prompts_config["system"].get("conversation_state", "")
     
@@ -182,8 +179,6 @@ def build_llm_messages(
 
 # CURRENT STATE (Full)
 {state_json}
-
-{safety}
 """
     
     # Build message array
