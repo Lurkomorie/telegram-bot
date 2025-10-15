@@ -217,25 +217,7 @@ async def image_callback(request: Request):
     return {"ok": True}
 
 
-@app.on_event("startup")
-async def set_webhook():
-    """Set Telegram webhook URL on startup"""
-    if settings.ENV == "production":
-        webhook_url = f"{settings.PUBLIC_BASE_URL}/webhook/{settings.WEBHOOK_SECRET}"
-        
-        try:
-            info = await bot.get_webhook_info()
-            if info.url != webhook_url:
-                await bot.set_webhook(
-                    url=webhook_url,
-                    drop_pending_updates=True
-                )
-                print(f"✅ Webhook set to: {webhook_url}")
-            else:
-                print(f"✅ Webhook already configured: {webhook_url}")
-        except Exception as e:
-            print(f"❌ Error setting webhook: {e}")
-    else:
-        print("⚠️  Running in development mode - webhook not set")
+# Webhook setting removed - set manually after deployment
+# Use: python scripts/manage.py set-webhook https://your-app.up.railway.app
 
 
