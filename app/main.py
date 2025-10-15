@@ -115,26 +115,39 @@ async def image_callback(request: Request):
     image_data = None
     image_url = None
     
-    # Check if body is binary image data (PNG starts with 0x89)
-    is_image = body[0:4] == b'\x89PNG' if len(body) >= 4 else False
+    # Check if body contains binary image data
+    # Try to decode as UTF-8 first to see if it's text/JSON
+    try:
+        body.decode('utf-8')
+        is_binary = False
+    except UnicodeDecodeError:
+        # Contains non-UTF8 data, likely binary image
+        is_binary = True
     
-    print(f"[IMAGE-CALLBACK] Body length: {len(body)}, Is image: {is_image}")
+    print(f"[IMAGE-CALLBACK] Body length: {len(body)}, Is binary: {is_binary}")
     
-    if is_image:
-        # Runpod sent the image directly
+    if is_binary:
+        # Runpod sent binary data (image)
         print(f"[IMAGE-CALLBACK] Received binary image data ({len(body)} bytes)")
+        # Find PNG start (signature: 89 50 4E 47)
+        png_start = body.find(b'\x89PNG')
+        if png_start != -1:
+            image_data = body[png_start:]
+            print(f"[IMAGE-CALLBACK] Found PNG at offset {png_start}, extracted {len(image_data)} bytes")
+        else:
+            # Assume entire body is image
+            image_data = body
         status = "COMPLETED"
-        image_data = body
         error = None
     else:
-        # Try parsing as JSON (fallback)
+        # Try parsing as JSON
         try:
             payload = json.loads(body)
             status = payload.get("status", "").upper()
             output = payload.get("output", {})
             error = payload.get("error")
         except json.JSONDecodeError as e:
-            print(f"[IMAGE-CALLBACK] Not image, not JSON. First bytes: {body[:50]}")
+            print(f"[IMAGE-CALLBACK] Failed to parse as JSON: {e}")
             raise HTTPException(status_code=400, detail=f"Invalid format: {e}")
     
     print(f"[IMAGE-CALLBACK] Job {job_id_str}: status={status}")
