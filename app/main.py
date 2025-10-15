@@ -1,20 +1,31 @@
 """
 FastAPI application with Telegram webhook and image callback endpoints
 """
+print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException
 from aiogram.types import Update
 from contextlib import asynccontextmanager
 import httpx
 
+print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
+print("✅ Settings loaded")
+
+print("🤖 Initializing bot...")
 from app.bot.loader import bot, dp
+print("✅ Bot initialized")
+
+print("🔧 Loading core modules...")
 from app.core.security import verify_hmac_signature
 from app.core.rate import close_redis
 from app.db.base import get_db
 from app.db import crud
+print("✅ Core modules loaded")
 
 # Import handlers to register them
+print("📝 Registering handlers...")
 from app.bot.handlers import start, chat, image, settings as settings_handler
+print("✅ Handlers registered")
 
 
 @asynccontextmanager

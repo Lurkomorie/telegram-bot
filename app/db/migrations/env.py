@@ -48,20 +48,25 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
+    print("📡 Connecting to database...")
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
+    print("🔗 Database connection established")
     with connectable.connect() as connection:
+        print("⚙️  Configuring migration context...")
         context.configure(
             connection=connection,
             target_metadata=target_metadata
         )
 
+        print("🚀 Running migrations...")
         with context.begin_transaction():
             context.run_migrations()
+        print("✅ Migrations completed successfully")
 
 
 if context.is_offline_mode():
