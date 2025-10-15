@@ -29,7 +29,7 @@ async def submit_image_job(
     img_config = config["image"]
     
     # Build webhook URL with HMAC signature
-    webhook_base = f"{settings.PUBLIC_BASE_URL}/image/callback"
+    webhook_base = f"{settings.public_url}/image/callback"
     job_id_str = str(job_id)
     
     # Generate HMAC signature for webhook security

@@ -10,10 +10,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-async def set_webhook(public_url: str):
+async def set_webhook(public_url: str = None):
     """Set Telegram webhook"""
     from app.settings import settings
     import httpx
+    
+    # Use provided URL or auto-detect from Railway
+    if not public_url:
+        public_url = settings.public_url
     
     webhook_url = f"{public_url}/webhook/{settings.WEBHOOK_SECRET}"
     api_url = f"https://api.telegram.org/bot{settings.BOT_TOKEN}/setWebhook"
@@ -170,10 +174,9 @@ Examples:
     command = sys.argv[1]
     
     if command == "set-webhook":
-        if len(sys.argv) < 3:
-            print("Error: Missing public URL")
-            sys.exit(1)
-        asyncio.run(set_webhook(sys.argv[2]))
+        # Public URL is optional, will use Railway domain if not provided
+        public_url = sys.argv[2] if len(sys.argv) >= 3 else None
+        asyncio.run(set_webhook(public_url))
     
     elif command == "delete-webhook":
         asyncio.run(delete_webhook())

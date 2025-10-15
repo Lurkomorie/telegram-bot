@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     # Telegram
     BOT_TOKEN: str
     WEBHOOK_SECRET: str
-    PUBLIC_BASE_URL: str
+    PUBLIC_BASE_URL: Optional[str] = None  # Auto-constructed from RAILWAY_PUBLIC_DOMAIN if not set
+    
+    # Railway variables
+    RAILWAY_PUBLIC_DOMAIN: Optional[str] = None
+    RAILWAY_PRIVATE_DOMAIN: Optional[str] = None
     
     # Database
     DATABASE_URL: str
@@ -38,6 +42,16 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+    
+    @property
+    def public_url(self) -> str:
+        """Get public URL, auto-construct from Railway domain if needed"""
+        if self.PUBLIC_BASE_URL:
+            return self.PUBLIC_BASE_URL
+        elif self.RAILWAY_PUBLIC_DOMAIN:
+            return f"https://{self.RAILWAY_PUBLIC_DOMAIN}"
+        else:
+            raise ValueError("Either PUBLIC_BASE_URL or RAILWAY_PUBLIC_DOMAIN must be set")
 
 
 # Global settings instance

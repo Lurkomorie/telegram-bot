@@ -2,7 +2,6 @@
 Redis-based rate limiting (sliding window)
 """
 import time
-import ssl
 from typing import Tuple
 import redis.asyncio as aioredis
 from app.settings import settings
@@ -16,31 +15,12 @@ async def get_redis():
     """Get or create Redis client"""
     global _redis_client
     if _redis_client is None:
-        # Upstash requires SSL, ensure URL uses rediss:// and port 6380
-        redis_url = settings.REDIS_URL
-        
-        # If URL uses redis:// but should be secure, convert to rediss:// and fix port
-        if "upstash.io" in redis_url:
-            if redis_url.startswith("redis://"):
-                redis_url = redis_url.replace("redis://", "rediss://", 1)
-            # Fix port: 6379 -> 6380 for Upstash SSL
-            if ":6379" in redis_url:
-                redis_url = redis_url.replace(":6379", ":6380")
-        
-        # For Upstash, disable SSL cert verification
-        connection_kwargs = {
-            "encoding": "utf-8",
-            "decode_responses": True
-        }
-        
-        if redis_url.startswith("rediss://"):
-            # Create SSL context that doesn't verify certificates
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            connection_kwargs["ssl_cert_reqs"] = None
-        
-        _redis_client = aioredis.from_url(redis_url, **connection_kwargs)
+        # Simple connection for Railway Redis (no SSL needed)
+        _redis_client = aioredis.from_url(
+            settings.REDIS_URL,
+            encoding="utf-8",
+            decode_responses=True
+        )
     return _redis_client
 
 
