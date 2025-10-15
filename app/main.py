@@ -121,6 +121,8 @@ async def image_callback(request: Request):
         try:
             body = await request.body()
             payload = json.loads(body)
+            print(f"[IMAGE-CALLBACK] JSON payload: {json.dumps(payload, indent=2)}")
+            
             status = payload.get("status", "").upper()
             output = payload.get("output", {})
             error = payload.get("error")
@@ -228,7 +230,8 @@ async def image_callback(request: Request):
             tg_chat_id = chat.tg_chat_id
         
         elif status == "FAILED":
-            error_msg = error or output.get("error", "Unknown error")
+            error_msg = error or (output.get("error") if 'output' in locals() else "Unknown error")
+            print(f"[IMAGE-CALLBACK] ❌ Job failed with error: {error_msg}")
             crud.update_image_job_status(
                 db,
                 job_id_str,
