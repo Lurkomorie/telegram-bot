@@ -2,6 +2,7 @@
 Redis-based rate limiting (sliding window)
 """
 import time
+import ssl
 from typing import Tuple
 import redis.asyncio as aioredis
 from app.settings import settings
@@ -26,11 +27,18 @@ async def get_redis():
             if ":6379" in redis_url:
                 redis_url = redis_url.replace(":6379", ":6380")
         
+        # Create SSL context for Upstash
+        ssl_context = None
+        if redis_url.startswith("rediss://"):
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        
         _redis_client = aioredis.from_url(
             redis_url,
             encoding="utf-8",
             decode_responses=True,
-            ssl_cert_reqs=None  # Disable cert verification for Upstash
+            ssl=ssl_context
         )
     return _redis_client
 
