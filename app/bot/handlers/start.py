@@ -22,14 +22,18 @@ async def cmd_start(message: types.Message):
             first_name=message.from_user.first_name
         )
         
-        # Get all personas
+        # Get all personas and extract data while session is active
         preset_personas = crud.get_preset_personas(db)
         user_personas = crud.get_user_personas(db, user.id)
+        
+        # Extract data from ORM objects before session closes
+        preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
+        user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
     
     prompts = get_prompts_config()
     welcome_text = prompts["text_blocks"]["welcome"]
     
-    keyboard = build_persona_selection_keyboard(preset_personas, user_personas)
+    keyboard = build_persona_selection_keyboard(preset_data, user_data)
     
     await message.answer(
         welcome_text,
@@ -43,11 +47,15 @@ async def show_personas_callback(callback: types.CallbackQuery):
     with get_db() as db:
         preset_personas = crud.get_preset_personas(db)
         user_personas = crud.get_user_personas(db, callback.from_user.id)
+        
+        # Extract data from ORM objects before session closes
+        preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
+        user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
     
     prompts = get_prompts_config()
     welcome_text = prompts["text_blocks"]["welcome"]
     
-    keyboard = build_persona_selection_keyboard(preset_personas, user_personas)
+    keyboard = build_persona_selection_keyboard(preset_data, user_data)
     
     await callback.message.edit_text(
         welcome_text,

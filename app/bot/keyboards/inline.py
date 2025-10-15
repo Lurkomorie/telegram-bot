@@ -1,24 +1,28 @@
 """
 Inline keyboard builders
 """
-from typing import List
+from typing import List, Dict, Any
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from app.db.models import Persona
 
 
 def build_persona_selection_keyboard(
-    preset_personas: List[Persona],
-    user_personas: List[Persona] = None
+    preset_personas: List[Dict[str, Any]],
+    user_personas: List[Dict[str, Any]] = None
 ) -> InlineKeyboardMarkup:
-    """Build keyboard for persona selection"""
+    """Build keyboard for persona selection
+    
+    Args:
+        preset_personas: List of dicts with 'id', 'name', 'key'
+        user_personas: List of dicts with 'id', 'name', 'key'
+    """
     buttons = []
     
     # Add preset personas
     for persona in preset_personas:
         buttons.append([
             InlineKeyboardButton(
-                text=f"💕 {persona.name}",
-                callback_data=f"select_persona:{persona.id}"
+                text=f"💕 {persona['name']}",
+                callback_data=f"select_persona:{persona['id']}"
             )
         ])
     
@@ -28,8 +32,8 @@ def build_persona_selection_keyboard(
         for persona in user_personas:
             buttons.append([
                 InlineKeyboardButton(
-                    text=f"✨ {persona.name}",
-                    callback_data=f"select_persona:{persona.id}"
+                    text=f"✨ {persona['name']}",
+                    callback_data=f"select_persona:{persona['id']}"
                 )
             ])
     
