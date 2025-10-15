@@ -111,6 +111,10 @@ async def image_callback(request: Request):
     if not body:
         raise HTTPException(status_code=400, detail="Empty request body")
     
+    # Initialize variables
+    image_data = None
+    image_url = None
+    
     # Check if body is binary image data (PNG starts with 0x89)
     is_image = body[0:4] == b'\x89PNG' if len(body) >= 4 else False
     
@@ -129,12 +133,14 @@ async def image_callback(request: Request):
             status = payload.get("status", "").upper()
             output = payload.get("output", {})
             error = payload.get("error")
-            image_data = None
         except json.JSONDecodeError as e:
             print(f"[IMAGE-CALLBACK] Not image, not JSON. First bytes: {body[:50]}")
             raise HTTPException(status_code=400, detail=f"Invalid format: {e}")
     
     print(f"[IMAGE-CALLBACK] Job {job_id_str}: status={status}")
+    
+    # Initialize tg_chat_id
+    tg_chat_id = None
     
     # Get job from database
     with get_db() as db:
