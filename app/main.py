@@ -105,25 +105,34 @@ async def image_callback(request: Request):
     if not verify_hmac_signature(job_id_str, signature):
         raise HTTPException(status_code=403, detail="Invalid signature")
     
-    # Parse request body
-    try:
-        body = await request.body()
-        print(f"[IMAGE-CALLBACK] Raw body: {body.decode('utf-8') if body else 'empty'}")
-        
-        if not body:
-            raise HTTPException(status_code=400, detail="Empty request body")
-        
-        payload = json.loads(body)
-    except json.JSONDecodeError as e:
-        print(f"[IMAGE-CALLBACK] JSON parse error: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-    except Exception as e:
-        print(f"[IMAGE-CALLBACK] Error reading body: {e}")
-        raise HTTPException(status_code=400, detail=f"Error: {e}")
+    # Get request body
+    body = await request.body()
     
-    status = payload.get("status", "").upper()
-    output = payload.get("output", {})
-    error = payload.get("error")
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+    
+    # Check if body is binary image data (PNG starts with 0x89)
+    is_image = body[0:4] == b'\x89PNG' if len(body) >= 4 else False
+    
+    print(f"[IMAGE-CALLBACK] Body length: {len(body)}, Is image: {is_image}")
+    
+    if is_image:
+        # Runpod sent the image directly
+        print(f"[IMAGE-CALLBACK] Received binary image data ({len(body)} bytes)")
+        status = "COMPLETED"
+        image_data = body
+        error = None
+    else:
+        # Try parsing as JSON (fallback)
+        try:
+            payload = json.loads(body)
+            status = payload.get("status", "").upper()
+            output = payload.get("output", {})
+            error = payload.get("error")
+            image_data = None
+        except json.JSONDecodeError as e:
+            print(f"[IMAGE-CALLBACK] Not image, not JSON. First bytes: {body[:50]}")
+            raise HTTPException(status_code=400, detail=f"Invalid format: {e}")
     
     print(f"[IMAGE-CALLBACK] Job {job_id_str}: status={status}")
     
@@ -141,18 +150,22 @@ async def image_callback(request: Request):
         
         # Update job status
         if status == "COMPLETED":
-            images = output.get("images", [])
-            if not images:
-                crud.update_image_job_status(
-                    db,
-                    job_id_str,
-                    status="failed",
-                    error="No images in output"
-                )
-                return {"ok": True, "message": "No images generated"}
-            
-            # Get image URL (assumes first image)
-            image_url = images[0]
+            # Handle both binary image data and URL-based responses
+            if image_data:
+                # Binary image received directly
+                image_url = f"binary:{len(image_data)}"  # Placeholder for DB
+            else:
+                # URL-based response (fallback)
+                images = output.get("images", [])
+                if not images:
+                    crud.update_image_job_status(
+                        db,
+                        job_id_str,
+                        status="failed",
+                        error="No images in output"
+                    )
+                    return {"ok": True, "message": "No images generated"}
+                image_url = images[0]
             
             crud.update_image_job_status(
                 db,
@@ -188,14 +201,25 @@ async def image_callback(request: Request):
             return {"ok": True, "message": f"Status updated to {new_status}"}
     
     # Send photo to user if completed
-    if status == "COMPLETED" and tg_chat_id and image_url:
+    if status == "COMPLETED" and tg_chat_id and (image_url or image_data):
         try:
-            # Send photo
-            sent_message = await bot.send_photo(
-                chat_id=tg_chat_id,
-                photo=image_url,
-                caption="🎨 <b>Here's your image!</b>"
-            )
+            # Send photo - handle both binary data and URL
+            if image_data:
+                # Send binary image data
+                from aiogram.types import BufferedInputFile
+                input_file = BufferedInputFile(image_data, filename="generated.png")
+                sent_message = await bot.send_photo(
+                    chat_id=tg_chat_id,
+                    photo=input_file,
+                    caption="🎨 <b>Here's your image!</b>"
+                )
+            else:
+                # Send via URL
+                sent_message = await bot.send_photo(
+                    chat_id=tg_chat_id,
+                    photo=image_url,
+                    caption="🎨 <b>Here's your image!</b>"
+                )
             
             # Save file_id for caching
             if sent_message.photo:
