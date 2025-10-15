@@ -27,19 +27,20 @@ async def get_redis():
             if ":6379" in redis_url:
                 redis_url = redis_url.replace(":6379", ":6380")
         
-        # Create SSL context for Upstash
-        ssl_context = None
+        # For Upstash, disable SSL cert verification
+        connection_kwargs = {
+            "encoding": "utf-8",
+            "decode_responses": True
+        }
+        
         if redis_url.startswith("rediss://"):
+            # Create SSL context that doesn't verify certificates
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
+            connection_kwargs["ssl_cert_reqs"] = None
         
-        _redis_client = aioredis.from_url(
-            redis_url,
-            encoding="utf-8",
-            decode_responses=True,
-            ssl=ssl_context
-        )
+        _redis_client = aioredis.from_url(redis_url, **connection_kwargs)
     return _redis_client
 
 
