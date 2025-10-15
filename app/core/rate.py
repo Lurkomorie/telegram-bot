@@ -15,10 +15,18 @@ async def get_redis():
     """Get or create Redis client"""
     global _redis_client
     if _redis_client is None:
+        # Upstash requires SSL, ensure URL uses rediss:// or add ssl=True
+        redis_url = settings.REDIS_URL
+        
+        # If URL uses redis:// but should be secure, convert to rediss://
+        if redis_url.startswith("redis://") and "upstash.io" in redis_url:
+            redis_url = redis_url.replace("redis://", "rediss://", 1)
+        
         _redis_client = aioredis.from_url(
-            settings.REDIS_URL,
+            redis_url,
             encoding="utf-8",
-            decode_responses=True
+            decode_responses=True,
+            ssl_cert_reqs=None  # Disable cert verification for Upstash
         )
     return _redis_client
 
