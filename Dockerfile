@@ -28,7 +28,11 @@ ENV PYTHONPATH=/app
 EXPOSE 8080
 
 # Run migrations and start server
-CMD alembic upgrade head && \
+CMD set -e && \
+    echo "🔄 Running migrations..." && \
+    alembic upgrade head && \
+    echo "✅ Migrations complete" && \
+    echo "🚀 Starting FastAPI server on port ${PORT:-8080}..." && \
     uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
 
 
