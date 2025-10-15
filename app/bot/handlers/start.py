@@ -76,6 +76,10 @@ async def select_persona_callback(callback: types.CallbackQuery):
             await callback.answer("Persona not found!", show_alert=True)
             return
         
+        # Extract persona data before session closes
+        persona_name = persona.name
+        persona_key = persona.key
+        
         # Create or get chat
         chat = crud.get_or_create_chat(
             db,
@@ -88,15 +92,15 @@ async def select_persona_callback(callback: types.CallbackQuery):
     
     # Get persona opener message
     persona_config = next(
-        (p for p in prompts["personas"] if p.get("key") == persona.key),
+        (p for p in prompts["personas"] if p.get("key") == persona_key),
         None
     )
     
     openers = persona_config.get("openers", []) if persona_config else []
-    opener = openers[0] if openers else f"Hi! I'm {persona.name}. Let's chat!"
+    opener = openers[0] if openers else f"Hi! I'm {persona_name}. Let's chat!"
     
     switch_text = prompts["text_blocks"]["persona_switched"].replace(
-        "{{persona_name}}", persona.name
+        "{{persona_name}}", persona_name
     )
     
     await callback.message.edit_text(

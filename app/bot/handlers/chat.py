@@ -63,31 +63,50 @@ async def handle_text_message(message: types.Message):
             await message.answer("Persona not found. Please start over with /start")
             return
         
+        # Extract data from ORM objects before session closes
+        chat_id = chat.id
+        chat_state_snapshot = chat.state_snapshot
+        persona_data = {
+            "id": persona.id,
+            "name": persona.name,
+            "key": persona.key,
+            "system_prompt": persona.system_prompt,
+            "style": persona.style,
+            "negatives": persona.negatives,
+            "appearance": persona.appearance
+        }
+        
         # Save user message
-        crud.create_message(db, chat.id, "user", user_text)
+        crud.create_message(db, chat_id, "user", user_text)
         
         # Get recent messages for context
         messages = crud.get_chat_messages(
             db,
-            chat.id,
+            chat_id,
             limit=config["limits"]["max_history_messages"]
         )
+        
+        # Extract message data from ORM objects
+        messages_data = [
+            {"role": m.role, "text": m.text, "created_at": m.created_at}
+            for m in messages
+        ]
     
     # Generate AI response with typing indicator
     try:
         async with send_action_repeatedly(bot, message.chat.id, "typing"):
-            # Build LLM messages
+            # Build LLM messages using extracted data
             llm_messages = build_llm_messages(
                 prompts,
-                persona,
-                messages[:-1],  # Exclude the just-saved user message
+                persona_data,
+                messages_data[:-1],  # Exclude the just-saved user message
                 user_text,
-                chat,
+                {"state_snapshot": chat_state_snapshot},
                 config["limits"]["max_history_messages"]
             )
             
             # Get persona style overrides
-            persona_style = persona.style or {}
+            persona_style = persona_data["style"] or {}
             temperature = persona_style.get("temperature")
             max_tokens = persona_style.get("max_tokens")
             
@@ -108,21 +127,21 @@ async def handle_text_message(message: types.Message):
     # Update conversation state
     with get_db() as db:
         # Get current state
-        current_state = parse_previous_state(chat.state_snapshot)
+        current_state = parse_previous_state(chat_state_snapshot)
         if not current_state:
-            current_state = create_initial_state(persona)
+            current_state = create_initial_state(persona_data)
         
         # Update state based on conversation
         new_state = update_conversation_state(
             current_state,
             user_text,
             assistant_response,
-            persona
+            persona_data
         )
         
         # Save state and assistant message
-        crud.update_chat_state(db, chat.id, new_state)
-        crud.create_message(db, chat.id, "assistant", assistant_response)
+        crud.update_chat_state(db, chat_id, new_state)
+        crud.create_message(db, chat_id, "assistant", assistant_response)
     
     # Send response
     await message.answer(assistant_response)

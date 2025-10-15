@@ -3,16 +3,17 @@ Pipeline Adapter - Mirrors Sexsplicit AI pipeline logic 1:1
 Replicates assistant-processor.ts and image-pipeline-service.ts behaviors
 """
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from app.db.models import Persona, Chat, Message
 
 
 # ========== CONVERSATION STATE MANAGEMENT ==========
 # Mirrors createInitialState and FullState from Sexsplicit
 
-def create_initial_state(persona: Persona) -> dict:
+def create_initial_state(persona: Union[Persona, dict]) -> dict:
     """Create initial conversation state (mirrors createInitialState from Sexsplicit)"""
-    appearance = persona.appearance or {}
+    appearance = persona.get("appearance") if isinstance(persona, dict) else persona.appearance
+    appearance = appearance or {}
     
     return {
         "rel": {
@@ -65,10 +66,17 @@ def find_best_previous_state(messages: List[Message], persona: Persona) -> dict:
 # ========== PROMPT ASSEMBLY ==========
 # Mirrors buildTemplateReplacements and applyTemplateReplacements
 
-def build_template_replacements(persona: Persona, chat: Chat = None) -> Dict[str, str]:
+def build_template_replacements(persona: Union[Persona, dict], chat: Union[Chat, dict] = None) -> Dict[str, str]:
     """Build template replacement dictionary for prompts"""
-    appearance = persona.appearance or {}
-    style = persona.style or {}
+    # Handle persona as dict or ORM object
+    if isinstance(persona, dict):
+        appearance = persona.get("appearance") or {}
+        style = persona.get("style") or {}
+        persona_name = persona.get("name", "AI")
+    else:
+        appearance = persona.appearance or {}
+        style = persona.style or {}
+        persona_name = persona.name
     
     # Extract appearance details
     ethnicity = appearance.get("ethnicity", "unspecified")
@@ -82,16 +90,20 @@ def build_template_replacements(persona: Persona, chat: Chat = None) -> Dict[str
     
     # Get current state
     state = {}
-    if chat and chat.state_snapshot:
-        state = chat.state_snapshot
-    else:
+    if chat:
+        if isinstance(chat, dict):
+            state = chat.get("state_snapshot", {})
+        else:
+            state = chat.state_snapshot or {}
+    
+    if not state:
         state = create_initial_state(persona)
     
     rel = state.get("rel", {})
     scene = state.get("scene", {})
     
     replacements = {
-        "{{persona_name}}": persona.name,
+        "{{persona_name}}": persona_name,
         "{{persona_physical}}": physical_desc,
         "{{persona_style}}": style_desc,
         "{{relationship_stage}}": rel.get("relationshipStage", "initial"),
@@ -117,10 +129,10 @@ def apply_template_replacements(template: str, replacements: Dict[str, str]) -> 
 
 def build_llm_messages(
     prompts_config: dict,
-    persona: Persona,
-    messages: List[Message],
+    persona: Union[Persona, dict],
+    messages: Union[List[Message], List[dict]],
     user_text: str,
-    chat: Chat = None,
+    chat: Union[Chat, dict] = None,
     max_history: int = 10
 ) -> List[Dict[str, str]]:
     """
@@ -135,7 +147,8 @@ def build_llm_messages(
     system_base = apply_template_replacements(system_base, replacements)
     
     # Add persona-specific system prompt
-    persona_prompt = persona.system_prompt or ""
+    persona_prompt = persona.get("system_prompt") if isinstance(persona, dict) else persona.system_prompt
+    persona_prompt = persona_prompt or ""
     
     # Add safety guard
     safety = prompts_config["system"]["safety_guard"]
@@ -144,7 +157,13 @@ def build_llm_messages(
     state_context = prompts_config["system"].get("conversation_state", "")
     
     # Get current state
-    state = chat.state_snapshot if chat and chat.state_snapshot else create_initial_state(persona)
+    if chat:
+        if isinstance(chat, dict):
+            state = chat.get("state_snapshot") or create_initial_state(persona)
+        else:
+            state = chat.state_snapshot or create_initial_state(persona)
+    else:
+        state = create_initial_state(persona)
     state_json = json.dumps(state, indent=2)
     
     # Assemble full system prompt (mirrors conversationSystemPrompt from assistant-processor.ts)
@@ -174,10 +193,18 @@ def build_llm_messages(
     recent_messages = messages[-max_history:] if len(messages) > max_history else messages
     
     for msg in recent_messages:
-        if msg.role in ("user", "assistant"):
+        # Handle both dict and ORM objects
+        if isinstance(msg, dict):
+            role = msg.get("role")
+            text = msg.get("text", "")
+        else:
+            role = msg.role
+            text = msg.text or ""
+        
+        if role in ("user", "assistant"):
             llm_messages.append({
-                "role": msg.role,
-                "content": msg.text or ""
+                "role": role,
+                "content": text
             })
     
     # Add current user message
@@ -199,17 +226,29 @@ BASE_NEGATIVE_PROMPT = "(worst quality, lowres, jpeg artifacts, deformed, mutate
 
 def build_image_prompts(
     prompts_config: dict,
-    persona: Persona,
+    persona: Union[Persona, dict],
     user_text: str,
-    chat: Chat = None,
+    chat: Union[Chat, dict] = None,
     dialogue_response: str = ""
 ) -> Tuple[str, str]:
     """
     Build image generation prompts (positive and negative)
     Mirrors the PROMPT_ENGINEER_SYSTEM_PROMPT logic from image-pipeline-service.ts
     """
-    appearance = persona.appearance or {}
-    state = chat.state_snapshot if chat and chat.state_snapshot else create_initial_state(persona)
+    # Handle persona as dict or ORM object
+    if isinstance(persona, dict):
+        appearance = persona.get("appearance") or {}
+    else:
+        appearance = persona.appearance or {}
+    
+    # Get current state
+    if chat:
+        if isinstance(chat, dict):
+            state = chat.get("state_snapshot") or create_initial_state(persona)
+        else:
+            state = chat.state_snapshot or create_initial_state(persona)
+    else:
+        state = create_initial_state(persona)
     
     # Build character DNA (mirrors buildCharacterPhysicalBasePrompt)
     ethnicity = appearance.get("ethnicity", "")
@@ -303,7 +342,10 @@ def build_image_prompts(
     positive_prompt = ", ".join(filter(None, positive_parts))
     
     # Assemble negative prompt (mirrors buildContextualNegativePrompt)
-    persona_negatives = persona.negatives or ""
+    if isinstance(persona, dict):
+        persona_negatives = persona.get("negatives", "")
+    else:
+        persona_negatives = persona.negatives or ""
     negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {persona_negatives}"
     
     # Add cross-skin negatives for intimate scenes (mirrors your cross-negative logic)
@@ -321,7 +363,7 @@ def update_conversation_state(
     current_state: dict,
     user_text: str,
     assistant_response: str,
-    persona: Persona
+    persona: Union[Persona, dict]
 ) -> dict:
     """
     Update conversation state based on new exchange
