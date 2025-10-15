@@ -105,50 +105,74 @@ async def image_callback(request: Request):
     if not verify_hmac_signature(job_id_str, signature):
         raise HTTPException(status_code=403, detail="Invalid signature")
     
-    # Get request body
-    body = await request.body()
-    
-    if not body:
-        raise HTTPException(status_code=400, detail="Empty request body")
-    
     # Initialize variables
     image_data = None
     image_url = None
+    status = None
+    error = None
     
-    # Check if body contains binary image data
-    # Try to decode as UTF-8 first to see if it's text/JSON
-    try:
-        body.decode('utf-8')
-        is_binary = False
-    except UnicodeDecodeError:
-        # Contains non-UTF8 data, likely binary image
-        is_binary = True
+    # Check Content-Type header to determine how to parse
+    content_type = request.headers.get("content-type", "").lower()
+    print(f"[IMAGE-CALLBACK] Content-Type: {content_type}")
     
-    print(f"[IMAGE-CALLBACK] Body length: {len(body)}, Is binary: {is_binary}")
-    
-    if is_binary:
-        # Runpod sent binary data (image)
-        print(f"[IMAGE-CALLBACK] Received binary image data ({len(body)} bytes)")
-        # Find PNG start (signature: 89 50 4E 47)
-        png_start = body.find(b'\x89PNG')
-        if png_start != -1:
-            image_data = body[png_start:]
-            print(f"[IMAGE-CALLBACK] Found PNG at offset {png_start}, extracted {len(image_data)} bytes")
-        else:
-            # Assume entire body is image
-            image_data = body
-        status = "COMPLETED"
-        error = None
-    else:
-        # Try parsing as JSON
+    # Handle different content types
+    if "application/json" in content_type:
+        # JSON response with status/URLs
         try:
+            body = await request.body()
             payload = json.loads(body)
             status = payload.get("status", "").upper()
             output = payload.get("output", {})
             error = payload.get("error")
-        except json.JSONDecodeError as e:
-            print(f"[IMAGE-CALLBACK] Failed to parse as JSON: {e}")
-            raise HTTPException(status_code=400, detail=f"Invalid format: {e}")
+            
+            # Check for image URLs in output
+            images = output.get("images", [])
+            if images:
+                image_url = images[0]
+                print(f"[IMAGE-CALLBACK] Got image URL from JSON: {image_url}")
+        except Exception as e:
+            print(f"[IMAGE-CALLBACK] Failed to parse JSON: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+    
+    elif "multipart/form-data" in content_type:
+        # FormData with image file
+        try:
+            form = await request.form()
+            image_file = form.get("image")
+            if image_file:
+                image_data = await image_file.read()
+                print(f"[IMAGE-CALLBACK] Got image from FormData: {len(image_data)} bytes")
+                status = "COMPLETED"
+            else:
+                raise HTTPException(status_code=400, detail="No image in form data")
+        except Exception as e:
+            print(f"[IMAGE-CALLBACK] Failed to parse FormData: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid FormData: {e}")
+    
+    elif "image/" in content_type or not content_type:
+        # Direct binary image upload
+        try:
+            body = await request.body()
+            print(f"[IMAGE-CALLBACK] Got binary image: {len(body)} bytes")
+            
+            # Find PNG start if needed
+            png_start = body.find(b'\x89PNG')
+            if png_start != -1 and png_start > 0:
+                image_data = body[png_start:]
+                print(f"[IMAGE-CALLBACK] Extracted PNG from offset {png_start}: {len(image_data)} bytes")
+            else:
+                image_data = body
+            
+            status = "COMPLETED"
+        except Exception as e:
+            print(f"[IMAGE-CALLBACK] Failed to read binary: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid binary: {e}")
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported content type: {content_type}")
+    
+    if not status:
+        status = "COMPLETED"  # Default if we got data
     
     print(f"[IMAGE-CALLBACK] Job {job_id_str}: status={status}")
     
