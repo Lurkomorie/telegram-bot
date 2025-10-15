@@ -220,14 +220,17 @@ async def image_callback(request: Request):
             )
             
             # Get chat info for sending photo
-            chat = crud.get_or_create_chat(
-                db,
-                tg_chat_id=job.chat.tg_chat_id if job.chat else job.user_id,
-                user_id=job.user_id,
-                persona_id=job.persona_id
-            )
-            
-            tg_chat_id = chat.tg_chat_id
+            if job.chat_id:
+                # Get existing chat
+                from app.db.models import Chat
+                chat = db.query(Chat).filter(Chat.id == job.chat_id).first()
+                if chat:
+                    tg_chat_id = chat.tg_chat_id
+                else:
+                    tg_chat_id = job.user_id
+            else:
+                # No chat associated, send to user directly
+                tg_chat_id = job.user_id
         
         elif status == "FAILED":
             error_msg = error or (output.get("error") if 'output' in locals() else "Unknown error")
