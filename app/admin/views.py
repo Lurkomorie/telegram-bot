@@ -1,353 +1,184 @@
 """
-Admin panel model views with bulk delete support
+Admin panel model views for Starlette-Admin
 """
-from sqladmin import ModelView, action
-from wtforms import TextAreaField
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
-from sqlalchemy import delete
-from uuid import UUID
+from starlette_admin.contrib.sqla import ModelView
 from app.db.models import User, Persona, PersonaHistoryStart, Chat, Message, ImageJob
 
 
-class UserAdmin(ModelView, model=User):
+class UserAdmin(ModelView):
     """Admin view for User model"""
+    identity = "user"
     name = "User"
-    name_plural = "Users"
-    icon = "fa-solid fa-user"
+    label = "Users"
+    icon = "fa fa-user"
     
     # List page
-    column_list = [User.id, User.username, User.first_name, User.locale, User.created_at]
-    column_searchable_list = [User.username, User.first_name]
-    column_sortable_list = [User.id, User.username, User.created_at]
-    column_default_sort = [(User.created_at, True)]
-    
-    # Details/Form
-    column_details_exclude_list = [User.settings]
-    form_excluded_columns = [User.chats, User.personas]
-    
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
-    page_size = 50
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Users",
-        confirmation_message="Are you sure you want to delete ALL users? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all user records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(User))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
-
-
-class PersonaAdmin(ModelView, model=Persona):
-    """Admin view for Persona model"""
-    name = "Persona"
-    name_plural = "Personas"
-    icon = "fa-solid fa-robot"
-    
-    # List page
-    column_list = [
-        Persona.id,
-        Persona.name, 
-        Persona.key, 
-        Persona.visibility, 
-        Persona.owner_user_id,
-        Persona.created_at
+    fields = [
+        User.id,
+        User.username,
+        User.first_name,
+        User.locale,
+        User.created_at,
+        User.updated_at,
     ]
-    column_searchable_list = [Persona.name, Persona.key, Persona.description]
-    column_sortable_list = [Persona.name, Persona.key, Persona.visibility, Persona.created_at]
-    column_default_sort = [(Persona.created_at, True)]
-    column_filters = [Persona.visibility, Persona.owner_user_id]
     
-    # Details/Form
-    form_excluded_columns = [Persona.chats, Persona.history_starts]
-    form_overrides = {
-        "prompt": TextAreaField,
-        "description": TextAreaField,
-        "intro": TextAreaField,
-    }
-    form_ajax_refs = {
-        "owner": {
-            "fields": ("username", "first_name"),
-            "order_by": "id",
-        }
-    }
+    searchable_fields = [User.username, User.first_name]
+    sortable_fields = [User.id, User.username, User.created_at]
     
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
+    # Exclude from forms
+    exclude_fields_from_create = [User.created_at, User.updated_at, User.chats, User.personas]
+    exclude_fields_from_edit = [User.created_at, User.updated_at, User.chats, User.personas]
+    exclude_fields_from_detail = [User.settings]
+    
+    # Pagination
     page_size = 50
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Personas",
-        confirmation_message="Are you sure you want to delete ALL personas? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all persona records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(Persona))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    page_size_options = [25, 50, 100]
 
 
-class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
-    """Admin view for PersonaHistoryStart model"""
-    name = "Persona Greeting"
-    name_plural = "Persona Greetings"
-    icon = "fa-solid fa-comment"
+class PersonaAdmin(ModelView):
+    """Admin view for Persona model"""
+    identity = "persona"
+    name = "Persona"
+    label = "Personas"
+    icon = "fa fa-robot"
     
     # List page
-    column_list = [
+    fields = [
+        Persona.id,
+        Persona.name,
+        Persona.key,
+        Persona.visibility,
+        Persona.owner_user_id,
+        Persona.created_at,
+    ]
+    
+    searchable_fields = [Persona.name, Persona.key, Persona.description]
+    sortable_fields = [Persona.name, Persona.key, Persona.visibility, Persona.created_at]
+    
+    # Exclude relationships from forms
+    exclude_fields_from_create = [Persona.created_at, Persona.chats, Persona.history_starts]
+    exclude_fields_from_edit = [Persona.created_at, Persona.chats, Persona.history_starts]
+    exclude_fields_from_detail = []
+    
+    # Pagination
+    page_size = 50
+    page_size_options = [25, 50, 100]
+
+
+class PersonaHistoryStartAdmin(ModelView):
+    """Admin view for PersonaHistoryStart model"""
+    identity = "persona_greeting"
+    name = "Persona Greeting"
+    label = "Persona Greetings"
+    icon = "fa fa-comment"
+    
+    # List page
+    fields = [
         PersonaHistoryStart.id,
-        PersonaHistoryStart.persona_id,
+        PersonaHistoryStart.persona,  # Show relationship
         PersonaHistoryStart.text,
         PersonaHistoryStart.image_url,
-        PersonaHistoryStart.created_at
+        PersonaHistoryStart.created_at,
     ]
-    column_searchable_list = [PersonaHistoryStart.text]
-    column_sortable_list = [PersonaHistoryStart.persona_id, PersonaHistoryStart.created_at]
-    column_default_sort = [(PersonaHistoryStart.created_at, True)]
-    column_filters = [PersonaHistoryStart.persona_id]
     
-    # Details/Form - Show persona as a relationship field
-    form_overrides = {
-        "text": TextAreaField,
-    }
-    form_ajax_refs = {
-        "persona": {
-            "fields": ("name", "key"),
-            "order_by": "name",
-        }
-    }
+    fields_default_sort = [(PersonaHistoryStart.created_at, True)]
+    searchable_fields = [PersonaHistoryStart.text]
     
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
+    # Exclude from forms
+    exclude_fields_from_create = [PersonaHistoryStart.created_at]
+    exclude_fields_from_edit = [PersonaHistoryStart.created_at]
+    
+    # Pagination
     page_size = 50
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Greetings",
-        confirmation_message="Are you sure you want to delete ALL persona greetings? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all greeting records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(PersonaHistoryStart))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    page_size_options = [25, 50, 100]
 
 
-class ChatAdmin(ModelView, model=Chat):
+class ChatAdmin(ModelView):
     """Admin view for Chat model"""
+    identity = "chat"
     name = "Chat"
-    name_plural = "Chats"
-    icon = "fa-solid fa-comments"
+    label = "Chats"
+    icon = "fa fa-comments"
     
     # List page
-    column_list = [
+    fields = [
         Chat.id,
         Chat.tg_chat_id,
-        Chat.user_id,
-        Chat.persona_id,
+        Chat.user,  # Show relationship
+        Chat.persona,  # Show relationship
         Chat.mode,
         Chat.created_at,
-        Chat.updated_at
-    ]
-    column_searchable_list = [Chat.tg_chat_id]
-    column_sortable_list = [
-        Chat.tg_chat_id, 
-        Chat.user_id, 
-        Chat.created_at,
         Chat.updated_at,
-        Chat.last_user_message_at
     ]
-    column_default_sort = [(Chat.updated_at, True)]
-    column_filters = [Chat.mode, Chat.user_id, Chat.persona_id]
     
-    # Details/Form
-    form_excluded_columns = [Chat.messages]
-    column_details_exclude_list = [Chat.state_snapshot, Chat.settings]
-    form_ajax_refs = {
-        "user": {
-            "fields": ("username", "first_name"),
-            "order_by": "id",
-        },
-        "persona": {
-            "fields": ("name", "key"),
-            "order_by": "name",
-        }
-    }
+    fields_default_sort = [(Chat.updated_at, True)]
+    searchable_fields = [Chat.tg_chat_id]
     
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
+    # Exclude from forms
+    exclude_fields_from_create = [Chat.created_at, Chat.updated_at, Chat.messages]
+    exclude_fields_from_edit = [Chat.created_at, Chat.updated_at, Chat.messages]
+    exclude_fields_from_detail = [Chat.state_snapshot, Chat.settings]
+    
+    # Pagination
     page_size = 50
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Chats",
-        confirmation_message="Are you sure you want to delete ALL chats? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all chat records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(Chat))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    page_size_options = [25, 50, 100]
 
 
-class MessageAdmin(ModelView, model=Message):
+class MessageAdmin(ModelView):
     """Admin view for Message model"""
+    identity = "message"
     name = "Message"
-    name_plural = "Messages"
-    icon = "fa-solid fa-message"
+    label = "Messages"
+    icon = "fa fa-message"
     
     # List page
-    column_list = [
+    fields = [
         Message.id,
-        Message.chat_id,
+        Message.chat,  # Show relationship
         Message.role,
         Message.text,
         Message.is_processed,
-        Message.created_at
+        Message.created_at,
     ]
-    column_searchable_list = [Message.text]
-    column_sortable_list = [Message.chat_id, Message.role, Message.created_at]
-    column_default_sort = [(Message.created_at, True)]
-    column_filters = [Message.role, Message.is_processed, Message.chat_id]
     
-    # Details/Form
-    column_details_exclude_list = [Message.media, Message.state_snapshot]
-    form_overrides = {
-        "text": TextAreaField,
-    }
-    form_ajax_refs = {
-        "chat": {
-            "fields": ("tg_chat_id",),
-            "order_by": "created_at",
-        }
-    }
+    fields_default_sort = [(Message.created_at, True)]
+    searchable_fields = [Message.text]
     
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
+    # Exclude from forms
+    exclude_fields_from_create = [Message.created_at]
+    exclude_fields_from_edit = [Message.created_at]
+    exclude_fields_from_detail = [Message.media, Message.state_snapshot]
+    
+    # Pagination
     page_size = 100
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Messages",
-        confirmation_message="Are you sure you want to delete ALL messages? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all message records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(Message))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    page_size_options = [50, 100, 200]
 
 
-class ImageJobAdmin(ModelView, model=ImageJob):
+class ImageJobAdmin(ModelView):
     """Admin view for ImageJob model"""
+    identity = "image_job"
     name = "Image Job"
-    name_plural = "Image Jobs"
-    icon = "fa-solid fa-image"
+    label = "Image Jobs"
+    icon = "fa fa-image"
     
     # List page
-    column_list = [
+    fields = [
         ImageJob.id,
         ImageJob.user_id,
-        ImageJob.persona_id,
+        ImageJob.persona,  # Show relationship
         ImageJob.status,
         ImageJob.created_at,
-        ImageJob.finished_at
+        ImageJob.finished_at,
     ]
-    column_searchable_list = [ImageJob.prompt]
-    column_sortable_list = [
-        ImageJob.status,
-        ImageJob.user_id,
-        ImageJob.created_at,
-        ImageJob.finished_at
-    ]
-    column_default_sort = [(ImageJob.created_at, True)]
-    column_filters = [ImageJob.status, ImageJob.user_id, ImageJob.persona_id]
     
-    # Details/Form
-    column_details_exclude_list = [ImageJob.ext]
-    form_overrides = {
-        "prompt": TextAreaField,
-        "negative_prompt": TextAreaField,
-    }
-    form_ajax_refs = {
-        "user": {
-            "fields": ("username", "first_name"),
-            "order_by": "id",
-        },
-        "persona": {
-            "fields": ("name", "key"),
-            "order_by": "name",
-        },
-        "chat": {
-            "fields": ("tg_chat_id",),
-            "order_by": "created_at",
-        }
-    }
+    fields_default_sort = [(ImageJob.created_at, True)]
+    searchable_fields = [ImageJob.prompt]
     
-    # Display settings
-    can_create = True
-    can_edit = True
-    can_delete = True
-    can_view_details = True
-    can_export = True
-    save_as = True
+    # Exclude from forms
+    exclude_fields_from_create = [ImageJob.created_at, ImageJob.finished_at]
+    exclude_fields_from_edit = [ImageJob.created_at, ImageJob.finished_at]
+    exclude_fields_from_detail = [ImageJob.ext]
+    
+    # Pagination
     page_size = 50
-    
-    @action(
-        name="delete_all",
-        label="⚠️ Delete All Image Jobs",
-        confirmation_message="Are you sure you want to delete ALL image jobs? This cannot be undone!",
-        add_in_list=True,
-        add_in_detail=False,
-    )
-    async def delete_all(self, request: Request):
-        """Delete all image job records"""
-        async with self.session_maker() as session:
-            await session.execute(delete(ImageJob))
-            await session.commit()
-        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
+    page_size_options = [25, 50, 100]

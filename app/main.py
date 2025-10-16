@@ -31,7 +31,7 @@ print("✅ Handlers registered")
 
 # Import admin modules
 print("🔐 Loading admin panel...")
-from sqladmin import Admin
+from starlette_admin import Admin
 from app.admin.auth import AdminAuth
 from app.admin.views import (
     UserAdmin,
@@ -41,6 +41,7 @@ from app.admin.views import (
     MessageAdmin,
     ImageJobAdmin
 )
+from app.db.models import User, Persona, PersonaHistoryStart, Chat, Message, ImageJob
 print("✅ Admin panel loaded")
 
 
@@ -81,22 +82,25 @@ app.add_middleware(
     max_age=3600  # 1 hour
 )
 
-# Initialize admin panel
-authentication_backend = AdminAuth(secret_key=settings.ADMIN_SECRET_KEY)
+# Initialize Starlette-Admin panel
 admin = Admin(
-    app=app,
     engine=engine,
-    authentication_backend=authentication_backend,
-    title="Telegram Bot Admin"
+    title="Telegram Bot Admin",
+    base_url="/admin",
+    route_name="admin",
+    auth_provider=AdminAuth(),
 )
 
 # Register model views
-admin.add_view(UserAdmin)
-admin.add_view(PersonaAdmin)
-admin.add_view(PersonaHistoryStartAdmin)
-admin.add_view(ChatAdmin)
-admin.add_view(MessageAdmin)
-admin.add_view(ImageJobAdmin)
+admin.add_view(UserAdmin(User))
+admin.add_view(PersonaAdmin(Persona))
+admin.add_view(PersonaHistoryStartAdmin(PersonaHistoryStart))
+admin.add_view(ChatAdmin(Chat))
+admin.add_view(MessageAdmin(Message))
+admin.add_view(ImageJobAdmin(ImageJob))
+
+# Mount admin panel to app
+admin.mount_to(app)
 
 print("✅ Admin panel mounted at /admin")
 
