@@ -1,0 +1,4 @@
+"""
+Admin panel module
+"""
+

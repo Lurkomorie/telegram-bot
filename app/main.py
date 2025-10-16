@@ -5,6 +5,7 @@ print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException
 from aiogram.types import Update
 from contextlib import asynccontextmanager
+from starlette.middleware.sessions import SessionMiddleware
 import httpx
 import json
 
@@ -19,7 +20,7 @@ print("✅ Bot initialized")
 print("🔧 Loading core modules...")
 from app.core.security import verify_hmac_signature
 from app.core.rate import close_redis
-from app.db.base import get_db
+from app.db.base import get_db, engine
 from app.db import crud
 print("✅ Core modules loaded")
 
@@ -27,6 +28,20 @@ print("✅ Core modules loaded")
 print("📝 Registering handlers...")
 from app.bot.handlers import start, chat, image, settings as settings_handler
 print("✅ Handlers registered")
+
+# Import admin modules
+print("🔐 Loading admin panel...")
+from sqladmin import Admin
+from app.admin.auth import AdminAuth
+from app.admin.views import (
+    UserAdmin,
+    PersonaAdmin,
+    PersonaHistoryStartAdmin,
+    ChatAdmin,
+    MessageAdmin,
+    ImageJobAdmin
+)
+print("✅ Admin panel loaded")
 
 
 @asynccontextmanager
@@ -57,6 +72,33 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
+
+# Add session middleware for admin authentication
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.ADMIN_SECRET_KEY,
+    session_cookie="admin_session",
+    max_age=3600  # 1 hour
+)
+
+# Initialize admin panel
+authentication_backend = AdminAuth(secret_key=settings.ADMIN_SECRET_KEY)
+admin = Admin(
+    app=app,
+    engine=engine,
+    authentication_backend=authentication_backend,
+    title="Telegram Bot Admin"
+)
+
+# Register model views
+admin.add_view(UserAdmin)
+admin.add_view(PersonaAdmin)
+admin.add_view(PersonaHistoryStartAdmin)
+admin.add_view(ChatAdmin)
+admin.add_view(MessageAdmin)
+admin.add_view(ImageJobAdmin)
+
+print("✅ Admin panel mounted at /admin")
 
 
 @app.get("/")

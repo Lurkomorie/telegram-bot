@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # Security
     IMAGE_CALLBACK_SECRET: str
     
+    # Admin Panel
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str
+    ADMIN_SECRET_KEY: str
+    
     # App
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"
