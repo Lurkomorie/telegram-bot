@@ -1,7 +1,7 @@
 """
 Text chat handler with multi-brain AI pipeline
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import types, F
 from app.bot.loader import router
 from app.db.base import get_db
@@ -11,6 +11,9 @@ from app.core.rate import check_rate_limit
 from app.core.multi_brain_pipeline import process_message_pipeline
 from app.core.constants import ERROR_MESSAGES
 
+# Timeout after which we clear stale unprocessed messages and restart
+MESSAGE_PROCESSING_TIMEOUT_MINUTES = 5
+
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_text_message(message: types.Message):
@@ -19,6 +22,11 @@ async def handle_text_message(message: types.Message):
     user_text = message.text
     
     print(f"[CHAT] 📨 Received message from user {user_id}: {user_text[:50]}...")
+    
+    # Don't process commands as regular messages
+    if user_text.startswith("/"):
+        print(f"[CHAT] ⏭️  Skipping command message")
+        return
     
     config = get_app_config()
     
@@ -59,8 +67,23 @@ async def handle_text_message(message: types.Message):
         
         print(f"[CHAT] ✅ Found chat {chat.id} with persona {chat.persona_id}")
         
-        # Save user message (unprocessed)
-        print(f"[CHAT] 💾 Saving message as unprocessed")
+        # Check for timeout - if we haven't responded in 5 minutes, clear stale messages
+        last_assistant_time = crud.get_last_assistant_message_time(db, chat.id)
+        timeout_threshold = datetime.utcnow() - timedelta(minutes=MESSAGE_PROCESSING_TIMEOUT_MINUTES)
+        
+        if last_assistant_time and last_assistant_time < timeout_threshold:
+            print(f"[CHAT] ⏰ TIMEOUT: Last response was {(datetime.utcnow() - last_assistant_time).total_seconds() / 60:.1f} min ago")
+            print(f"[CHAT] 🧹 Clearing stale unprocessed messages...")
+            crud.clear_unprocessed_messages(db, chat.id)
+        
+        # Check existing unprocessed messages BEFORE saving current one
+        print(f"[CHAT] 🔍 Checking for existing unprocessed messages")
+        existing_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
+        
+        print(f"[CHAT] 📊 Found {len(existing_unprocessed)} existing unprocessed message(s)")
+        
+        # Save current user message (unprocessed)
+        print(f"[CHAT] 💾 Saving current message as unprocessed")
         crud.create_message_with_state(
             db, 
             chat.id, 
@@ -72,23 +95,21 @@ async def handle_text_message(message: types.Message):
         # Update last user message timestamp
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
         
-        # Get all unprocessed messages
-        print(f"[CHAT] 🔍 Fetching unprocessed messages")
-        unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
-        
-        print(f"[CHAT] 📊 Found {len(unprocessed)} unprocessed message(s)")
-        
-        if len(unprocessed) > 1:
+        # Decide whether to process or batch
+        if len(existing_unprocessed) > 0:
             # Already processing - this message will be batched
-            print(f"[CHAT] ⏳ Message batched ({len(unprocessed)} total unprocessed) - pipeline already running")
+            print(f"[CHAT] ⏳ Message batched ({len(existing_unprocessed) + 1} total unprocessed) - pipeline already running")
             return
         
-        print(f"[CHAT] 🚀 First unprocessed message - starting pipeline")
+        print(f"[CHAT] 🚀 First unprocessed message - starting pipeline now")
+        
+        # Get ALL unprocessed messages (including the one we just saved)
+        all_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
         
         # Extract data for pipeline
         chat_id = chat.id
         tg_chat_id = chat.tg_chat_id
-        messages_data = [{"id": str(m.id), "text": m.text} for m in unprocessed]
+        messages_data = [{"id": str(m.id), "text": m.text} for m in all_unprocessed]
         
         print(f"[CHAT] 📦 Prepared {len(messages_data)} message(s) for processing")
     

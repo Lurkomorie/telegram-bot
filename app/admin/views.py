@@ -2,6 +2,7 @@
 Admin panel model views
 """
 from sqladmin import ModelView
+from wtforms import TextAreaField
 from app.db.models import User, Persona, PersonaHistoryStart, Chat, Message, ImageJob
 
 
@@ -26,6 +27,7 @@ class UserAdmin(ModelView, model=User):
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 50
 
 
@@ -49,13 +51,25 @@ class PersonaAdmin(ModelView, model=Persona):
     column_filters = [Persona.visibility, Persona.owner_user_id]
     
     # Details/Form
-    form_excluded_columns = [Persona.chats, Persona.history_starts, Persona.owner]
+    form_excluded_columns = [Persona.chats, Persona.history_starts]
+    form_overrides = {
+        "prompt": TextAreaField,
+        "description": TextAreaField,
+        "intro": TextAreaField,
+    }
+    form_ajax_refs = {
+        "owner": {
+            "fields": ("username", "first_name"),
+            "order_by": "id",
+        }
+    }
     
     # Display settings
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 50
 
 
@@ -77,14 +91,23 @@ class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
     column_default_sort = [(PersonaHistoryStart.created_at, True)]
     column_filters = [PersonaHistoryStart.persona_id]
     
-    # Details/Form
-    form_excluded_columns = [PersonaHistoryStart.persona]
+    # Details/Form - Don't exclude persona relationship, let it be selectable
+    form_overrides = {
+        "text": TextAreaField,
+    }
+    form_ajax_refs = {
+        "persona": {
+            "fields": ("name", "key"),
+            "order_by": "name",
+        }
+    }
     
     # Display settings
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 50
 
 
@@ -115,14 +138,25 @@ class ChatAdmin(ModelView, model=Chat):
     column_filters = [Chat.mode, Chat.user_id, Chat.persona_id]
     
     # Details/Form
-    form_excluded_columns = [Chat.messages, Chat.user, Chat.persona]
+    form_excluded_columns = [Chat.messages]
     column_details_exclude_list = [Chat.state_snapshot, Chat.settings]
+    form_ajax_refs = {
+        "user": {
+            "fields": ("username", "first_name"),
+            "order_by": "id",
+        },
+        "persona": {
+            "fields": ("name", "key"),
+            "order_by": "name",
+        }
+    }
     
     # Display settings
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 50
 
 
@@ -146,14 +180,23 @@ class MessageAdmin(ModelView, model=Message):
     column_filters = [Message.role, Message.is_processed, Message.chat_id]
     
     # Details/Form
-    form_excluded_columns = [Message.chat]
     column_details_exclude_list = [Message.media, Message.state_snapshot]
+    form_overrides = {
+        "text": TextAreaField,
+    }
+    form_ajax_refs = {
+        "chat": {
+            "fields": ("tg_chat_id",),
+            "order_by": "created_at",
+        }
+    }
     
     # Display settings
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 100
 
 
@@ -184,11 +227,21 @@ class ImageJobAdmin(ModelView, model=ImageJob):
     
     # Details/Form
     column_details_exclude_list = [ImageJob.ext]
+    form_overrides = {
+        "prompt": TextAreaField,
+        "negative_prompt": TextAreaField,
+    }
+    form_ajax_refs = {
+        "persona": {
+            "fields": ("name", "key"),
+            "order_by": "name",
+        }
+    }
     
     # Display settings
     can_create = True
     can_edit = True
     can_delete = True
     can_view_details = True
+    can_export = True
     page_size = 50
-

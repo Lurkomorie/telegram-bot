@@ -181,6 +181,28 @@ def mark_messages_processed(db: Session, message_ids: List[UUID]):
     db.commit()
 
 
+def clear_unprocessed_messages(db: Session, chat_id: UUID):
+    """Clear all unprocessed messages for a chat (on persona switch, timeout, etc.)"""
+    db.query(Message).filter(
+        Message.chat_id == chat_id,
+        Message.role == "user",
+        Message.is_processed == False
+    ).update(
+        {"is_processed": True}, synchronize_session=False
+    )
+    db.commit()
+
+
+def get_last_assistant_message_time(db: Session, chat_id: UUID) -> Optional[datetime]:
+    """Get timestamp of last assistant message"""
+    last_msg = db.query(Message).filter(
+        Message.chat_id == chat_id,
+        Message.role == "assistant"
+    ).order_by(Message.created_at.desc()).first()
+    
+    return last_msg.created_at if last_msg else None
+
+
 # ========== PERSONA HISTORY START OPERATIONS ==========
 
 def get_random_history_start(db: Session, persona_id: UUID):

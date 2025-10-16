@@ -85,6 +85,11 @@ async def select_persona_callback(callback: types.CallbackQuery):
             persona_id=persona.id
         )
         
+        # CRITICAL: Clear any unprocessed messages when switching personas
+        # This prevents old messages from one persona appearing in another chat
+        print(f"[START] 🧹 Clearing unprocessed messages for chat {chat.id}")
+        crud.clear_unprocessed_messages(db, chat.id)
+        
         # Get random history start
         history_start = crud.get_random_history_start(db, persona.id)
     
