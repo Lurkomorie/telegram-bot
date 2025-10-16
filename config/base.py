@@ -1,0 +1,7 @@
+IMAGE_QUALITY_BASE_PROMPT = """
+(masterpiece, best quality:1.2, ultra high res, detailed, very aesthetic), smooth shading, clean lines, physically-plausible lighting, sub-surface skin details, natural anatomy, proportional body, realistic hands and fingers, defined knuckles, photorealistic skin texture, sharp focus, coherent limbs, intact joints
+"""
+
+IMAGE_NEGATIVE_BASE_PROMPT = """
+(worst quality, lowres, jpeg artifacts, deformed, mutated, disfigured, extra heads:1.4), duplicate person, twins, clones, mirrored body, (extra arms:1.3), (extra legs:1.3), (extra hands:1.35), (extra fingers:1.45), missing fingers, fused fingers, webbed fingers, long fingers, broken wrist, broken limb, amputated limb, floating limbs, disconnected limbs, cropped head, out of frame face, headless, faceless, (multiple heads:1.4), lazy eye, crossed eyes, deformed pupils, (wonky eyes:1.2), blur, motion blur, oversharpen, oversaturated, watermark, signature, text, logo, frame, border, bad hands, bad anatomy, bad proportions, unnatural body bend, mangled feet, mirror, reflection, distorted reflection, merged legs, fused thighs, twisted hips, unnatural overlapping limbs, entangled legs, siamese body, body fusion, conjoined anatomy
+"""

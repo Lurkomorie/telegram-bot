@@ -1,29 +1,23 @@
 """
-Text chat handler with AI responses
+Text chat handler with multi-brain AI pipeline
 """
+from datetime import datetime
 from aiogram import types, F
-from app.bot.loader import router, bot
+from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
-from app.settings import get_prompts_config, get_app_config
-from app.core.actions import send_action_repeatedly
+from app.settings import get_app_config
 from app.core.rate import check_rate_limit
-from app.core.pipeline_adapter import (
-    build_llm_messages,
-    update_conversation_state,
-    parse_previous_state,
-    create_initial_state
-)
-from app.core.llm_openrouter import generate_text
+from app.core.multi_brain_pipeline import process_message_pipeline
+from app.core.constants import ERROR_MESSAGES
 
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_text_message(message: types.Message):
-    """Handle regular text messages"""
+    """Handle regular text messages with batching and multi-brain pipeline"""
     user_id = message.from_user.id
     user_text = message.text
     
-    prompts = get_prompts_config()
     config = get_app_config()
     
     # Rate limit check
@@ -35,7 +29,7 @@ async def handle_text_message(message: types.Message):
     )
     
     if not allowed:
-        await message.answer(prompts["text_blocks"]["rate_limit_text"])
+        await message.answer(ERROR_MESSAGES["rate_limit"])
         return
     
     with get_db() as db:
@@ -52,98 +46,55 @@ async def handle_text_message(message: types.Message):
         
         if not chat:
             # No active persona selected
-            await message.answer(
-                "Please select an AI girl first using /start"
-            )
+            await message.answer(ERROR_MESSAGES["no_persona"])
             return
         
-        # Get persona
-        persona = crud.get_persona_by_id(db, chat.persona_id)
-        if not persona:
-            await message.answer("Persona not found. Please start over with /start")
-            return
-        
-        # Extract data from ORM objects before session closes
-        chat_id = chat.id
-        chat_state_snapshot = chat.state_snapshot
-        persona_data = {
-            "id": persona.id,
-            "name": persona.name,
-            "key": persona.key,
-            "system_prompt": persona.system_prompt,
-            "style": persona.style,
-            "negatives": persona.negatives,
-            "appearance": persona.appearance
-        }
-        
-        # Save user message
-        crud.create_message(db, chat_id, "user", user_text)
-        
-        # Get recent messages for context
-        messages = crud.get_chat_messages(
-            db,
-            chat_id,
-            limit=config["limits"]["max_history_messages"]
-        )
-        
-        # Extract message data from ORM objects
-        messages_data = [
-            {"role": m.role, "text": m.text, "created_at": m.created_at}
-            for m in messages
-        ]
-    
-    # Generate AI response with typing indicator
-    try:
-        async with send_action_repeatedly(bot, message.chat.id, "typing"):
-            # Build LLM messages using extracted data
-            llm_messages = build_llm_messages(
-                prompts,
-                persona_data,
-                messages_data[:-1],  # Exclude the just-saved user message
-                user_text,
-                {"state_snapshot": chat_state_snapshot},
-                config["limits"]["max_history_messages"]
-            )
-            
-            # Get persona style overrides
-            persona_style = persona_data["style"] or {}
-            temperature = persona_style.get("temperature")
-            max_tokens = persona_style.get("max_tokens")
-            
-            # Generate response
-            assistant_response = await generate_text(
-                llm_messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-    
-    except Exception as e:
-        print(f"[CHAT] Error generating response: {e}")
-        await message.answer(
-            "Sorry, I'm having trouble responding right now. Please try again in a moment."
-        )
-        return
-    
-    # Update conversation state
-    with get_db() as db:
-        # Get current state
-        current_state = parse_previous_state(chat_state_snapshot)
-        if not current_state:
-            current_state = create_initial_state(persona_data)
-        
-        # Update state based on conversation
-        new_state = update_conversation_state(
-            current_state,
+        # Save user message (unprocessed)
+        crud.create_message_with_state(
+            db, 
+            chat.id, 
+            "user", 
             user_text,
-            assistant_response,
-            persona_data
+            is_processed=False
         )
         
-        # Save state and assistant message
-        crud.update_chat_state(db, chat_id, new_state)
-        crud.create_message(db, chat_id, "assistant", assistant_response)
+        # Update last user message timestamp
+        crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
+        
+        # Get all unprocessed messages
+        unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
+        
+        if len(unprocessed) > 1:
+            # Already processing - this message will be batched
+            print(f"[CHAT] Message batched ({len(unprocessed)} total unprocessed)")
+            return
+        
+        # Extract data for pipeline
+        chat_id = chat.id
+        tg_chat_id = chat.tg_chat_id
+        messages_data = [{"id": str(m.id), "text": m.text} for m in unprocessed]
     
-    # Send response
-    await message.answer(assistant_response)
-
-
+    # Batch all unprocessed messages
+    batched_text = "\n".join([m["text"] for m in messages_data])
+    
+    print(f"[CHAT] Processing {len(messages_data)} message(s) for chat {chat_id}")
+    
+    # Process through multi-brain pipeline
+    try:
+        await process_message_pipeline(
+            chat_id=chat_id,
+            user_id=user_id,
+            batched_messages=messages_data,
+            batched_text=batched_text,
+            tg_chat_id=tg_chat_id
+        )
+    except ValueError as e:
+        # Handle validation errors (chat/persona not found)
+        print(f"[CHAT] Validation error: {e}")
+        await message.answer(ERROR_MESSAGES["chat_not_found"])
+    except Exception as e:
+        # Handle unexpected errors
+        print(f"[CHAT] Error in pipeline: {e}")
+        import traceback
+        traceback.print_exc()
+        await message.answer(ERROR_MESSAGES["processing_error"])

@@ -9,8 +9,12 @@ from app.settings import settings, get_app_config
 
 async def generate_text(
     messages: List[Dict[str, str]],
+    model: str = None,
     temperature: float = None,
     max_tokens: int = None,
+    top_p: float = None,
+    frequency_penalty: float = None,
+    presence_penalty: float = None,
     timeout_sec: int = None
 ) -> str:
     """
@@ -18,8 +22,12 @@ async def generate_text(
     
     Args:
         messages: List of {"role": "system|user|assistant", "content": "..."}
+        model: Model to use (overrides config default)
         temperature: Override default temperature
         max_tokens: Override default max_tokens
+        top_p: Top-p sampling parameter
+        frequency_penalty: Frequency penalty parameter
+        presence_penalty: Presence penalty parameter
         timeout_sec: Override default timeout
     
     Returns:
@@ -35,11 +43,19 @@ async def generate_text(
     }
     
     body = {
-        "model": llm_config["model"],
+        "model": model if model is not None else llm_config["model"],
         "messages": messages,
         "temperature": temperature if temperature is not None else llm_config["temperature"],
         "max_tokens": max_tokens if max_tokens is not None else llm_config["max_tokens"]
     }
+    
+    # Add optional parameters if provided
+    if top_p is not None:
+        body["top_p"] = top_p
+    if frequency_penalty is not None:
+        body["frequency_penalty"] = frequency_penalty
+    if presence_penalty is not None:
+        body["presence_penalty"] = presence_penalty
     
     timeout = timeout_sec if timeout_sec is not None else llm_config["timeout_sec"]
     

@@ -75,3 +75,29 @@ async def submit_image_job(
         raise Exception(f"Runpod submission failed: {str(e)}")
 
 
+async def dispatch_image_generation(
+    job_id: UUID,
+    prompt: str,
+    negative_prompt: str,
+    tg_chat_id: int
+) -> bool:
+    """
+    Dispatch image generation to RunPod (used by pipeline)
+    
+    Returns:
+        True if dispatched successfully, False otherwise
+    """
+    try:
+        print(f"[RUNPOD] Dispatching job {job_id}")
+        result = await submit_image_job(
+            job_id=job_id,
+            prompt=prompt,
+            negative_prompt=negative_prompt
+        )
+        print(f"[RUNPOD] Job dispatched: {result}")
+        return True
+    except Exception as e:
+        print(f"[RUNPOD] ❌ Dispatch failed: {e}")
+        return False
+
+

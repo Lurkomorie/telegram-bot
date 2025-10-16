@@ -3,7 +3,7 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, ARRAY
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -31,27 +31,55 @@ class User(Base):
 
 
 class Persona(Base):
-    """AI girl personas (preset or user-created)"""
+    """AI girl personas (public or user-created)"""
     __tablename__ = "personas"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    owner_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)  # NULL = preset
-    key = Column(String(100), nullable=True, unique=True)  # e.g., "sweet_girlfriend" for presets
+    owner_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)  # NULL = public persona
+    key = Column(String(100), nullable=True, unique=True)  # e.g., "sweet_girlfriend" for public personas
     name = Column(String(255), nullable=False)
-    system_prompt = Column(Text, nullable=False)
-    style = Column(JSONB, default={})  # {"temperature": 0.8, "tone": "sweet", "max_tokens": 400}
-    negatives = Column(Text, nullable=True)  # Comma-separated negative prompts for images
-    appearance = Column(JSONB, default={})  # Physical appearance for image generation
-    is_preset = Column(Boolean, default=False, nullable=False)
+    
+    # Simplified schema - use persona.prompt directly for image generation
+    prompt = Column(Text, nullable=True)  # Custom personality prompt for dialogue and images
+    badges = Column(ARRAY(String), default=[])  # UI display badges like ["Popular", "New", "NSFW"]
+    visibility = Column(
+        String(20), 
+        CheckConstraint("visibility IN ('public', 'private', 'custom')"), 
+        default="custom",
+        nullable=False
+    )
+    description = Column(Text, nullable=True)  # Short description for UI
+    intro = Column(Text, nullable=True)  # Introduction message
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
     owner = relationship("User", back_populates="personas")
     chats = relationship("Chat", back_populates="persona")
+    history_starts = relationship("PersonaHistoryStart", back_populates="persona")
     
     __table_args__ = (
         Index("ix_personas_owner_user_id", "owner_user_id"),
         Index("ix_personas_key", "key"),
+        Index("ix_personas_visibility", "visibility"),
+    )
+
+
+class PersonaHistoryStart(Base):
+    """Initial greeting messages with images for personas"""
+    __tablename__ = "persona_history_starts"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
+    text = Column(Text, nullable=False)  # Greeting message
+    image_url = Column(Text, nullable=True)  # Pre-generated image URL
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    persona = relationship("Persona", back_populates="history_starts")
+    
+    __table_args__ = (
+        Index("ix_persona_history_starts_persona_id", "persona_id"),
     )
 
 
@@ -68,8 +96,12 @@ class Chat(Base):
     # Chat-specific settings
     settings = Column(JSONB, default={})  # Can override persona style per chat
     
-    # Conversation state (mirrors your FullState from Sexsplicit)
+    # Conversation state (mirrors FullState from schemas)
     state_snapshot = Column(JSONB, default={})
+    
+    # Timestamps for auto-message tracking
+    last_user_message_at = Column(DateTime, nullable=True)
+    last_assistant_message_at = Column(DateTime, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -82,6 +114,7 @@ class Chat(Base):
     __table_args__ = (
         Index("ix_chats_tg_chat_id", "tg_chat_id"),
         Index("ix_chats_user_persona", "user_id", "persona_id"),
+        Index("ix_chats_last_user_message_at", "last_user_message_at"),
     )
 
 
@@ -96,11 +129,18 @@ class Message(Base):
     media = Column(JSONB, default={})  # {"type": "photo", "file_id": "...", "url": "..."}
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
+    # Processing tracking for message batching
+    is_processed = Column(Boolean, default=False, nullable=False)
+    
+    # State snapshot (stored with assistant messages)
+    state_snapshot = Column(JSONB, default=None, nullable=True)
+    
     # Relationships
     chat = relationship("Chat", back_populates="messages")
     
     __table_args__ = (
         Index("ix_messages_chat_created", "chat_id", "created_at"),
+        Index("ix_messages_unprocessed", "chat_id", "is_processed"),
     )
 
 
@@ -140,5 +180,3 @@ class ImageJob(Base):
         Index("ix_image_jobs_status", "status"),
         Index("ix_image_jobs_chat_id", "chat_id"),
     )
-
-

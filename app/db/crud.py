@@ -39,36 +39,39 @@ def get_persona_by_id(db: Session, persona_id: UUID) -> Optional[Persona]:
 
 
 def get_preset_personas(db: Session) -> List[Persona]:
-    """Get all preset personas"""
-    return db.query(Persona).filter(Persona.is_preset == True).all()
+    """Get all public personas"""
+    return db.query(Persona).filter(Persona.visibility == 'public').all()
 
 
 def get_user_personas(db: Session, user_id: int) -> List[Persona]:
     """Get user's custom personas"""
-    return db.query(Persona).filter(Persona.owner_user_id == user_id, Persona.is_preset == False).all()
+    return db.query(Persona).filter(
+        Persona.owner_user_id == user_id, 
+        Persona.visibility.in_(['private', 'custom'])
+    ).all()
 
 
 def create_persona(
     db: Session,
     name: str,
-    system_prompt: str,
-    style: dict,
-    negatives: str,
-    appearance: dict,
+    prompt: str = None,
+    badges: list = None,
+    visibility: str = "custom",
+    description: str = None,
+    intro: str = None,
     owner_user_id: int = None,
-    key: str = None,
-    is_preset: bool = False
+    key: str = None
 ) -> Persona:
     """Create a new persona"""
     persona = Persona(
         name=name,
-        system_prompt=system_prompt,
-        style=style,
-        negatives=negatives,
-        appearance=appearance,
+        prompt=prompt,
+        badges=badges or [],
+        visibility=visibility,
+        description=description,
+        intro=intro,
         owner_user_id=owner_user_id,
-        key=key,
-        is_preset=is_preset
+        key=key
     )
     db.add(persona)
     db.commit()
@@ -157,6 +160,94 @@ def get_chat_messages(db: Session, chat_id: UUID, limit: int = None) -> List[Mes
     if limit:
         query = query.limit(limit)
     return query.all()
+
+
+# ========== MESSAGE BATCHING OPERATIONS ==========
+
+def get_unprocessed_user_messages(db: Session, chat_id: UUID) -> List[Message]:
+    """Get all unprocessed user messages for batching"""
+    return db.query(Message).filter(
+        Message.chat_id == chat_id,
+        Message.role == "user",
+        Message.is_processed == False
+    ).order_by(Message.created_at).all()
+
+
+def mark_messages_processed(db: Session, message_ids: List[UUID]):
+    """Mark messages as processed"""
+    db.query(Message).filter(Message.id.in_(message_ids)).update(
+        {"is_processed": True}, synchronize_session=False
+    )
+    db.commit()
+
+
+# ========== PERSONA HISTORY START OPERATIONS ==========
+
+def get_random_history_start(db: Session, persona_id: UUID):
+    """Get random history start for persona"""
+    from sqlalchemy.sql.expression import func
+    from app.db.models import PersonaHistoryStart
+    return db.query(PersonaHistoryStart).filter(
+        PersonaHistoryStart.persona_id == persona_id
+    ).order_by(func.random()).first()
+
+
+# ========== CHAT TIMESTAMP OPERATIONS ==========
+
+def update_chat_timestamps(db: Session, chat_id: UUID, user_at=None, assistant_at=None):
+    """Update chat timestamp tracking"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return
+    
+    if user_at:
+        chat.last_user_message_at = user_at
+    if assistant_at:
+        chat.last_assistant_message_at = assistant_at
+    
+    db.commit()
+
+
+def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
+    """Get chats inactive for N minutes (for auto-messages)"""
+    from datetime import datetime, timedelta
+    threshold = datetime.utcnow() - timedelta(minutes=minutes)
+    
+    return db.query(Chat).filter(
+        Chat.last_user_message_at < threshold,
+        Chat.last_assistant_message_at < Chat.last_user_message_at
+    ).all()
+
+
+# ========== ENHANCED MESSAGE CREATION ==========
+
+def create_message_with_state(
+    db: Session, 
+    chat_id: UUID, 
+    role: str, 
+    text: str, 
+    media: dict = None,
+    state_snapshot: dict = None,
+    is_processed: bool = False
+) -> Message:
+    """Create a message with optional state snapshot"""
+    message = Message(
+        chat_id=chat_id,
+        role=role,
+        text=text,
+        media=media or {},
+        state_snapshot=state_snapshot,
+        is_processed=is_processed
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def get_chat_by_id(db: Session, chat_id: UUID) -> Optional[Chat]:
+    """Get chat by ID"""
+    return db.query(Chat).filter(Chat.id == chat_id).first()
 
 
 # ========== IMAGE JOB OPERATIONS ==========

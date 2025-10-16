@@ -35,12 +35,22 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting bot...")
     load_configs()
+    
+    # Start background scheduler
+    from app.core.scheduler import start_scheduler
+    start_scheduler()
+    
     print("✅ Bot started successfully")
     
     yield
     
     # Shutdown
     print("🛑 Shutting down bot...")
+    
+    # Stop scheduler
+    from app.core.scheduler import stop_scheduler
+    stop_scheduler()
+    
     await close_redis()
     await bot.session.close()
     print("✅ Bot stopped")

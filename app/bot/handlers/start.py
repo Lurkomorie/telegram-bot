@@ -7,7 +7,6 @@ from app.bot.loader import router
 from app.bot.keyboards.inline import build_persona_selection_keyboard
 from app.db.base import get_db
 from app.db import crud
-from app.settings import get_prompts_config
 
 
 @router.message(Command("start"))
@@ -30,8 +29,7 @@ async def cmd_start(message: types.Message):
         preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
         user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
     
-    prompts = get_prompts_config()
-    welcome_text = prompts["text_blocks"]["welcome"]
+    welcome_text = "👋 <b>Welcome to AI Companion!</b>\n\nI'm here to chat, flirt, and keep you company. Choose one of my preset personalities below, or create your own custom AI girl!\n\n✨ <i>What kind of companion are you looking for?</i>"
     
     keyboard = build_persona_selection_keyboard(preset_data, user_data)
     
@@ -52,8 +50,7 @@ async def show_personas_callback(callback: types.CallbackQuery):
         preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
         user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
     
-    prompts = get_prompts_config()
-    welcome_text = prompts["text_blocks"]["welcome"]
+    welcome_text = "👋 <b>Welcome to AI Companion!</b>\n\nI'm here to chat, flirt, and keep you company. Choose one of my preset personalities below, or create your own custom AI girl!\n\n✨ <i>What kind of companion are you looking for?</i>"
     
     keyboard = build_persona_selection_keyboard(preset_data, user_data)
     
@@ -66,7 +63,7 @@ async def show_personas_callback(callback: types.CallbackQuery):
 
 @router.callback_query(lambda c: c.data.startswith("select_persona:"))
 async def select_persona_callback(callback: types.CallbackQuery):
-    """Handle persona selection"""
+    """Handle persona selection with history starts"""
     persona_id = callback.data.split(":")[1]
     
     with get_db() as db:
@@ -78,34 +75,47 @@ async def select_persona_callback(callback: types.CallbackQuery):
         
         # Extract persona data before session closes
         persona_name = persona.name
-        persona_key = persona.key
+        persona_intro = persona.intro
         
-        # Create or get chat
+        # Create or get chat (clears history if switching personas)
         chat = crud.get_or_create_chat(
             db,
             tg_chat_id=callback.message.chat.id,
             user_id=callback.from_user.id,
             persona_id=persona.id
         )
+        
+        # Get random history start
+        history_start = crud.get_random_history_start(db, persona.id)
     
-    prompts = get_prompts_config()
+    # Delete the inline keyboard message
+    try:
+        await callback.message.delete()
+    except:
+        pass
     
-    # Get persona opener message
-    persona_config = next(
-        (p for p in prompts["personas"] if p.get("key") == persona_key),
-        None
-    )
+    # Send greeting
+    if history_start:
+        # Use history start with optional image
+        if history_start.image_url:
+            await callback.message.answer_photo(
+                photo=history_start.image_url,
+                caption=f"✅ <b>Switched to {persona_name}!</b>\n\n{history_start.text}",
+                parse_mode="HTML"
+            )
+        else:
+            await callback.message.answer(
+                f"✅ <b>Switched to {persona_name}!</b>\n\n{history_start.text}",
+                parse_mode="HTML"
+            )
+    else:
+        # Fallback to intro or default
+        intro_text = persona_intro or f"Hi! I'm {persona_name}. Let's chat!"
+        await callback.message.answer(
+            f"✅ <b>Switched to {persona_name}!</b>\n\n{intro_text}",
+            parse_mode="HTML"
+        )
     
-    openers = persona_config.get("openers", []) if persona_config else []
-    opener = openers[0] if openers else f"Hi! I'm {persona_name}. Let's chat!"
-    
-    switch_text = prompts["text_blocks"]["persona_switched"].replace(
-        "{{persona_name}}", persona_name
-    )
-    
-    await callback.message.edit_text(
-        f"{switch_text}\n\n<i>{opener}</i>"
-    )
     await callback.answer()
 
 
