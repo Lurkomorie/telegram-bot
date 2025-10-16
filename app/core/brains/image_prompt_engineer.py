@@ -59,7 +59,8 @@ async def generate_image_plan(
     # Retry with exponential backoff
     for attempt in range(1, IMAGE_ENGINEER_MAX_RETRIES + 1):
         try:
-            print(f"[IMAGE-PLAN] Attempt {attempt}/3...")
+            if attempt > 1:
+                print(f"[IMAGE-PLAN] Retry {attempt}/{IMAGE_ENGINEER_MAX_RETRIES}")
             
             result = await generate_text(
                 messages=[

@@ -105,7 +105,8 @@ async def generate_dialogue(
         try:
             temperature = 0.8 + (attempt - 1) * 0.1
             
-            print(f"[DIALOGUE] Attempt {attempt}/{max_retries} (temp={temperature:.1f})...")
+            if attempt > 1:
+                print(f"[DIALOGUE] Retry {attempt}/{max_retries} (temp={temperature:.1f})")
             
             # Build messages (include recent context)
             messages = [

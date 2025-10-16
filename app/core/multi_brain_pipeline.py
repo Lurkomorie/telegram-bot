@@ -92,40 +92,30 @@ async def process_message_pipeline(
                 "prompt": persona.prompt or ""
             }
         
-        print(f"[PIPELINE] ✅ Data fetch complete:")
-        print(f"[PIPELINE]    - History: {len(chat_history)} messages")
-        print(f"[PIPELINE]    - Persona: {persona_data['name']}")
-        print(f"[PIPELINE]    - Previous state: {'Found' if previous_state else 'None (creating new)'}")
+        print(f"[PIPELINE] ✅ Data fetched: {len(chat_history)} history msgs, persona={persona_data['name']}")
         
         # 2. Brain 1: State Resolver
-        print(f"[PIPELINE] 🧠 ============= BRAIN 1: STATE RESOLVER =============")
-        print(f"[PIPELINE] 🎯 Input: {len(chat_history)} history messages + user message")
+        print(f"[PIPELINE] 🧠 Brain 1: Resolving state...")
         new_state = await resolve_state(
             previous_state=previous_state,
             chat_history=chat_history,
             user_message=batched_text,
             persona_name=persona_data["name"]
         )
-        print(f"[PIPELINE] ✅ Brain 1 complete: State resolved")
-        print(f"[PIPELINE]    - Relationship stage: {new_state.rel.relationshipStage}")
-        print(f"[PIPELINE]    - Emotions: {new_state.rel.emotions}")
-        print(f"[PIPELINE]    - Location: {new_state.scene.location}")
+        print(f"[PIPELINE] ✅ Brain 1: State resolved ({new_state.rel.relationshipStage}, {new_state.scene.location})")
         
         # 3. Brain 2: Dialogue Specialist
-        print(f"[PIPELINE] 🧠 ============= BRAIN 2: DIALOGUE SPECIALIST =============")
-        print(f"[PIPELINE] 🎯 Generating response for: {batched_text[:50]}...")
+        print(f"[PIPELINE] 🧠 Brain 2: Generating dialogue...")
         dialogue_response = await generate_dialogue(
             state=new_state,
             chat_history=chat_history,
             user_message=batched_text,
             persona=persona_data
         )
-        print(f"[PIPELINE] ✅ Brain 2 complete: Response generated ({len(dialogue_response)} chars)")
-        print(f"[PIPELINE]    Preview: {dialogue_response[:100]}...")
+        print(f"[PIPELINE] ✅ Brain 2: Dialogue generated ({len(dialogue_response)} chars)")
         
         # 4. Save & send response immediately
-        print(f"[PIPELINE] 💾 ============= SAVING & SENDING =============")
-        print(f"[PIPELINE] 📝 Marking {len(batched_messages)} message(s) as processed...")
+        print(f"[PIPELINE] 💾 Saving & sending response...")
         with get_db() as db:
             # Mark user messages as processed
             message_ids = [UUID(m["id"]) for m in batched_messages]
@@ -144,17 +134,12 @@ async def process_message_pipeline(
             crud.update_chat_state(db, chat_id, new_state.dict())
             crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
         
-        print(f"[PIPELINE] ✅ Database updates complete")
-        
         # Send response to user
-        print(f"[PIPELINE] 📤 Sending response to user...")
         await bot.send_message(tg_chat_id, dialogue_response, parse_mode="HTML")
-        print(f"[PIPELINE] ✅ Response sent to TG chat {tg_chat_id}")
+        print(f"[PIPELINE] ✅ Response sent to user")
         
         # Stop typing indicator
-        print(f"[PIPELINE] ⌨️  Stopping typing indicator...")
         await action_mgr.stop()
-        print(f"[PIPELINE] ✅ Typing indicator stopped")
         
         # Clear processing lock - text response complete, new messages can be processed
         with get_db() as db:
@@ -162,8 +147,7 @@ async def process_message_pipeline(
             print(f"[PIPELINE] 🔓 Processing lock CLEARED (text response sent)")
         
         # 5. Brain 3 + Image dispatch (background, non-blocking)
-        print(f"[PIPELINE] 🎨 ============= BRAIN 3: IMAGE GENERATION (BACKGROUND) =============")
-        print(f"[PIPELINE] 🚀 Creating background task for image generation...")
+        print(f"[PIPELINE] 🎨 Starting background image generation...")
         asyncio.create_task(_background_image_generation(
             chat_id=chat_id,
             user_id=user_id,
@@ -175,15 +159,10 @@ async def process_message_pipeline(
             tg_chat_id=tg_chat_id,
             action_mgr=action_mgr
         ))
-        print(f"[PIPELINE] ✅ Background task created")
-        print(f"[PIPELINE] ✅ ============= PIPELINE COMPLETE (main path) =============")
+        print(f"[PIPELINE] ✅ Pipeline complete (text sent, image in background)")
         
     except Exception as e:
-        print(f"[PIPELINE] ❌ ============= PIPELINE ERROR =============")
-        print(f"[PIPELINE] ❌ Error type: {type(e).__name__}")
-        print(f"[PIPELINE] ❌ Error message: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[PIPELINE] ❌ Pipeline error: {type(e).__name__}: {e}")
         
         # Clear processing lock on error
         with get_db() as db:
@@ -207,49 +186,34 @@ async def _background_image_generation(
 ):
     """Non-blocking image generation"""
     try:
-        print(f"[IMAGE-BG] 🎨 ============= BACKGROUND IMAGE TASK STARTED =============")
-        print(f"[IMAGE-BG] 📊 Chat ID: {chat_id}")
-        print(f"[IMAGE-BG] 👤 User ID: {user_id}")
-        print(f"[IMAGE-BG] 🎭 Persona: {persona.get('name', 'unknown')}")
-        print(f"[IMAGE-BG] 📝 User message: {batched_text[:100]}...")
-        print(f"[IMAGE-BG] 💬 Assistant response: {dialogue_response[:100]}...")
+        print(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         
         # Brain 3: Generate image plan
-        print(f"[IMAGE-BG] 🧠 Calling Brain 3 to generate image plan...")
+        print(f"[IMAGE-BG] 🧠 Brain 3: Generating image plan...")
         image_plan = await generate_image_plan(
             state=state,
             dialogue_response=dialogue_response,
             user_message=batched_text,
             persona=persona
         )
-        print(f"[IMAGE-BG] ✅ Image plan generated")
-        print(f"[IMAGE-BG]    - Composition tags: {len(image_plan.composition_tags)}")
-        print(f"[IMAGE-BG]    - Action tags: {len(image_plan.action_tags)}")
-        print(f"[IMAGE-BG]    - Clothing tags: {len(image_plan.clothing_tags)}")
+        print(f"[IMAGE-BG] ✅ Image plan generated ({len(image_plan.composition_tags)} comp, {len(image_plan.action_tags)} act, {len(image_plan.clothing_tags)} cloth)")
         
         # Assemble prompts
-        print(f"[IMAGE-BG] 🔧 Assembling final SDXL prompts...")
         positive, negative = assemble_final_prompt(
             image_plan,
             persona_prompt=persona.get("prompt", "")
         )
         
-        print(f"[IMAGE-BG] ✅ Prompts assembled")
-        print(f"[IMAGE-BG]    - Positive: {len(positive)} chars")
-        print(f"[IMAGE-BG]    - Negative: {len(negative)} chars")
-        print(f"[IMAGE-BG]    - Preview: {positive[:100]}...")
+        print(f"[IMAGE-BG] ✅ Prompts assembled (pos: {len(positive)} chars, neg: {len(negative)} chars)")
         
         # Create job record
-        print(f"[IMAGE-BG] 💾 Creating job record in database...")
         with get_db() as db:
             job = crud.create_image_job(
                 db, user_id, persona_id, positive, negative, chat_id
             )
             job_id = job.id
-        print(f"[IMAGE-BG] ✅ Job {job_id} created")
         
         # Dispatch to RunPod
-        print(f"[IMAGE-BG] 🚀 Dispatching to RunPod...")
         from app.core.img_runpod import dispatch_image_generation
         result = await dispatch_image_generation(
             job_id=job_id,
@@ -258,17 +222,11 @@ async def _background_image_generation(
             tg_chat_id=tg_chat_id
         )
         
-        if result:
-            print(f"[IMAGE-BG] ✅ Job dispatched successfully to RunPod")
-        else:
-            print(f"[IMAGE-BG] ⚠️ Job dispatch failed (check RunPod logs)")
+        if not result:
+            print(f"[IMAGE-BG] ⚠️ Job dispatch failed")
         
-        print(f"[IMAGE-BG] ✅ ============= BACKGROUND IMAGE TASK COMPLETE =============")
+        print(f"[IMAGE-BG] ✅ Image generation task complete")
             
     except Exception as e:
-        print(f"[IMAGE-BG] ❌ ============= BACKGROUND IMAGE ERROR =============")
-        print(f"[IMAGE-BG] ❌ Error type: {type(e).__name__}")
-        print(f"[IMAGE-BG] ❌ Error message: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[IMAGE-BG] ❌ Error: {type(e).__name__}: {e}")
 

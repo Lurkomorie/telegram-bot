@@ -85,7 +85,8 @@ async def resolve_state(
     # Retry logic
     for attempt in range(1, STATE_RESOLVER_MAX_RETRIES + 1):
         try:
-            print(f"[STATE-RESOLVER] Attempt {attempt}/{STATE_RESOLVER_MAX_RETRIES}...")
+            if attempt > 1:
+                print(f"[STATE-RESOLVER] Retry {attempt}/{STATE_RESOLVER_MAX_RETRIES}")
             
             result = await generate_text(
                 messages=[

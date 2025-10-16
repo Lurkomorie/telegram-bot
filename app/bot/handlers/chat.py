@@ -21,11 +21,10 @@ async def handle_text_message(message: types.Message):
     user_id = message.from_user.id
     user_text = message.text
     
-    print(f"[CHAT] 📨 Received message from user {user_id}: {user_text[:50]}...")
+    print(f"[CHAT] 📨 Message from user {user_id} ({len(user_text)} chars)")
     
     # Don't process commands as regular messages
     if user_text.startswith("/"):
-        print(f"[CHAT] ⏭️  Skipping command message")
         return
     
     config = get_app_config()
@@ -39,15 +38,11 @@ async def handle_text_message(message: types.Message):
     )
     
     if not allowed:
-        print(f"[CHAT] ⚠️  Rate limited user {user_id}")
         await message.answer(ERROR_MESSAGES["rate_limit"])
         return
     
-    print(f"[CHAT] ✅ Rate limit passed ({count} messages)")
-    
     with get_db() as db:
         # Get or create user
-        print(f"[CHAT] 👤 Getting/creating user {user_id}")
         user = crud.get_or_create_user(
             db,
             telegram_id=user_id,
@@ -56,34 +51,27 @@ async def handle_text_message(message: types.Message):
         )
         
         # Get active chat
-        print(f"[CHAT] 💬 Getting active chat for TG chat {message.chat.id}")
         chat = crud.get_active_chat(db, message.chat.id, user_id)
         
         if not chat:
-            # No active persona selected
-            print(f"[CHAT] ❌ No active chat found for user {user_id}")
             await message.answer(ERROR_MESSAGES["no_persona"])
             return
         
-        print(f"[CHAT] ✅ Found chat {chat.id} with persona {chat.persona_id}")
+        print(f"[CHAT] 💬 Chat {chat.id}")
         
         # Check for timeout - if we haven't responded in 5 minutes, clear stale messages
         last_assistant_time = crud.get_last_assistant_message_time(db, chat.id)
         timeout_threshold = datetime.utcnow() - timedelta(minutes=MESSAGE_PROCESSING_TIMEOUT_MINUTES)
         
         if last_assistant_time and last_assistant_time < timeout_threshold:
-            print(f"[CHAT] ⏰ TIMEOUT: Last response was {(datetime.utcnow() - last_assistant_time).total_seconds() / 60:.1f} min ago")
-            print(f"[CHAT] 🧹 Clearing stale unprocessed messages...")
+            mins_ago = (datetime.utcnow() - last_assistant_time).total_seconds() / 60
+            print(f"[CHAT] ⏰ Timeout ({mins_ago:.1f}m ago), clearing stale messages")
             crud.clear_unprocessed_messages(db, chat.id)
         
         # Check existing unprocessed messages BEFORE saving current one
-        print(f"[CHAT] 🔍 Checking for existing unprocessed messages")
         existing_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
         
-        print(f"[CHAT] 📊 Found {len(existing_unprocessed)} existing unprocessed message(s)")
-        
         # Save current user message (unprocessed)
-        print(f"[CHAT] 💾 Saving current message as unprocessed")
         crud.create_message_with_state(
             db, 
             chat.id, 
@@ -97,18 +85,8 @@ async def handle_text_message(message: types.Message):
         
         # Check if chat is currently being processed
         if crud.is_chat_processing(db, chat.id):
-            print(f"[CHAT] ⏳ Message batched - pipeline still processing previous messages")
-            print(f"[CHAT] 📊 Total unprocessed now: {len(existing_unprocessed) + 1}")
+            print(f"[CHAT] ⏳ Message batched (total: {len(existing_unprocessed) + 1})")
             return
-        
-        # Decide whether to process or batch
-        if len(existing_unprocessed) > 0:
-            # There are unprocessed messages but no active processing - this shouldn't happen normally
-            # but could occur after timeout or error recovery
-            print(f"[CHAT] ⚠️  Found {len(existing_unprocessed)} orphaned unprocessed message(s)")
-            print(f"[CHAT] 🚀 Starting pipeline to process them now")
-        else:
-            print(f"[CHAT] 🚀 First unprocessed message - starting pipeline now")
         
         # Get ALL unprocessed messages (including the one we just saved)
         all_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
@@ -117,18 +95,13 @@ async def handle_text_message(message: types.Message):
         chat_id = chat.id
         tg_chat_id = chat.tg_chat_id
         messages_data = [{"id": str(m.id), "text": m.text} for m in all_unprocessed]
-        
-        print(f"[CHAT] 📦 Prepared {len(messages_data)} message(s) for processing")
     
     # Batch all unprocessed messages
     batched_text = "\n".join([m["text"] for m in messages_data])
-    
-    print(f"[CHAT] 🎯 Processing {len(messages_data)} message(s) for chat {chat_id}")
-    print(f"[CHAT] 📝 Batched text: {batched_text[:100]}...")
+    print(f"[CHAT] 🚀 Processing {len(messages_data)} message(s)")
     
     # Process through multi-brain pipeline
     try:
-        print(f"[CHAT] 🧠 Calling multi-brain pipeline...")
         await process_message_pipeline(
             chat_id=chat_id,
             user_id=user_id,
@@ -136,14 +109,9 @@ async def handle_text_message(message: types.Message):
             batched_text=batched_text,
             tg_chat_id=tg_chat_id
         )
-        print(f"[CHAT] ✅ Pipeline completed successfully")
     except ValueError as e:
-        # Handle validation errors (chat/persona not found)
-        print(f"[CHAT] ❌ Validation error: {e}")
+        print(f"[CHAT] ❌ Validation: {e}")
         await message.answer(ERROR_MESSAGES["chat_not_found"])
     except Exception as e:
-        # Handle unexpected errors
-        print(f"[CHAT] ❌ Error in pipeline: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[CHAT] ❌ Pipeline error: {e}")
         await message.answer(ERROR_MESSAGES["processing_error"])

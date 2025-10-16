@@ -96,9 +96,7 @@ async def dispatch_image_generation(
         True if dispatched successfully, False otherwise
     """
     try:
-        print(f"[RUNPOD] 🚀 Dispatching job {job_id}")
-        print(f"[RUNPOD] 📝 Prompt length: {len(prompt)} chars")
-        print(f"[RUNPOD] 🚫 Negative prompt length: {len(negative_prompt)} chars")
+        print(f"[RUNPOD] 🚀 Dispatching job {job_id} (prompt: {len(prompt)} chars, negative: {len(negative_prompt)} chars)")
         
         result = await submit_image_job(
             job_id=job_id,
@@ -107,12 +105,9 @@ async def dispatch_image_generation(
         )
         
         print(f"[RUNPOD] ✅ Job dispatched successfully")
-        print(f"[RUNPOD] 📊 Response: {result}")
         return True
     except Exception as e:
         print(f"[RUNPOD] ❌ Dispatch failed: {e}")
-        import traceback
-        traceback.print_exc()
         return False
 
 

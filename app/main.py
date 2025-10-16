@@ -84,20 +84,19 @@ app.add_middleware(
 
 # Initialize Starlette-Admin panel
 admin = Admin(
-    engine=engine,
+    engine,
     title="Telegram Bot Admin",
     base_url="/admin",
-    route_name="admin",
     auth_provider=AdminAuth(),
 )
 
 # Register model views
-admin.add_view(UserAdmin(User))
-admin.add_view(PersonaAdmin(Persona))
-admin.add_view(PersonaHistoryStartAdmin(PersonaHistoryStart))
-admin.add_view(ChatAdmin(Chat))
-admin.add_view(MessageAdmin(Message))
-admin.add_view(ImageJobAdmin(ImageJob))
+admin.add_view(UserAdmin(User, icon="fa fa-users"))
+admin.add_view(PersonaAdmin(Persona, icon="fa fa-robot"))
+admin.add_view(PersonaHistoryStartAdmin(PersonaHistoryStart, icon="fa fa-comments"))
+admin.add_view(ChatAdmin(Chat, icon="fa fa-comment"))
+admin.add_view(MessageAdmin(Message, icon="fa fa-envelope"))
+admin.add_view(ImageJobAdmin(ImageJob, icon="fa fa-image"))
 
 # Mount admin panel to app
 admin.mount_to(app)
