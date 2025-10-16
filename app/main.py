@@ -31,7 +31,7 @@ print("✅ Handlers registered")
 
 # Import admin modules
 print("🔐 Loading admin panel...")
-from starlette_admin import Admin
+from starlette_admin.contrib.sqla import Admin
 from app.admin.auth import AdminAuth
 from app.admin.views import (
     UserAdmin,
