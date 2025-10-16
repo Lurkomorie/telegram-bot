@@ -232,9 +232,17 @@ class ImageJobAdmin(ModelView, model=ImageJob):
         "negative_prompt": TextAreaField,
     }
     form_ajax_refs = {
+        "user": {
+            "fields": ("username", "first_name"),
+            "order_by": "id",
+        },
         "persona": {
             "fields": ("name", "key"),
             "order_by": "name",
+        },
+        "chat": {
+            "fields": ("tg_chat_id",),
+            "order_by": "created_at",
         }
     }
     

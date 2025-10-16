@@ -176,6 +176,11 @@ class ImageJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     finished_at = Column(DateTime, nullable=True)
     
+    # Relationships
+    persona = relationship("Persona")
+    user = relationship("User")
+    chat = relationship("Chat")
+    
     __table_args__ = (
         Index("ix_image_jobs_status", "status"),
         Index("ix_image_jobs_chat_id", "chat_id"),
