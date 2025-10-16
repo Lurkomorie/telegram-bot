@@ -297,24 +297,22 @@ async def image_callback(request: Request):
             print(f"[IMAGE-CALLBACK] ❌ Error sending photo: {e}")
             
             # Try to send error message
-            from app.settings import get_prompts_config
-            prompts = get_prompts_config()
+            from app.core.constants import ERROR_MESSAGES
             try:
                 await bot.send_message(
                     chat_id=tg_chat_id,
-                    text=prompts["text_blocks"]["image_failed"]
+                    text=ERROR_MESSAGES["image_failed"]
                 )
             except:
                 pass
     
     elif status == "FAILED" and tg_chat_id:
         # Send failure message
-        from app.settings import get_prompts_config
-        prompts = get_prompts_config()
+        from app.core.constants import ERROR_MESSAGES
         try:
             await bot.send_message(
                 chat_id=tg_chat_id,
-                text=prompts["text_blocks"]["image_failed"]
+                text=ERROR_MESSAGES["image_failed"]
             )
         except Exception as e:
             print(f"[IMAGE-CALLBACK] ❌ Error sending failure message: {e}")

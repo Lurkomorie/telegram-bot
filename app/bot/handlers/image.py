@@ -7,19 +7,18 @@ from app.bot.loader import router, bot
 from app.bot.keyboards.inline import build_image_prompt_keyboard
 from app.db.base import get_db
 from app.db import crud
-from app.settings import get_prompts_config, get_app_config
+from app.settings import get_app_config
 from app.core.actions import send_action_repeatedly
 from app.core.rate import check_rate_limit
 from app.core.pipeline_adapter import build_image_prompts
 from app.core.img_runpod import submit_image_job
+from app.core.constants import ERROR_MESSAGES
 import random
 
 
 @router.message(Command("image"))
 async def cmd_image(message: types.Message):
     """Handle /image command"""
-    prompts = get_prompts_config()
-    
     # Show image prompt options
     await message.answer(
         "🎨 <b>What kind of image would you like me to generate?</b>",
@@ -58,7 +57,6 @@ async def image_prompt_callback(callback: types.CallbackQuery):
 async def generate_image_for_user(message: types.Message, user_id: int, user_prompt: str):
     """Generate image for user with given prompt"""
     config = get_app_config()
-    prompts = get_prompts_config()
     
     # Rate limit check
     allowed, count = await check_rate_limit(
@@ -69,7 +67,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     )
     
     if not allowed:
-        await message.answer(prompts["text_blocks"]["rate_limit_image"])
+        await message.answer(ERROR_MESSAGES["rate_limit_image"])
         return
     
     with get_db() as db:
@@ -77,18 +75,18 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         chat = crud.get_active_chat(db, message.chat.id, user_id)
         
         if not chat:
-            await message.answer("Please select an AI girl first using /start")
+            await message.answer(ERROR_MESSAGES["no_persona"])
             return
         
         # Get persona
         persona = crud.get_persona_by_id(db, chat.persona_id)
         if not persona:
-            await message.answer("Persona not found. Please start over with /start")
+            await message.answer(ERROR_MESSAGES["persona_not_found"])
             return
         
-        # Build image prompts using pipeline adapter
+        # Build image prompts using pipeline adapter (prompts dict not needed anymore)
         positive_prompt, negative_prompt = build_image_prompts(
-            prompts,
+            {},  # Empty dict - pipeline_adapter should handle this
             persona,
             user_prompt,
             chat,
@@ -111,7 +109,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     
     # Send generating message
     generating_msg = await message.answer(
-        prompts["text_blocks"]["image_generating"]
+        ERROR_MESSAGES["image_generating"]
     )
     
     # Submit to Runpod with upload_photo action
@@ -140,7 +138,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
             )
         
         await generating_msg.edit_text(
-            prompts["text_blocks"]["image_failed"]
+            ERROR_MESSAGES["image_failed"]
         )
 
 

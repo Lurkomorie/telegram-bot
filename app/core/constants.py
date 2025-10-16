@@ -58,8 +58,12 @@ ERROR_MESSAGES = {
     "no_persona": "Please select an AI girl first using /start",
     "persona_not_found": "Persona not found. Please start over with /start",
     "rate_limit": "⚠️ You're sending messages too fast! Please wait a moment.",
+    "rate_limit_image": "⚠️ Slow down! Please wait before requesting another image.",
     "processing_error": "Sorry, I'm having trouble responding right now. Please try again in a moment.",
     "chat_not_found": "Chat session not found. Please use /start to begin.",
+    "image_generating": "🎨 Generating your image... This may take a minute.",
+    "image_failed": "❌ Sorry, image generation failed. Please try again.",
+    "history_cleared": "✅ Conversation history cleared. Starting fresh!",
 }
 
 

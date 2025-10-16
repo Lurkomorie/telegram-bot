@@ -6,14 +6,25 @@ from aiogram.filters import Command
 from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
-from app.settings import get_prompts_config
+from app.core.constants import ERROR_MESSAGES
 
 
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     """Handle /help command"""
-    prompts = get_prompts_config()
-    help_text = prompts["text_blocks"]["help"]
+    help_text = (
+        "🤖 <b>AI Companion Bot - Help</b>\n\n"
+        "<b>Commands:</b>\n"
+        "/start - Start or switch AI companion\n"
+        "/girls - Browse available companions\n"
+        "/image - Generate a custom image\n"
+        "/reset - Clear conversation history\n"
+        "/help - Show this help message\n"
+        "/settings - View settings\n\n"
+        "<b>How to use:</b>\n"
+        "Just chat naturally! Your AI companion will respond with both "
+        "messages and images based on your conversation."
+    )
     
     await message.answer(help_text)
 
@@ -32,8 +43,7 @@ async def cmd_reset(message: types.Message):
         # Clear history
         crud.clear_chat_history(db, chat.id)
     
-    prompts = get_prompts_config()
-    await message.answer(prompts["text_blocks"]["history_cleared"])
+    await message.answer(ERROR_MESSAGES["history_cleared"])
 
 
 @router.message(Command("girls"))
@@ -44,8 +54,6 @@ async def cmd_girls(message: types.Message):
     with get_db() as db:
         preset_personas = crud.get_preset_personas(db)
         user_personas = crud.get_user_personas(db, message.from_user.id)
-    
-    prompts = get_prompts_config()
     
     keyboard = build_persona_selection_keyboard(preset_personas, user_personas)
     
