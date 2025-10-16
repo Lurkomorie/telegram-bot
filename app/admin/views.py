@@ -50,16 +50,6 @@ class PersonaAdmin(ModelView, model=Persona):
     
     # Details/Form
     form_excluded_columns = [Persona.chats, Persona.history_starts, Persona.owner]
-    form_columns = [
-        Persona.name,
-        Persona.key,
-        Persona.visibility,
-        Persona.description,
-        Persona.intro,
-        Persona.prompt,
-        Persona.badges,
-        Persona.owner_user_id
-    ]
     
     # Display settings
     can_create = True
