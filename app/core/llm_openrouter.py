@@ -59,6 +59,30 @@ async def generate_text(
     
     timeout = timeout_sec if timeout_sec is not None else llm_config["timeout_sec"]
     
+    # Log full prompt for debugging
+    print(f"[LLM] 🤖 ============= LLM CALL =============")
+    print(f"[LLM] 📊 Model: {body['model']}")
+    print(f"[LLM] 🌡️  Temperature: {body['temperature']}")
+    print(f"[LLM] 📏 Max tokens: {body['max_tokens']}")
+    if top_p is not None:
+        print(f"[LLM] 🎲 Top-p: {top_p}")
+    if frequency_penalty is not None:
+        print(f"[LLM] 🔁 Frequency penalty: {frequency_penalty}")
+    if presence_penalty is not None:
+        print(f"[LLM] 👻 Presence penalty: {presence_penalty}")
+    
+    print(f"[LLM] 💬 Messages ({len(messages)} total):")
+    for i, msg in enumerate(messages):
+        role = msg["role"]
+        content = msg["content"]
+        print(f"[LLM]   [{i+1}] {role.upper()}:")
+        # Show full content for system and user messages, truncate assistant history
+        if role in ["system", "user"] or len(content) < 500:
+            print(f"[LLM]       {content}")
+        else:
+            print(f"[LLM]       {content[:200]}... ({len(content)} chars)")
+    print(f"[LLM] 🚀 Sending request...")
+    
     # Retry logic for 5xx errors and timeouts
     max_retries = 3
     for attempt in range(max_retries):
@@ -68,7 +92,10 @@ async def generate_text(
                 response.raise_for_status()
                 
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                result = data["choices"][0]["message"]["content"]
+                print(f"[LLM] ✅ Response received ({len(result)} chars)")
+                print(f"[LLM] 📝 Response preview: {result[:200]}...")
+                return result
                 
         except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
             if attempt == max_retries - 1:

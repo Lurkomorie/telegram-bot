@@ -39,6 +39,11 @@ async def process_message_pipeline(
     print(f"[PIPELINE] 📝 Batched messages: {len(batched_messages)}")
     print(f"[PIPELINE] 💬 Text preview: {batched_text[:100]}...")
     
+    # Set processing lock to prevent overlapping executions
+    with get_db() as db:
+        crud.set_chat_processing(db, chat_id, True)
+        print(f"[PIPELINE] 🔒 Processing lock SET")
+    
     # Create action manager for persistent indicators
     action_mgr = ChatActionManager(bot, tg_chat_id)
     
@@ -146,11 +151,15 @@ async def process_message_pipeline(
         await bot.send_message(tg_chat_id, dialogue_response, parse_mode="HTML")
         print(f"[PIPELINE] ✅ Response sent to TG chat {tg_chat_id}")
         
-        # Stop typing, start upload_photo indicator
+        # Stop typing indicator
         print(f"[PIPELINE] ⌨️  Stopping typing indicator...")
         await action_mgr.stop()
-        print(f"[PIPELINE] 📸 Starting upload_photo indicator...")
-        await action_mgr.start("upload_photo")
+        print(f"[PIPELINE] ✅ Typing indicator stopped")
+        
+        # Clear processing lock - text response complete, new messages can be processed
+        with get_db() as db:
+            crud.set_chat_processing(db, chat_id, False)
+            print(f"[PIPELINE] 🔓 Processing lock CLEARED (text response sent)")
         
         # 5. Brain 3 + Image dispatch (background, non-blocking)
         print(f"[PIPELINE] 🎨 ============= BRAIN 3: IMAGE GENERATION (BACKGROUND) =============")
@@ -175,6 +184,12 @@ async def process_message_pipeline(
         print(f"[PIPELINE] ❌ Error message: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Clear processing lock on error
+        with get_db() as db:
+            crud.set_chat_processing(db, chat_id, False)
+            print(f"[PIPELINE] 🔓 Processing lock CLEARED (error recovery)")
+        
         await action_mgr.stop()
         raise
 
@@ -188,7 +203,7 @@ async def _background_image_generation(
     batched_text: str,
     persona: dict,
     tg_chat_id: int,
-    action_mgr: ChatActionManager
+    action_mgr: ChatActionManager  # No longer used, image sends via webhook
 ):
     """Non-blocking image generation"""
     try:
@@ -196,6 +211,8 @@ async def _background_image_generation(
         print(f"[IMAGE-BG] 📊 Chat ID: {chat_id}")
         print(f"[IMAGE-BG] 👤 User ID: {user_id}")
         print(f"[IMAGE-BG] 🎭 Persona: {persona.get('name', 'unknown')}")
+        print(f"[IMAGE-BG] 📝 User message: {batched_text[:100]}...")
+        print(f"[IMAGE-BG] 💬 Assistant response: {dialogue_response[:100]}...")
         
         # Brain 3: Generate image plan
         print(f"[IMAGE-BG] 🧠 Calling Brain 3 to generate image plan...")
@@ -254,9 +271,4 @@ async def _background_image_generation(
         print(f"[IMAGE-BG] ❌ Error message: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # Stop upload_photo indicator when done (or failed)
-        print(f"[IMAGE-BG] 🛑 Stopping upload_photo indicator...")
-        await action_mgr.stop()
-        print(f"[IMAGE-BG] ✅ Indicator stopped")
 

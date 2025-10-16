@@ -103,6 +103,10 @@ class Chat(Base):
     last_user_message_at = Column(DateTime, nullable=True)
     last_assistant_message_at = Column(DateTime, nullable=True)
     
+    # Processing lock to prevent overlapping pipeline executions
+    is_processing = Column(Boolean, default=False, nullable=False)
+    processing_started_at = Column(DateTime, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

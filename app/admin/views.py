@@ -1,8 +1,12 @@
 """
-Admin panel model views
+Admin panel model views with bulk delete support
 """
-from sqladmin import ModelView
+from sqladmin import ModelView, action
 from wtforms import TextAreaField
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from sqlalchemy import delete
+from uuid import UUID
 from app.db.models import User, Persona, PersonaHistoryStart, Chat, Message, ImageJob
 
 
@@ -28,7 +32,22 @@ class UserAdmin(ModelView, model=User):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 50
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Users",
+        confirmation_message="Are you sure you want to delete ALL users? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all user records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(User))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
 
 
 class PersonaAdmin(ModelView, model=Persona):
@@ -39,6 +58,7 @@ class PersonaAdmin(ModelView, model=Persona):
     
     # List page
     column_list = [
+        Persona.id,
         Persona.name, 
         Persona.key, 
         Persona.visibility, 
@@ -70,7 +90,22 @@ class PersonaAdmin(ModelView, model=Persona):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 50
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Personas",
+        confirmation_message="Are you sure you want to delete ALL personas? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all persona records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(Persona))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
 
 
 class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
@@ -81,6 +116,7 @@ class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
     
     # List page
     column_list = [
+        PersonaHistoryStart.id,
         PersonaHistoryStart.persona_id,
         PersonaHistoryStart.text,
         PersonaHistoryStart.image_url,
@@ -91,7 +127,7 @@ class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
     column_default_sort = [(PersonaHistoryStart.created_at, True)]
     column_filters = [PersonaHistoryStart.persona_id]
     
-    # Details/Form - Don't exclude persona relationship, let it be selectable
+    # Details/Form - Show persona as a relationship field
     form_overrides = {
         "text": TextAreaField,
     }
@@ -108,7 +144,22 @@ class PersonaHistoryStartAdmin(ModelView, model=PersonaHistoryStart):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 50
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Greetings",
+        confirmation_message="Are you sure you want to delete ALL persona greetings? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all greeting records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(PersonaHistoryStart))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
 
 
 class ChatAdmin(ModelView, model=Chat):
@@ -119,6 +170,7 @@ class ChatAdmin(ModelView, model=Chat):
     
     # List page
     column_list = [
+        Chat.id,
         Chat.tg_chat_id,
         Chat.user_id,
         Chat.persona_id,
@@ -157,7 +209,22 @@ class ChatAdmin(ModelView, model=Chat):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 50
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Chats",
+        confirmation_message="Are you sure you want to delete ALL chats? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all chat records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(Chat))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
 
 
 class MessageAdmin(ModelView, model=Message):
@@ -168,6 +235,7 @@ class MessageAdmin(ModelView, model=Message):
     
     # List page
     column_list = [
+        Message.id,
         Message.chat_id,
         Message.role,
         Message.text,
@@ -197,7 +265,22 @@ class MessageAdmin(ModelView, model=Message):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 100
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Messages",
+        confirmation_message="Are you sure you want to delete ALL messages? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all message records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(Message))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))
 
 
 class ImageJobAdmin(ModelView, model=ImageJob):
@@ -252,4 +335,19 @@ class ImageJobAdmin(ModelView, model=ImageJob):
     can_delete = True
     can_view_details = True
     can_export = True
+    save_as = True
     page_size = 50
+    
+    @action(
+        name="delete_all",
+        label="⚠️ Delete All Image Jobs",
+        confirmation_message="Are you sure you want to delete ALL image jobs? This cannot be undone!",
+        add_in_list=True,
+        add_in_detail=False,
+    )
+    async def delete_all(self, request: Request):
+        """Delete all image job records"""
+        async with self.session_maker() as session:
+            await session.execute(delete(ImageJob))
+            await session.commit()
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity))

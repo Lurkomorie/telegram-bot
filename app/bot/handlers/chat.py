@@ -95,13 +95,20 @@ async def handle_text_message(message: types.Message):
         # Update last user message timestamp
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
         
-        # Decide whether to process or batch
-        if len(existing_unprocessed) > 0:
-            # Already processing - this message will be batched
-            print(f"[CHAT] ⏳ Message batched ({len(existing_unprocessed) + 1} total unprocessed) - pipeline already running")
+        # Check if chat is currently being processed
+        if crud.is_chat_processing(db, chat.id):
+            print(f"[CHAT] ⏳ Message batched - pipeline still processing previous messages")
+            print(f"[CHAT] 📊 Total unprocessed now: {len(existing_unprocessed) + 1}")
             return
         
-        print(f"[CHAT] 🚀 First unprocessed message - starting pipeline now")
+        # Decide whether to process or batch
+        if len(existing_unprocessed) > 0:
+            # There are unprocessed messages but no active processing - this shouldn't happen normally
+            # but could occur after timeout or error recovery
+            print(f"[CHAT] ⚠️  Found {len(existing_unprocessed)} orphaned unprocessed message(s)")
+            print(f"[CHAT] 🚀 Starting pipeline to process them now")
+        else:
+            print(f"[CHAT] 🚀 First unprocessed message - starting pipeline now")
         
         # Get ALL unprocessed messages (including the one we just saved)
         all_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)

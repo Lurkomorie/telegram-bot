@@ -29,7 +29,7 @@ orjson==3.9.12
 APScheduler==3.10.4
 
 # Admin Panel
-sqladmin==0.16.1
+sqladmin==0.18.0
 itsdangerous==2.1.2
 
 

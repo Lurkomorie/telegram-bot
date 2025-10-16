@@ -203,6 +203,34 @@ def get_last_assistant_message_time(db: Session, chat_id: UUID) -> Optional[date
     return last_msg.created_at if last_msg else None
 
 
+def set_chat_processing(db: Session, chat_id: UUID, is_processing: bool):
+    """Set chat processing lock to prevent overlapping pipeline executions"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if chat:
+        chat.is_processing = is_processing
+        chat.processing_started_at = datetime.utcnow() if is_processing else None
+        db.commit()
+
+
+def is_chat_processing(db: Session, chat_id: UUID) -> bool:
+    """Check if chat is currently being processed"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return False
+    
+    # If processing flag is set but it's been more than 10 minutes, clear it (stuck state)
+    if chat.is_processing and chat.processing_started_at:
+        elapsed = datetime.utcnow() - chat.processing_started_at
+        if elapsed.total_seconds() > 600:  # 10 minutes
+            print(f"[CRUD] ⚠️ Clearing stuck processing lock for chat {chat_id} (elapsed: {elapsed.total_seconds()}s)")
+            chat.is_processing = False
+            chat.processing_started_at = None
+            db.commit()
+            return False
+    
+    return chat.is_processing
+
+
 # ========== PERSONA HISTORY START OPERATIONS ==========
 
 def get_random_history_start(db: Session, persona_id: UUID):
