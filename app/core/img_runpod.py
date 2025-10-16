@@ -2,6 +2,7 @@
 Runpod Image Generation Client
 """
 import httpx
+import random
 from uuid import UUID
 from app.settings import settings, get_app_config
 from app.core.security import generate_hmac_signature
@@ -36,6 +37,13 @@ async def submit_image_job(
     signature = generate_hmac_signature(job_id_str)
     webhook_url = f"{webhook_base}?job_id={job_id_str}&sig={signature}"
     
+    # Generate random seed if not provided (must be >= 0 for ComfyUI)
+    if seed is None or seed < 0:
+        seed = random.randint(0, 2147483647)
+        print(f"[RUNPOD] Generated random seed: {seed}")
+    else:
+        print(f"[RUNPOD] Using provided seed: {seed}")
+    
     # Build Runpod request payload
     payload = {
         "input": {
@@ -49,7 +57,7 @@ async def submit_image_job(
             "cfg_scale": img_config["cfg_scale"],
             "sampler_name": img_config["sampler_name"],
             "scheduler": img_config["scheduler"],
-            "seed": seed or -1  # -1 = random
+            "seed": seed  # Must be >= 0
         }
     }
     
@@ -88,16 +96,23 @@ async def dispatch_image_generation(
         True if dispatched successfully, False otherwise
     """
     try:
-        print(f"[RUNPOD] Dispatching job {job_id}")
+        print(f"[RUNPOD] 🚀 Dispatching job {job_id}")
+        print(f"[RUNPOD] 📝 Prompt length: {len(prompt)} chars")
+        print(f"[RUNPOD] 🚫 Negative prompt length: {len(negative_prompt)} chars")
+        
         result = await submit_image_job(
             job_id=job_id,
             prompt=prompt,
             negative_prompt=negative_prompt
         )
-        print(f"[RUNPOD] Job dispatched: {result}")
+        
+        print(f"[RUNPOD] ✅ Job dispatched successfully")
+        print(f"[RUNPOD] 📊 Response: {result}")
         return True
     except Exception as e:
         print(f"[RUNPOD] ❌ Dispatch failed: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
