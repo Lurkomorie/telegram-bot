@@ -99,3 +99,12 @@ def build_image_prompt_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def build_chat_options_keyboard(persona_id: str) -> InlineKeyboardMarkup:
+    """Build Continue/Start New keyboard for existing conversations"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Continue", callback_data=f"continue_chat:{persona_id}")],
+        [InlineKeyboardButton(text="🆕 Start New", callback_data=f"new_chat:{persona_id}")],
+        [InlineKeyboardButton(text="🔙 Back", callback_data="show_personas")]
+    ])
+
+

@@ -104,6 +104,7 @@ class Chat(Base):
     # Timestamps for auto-message tracking
     last_user_message_at = Column(DateTime, nullable=True)
     last_assistant_message_at = Column(DateTime, nullable=True)
+    last_auto_message_at = Column(DateTime, nullable=True)  # Track auto-follow-ups to prevent spam
     
     # Processing lock to prevent overlapping pipeline executions
     is_processing = Column(Boolean, default=False, nullable=False)

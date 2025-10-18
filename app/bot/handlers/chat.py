@@ -117,8 +117,11 @@ async def handle_text_message(message: types.Message):
         chat_id = chat.id
         tg_chat_id = chat.tg_chat_id
         
-        # Update last user message timestamp
+        # Update last user message timestamp and clear auto-message timestamp
+        # (clearing auto-message timestamp allows scheduler to send another follow-up later if needed)
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
+        chat.last_auto_message_at = None
+        db.commit()
     
     # Add message to Redis queue
     log_verbose(f"[CHAT] 📥 Adding message to Redis queue")

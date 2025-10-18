@@ -185,11 +185,27 @@ async def _process_single_batch(
         
         # 3. Brain 2: Dialogue Specialist
         log_always(f"[BATCH] 🧠 Brain 2: Generating dialogue...")
-        log_verbose(f"[BATCH]    For message: {batched_text[:50]}...")
+        
+        # Check if this is a system-initiated message
+        is_resume = "[SYSTEM_RESUME]" in batched_text
+        is_auto_followup = "[AUTO_FOLLOWUP]" in batched_text
+        
+        if is_resume:
+            log_verbose(f"[BATCH]    Resume mode: AI initiating conversation")
+            # Generate a welcome-back style message
+            user_message_for_ai = "The user is returning to continue our conversation. Greet them warmly and naturally pick up where we left off."
+        elif is_auto_followup:
+            log_verbose(f"[BATCH]    Auto-followup mode: AI re-engaging after inactivity")
+            # Extract the instruction after the marker
+            user_message_for_ai = batched_text.replace("[AUTO_FOLLOWUP]", "").strip()
+        else:
+            log_verbose(f"[BATCH]    For message: {batched_text[:50]}...")
+            user_message_for_ai = batched_text
+        
         dialogue_response = await generate_dialogue(
             state=new_state,
             chat_history=chat_history,
-            user_message=batched_text,
+            user_message=user_message_for_ai,
             persona=persona_data
         )
         log_always(f"[BATCH] ✅ Brain 2: Dialogue generated ({len(dialogue_response)} chars)")
@@ -197,14 +213,18 @@ async def _process_single_batch(
         
         # 4. Save batch messages & response to DB
         log_always(f"[BATCH] 💾 Saving batch to database...")
-        log_verbose(f"[BATCH]    Saving {len(batch_messages)} user message(s)...")
         with get_db() as db:
             # Save all user messages from this batch (as processed)
-            crud.create_batch_messages(
-                db, 
-                chat_id, 
-                [msg["text"] for msg in batch_messages]
-            )
+            # Skip saving system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
+            messages_to_save = [
+                msg["text"] for msg in batch_messages 
+                if "[SYSTEM_RESUME]" not in msg["text"] and "[AUTO_FOLLOWUP]" not in msg["text"]
+            ]
+            if messages_to_save:
+                log_verbose(f"[BATCH]    Saving {len(messages_to_save)} user message(s)...")
+                crud.create_batch_messages(db, chat_id, messages_to_save)
+            else:
+                log_verbose(f"[BATCH]    No user messages to save (system-initiated mode)")
             
             # Save assistant message with state
             crud.create_message_with_state(

@@ -81,6 +81,15 @@ def create_persona(
 
 # ========== CHAT OPERATIONS ==========
 
+def check_existing_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID) -> Optional[Chat]:
+    """Check if chat exists for given tg_chat_id, user_id, and persona_id"""
+    return db.query(Chat).filter(
+        Chat.tg_chat_id == tg_chat_id,
+        Chat.user_id == user_id,
+        Chat.persona_id == persona_id
+    ).first()
+
+
 def get_or_create_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID) -> Chat:
     """Get existing chat or create new one"""
     chat = db.query(Chat).filter(
@@ -100,6 +109,20 @@ def get_or_create_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: U
         db.commit()
         db.refresh(chat)
     
+    return chat
+
+
+def create_new_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID) -> Chat:
+    """Always create a new chat (even if one exists for this persona)"""
+    chat = Chat(
+        tg_chat_id=tg_chat_id,
+        user_id=user_id,
+        persona_id=persona_id,
+        state_snapshot={}
+    )
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
     return chat
 
 
@@ -277,13 +300,30 @@ def update_chat_timestamps(db: Session, chat_id: UUID, user_at=None, assistant_a
 
 
 def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
-    """Get chats inactive for N minutes (for auto-messages)"""
-    from datetime import datetime, timedelta
+    """Get chats where assistant spoke last and it's been >N minutes (for auto-messages)
+    
+    Only returns chats where we haven't already sent an auto-message since the last user reply.
+    This prevents sending multiple auto-messages if the user doesn't respond.
+    """
+    from datetime import timedelta
+    from sqlalchemy import or_, and_
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     return db.query(Chat).filter(
-        Chat.last_user_message_at < threshold,
-        Chat.last_assistant_message_at < Chat.last_user_message_at
+        Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
+        Chat.last_assistant_message_at < threshold,  # More than N minutes ago
+        or_(
+            Chat.last_user_message_at.is_(None),  # User never replied yet
+            Chat.last_assistant_message_at > Chat.last_user_message_at  # Or assistant spoke last
+        ),
+        # Only send auto-message if we haven't sent one since the last user message
+        or_(
+            Chat.last_auto_message_at.is_(None),  # Never sent an auto-message
+            and_(
+                Chat.last_user_message_at.isnot(None),  # User has replied at some point
+                Chat.last_auto_message_at < Chat.last_user_message_at  # Auto-msg was before last user msg
+            )
+        )
     ).all()
 
 
