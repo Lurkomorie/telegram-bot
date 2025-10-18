@@ -30,3 +30,4 @@ def downgrade():
     print("✅ Removed last_auto_message_at field from chats table")
 
 
+

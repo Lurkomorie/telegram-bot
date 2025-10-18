@@ -9,7 +9,6 @@ from app.core.brains.state_resolver import resolve_state
 from app.core.brains.dialogue_specialist import generate_dialogue
 from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
 from app.core.chat_actions import ChatActionManager
-from app.core.schemas import FullState
 from app.core.logging_utils import log_verbose, log_always, is_development
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
@@ -144,10 +143,8 @@ async def _process_single_batch(
             # Extract data before session closes
             previous_state_dict = chat.state_snapshot
             if previous_state_dict and isinstance(previous_state_dict, dict):
-                try:
-                    previous_state = FullState(**previous_state_dict)
-                except Exception:
-                    previous_state = None
+                # Extract state string from wrapper dict
+                previous_state = previous_state_dict.get("state")
             else:
                 previous_state = None
             
@@ -169,6 +166,16 @@ async def _process_single_batch(
         log_verbose(f"[BATCH]    History: {len(chat_history)} messages")
         log_verbose(f"[BATCH]    Previous state: {'Found' if previous_state else 'None (creating new)'}")
         
+        # Log conversation history for debugging
+        if chat_history:
+            print(f"[BATCH] 📚 Conversation history ({len(chat_history)} messages):")
+            for i, msg in enumerate(chat_history[-5:], 1):  # Last 5 messages
+                print(f"[BATCH]    {i}. {msg['role']}: {msg['content'][:80]}...")
+        else:
+            print(f"[BATCH] 📚 No conversation history (new chat)")
+        
+        print(f"[BATCH] 💬 Current batch text: {batched_text[:100]}...")
+        
         # 2. Brain 1: State Resolver
         log_always(f"[BATCH] 🧠 Brain 1: Resolving state...")
         log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message")
@@ -178,10 +185,8 @@ async def _process_single_batch(
             user_message=batched_text,
             persona_name=persona_data["name"]
         )
-        log_always(f"[BATCH] ✅ Brain 1: State resolved ({new_state.rel.relationshipStage}, {new_state.scene.location})")
-        log_verbose(f"[BATCH]    Relationship: {new_state.rel.relationshipStage}")
-        log_verbose(f"[BATCH]    Emotions: {new_state.rel.emotions}")
-        log_verbose(f"[BATCH]    Location: {new_state.scene.location}")
+        log_always(f"[BATCH] ✅ Brain 1: State resolved")
+        log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
         
         # 3. Brain 2: Dialogue Specialist
         log_always(f"[BATCH] 🧠 Brain 2: Generating dialogue...")
@@ -232,12 +237,12 @@ async def _process_single_batch(
                 chat_id, 
                 "assistant", 
                 dialogue_response,
-                state_snapshot=new_state.dict(),
+                state_snapshot={"state": new_state},
                 is_processed=True
             )
             
             # Update chat state and timestamps
-            crud.update_chat_state(db, chat_id, new_state.dict())
+            crud.update_chat_state(db, chat_id, {"state": new_state})
             crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
         
         log_verbose(f"[BATCH] ✅ Batch saved to database")
@@ -280,7 +285,7 @@ async def _background_image_generation(
     chat_id: UUID,
     user_id: int,
     persona_id: UUID,
-    state: FullState,
+    state: str,
     dialogue_response: str,
     batched_text: str,
     persona: dict,

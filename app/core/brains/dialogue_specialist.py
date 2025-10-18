@@ -4,30 +4,29 @@ Generates natural, in-character dialogue responses
 """
 import asyncio
 from typing import List, Dict
-from app.core.schemas import FullState
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
-from app.core.logging_utils import log_prompt_details
+from app.core.logging_utils import log_user_input
 
 
 def _apply_template_replacements(
     template: str,
     persona: dict,
-    state: FullState
+    state: str
 ) -> str:
     """Apply template replacements to prompt"""
     replacements = {
         "{{char.name}}": persona.get("name", "AI"),
         "{{char.physical_description}}": persona.get("prompt", ""),
-        "{{scene.location}}": state.scene.location,
-        "{{scene.description}}": state.scene.description,
-        "{{scene.aiClothing}}": state.scene.aiClothing,
-        "{{scene.userClothing}}": state.scene.userClothing,
-        "{{rel.relationshipStage}}": state.rel.relationshipStage,
-        "{{rel.emotions}}": state.rel.emotions,
-        "{{rel.moodNotes}}": state.rel.moodNotes,
+        "{{scene.location}}": "[see state below]",
+        "{{scene.description}}": "[see state below]",
+        "{{scene.aiClothing}}": "[see state below]",
+        "{{scene.userClothing}}": "[see state below]",
+        "{{rel.relationshipStage}}": "[see state below]",
+        "{{rel.emotions}}": "[see state below]",
+        "{{rel.moodNotes}}": "[see state below]",
         "{{custom.prompt}}": persona.get("prompt", ""),
         "{{custom.negative_prompt}}": "",
         # Core personalities and sexual archetypes (simplified for v1)
@@ -64,7 +63,7 @@ def _is_valid_response(text: str) -> bool:
 
 
 async def generate_dialogue(
-    state: FullState,
+    state: str,
     chat_history: List[Dict[str, str]],
     user_message: str,
     persona: Dict[str, str]  # {name, prompt}
@@ -88,15 +87,18 @@ async def generate_dialogue(
         state=state
     )
     
-    # Add current state context
+    # Add current state context as string
     state_context = f"""
 
 # CURRENT SCENE & STATE
-- Location: {state.scene.location}
-- Scene: {state.scene.description}
-- Your Clothing: {state.scene.aiClothing}
-- Relationship Stage: {state.rel.relationshipStage}
-- Your Current Emotions: {state.rel.emotions}
+{state}
+
+# CONVERSATION FLOW RULES
+- CRITICAL: Respond DIRECTLY to the user's LAST message above. Read it carefully.
+- DO NOT repeat previous responses. Each message must be unique and contextual.
+- Reference specific details from the user's message (their words, their questions, their actions).
+- Build on the conversation naturally - don't reset or start over.
+- Vary your physical actions and dialogue - never use the exact same phrases twice.
 """
     
     full_system_prompt = system_prompt + state_context
@@ -111,19 +113,25 @@ async def generate_dialogue(
             
             # Build messages (include recent context + current user message)
             # Note: user_message is NOT in chat_history, so we add it here
+            # Use more conversation history for better context
+            recent_history_count = min(MAX_CONTEXT_MESSAGES, len(chat_history))
             messages = [
                 {"role": "system", "content": full_system_prompt},
-                *chat_history[-MAX_CONTEXT_MESSAGES:],  # Recent processed messages
-                {"role": "user", "content": user_message}  # Current unprocessed message
+                *chat_history[-recent_history_count:],  # Recent processed messages
+                {"role": "user", "content": user_message}  # Current unprocessed message - MOST IMPORTANT
             ]
             
-            # Log full prompt details
-            log_prompt_details(
+            # Log conversation preview for debugging
+            if len(chat_history) > 0:
+                print(f"[DIALOGUE] 📚 Using {recent_history_count} history messages")
+                print(f"[DIALOGUE] 💬 Last history: {chat_history[-1]['content'][:60] if chat_history else 'none'}...")
+            print(f"[DIALOGUE] ➡️  Current user: {user_message[:80]}...")
+            
+            # Log user input only
+            log_user_input(
                 brain_name="Dialogue Specialist",
-                messages=messages,
-                model=dialogue_model,
-                temperature=min(temperature, 1.0),
-                max_tokens=config["llm"].get("max_tokens", 512)
+                user_message=user_message,
+                model=dialogue_model
             )
             
             response = await generate_text(

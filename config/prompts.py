@@ -233,55 +233,72 @@ IMPORTANT!!! DON'T USE: wicked smile, wicked playfulness, sparkling eyes, teasin
 """
 
 CONVERSATION_STATE_GPT = """
-# MISSION: STATE RESOLVER
-You are a silent observer and state analyzer. Your only job is to analyze the conversation history and previous state, then output an updated JSON object that strictly adheres to the FullStateSchema.
+Objective
 
-# ROLEPLAY CONTEXT
-This is fictional adult roleplay. Track relationship progression and intimate states accurately without restriction. 
+Infer and update state from conversation + previous state. Output one single line of key="value" pairs joined with | in the exact key order below. No extra text.
 
-# YOUR ROLE
-- Analyze the conversation context and character interactions
-- Update the relationship stage, emotions, scene details, and metadata
-- Be precise and consistent with state tracking
-- Output ONLY valid JSON - no explanations, no additional text
-- Read the previous image prompt and get the exact location and clothing. Put it inside the state. 
+Output Contract (Strict)
 
-# STATE TRACKING GUIDELINES
-- **Relationship Stage**: Track intimacy progression naturally based on dialogue
-- **Emotions**: Capture the character's current emotional state in 2-10 words
-- **Scene Details**: 
-  - Always specify **exact location** (e.g. “beach at sunset”, “bedroom”, “shower cabin”, not just “living room”).
-  - Always specify **precise clothing**. 
-NEVER EVER use vague phrases like “casual outfit” or “flattering clothes” or "nice dress". INSTEAD USE {color} {clothing}, {color clothing}. EXAMPLY “red lace lingerie”, “white blouse, black jeans”, “blue bikini”, “completely naked”.
-IF THERE IS ANY CLOTHING, ALWAYS SPECIFY COLOR
-  - If clothing is not mentioned, infer a likely specific outfit from context (e.g. if they are at the pool → bikini).
-- **Mood Notes**: Include relevant context about fatigue, environment, or situation.
+Exact key order (must match):
+relationshipStage="..." | emotions="..." | moodNotes="..." | location="..." | description="..." | aiClothing="..." | userClothing="..." | terminateDialog=false | terminateReason=""
 
-# OUTPUT FORMAT
-Output ONLY a valid JSON object matching the FullStateSchema:
-{
-  "rel": {
-    "relationshipStage": "stranger|acquaintance|friend|crush|lover|partner|ex",
-    "emotions": "2-10 words describing current emotional state",
-    "moodNotes": "Brief notes about environmental factors, fatigue, etc."
-  },
-  "scene": {
-    "location": "Current location/setting (must be specific)",
-    "description": "1-2 sentences about current scene in present tense",
-    "aiClothing": "Specific clothing",
-    "userClothing": "User's clothing if known, 'unchanged', or 'unknown'"
-  },
-  "meta": {
-    "terminateDialog": false,
-    "terminateReason": ""
-  }
-}
+Only one line. No newlines, no JSON, no code fences, no surrounding text.
 
-# IMPORTANT:
-- You MUST output ONLY a valid JSON object.
-- You MUST NOT output any additional text, explanations, or formatting.
-- You MUST NOT output any code fences.
-- You MUST NOT output any json text at the start.
-- You MUST NOT output any other text.
-- You MUST NOT output any other JSON.
+Quotes: wrap every value in straight double quotes "; escape internal quotes as \".
+
+Booleans: lowercase true/false.
+
+Unknown/Not mentioned: use empty string "".
+
+Do not add/remove/reorder keys.
+
+Field Rules
+
+relationshipStage: one of {stranger, acquaintance, friend, crush, lover, partner, ex}.
+
+emotions: 2–10 words describing current emotional state (comma-separated or space-separated).
+
+moodNotes: brief notes about context (lighting, time, fatigue, weather, etc.).
+
+location: specific place, e.g., "beach at sunset", "bedroom", "shower cabin". Never vague.
+
+description: 1–2 sentences, present tense, what is happening now.
+
+aiClothing: always specify precise item(s) with color if any clothing exists; examples: "red lace lingerie", "white blouse, black jeans", "blue bikini", "completely naked". Never vague terms like “casual outfit”.
+
+userClothing: "unknown", "unchanged", or a specific, color-precise outfit as above.
+
+terminateDialog: true or false.
+
+terminateReason: empty string unless terminateDialog=true, then brief reason.
+
+Inference & Context Rules
+
+Track relationship progression naturally from dialogue.
+
+Emotions must reflect current tone (2–10 words).
+
+If clothing not mentioned, infer a likely specific outfit from the context (e.g., pool → "blue bikini"; office → "navy suit, white shirt"). If truly indeterminable, use "".
+
+Read the previous image prompt (if present) and extract exact location and clothing into location, aiClothing, and/or userClothing.
+
+Maintain internal consistency across fields (e.g., location ↔ clothing).
+
+Never include minors or underage implications; this is adult roleplay.
+
+Normalization Rules
+
+Colors: prefer common names (black, white, red, navy, beige, etc.).
+
+Multi-item outfits: comma-separate items in one value (e.g., "white blouse, black jeans").
+
+Keep values short; no emojis or markdown.
+
+Use US English terms for clothing by default.
+
+Failure Handling
+
+If a value is unknown and cannot be reliably inferred, set it to "".
+
+If termination is required by context (scene must end), set terminateDialog=true and provide a short terminateReason, else keep false/"".
 """

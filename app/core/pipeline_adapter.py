@@ -236,14 +236,15 @@ def build_image_prompts(
     else:
         appearance = persona.appearance or {}
     
-    # Get current state
+    # Get current state (now a string wrapped in dict, or empty)
+    state = ""
     if chat:
         if isinstance(chat, dict):
-            state = chat.get("state_snapshot") or create_initial_state(persona)
+            state_dict = chat.get("state_snapshot") or {}
         else:
-            state = chat.state_snapshot or create_initial_state(persona)
-    else:
-        state = create_initial_state(persona)
+            state_dict = chat.state_snapshot or {}
+        # Extract string state from wrapper
+        state = state_dict.get("state", "")
     
     # Build character DNA (mirrors buildCharacterPhysicalBasePrompt)
     ethnicity = appearance.get("ethnicity", "")

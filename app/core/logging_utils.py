@@ -2,7 +2,7 @@
 Logging utilities for conditional verbose logging in development
 """
 import os
-from typing import Any, List, Dict
+from typing import Any
 
 
 def is_development() -> bool:
@@ -28,35 +28,12 @@ def log_always(message: str, *args: Any) -> None:
         print(message)
 
 
-def log_prompt_details(
+def log_user_input(
     brain_name: str,
-    messages: List[Dict[str, str]],
-    model: str,
-    temperature: float,
-    max_tokens: int
+    user_message: str,
+    model: str
 ) -> None:
-    """Log full prompt details for LLM calls without truncation"""
-    separator = "=" * 80
-    print(f"\n{separator}")
-    print(f"🧠 {brain_name.upper()} - FULL PROMPT DETAILS")
-    print(f"{separator}")
-    print(f"Model: {model}")
-    print(f"Temperature: {temperature}")
-    print(f"Max Tokens: {max_tokens}")
-    print(f"{separator}")
-    
-    for idx, msg in enumerate(messages, 1):
-        role = msg.get("role", "unknown").upper()
-        content = msg.get("content", "")
-        
-        print(f"\n[Message {idx}] Role: {role}")
-        print(f"Length: {len(content)} characters")
-        print(f"{'─' * 80}")
-        print(content)
-        print(f"{'─' * 80}")
-    
-    print(f"\n{separator}")
-    print(f"END OF {brain_name.upper()} PROMPT")
-    print(f"{separator}\n")
+    """Log only the user input being sent to the LLM"""
+    print(f"[{brain_name}] 📤 Sending to {model}: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
 
 

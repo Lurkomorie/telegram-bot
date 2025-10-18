@@ -4,17 +4,16 @@ Generates SDXL-format image prompts from conversation context
 """
 import asyncio
 from typing import Dict, Tuple
-from app.core.schemas import FullState
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from config.base import IMAGE_QUALITY_BASE_PROMPT, IMAGE_NEGATIVE_BASE_PROMPT
 from app.core.constants import IMAGE_ENGINEER_MAX_RETRIES, IMAGE_ENGINEER_BASE_DELAY
-from app.core.logging_utils import log_prompt_details
+from app.core.logging_utils import log_user_input
 
 
 def _build_image_context(
-    state: FullState,
+    state: str,
     dialogue_response: str,
     user_message: str,
     persona: dict
@@ -28,7 +27,7 @@ def _build_image_context(
 {dialogue_response}
 
 # CURRENT STATE
-{state.dict()}
+{state}
 
 # CHARACTER INFO
 - Name: {persona.get('name', 'Unknown')}
@@ -38,7 +37,7 @@ def _build_image_context(
 
 
 async def generate_image_plan(
-    state: FullState,
+    state: str,
     dialogue_response: str,
     user_message: str,
     persona: Dict[str, str]
@@ -63,19 +62,17 @@ async def generate_image_plan(
             if attempt > 1:
                 print(f"[IMAGE-PLAN] Retry {attempt}/{IMAGE_ENGINEER_MAX_RETRIES}")
             
-            # Build messages for logging
+            # Build messages
             messages = [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": context}
             ]
             
-            # Log full prompt details
-            log_prompt_details(
+            # Log user input only
+            log_user_input(
                 brain_name="Image Prompt Engineer",
-                messages=messages,
-                model=model,
-                temperature=0.8,
-                max_tokens=800
+                user_message=user_message,
+                model=model
             )
             
             result = await generate_text(

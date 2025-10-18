@@ -2,7 +2,7 @@
 Background scheduler for auto-messages and other periodic tasks
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime, timedelta
+from datetime import datetime
 from app.db.base import get_db
 from app.db import crud
 from app.core import redis_queue
@@ -12,13 +12,13 @@ scheduler = AsyncIOScheduler()
 
 
 async def check_inactive_chats():
-    """Check for chats inactive >5min and send follow-up"""
+    """Check for chats inactive >30min and send follow-up"""
     print("[SCHEDULER] Checking for inactive chats...")
     
     try:
         # Extract chat data while in session context
         with get_db() as db:
-            inactive_chats = crud.get_inactive_chats(db, minutes=5)
+            inactive_chats = crud.get_inactive_chats(db, minutes=30)
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id}
@@ -50,7 +50,7 @@ async def send_auto_message(chat_id, tg_chat_id):
     """
     print(f"[SCHEDULER] 🤖 Generating auto-follow-up for chat {chat_id}")
     
-    # Get user_id from database
+    # Get user_id and conversation context from database
     with get_db() as db:
         chat_obj = crud.get_chat_by_id(db, chat_id)
         if not chat_obj:
@@ -62,12 +62,23 @@ async def send_auto_message(chat_id, tg_chat_id):
         chat_obj.last_auto_message_at = datetime.utcnow()
         db.commit()
     
+    # Create varied, context-aware follow-up prompts
+    import random
+    followup_prompts = [
+        "[AUTO_FOLLOWUP] The user hasn't replied in a while. Reach out naturally - ask what they've been up to, share a playful thought, or tease them gently about the silence. Keep it light, flirty, and conversational.",
+        "[AUTO_FOLLOWUP] It's been quiet for a bit. Send a message that picks up naturally from your last conversation - reference what you were talking about, ask a curious question, or create a new hook to draw them back in.",
+        "[AUTO_FOLLOWUP] Time to re-engage. Send a natural, spontaneous message - maybe share what you've been thinking about, tease them playfully, or suggest something fun. Make it feel organic, not forced.",
+        "[AUTO_FOLLOWUP] The conversation paused. Reach out with genuine curiosity - ask about their day, bring up something from earlier, or shift the mood with a flirty or playful comment.",
+    ]
+    
+    selected_prompt = random.choice(followup_prompts)
+    
     # Add a special system message to the queue that triggers AI-initiated conversation
     # This will go through the full pipeline: State → Dialogue → Image → Send
     await redis_queue.add_message_to_queue(
         chat_id=chat_id,
         user_id=user_id,
-        text="[AUTO_FOLLOWUP] You haven't heard from the user in a while. Send them a natural, contextual follow-up message to re-engage the conversation. Be playful, flirty, or curious based on your personality and the conversation state.",
+        text=selected_prompt,
         tg_chat_id=tg_chat_id
     )
     
