@@ -4,8 +4,7 @@ Centralized prompt management service
 from config.prompts import (
     CHAT_GPT,
     IMAGE_TAG_GENERATOR_GPT,
-    CONVERSATION_STATE_GPT,
-    USER_MESSAGE_CONTEXT_TEMPLATE
+    CONVERSATION_STATE_GPT
 )
 
 
@@ -16,7 +15,6 @@ class PromptService:
         "CHAT_GPT": CHAT_GPT,
         "IMAGE_TAG_GENERATOR_GPT": IMAGE_TAG_GENERATOR_GPT,
         "CONVERSATION_STATE_GPT": CONVERSATION_STATE_GPT,
-        "USER_MESSAGE_CONTEXT_TEMPLATE": USER_MESSAGE_CONTEXT_TEMPLATE,
     }
     
     @classmethod
@@ -26,4 +24,5 @@ class PromptService:
         if not prompt:
             raise ValueError(f"Unknown prompt: {name}")
         return prompt
+
 

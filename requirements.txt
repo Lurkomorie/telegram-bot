@@ -28,8 +28,5 @@ orjson==3.9.12
 # Scheduler
 APScheduler==3.10.4
 
-# Admin Panel
-starlette-admin[full]==0.13.2
-itsdangerous==2.1.2
 
 

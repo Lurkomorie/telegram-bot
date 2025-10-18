@@ -35,14 +35,10 @@ class Settings(BaseSettings):
     # Security
     IMAGE_CALLBACK_SECRET: str
     
-    # Admin Panel
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str
-    ADMIN_SECRET_KEY: str
-    
     # App
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"
+    ENVIRONMENT: Optional[str] = "production"  # For verbose logging (development/dev/local or production)
     
     class Config:
         env_file = ".env"

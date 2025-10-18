@@ -1,8 +1,9 @@
 """
 Text chat handler with multi-brain AI pipeline
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 from aiogram import types, F
+from aiogram.filters import Command
 from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
@@ -10,21 +11,67 @@ from app.settings import get_app_config
 from app.core.rate import check_rate_limit
 from app.core.multi_brain_pipeline import process_message_pipeline
 from app.core.constants import ERROR_MESSAGES
+from app.core.logging_utils import log_verbose, log_always
+from app.core import redis_queue
 
-# Timeout after which we clear stale unprocessed messages and restart
-MESSAGE_PROCESSING_TIMEOUT_MINUTES = 5
+
+@router.message(Command("clear"))
+async def cmd_clear(message: types.Message):
+    """Handle /clear command - delete current chat and all messages"""
+    user_id = message.from_user.id
+    
+    log_always(f"[CLEAR] 🗑️  /clear command from user {user_id}")
+    
+    with get_db() as db:
+        # Get or create user
+        crud.get_or_create_user(
+            db,
+            telegram_id=user_id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name
+        )
+        
+        # Get active chat
+        chat = crud.get_active_chat(db, message.chat.id, user_id)
+        
+        if not chat:
+            log_verbose(f"[CLEAR] ❌ No active chat found for user {user_id}")
+            await message.answer("No active chat to clear. Use /start to begin a new conversation.")
+            return
+        
+        chat_id = chat.id
+        log_verbose(f"[CLEAR] 💬 Deleting chat {chat_id}")
+        
+        # Clear Redis queue for this chat
+        await redis_queue.clear_batch_messages(chat_id)
+        await redis_queue.set_processing_lock(chat_id, False)
+        log_verbose(f"[CLEAR] 🧹 Cleared Redis queue and processing lock")
+        
+        # Delete chat and all its messages
+        success = crud.delete_chat(db, chat_id)
+        
+        if success:
+            log_always(f"[CLEAR] ✅ Chat {chat_id} deleted successfully")
+            await message.answer(
+                "✅ <b>Chat cleared!</b>\n\nAll messages have been deleted. Use /start to begin a new conversation."
+            )
+        else:
+            log_always(f"[CLEAR] ❌ Failed to delete chat {chat_id}")
+            await message.answer("Failed to clear chat. Please try again.")
 
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_text_message(message: types.Message):
-    """Handle regular text messages with batching and multi-brain pipeline"""
+    """Handle regular text messages with Redis-based batching and multi-brain pipeline"""
     user_id = message.from_user.id
     user_text = message.text
     
-    print(f"[CHAT] 📨 Message from user {user_id} ({len(user_text)} chars)")
+    log_always(f"[CHAT] 📨 Message from user {user_id}")
+    log_verbose(f"[CHAT]    Text ({len(user_text)} chars): {user_text[:50]}...")
     
     # Don't process commands as regular messages
     if user_text.startswith("/"):
+        log_verbose(f"[CHAT] ⏭️  Skipping command message")
         return
     
     config = get_app_config()
@@ -38,12 +85,16 @@ async def handle_text_message(message: types.Message):
     )
     
     if not allowed:
+        log_verbose(f"[CHAT] ⚠️  Rate limited user {user_id}")
         await message.answer(ERROR_MESSAGES["rate_limit"])
         return
     
+    log_verbose(f"[CHAT] ✅ Rate limit passed ({count} messages)")
+    
     with get_db() as db:
         # Get or create user
-        user = crud.get_or_create_user(
+        log_verbose(f"[CHAT] 👤 Getting/creating user {user_id}")
+        crud.get_or_create_user(
             db,
             telegram_id=user_id,
             username=message.from_user.username,
@@ -51,64 +102,51 @@ async def handle_text_message(message: types.Message):
         )
         
         # Get active chat
+        log_verbose(f"[CHAT] 💬 Getting active chat for TG chat {message.chat.id}")
         chat = crud.get_active_chat(db, message.chat.id, user_id)
         
         if not chat:
+            log_verbose(f"[CHAT] ❌ No active chat found for user {user_id}")
             await message.answer(ERROR_MESSAGES["no_persona"])
             return
         
-        print(f"[CHAT] 💬 Chat {chat.id}")
+        log_always(f"[CHAT] 💬 Chat {chat.id}")
+        log_verbose(f"[CHAT]    Persona: {chat.persona_id}")
         
-        # Check for timeout - if we haven't responded in 5 minutes, clear stale messages
-        last_assistant_time = crud.get_last_assistant_message_time(db, chat.id)
-        timeout_threshold = datetime.utcnow() - timedelta(minutes=MESSAGE_PROCESSING_TIMEOUT_MINUTES)
-        
-        if last_assistant_time and last_assistant_time < timeout_threshold:
-            mins_ago = (datetime.utcnow() - last_assistant_time).total_seconds() / 60
-            print(f"[CHAT] ⏰ Timeout ({mins_ago:.1f}m ago), clearing stale messages")
-            crud.clear_unprocessed_messages(db, chat.id)
-        
-        # Check existing unprocessed messages BEFORE saving current one
-        existing_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
-        
-        # Save current user message (unprocessed)
-        crud.create_message_with_state(
-            db, 
-            chat.id, 
-            "user", 
-            user_text,
-            is_processed=False
-        )
+        # Extract data before session closes
+        chat_id = chat.id
+        tg_chat_id = chat.tg_chat_id
         
         # Update last user message timestamp
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
-        
-        # Check if chat is currently being processed
-        if crud.is_chat_processing(db, chat.id):
-            print(f"[CHAT] ⏳ Message batched (total: {len(existing_unprocessed) + 1})")
-            return
-        
-        # Get ALL unprocessed messages (including the one we just saved)
-        all_unprocessed = crud.get_unprocessed_user_messages(db, chat.id)
-        
-        # Extract data for pipeline
-        chat_id = chat.id
-        tg_chat_id = chat.tg_chat_id
-        messages_data = [{"id": str(m.id), "text": m.text} for m in all_unprocessed]
     
-    # Batch all unprocessed messages
-    batched_text = "\n".join([m["text"] for m in messages_data])
-    print(f"[CHAT] 🚀 Processing {len(messages_data)} message(s)")
+    # Add message to Redis queue
+    log_verbose(f"[CHAT] 📥 Adding message to Redis queue")
+    queue_length = await redis_queue.add_message_to_queue(
+        chat_id=chat_id,
+        user_id=user_id,
+        text=user_text,
+        tg_chat_id=tg_chat_id
+    )
+    log_verbose(f"[CHAT] 📊 Queue length: {queue_length}")
+    
+    # Check if chat is currently being processed
+    if await redis_queue.is_processing(chat_id):
+        log_always(f"[CHAT] ⏳ Message queued (total: {queue_length})")
+        return
+    
+    # Start processing batch
+    log_always(f"[CHAT] 🚀 Starting batch processing ({queue_length} message(s))")
     
     # Process through multi-brain pipeline
     try:
+        log_verbose(f"[CHAT] 🧠 Calling multi-brain pipeline...")
         await process_message_pipeline(
             chat_id=chat_id,
             user_id=user_id,
-            batched_messages=messages_data,
-            batched_text=batched_text,
             tg_chat_id=tg_chat_id
         )
+        log_verbose(f"[CHAT] ✅ Pipeline completed successfully")
     except ValueError as e:
         print(f"[CHAT] ❌ Validation: {e}")
         await message.answer(ERROR_MESSAGES["chat_not_found"])

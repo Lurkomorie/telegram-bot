@@ -95,8 +95,14 @@ async def dispatch_image_generation(
     Returns:
         True if dispatched successfully, False otherwise
     """
+    from app.core.logging_utils import log_verbose, log_always
+    
     try:
-        print(f"[RUNPOD] 🚀 Dispatching job {job_id} (prompt: {len(prompt)} chars, negative: {len(negative_prompt)} chars)")
+        log_always(f"[RUNPOD] 🚀 Dispatching job {job_id}")
+        log_verbose(f"[RUNPOD] 📝 Prompt ({len(prompt)} chars):")
+        log_verbose(f"[RUNPOD]    {prompt[:200]}...")
+        log_verbose(f"[RUNPOD] 🚫 Negative prompt ({len(negative_prompt)} chars):")
+        log_verbose(f"[RUNPOD]    {negative_prompt[:200]}...")
         
         result = await submit_image_job(
             job_id=job_id,
@@ -104,10 +110,15 @@ async def dispatch_image_generation(
             negative_prompt=negative_prompt
         )
         
-        print(f"[RUNPOD] ✅ Job dispatched successfully")
+        log_always(f"[RUNPOD] ✅ Job dispatched successfully")
+        log_verbose(f"[RUNPOD] 📊 Response: {result}")
         return True
     except Exception as e:
         print(f"[RUNPOD] ❌ Dispatch failed: {e}")
+        from app.core.logging_utils import is_development
+        if is_development():
+            import traceback
+            traceback.print_exc()
         return False
 
 

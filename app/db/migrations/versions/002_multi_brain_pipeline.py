@@ -113,3 +113,4 @@ def downgrade() -> None:
     op.drop_column('personas', 'badges')
     op.drop_column('personas', 'prompt')
 
+

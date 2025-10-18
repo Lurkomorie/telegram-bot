@@ -42,3 +42,4 @@ class SDXLImagePlan(BaseModel):
     expression_tags: list[str]  # Facial expression and emotion
     metadata_tags: list[str]  # Intensity level, gender tags, style tags
 
+

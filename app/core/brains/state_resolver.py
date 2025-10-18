@@ -10,6 +10,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import STATE_RESOLVER_MAX_RETRIES
+from app.core.logging_utils import log_prompt_details
 
 
 def _create_initial_state(persona_name: str) -> FullState:
@@ -34,23 +35,29 @@ def _create_initial_state(persona_name: str) -> FullState:
 
 
 def _build_state_context(
-    previous_state: FullState,
+    previous_state: Optional[FullState],
     chat_history: list[dict],
     persona_name: str
 ) -> str:
-    """Build context for state resolver"""
-    # Format last 10 messages
+    """Build context for state resolver
+    
+    Note: chat_history contains ONLY processed messages (not current user message)
+    """
+    # Format last 10 messages (all processed, current message added separately)
     history_text = "\n".join([
         f"**{msg['role'].upper()}:** {msg['content']}"
         for msg in chat_history[-10:]
     ]) if chat_history else "No conversation history yet."
+    
+    # Handle None previous state
+    state_text = json.dumps(previous_state.dict(), indent=2) if previous_state else "null"
     
     context = f"""
 # LAST 10 MESSAGES OF CONVERSATION HISTORY
 {history_text}
 
 # PREVIOUS STATE
-{json.dumps(previous_state.dict(), indent=2)}
+{state_text}
 
 # CHARACTER INFO
 - Name: {persona_name}
@@ -74,10 +81,6 @@ async def resolve_state(
     config = get_app_config()
     state_model = config["llm"]["state_model"]
     
-    # Use previous state or create initial
-    if not previous_state:
-        previous_state = _create_initial_state(persona_name)
-    
     # Build context
     prompt = PromptService.get("CONVERSATION_STATE_GPT")
     context = _build_state_context(previous_state, chat_history, persona_name)
@@ -88,11 +91,23 @@ async def resolve_state(
             if attempt > 1:
                 print(f"[STATE-RESOLVER] Retry {attempt}/{STATE_RESOLVER_MAX_RETRIES}")
             
+            # Build messages for logging
+            messages = [
+                {"role": "system", "content": f"{prompt}\n\n{context}"},
+                {"role": "user", "content": f"Last user message: {user_message}"}
+            ]
+            
+            # Log full prompt details
+            log_prompt_details(
+                brain_name="State Resolver",
+                messages=messages,
+                model=state_model,
+                temperature=0.3,
+                max_tokens=500
+            )
+            
             result = await generate_text(
-                messages=[
-                    {"role": "system", "content": f"{prompt}\n\n{context}"},
-                    {"role": "user", "content": f"Last user message: {user_message}"}
-                ],
+                messages=messages,
                 model=state_model,
                 temperature=0.3,
                 max_tokens=500
@@ -116,11 +131,15 @@ async def resolve_state(
         except Exception as e:
             print(f"[STATE-RESOLVER] ⚠️ Attempt {attempt}/2 failed: {e}")
             if attempt == 2:
-                # Fallback: return previous state
-                print(f"[STATE-RESOLVER] 🔄 Using fallback (previous state)")
-                return previous_state
+                # Fallback: return previous state or create initial
+                if previous_state:
+                    print("[STATE-RESOLVER] 🔄 Using fallback (previous state)")
+                    return previous_state
+                else:
+                    print("[STATE-RESOLVER] 🔄 Using fallback (initial state)")
+                    return _create_initial_state(persona_name)
             await asyncio.sleep(1)  # Brief delay before retry
     
     # Should never reach here due to fallback
-    return previous_state
+    return previous_state if previous_state else _create_initial_state(persona_name)
 

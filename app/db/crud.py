@@ -131,6 +131,24 @@ def clear_chat_history(db: Session, chat_id: UUID):
     db.commit()
 
 
+def delete_chat(db: Session, chat_id: UUID):
+    """Delete a chat and all its messages"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return False
+    
+    # Set chat_id to NULL for any image jobs associated with this chat
+    # (preserves image job history but disconnects from deleted chat)
+    db.query(ImageJob).filter(ImageJob.chat_id == chat_id).update(
+        {"chat_id": None}, synchronize_session=False
+    )
+    
+    # Messages will be deleted automatically due to cascade="all, delete-orphan"
+    db.delete(chat)
+    db.commit()
+    return True
+
+
 # ========== MESSAGE OPERATIONS ==========
 
 def create_message(db: Session, chat_id: UUID, role: str, text: str, media: dict = None) -> Message:
@@ -293,6 +311,33 @@ def create_message_with_state(
     db.commit()
     db.refresh(message)
     return message
+
+
+def create_batch_messages(
+    db: Session,
+    chat_id: UUID,
+    message_texts: List[str]
+) -> List[Message]:
+    """Create multiple user messages at once (from Redis batch)"""
+    messages = []
+    for text in message_texts:
+        message = Message(
+            chat_id=chat_id,
+            role="user",
+            text=text,
+            media={},
+            is_processed=True  # Already processed when saving from Redis
+        )
+        db.add(message)
+        messages.append(message)
+    
+    db.commit()
+    
+    # Refresh all messages
+    for msg in messages:
+        db.refresh(msg)
+    
+    return messages
 
 
 def get_chat_by_id(db: Session, chat_id: UUID) -> Optional[Chat]:

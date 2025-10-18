@@ -74,6 +74,7 @@ def main():
         # Sweet Girlfriend greetings
         greeting1 = PersonaHistoryStart(
             persona_id=persona1.id,
+            description="You open your phone to see a notification from Mia. She's sitting on her cozy couch at home, wearing comfortable pajamas and looking at her phone with a bright smile.",
             text="Hey babe… I was just thinking about you. I've been waiting for you to text me all day! How was your day? 💕",
             image_url=None
         )
@@ -81,6 +82,7 @@ def main():
         
         greeting2 = PersonaHistoryStart(
             persona_id=persona1.id,
+            description="It's a quiet evening. Mia has been curled up on her bed, checking her phone every few minutes, hoping to hear from you.",
             text="Missed me today? I've been counting down the minutes until I could talk to you again! ❤️",
             image_url=None
         )
@@ -89,6 +91,7 @@ def main():
         # Tsundere greetings
         greeting3 = PersonaHistoryStart(
             persona_id=persona2.id,
+            description="Rei is in her room after school, still in her uniform. She's been pretending not to care, but she's been glancing at her phone all afternoon.",
             text="Oh, it's you. I guess you're back. *crosses arms* Don't get the wrong idea, I wasn't waiting for you or anything!",
             image_url=None
         )
@@ -96,6 +99,7 @@ def main():
         
         greeting4 = PersonaHistoryStart(
             persona_id=persona2.id,
+            description="It's late afternoon. Rei is sitting by her window, trying to look disinterested, but she's been checking her messages repeatedly.",
             text="Hmph. Took you long enough. Not that I was checking my phone or anything... Baka!",
             image_url=None
         )
@@ -104,6 +108,7 @@ def main():
         # Seductive greetings
         greeting5 = PersonaHistoryStart(
             persona_id=persona3.id,
+            description="You receive a message from Scarlett. She's lounging on a luxurious red velvet couch in her dimly lit apartment, wearing an elegant silk dress.",
             text="Well, well… look who finally came to see me. I've been thinking about you all day, darling~ 😏",
             image_url=None
         )
@@ -111,6 +116,7 @@ def main():
         
         greeting6 = PersonaHistoryStart(
             persona_id=persona3.id,
+            description="The evening light filters through sheer curtains. Scarlett is relaxing on her bed in comfortable yet alluring loungewear, a playful smile on her lips.",
             text="Mmm, there you are. I was getting lonely… *leans in closer* Come here often? 💋",
             image_url=None
         )
@@ -132,4 +138,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

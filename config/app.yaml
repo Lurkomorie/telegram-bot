@@ -1,6 +1,6 @@
 llm:
   provider: openrouter
-  model: meta-llama/llama-3.3-70b-instruct # Main conversational intelligence
+  model: mistralai/mistral-nemo # Main conversational intelligence
   state_model: x-ai/grok-3-mini:nitro # Fast model for state resolution
   image_model: moonshotai/kimi-k2:nitro # Image tag generation
   temperature: 0.7

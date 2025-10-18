@@ -3,14 +3,14 @@ Brain 3: Image Prompt Engineer
 Generates SDXL-format image prompts from conversation context
 """
 import asyncio
-import json
 from typing import Dict, Tuple
-from app.core.schemas import FullState, SDXLImagePlan
+from app.core.schemas import FullState
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from config.base import IMAGE_QUALITY_BASE_PROMPT, IMAGE_NEGATIVE_BASE_PROMPT
 from app.core.constants import IMAGE_ENGINEER_MAX_RETRIES, IMAGE_ENGINEER_BASE_DELAY
+from app.core.logging_utils import log_prompt_details
 
 
 def _build_image_context(
@@ -28,11 +28,11 @@ def _build_image_context(
 {dialogue_response}
 
 # CURRENT STATE
-{json.dumps(state.dict(), indent=2)}
+{state.dict()}
 
 # CHARACTER INFO
 - Name: {persona.get('name', 'Unknown')}
-- Description: {persona.get('prompt', 'N/A')}
+- Description: {persona.get('image_prompt') or persona.get('prompt', 'N/A')}
 """
     return context
 
@@ -42,16 +42,17 @@ async def generate_image_plan(
     dialogue_response: str,
     user_message: str,
     persona: Dict[str, str]
-) -> SDXLImagePlan:
+) -> str:
     """
-    Brain 3: Generate SDXL image tags
+    Brain 3: Generate SDXL image prompt
     
-    Model: moonshotai/kimi-k2:nitro (fast JSON from app.yaml)
+    Model: meta-llama/llama-3.3-70b-instruct:nitro (from app.yaml)
     Temperature: 0.8
     Retries: 3 attempts with exponential backoff
+    Returns: Simple string prompt
     """
     config = get_app_config()
-    image_model = config["llm"]["image_model"]
+    model = config["llm"]["image_model"]
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
     context = _build_image_context(state, dialogue_response, user_message, persona)
@@ -62,30 +63,33 @@ async def generate_image_plan(
             if attempt > 1:
                 print(f"[IMAGE-PLAN] Retry {attempt}/{IMAGE_ENGINEER_MAX_RETRIES}")
             
-            result = await generate_text(
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": context}
-                ],
-                model=image_model,
+            # Build messages for logging
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": context}
+            ]
+            
+            # Log full prompt details
+            log_prompt_details(
+                brain_name="Image Prompt Engineer",
+                messages=messages,
+                model=model,
                 temperature=0.8,
                 max_tokens=800
             )
             
-            # Parse JSON response
+            result = await generate_text(
+                messages=messages,
+                model=model,
+                temperature=0.8,
+                max_tokens=800
+            )
+            
+            # Just return the string response directly
             result_text = result.strip()
-            # Remove markdown code blocks if present
-            if result_text.startswith("```"):
-                result_text = result_text.split("```")[1]
-                if result_text.startswith("json"):
-                    result_text = result_text[4:]
-            result_text = result_text.strip()
             
-            plan_dict = json.loads(result_text)
-            image_plan = SDXLImagePlan(**plan_dict)
-            
-            print(f"[IMAGE-PLAN] ✅ Generated plan with {len(image_plan.composition_tags)} composition tags")
-            return image_plan
+            print(f"[IMAGE-PLAN] ✅ Generated prompt: {result_text[:100]}...")
+            return result_text
             
         except Exception as e:
             print(f"[IMAGE-PLAN] ⚠️ Attempt {attempt}/{IMAGE_ENGINEER_MAX_RETRIES} failed: {e}")
@@ -99,19 +103,14 @@ async def generate_image_plan(
 
 
 def assemble_final_prompt(
-    image_plan: SDXLImagePlan,
-    persona_prompt: str  # Use persona.prompt directly (simplified v1)
+    image_prompt: str,
+    persona_image_prompt: str  # Use persona.image_prompt (fallback to prompt)
 ) -> Tuple[str, str]:
     """Assemble positive and negative prompts for SDXL"""
     # Positive prompt
     positive_parts = [
-        *image_plan.composition_tags,
-        *image_plan.action_tags,
-        *image_plan.clothing_tags,
-        *image_plan.atmosphere_tags,
-        *image_plan.expression_tags,
-        *image_plan.metadata_tags,
-        persona_prompt,  # Use persona.prompt field directly
+        image_prompt,
+        persona_image_prompt,  # Use persona.image_prompt field
         IMAGE_QUALITY_BASE_PROMPT
     ]
     

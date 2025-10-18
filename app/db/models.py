@@ -3,7 +3,7 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, ARRAY
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text, ARRAY
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -39,8 +39,9 @@ class Persona(Base):
     key = Column(String(100), nullable=True, unique=True)  # e.g., "sweet_girlfriend" for public personas
     name = Column(String(255), nullable=False)
     
-    # Simplified schema - use persona.prompt directly for image generation
-    prompt = Column(Text, nullable=True)  # Custom personality prompt for dialogue and images
+    # Simplified schema - separate prompts for dialogue and images
+    prompt = Column(Text, nullable=True)  # Custom personality prompt for dialogue
+    image_prompt = Column(Text, nullable=True)  # Custom prompt for image generation (SDXL tags)
     badges = Column(ARRAY(String), default=[])  # UI display badges like ["Popular", "New", "NSFW"]
     visibility = Column(
         String(20), 
@@ -71,6 +72,7 @@ class PersonaHistoryStart(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
+    description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
     text = Column(Text, nullable=False)  # Greeting message
     image_url = Column(Text, nullable=True)  # Pre-generated image URL
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

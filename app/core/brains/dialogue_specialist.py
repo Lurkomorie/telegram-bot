@@ -9,6 +9,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
+from app.core.logging_utils import log_prompt_details
 
 
 def _apply_template_replacements(
@@ -108,12 +109,22 @@ async def generate_dialogue(
             if attempt > 1:
                 print(f"[DIALOGUE] Retry {attempt}/{max_retries} (temp={temperature:.1f})")
             
-            # Build messages (include recent context)
+            # Build messages (include recent context + current user message)
+            # Note: user_message is NOT in chat_history, so we add it here
             messages = [
                 {"role": "system", "content": full_system_prompt},
-                *chat_history[-MAX_CONTEXT_MESSAGES:],  # Recent messages for context
-                {"role": "user", "content": user_message}
+                *chat_history[-MAX_CONTEXT_MESSAGES:],  # Recent processed messages
+                {"role": "user", "content": user_message}  # Current unprocessed message
             ]
+            
+            # Log full prompt details
+            log_prompt_details(
+                brain_name="Dialogue Specialist",
+                messages=messages,
+                model=dialogue_model,
+                temperature=min(temperature, 1.0),
+                max_tokens=config["llm"].get("max_tokens", 512)
+            )
             
             response = await generate_text(
                 messages=messages,

@@ -5,7 +5,6 @@ print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException
 from aiogram.types import Update
 from contextlib import asynccontextmanager
-from starlette.middleware.sessions import SessionMiddleware
 import httpx
 import json
 
@@ -29,20 +28,6 @@ print("📝 Registering handlers...")
 from app.bot.handlers import start, chat, image, settings as settings_handler
 print("✅ Handlers registered")
 
-# Import admin modules
-print("🔐 Loading admin panel...")
-from starlette_admin.contrib.sqla import Admin
-from app.admin.auth import AdminAuth
-from app.admin.views import (
-    UserAdmin,
-    PersonaAdmin,
-    PersonaHistoryStartAdmin,
-    ChatAdmin,
-    MessageAdmin,
-    ImageJobAdmin
-)
-from app.db.models import User, Persona, PersonaHistoryStart, Chat, Message, ImageJob
-print("✅ Admin panel loaded")
 
 
 @asynccontextmanager
@@ -73,35 +58,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
-
-# Add session middleware for admin authentication
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.ADMIN_SECRET_KEY,
-    session_cookie="admin_session",
-    max_age=3600  # 1 hour
-)
-
-# Initialize Starlette-Admin panel
-admin = Admin(
-    engine,
-    title="Telegram Bot Admin",
-    base_url="/admin",
-    auth_provider=AdminAuth(),
-)
-
-# Register model views
-admin.add_view(UserAdmin(User, icon="fa fa-users"))
-admin.add_view(PersonaAdmin(Persona, icon="fa fa-robot"))
-admin.add_view(PersonaHistoryStartAdmin(PersonaHistoryStart, icon="fa fa-comments"))
-admin.add_view(ChatAdmin(Chat, icon="fa fa-comment"))
-admin.add_view(MessageAdmin(Message, icon="fa fa-envelope"))
-admin.add_view(ImageJobAdmin(ImageJob, icon="fa fa-image"))
-
-# Mount admin panel to app
-admin.mount_to(app)
-
-print("✅ Admin panel mounted at /admin")
 
 
 @app.get("/")
@@ -314,15 +270,13 @@ async def image_callback(request: Request):
                 input_file = BufferedInputFile(image_data, filename="generated.png")
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
-                    photo=input_file,
-                    caption="🎨 <b>Here's your image!</b>"
+                    photo=input_file
                 )
             else:
                 # Send via URL
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
-                    photo=image_url,
-                    caption="🎨 <b>Here's your image!</b>"
+                    photo=image_url
                 )
             
             # Save file_id for caching
@@ -336,10 +290,18 @@ async def image_callback(request: Request):
                         result_file_id=file_id
                     )
             
+            # Stop upload_photo action now that image is sent
+            from app.core.action_registry import stop_and_remove_action
+            await stop_and_remove_action(tg_chat_id)
+            
             print(f"[IMAGE-CALLBACK] ✅ Image sent to chat {tg_chat_id}")
         
         except Exception as e:
             print(f"[IMAGE-CALLBACK] ❌ Error sending photo: {e}")
+            
+            # Stop upload_photo action on error
+            from app.core.action_registry import stop_and_remove_action
+            await stop_and_remove_action(tg_chat_id)
             
             # Try to send error message
             from app.core.constants import ERROR_MESSAGES
@@ -352,6 +314,10 @@ async def image_callback(request: Request):
                 pass
     
     elif status == "FAILED" and tg_chat_id:
+        # Stop upload_photo action on failure
+        from app.core.action_registry import stop_and_remove_action
+        await stop_and_remove_action(tg_chat_id)
+        
         # Send failure message
         from app.core.constants import ERROR_MESSAGES
         try:

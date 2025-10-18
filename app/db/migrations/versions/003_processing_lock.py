@@ -31,3 +31,4 @@ def downgrade():
     
     print("✅ Removed processing lock fields from chats table")
 
+
