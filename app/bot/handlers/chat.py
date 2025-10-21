@@ -138,8 +138,16 @@ async def handle_text_message(message: types.Message):
         log_always(f"[CHAT] ⏳ Message queued (total: {queue_length})")
         return
     
-    # Start processing batch
-    log_always(f"[CHAT] 🚀 Starting batch processing ({queue_length} message(s))")
+    # Delay to allow batching of rapid messages
+    batch_delay = config.get("limits", {}).get("batch_delay_seconds", 3)
+    log_verbose(f"[CHAT] ⏱️  Waiting {batch_delay}s for potential batch...")
+    
+    import asyncio
+    await asyncio.sleep(batch_delay)
+    
+    # Check final queue length after delay
+    final_queue_length = await redis_queue.get_queue_length(chat_id)
+    log_always(f"[CHAT] 🚀 Starting batch processing ({final_queue_length} message(s))")
     
     # Process through multi-brain pipeline
     try:
