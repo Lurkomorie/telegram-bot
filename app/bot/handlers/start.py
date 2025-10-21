@@ -176,16 +176,17 @@ async def select_persona_callback(callback: types.CallbackQuery):
         )
     
     # Send greeting without the "Switched to" prefix
+    escaped_greeting = escape_markdown_v2(greeting_text)
     if history_start_data and history_start_data["image_url"]:
         await callback.message.answer_photo(
             photo=history_start_data["image_url"],
-            caption=history_start_data['text'],
-            parse_mode="HTML"
+            caption=escaped_greeting,
+            parse_mode="MarkdownV2"
         )
     else:
         await callback.message.answer(
-            greeting_text,
-            parse_mode="HTML"
+            escaped_greeting,
+            parse_mode="MarkdownV2"
         )
     
     await callback.answer()
@@ -341,16 +342,17 @@ async def new_chat_callback(callback: types.CallbackQuery):
         )
     
     # Send greeting
+    escaped_greeting = escape_markdown_v2(greeting_text)
     if history_start_data and history_start_data["image_url"]:
         await callback.message.answer_photo(
             photo=history_start_data["image_url"],
-            caption=history_start_data['text'],
-            parse_mode="HTML"
+            caption=escaped_greeting,
+            parse_mode="MarkdownV2"
         )
     else:
         await callback.message.answer(
-            greeting_text,
-            parse_mode="HTML"
+            escaped_greeting,
+            parse_mode="MarkdownV2"
         )
     
     await callback.answer()

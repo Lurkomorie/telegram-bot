@@ -1,8 +1,8 @@
 llm:
   provider: openrouter
-  model: mistralai/mistral-nemo # Main conversational intelligence
-  state_model: mistralai/mistral-nemo # Fast model for state resolution
-  image_model: moonshotai/kimi-k2:nitro # Image tag generation
+  model: thedrummer/cydonia-24b-v4.1 # Main conversational intelligence
+  state_model: thedrummer/cydonia-24b-v4.1 # Fast model for state resolution
+  image_model: thedrummer/cydonia-24b-v4.1 # Image tag generation
   temperature: 0.7
   max_tokens: 512
   timeout_sec: 40
@@ -11,14 +11,13 @@ image:
   provider: runpod
   width: 832
   height: 1216
-  steps: 32
-  cfg_scale: 5.5
-  sampler_name: dpmpp_2m
-  scheduler: karras
+  steps: 25
+  cfg_scale: 7
+  sampler_name: euler
   poll_interval_sec: 2.0
   poll_timeout_sec: 60
-  quality_prompt: "(masterpiece, best quality:1.2, ultra high res, detailed, very aesthetic), smooth shading, clean lines, physically-plausible lighting, sub-surface skin details, natural anatomy, proportional body, realistic hands and fingers, defined knuckles, photorealistic skin texture, sharp focus, coherent limbs, intact joints"
-  negative_prompt: "(worst quality, lowres, jpeg artifacts, deformed, mutated, disfigured, extra heads:1.4), duplicate person, twins, clones, mirrored body, (extra arms:1.3), (extra legs:1.3), (extra hands:1.35), (extra fingers:1.45), missing fingers, fused fingers, webbed fingers, long fingers, broken wrist, broken limb, amputated limb, floating limbs, disconnected limbs, cropped head, out of frame face, headless, faceless, (multiple heads:1.4), lazy eye, crossed eyes, deformed pupils, (wonky eyes:1.2), blur, motion blur, oversharpen, oversaturated, watermark, signature, text, logo, frame, border, bad hands, bad anatomy, bad proportions, unnatural body bend, mangled feet, mirror, reflection, distorted reflection, merged legs, fused thighs, twisted hips, unnatural overlapping limbs, entangled legs, siamese body, body fusion, conjoined anatomy"
+  quality_prompt: "(masterpiece, best quality:1.2, amazing quality, very aesthetic, high resolution, ultra-detailed, absurdres, newest, 8k UHD), smooth shading, clean lines, physically-plausible lighting, sub-surface skin details, natural anatomy, proportional body, realistic hands and fingers, photorealistic skin texture"
+  negative_prompt: "(worst quality, low quality, normal quality:1.2), lowres, bad anatomy, bad proportions, malformed, deformed, mutated, ugly, disfigured, inaccurate limb, missing limb, extra limb, fused limb, (extra arms, extra legs, extra hands, extra fingers, extra feet, extra toes:1.3), (missing fingers, missing hands, missing arms, missing legs:1.2), (long fingers, short fingers, thin fingers, fat fingers, fused fingers, webbed fingers, broken fingers, wrong finger count:1.3), malformed hands, bad hands, bad feet, bad legs, bad arms, bad body, mutated hands, deformed hands, disfigured hands, (out of frame, cropped, cut off, missing body, missing head, floating limbs, disconnected limbs, misaligned body, unnatural pose, distorted body, unnatural body bend, twisted body, broken body, body out of shot:1.2), (duplicate, cloned person, mirrored body, twin, clone face, extra head, missing head, cropped head:1.3), bad face, poorly drawn face, distorted face, asymmetrical face, cross-eyed, wall-eyed, lazy eye, bad eyes, misaligned pupils, malformed iris, bad mouth, bad lips, distorted lips, gummy smile, fused lips, extra teeth, missing teeth, bad tongue, melted tongue, blurry, pixelated, watermark, signature, text, logo, artifact, jpeg artifacts"
 
 limits:
   text_per_min: 20

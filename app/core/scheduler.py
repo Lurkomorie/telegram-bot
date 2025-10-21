@@ -13,7 +13,7 @@ scheduler = AsyncIOScheduler()
 
 async def check_inactive_chats():
     """Check for chats inactive >30min and send follow-up"""
-    print("[SCHEDULER] Checking for inactive chats...")
+    print("[SCHEDULER] Checking for inactive chats (30min)...")
     
     try:
         # Extract chat data while in session context
@@ -26,10 +26,10 @@ async def check_inactive_chats():
             ]
         
         if not chat_data:
-            print(f"[SCHEDULER] No inactive chats found")
+            print(f"[SCHEDULER] No inactive chats found (30min)")
             return
         
-        print(f"[SCHEDULER] Found {len(chat_data)} inactive chats")
+        print(f"[SCHEDULER] Found {len(chat_data)} inactive chats (30min)")
         
         for data in chat_data:
             try:
@@ -38,7 +38,44 @@ async def check_inactive_chats():
                 print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
                 
     except Exception as e:
-        print(f"[SCHEDULER] Error checking inactive chats: {e}")
+        print(f"[SCHEDULER] Error checking inactive chats (30min): {e}")
+
+
+async def check_inactive_chats_24h():
+    """Check for chats inactive >24 hours and send re-engagement follow-up
+    
+    This allows sending a second auto-message even if we sent one at 30min
+    and the user still hasn't responded. We only re-engage if it's been
+    24 hours since our last auto-message attempt.
+    """
+    print("[SCHEDULER] Checking for inactive chats (24h re-engagement)...")
+    
+    try:
+        # Extract chat data while in session context
+        with get_db() as db:
+            # Use the special re-engagement function that allows follow-ups
+            # even if we already sent an auto-message (as long as it was 24h ago)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440)  # 24 hours
+            # Extract needed data before session closes
+            chat_data = [
+                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id}
+                for chat in inactive_chats
+            ]
+        
+        if not chat_data:
+            print(f"[SCHEDULER] No inactive chats found (24h)")
+            return
+        
+        print(f"[SCHEDULER] Found {len(chat_data)} inactive chats needing re-engagement (24h)")
+        
+        for data in chat_data:
+            try:
+                await send_auto_message(data["chat_id"], data["tg_chat_id"])
+            except Exception as e:
+                print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
+                
+    except Exception as e:
+        print(f"[SCHEDULER] Error checking inactive chats (24h): {e}")
 
 
 async def send_auto_message(chat_id, tg_chat_id):
@@ -106,11 +143,15 @@ def start_scheduler():
     """Start the background scheduler"""
     print("[SCHEDULER] Starting background scheduler...")
     
-    # Check for inactive chats every minute
+    # Check for inactive chats every minute (30min threshold)
     scheduler.add_job(check_inactive_chats, 'interval', minutes=1)
+    
+    # Check for inactive chats every hour (24h threshold)
+    scheduler.add_job(check_inactive_chats_24h, 'interval', hours=1)
+    
     scheduler.start()
     
-    print("[SCHEDULER] ✅ Scheduler started")
+    print("[SCHEDULER] ✅ Scheduler started - 30min check every 1min, 24h check every 1h")
 
 
 def stop_scheduler():

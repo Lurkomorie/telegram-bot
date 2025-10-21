@@ -56,7 +56,6 @@ async def submit_image_job(
             "steps": img_config["steps"],
             "cfg_scale": img_config["cfg_scale"],
             "sampler_name": img_config["sampler_name"],
-            "scheduler": img_config["scheduler"],
             "seed": seed  # Must be >= 0
         }
     }

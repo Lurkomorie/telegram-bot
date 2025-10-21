@@ -7,32 +7,52 @@ from typing import Dict, Tuple
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
-from config.base import IMAGE_QUALITY_BASE_PROMPT, IMAGE_NEGATIVE_BASE_PROMPT
 from app.core.constants import IMAGE_ENGINEER_MAX_RETRIES, IMAGE_ENGINEER_BASE_DELAY
-from app.core.logging_utils import log_user_input
+from app.core.logging_utils import log_messages_array
 
 
 def _build_image_context(
     state: str,
     dialogue_response: str,
     user_message: str,
-    persona: dict
+    persona: dict,
+    chat_history: list[dict],
+    previous_image_prompt: str = None
 ) -> str:
     """Build context for image prompt generation"""
+    # Format conversation history
+    history_text = "\n".join([
+        f"**{msg['role'].upper()}:** {msg['content']}"
+        for msg in chat_history[-10:]
+    ]) if chat_history else "No conversation history yet."
+    
+    # Add previous image prompt if available
+    image_context = ""
+    if previous_image_prompt:
+        image_context = f"""
+    # PREVIOUS IMAGE PROMPT
+    {previous_image_prompt}
+
+    Note: This is what was visually depicted in the last image. Consider this context when updating the image prompt, 
+    especially for location, clothing, and scene details that may have been shown visually and shoud not be changed.
+    """
+    
     context = f"""
-# LAST USER MESSAGE
-{user_message}
+    # CONVERSATION HISTORY (LAST 10 MESSAGES)
+    {history_text}
 
-# LAST DIALOGUE RESPONSE
-{dialogue_response}
+    # LAST DIALOGUE RESPONSE (WHAT IS ACTUALLY HAPPENING)
+    {dialogue_response}
 
-# CURRENT STATE
-{state}
+    # USER'S REQUEST
+    {user_message}
 
-# CHARACTER INFO
-- Name: {persona.get('name', 'Unknown')}
-- Description: {persona.get('image_prompt') or persona.get('prompt', 'N/A')}
-"""
+    # CURRENT STATE
+    {state}
+{image_context}
+
+    REMINDER: Generate image tags based on what the assistant is ACTUALLY doing/saying in the DIALOGUE RESPONSE.
+    """
     return context
 
 
@@ -40,7 +60,9 @@ async def generate_image_plan(
     state: str,
     dialogue_response: str,
     user_message: str,
-    persona: Dict[str, str]
+    persona: Dict[str, str],
+    chat_history: list[dict],
+    previous_image_prompt: str = None
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -54,7 +76,7 @@ async def generate_image_plan(
     model = config["llm"]["image_model"]
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
-    context = _build_image_context(state, dialogue_response, user_message, persona)
+    context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt)
     
     # Retry with exponential backoff
     for attempt in range(1, IMAGE_ENGINEER_MAX_RETRIES + 1):
@@ -68,18 +90,19 @@ async def generate_image_plan(
                 {"role": "user", "content": context}
             ]
             
-            # Log user input only
-            log_user_input(
+            # Log complete messages array
+            log_messages_array(
                 brain_name="Image Prompt Engineer",
-                user_message=user_message,
+                messages=messages,
                 model=model
             )
             
             result = await generate_text(
                 messages=messages,
                 model=model,
-                temperature=0.8,
-                max_tokens=800
+                temperature=0.5,
+                frequency_penalty=0.1,
+                max_tokens=512
             )
             
             # Just return the string response directly
@@ -104,18 +127,23 @@ def assemble_final_prompt(
     persona_image_prompt: str  # Use persona.image_prompt (fallback to prompt)
 ) -> Tuple[str, str]:
     """Assemble positive and negative prompts for SDXL"""
+    # Get quality and negative prompts from config
+    config = get_app_config()
+    quality_prompt = config["image"]["quality_prompt"]
+    negative_base_prompt = config["image"]["negative_prompt"]
+    
     # Positive prompt
     positive_parts = [
         image_prompt,
         persona_image_prompt,  # Use persona.image_prompt field
-        IMAGE_QUALITY_BASE_PROMPT
+        quality_prompt
     ]
     
     # Filter out empty strings and join
     positive_prompt = ", ".join(filter(None, positive_parts))
     
     # Negative prompt (simplified - just use base for v1)
-    negative_prompt = IMAGE_NEGATIVE_BASE_PROMPT
+    negative_prompt = negative_base_prompt
     
     return positive_prompt, negative_prompt
 

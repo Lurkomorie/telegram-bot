@@ -1,6 +1,6 @@
 """
-Brain 2: Dialogue Specialist
-Generates natural, in-character dialogue responses
+Brain 1: Dialogue Specialist
+Generates natural, in-character dialogue responses (uses previous state)
 """
 import asyncio
 from typing import List, Dict
@@ -8,7 +8,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
-from app.core.logging_utils import log_user_input
+from app.core.logging_utils import log_messages_array
 
 
 def _apply_template_replacements(
@@ -69,7 +69,7 @@ async def generate_dialogue(
     persona: Dict[str, str]  # {name, prompt}
 ) -> str:
     """
-    Brain 2: Generate natural dialogue response
+    Brain 1: Generate natural dialogue response (runs before state update)
     
     Model: meta-llama/llama-3.3-70b-instruct (from app.yaml)
     Temperature: 0.8-1.0 (creative, varies on retry)
@@ -127,10 +127,10 @@ async def generate_dialogue(
                 print(f"[DIALOGUE] 💬 Last history: {chat_history[-1]['content'][:60] if chat_history else 'none'}...")
             print(f"[DIALOGUE] ➡️  Current user: {user_message[:80]}...")
             
-            # Log user input only
-            log_user_input(
+            # Log complete messages array
+            log_messages_array(
                 brain_name="Dialogue Specialist",
-                user_message=user_message,
+                messages=messages,
                 model=dialogue_model
             )
             

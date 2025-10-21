@@ -196,11 +196,21 @@ def get_recent_messages(db: Session, chat_id: UUID, limit: int = 10) -> List[Mes
 
 
 def get_chat_messages(db: Session, chat_id: UUID, limit: int = None) -> List[Message]:
-    """Get all messages for a chat (ordered oldest first)"""
-    query = db.query(Message).filter(Message.chat_id == chat_id).order_by(Message.created_at)
+    """Get all messages for a chat (ordered oldest first)
+    
+    If limit is specified, returns the LAST N messages (most recent)
+    """
     if limit:
-        query = query.limit(limit)
-    return query.all()
+        # Get last N messages by ordering DESC and limiting, then reverse to chronological order
+        messages = db.query(Message).filter(
+            Message.chat_id == chat_id
+        ).order_by(desc(Message.created_at)).limit(limit).all()
+        return list(reversed(messages))  # Return in chronological order (oldest first)
+    else:
+        # Get all messages in chronological order
+        return db.query(Message).filter(
+            Message.chat_id == chat_id
+        ).order_by(Message.created_at).all()
 
 
 # ========== MESSAGE BATCHING OPERATIONS ==========
@@ -327,6 +337,34 @@ def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
     ).all()
 
 
+def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> List[Chat]:
+    """Get chats inactive for long periods (24h+) that need re-engagement
+    
+    This allows sending a follow-up even if we already sent an auto-message earlier
+    (e.g., at 30min) and the user still hasn't responded. We only re-engage if:
+    - It's been at least N minutes since our last auto-message attempt
+    - The assistant spoke last (user hasn't replied)
+    
+    This prevents spam while allowing periodic re-engagement for very inactive chats.
+    """
+    from datetime import timedelta
+    from sqlalchemy import or_
+    threshold = datetime.utcnow() - timedelta(minutes=minutes)
+    
+    return db.query(Chat).filter(
+        Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
+        or_(
+            Chat.last_user_message_at.is_(None),  # User never replied yet
+            Chat.last_assistant_message_at > Chat.last_user_message_at  # Or assistant spoke last
+        ),
+        # Either never sent auto-message, or last auto-message was more than N minutes ago
+        or_(
+            Chat.last_auto_message_at.is_(None),  # Never sent an auto-message
+            Chat.last_auto_message_at < threshold  # Or last auto-message was long ago
+        )
+    ).all()
+
+
 # ========== ENHANCED MESSAGE CREATION ==========
 
 def create_message_with_state(
@@ -415,6 +453,14 @@ def create_image_job(
 def get_image_job(db: Session, job_id: UUID) -> Optional[ImageJob]:
     """Get image job by ID"""
     return db.query(ImageJob).filter(ImageJob.id == job_id).first()
+
+
+def get_last_completed_image_job(db: Session, chat_id: UUID) -> Optional[ImageJob]:
+    """Get the last completed image job for a chat (to get previous image prompt)"""
+    return db.query(ImageJob).filter(
+        ImageJob.chat_id == chat_id,
+        ImageJob.status == "completed"
+    ).order_by(desc(ImageJob.created_at)).first()
 
 
 def update_image_job_status(

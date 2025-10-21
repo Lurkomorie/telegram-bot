@@ -1,6 +1,6 @@
 """
-Brain 1: State Resolver
-Updates conversation state based on dialogue history and user input
+Brain 2: State Resolver
+Updates conversation state after dialogue generation (based on dialogue history and user input)
 """
 import asyncio
 from typing import Optional, List, Dict
@@ -8,7 +8,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import STATE_RESOLVER_MAX_RETRIES
-from app.core.logging_utils import log_user_input
+from app.core.logging_utils import log_messages_array
 
 
 def _create_initial_state(persona_name: str) -> str:
@@ -25,7 +25,8 @@ Mood: Just starting conversation"""
 def _build_state_context(
     previous_state: Optional[str],
     chat_history: list[dict],
-    persona_name: str
+    persona_name: str,
+    previous_image_prompt: Optional[str] = None
 ) -> str:
     """Build context for state resolver
     
@@ -40,13 +41,24 @@ def _build_state_context(
     # Handle None previous state
     state_text = previous_state if previous_state else "No previous state"
     
+    # Add previous image prompt if available
+    image_context = ""
+    if previous_image_prompt:
+        image_context = f"""
+# PREVIOUS IMAGE SHOWN
+{previous_image_prompt}
+
+Note: This is what was visually depicted in the last image. Consider this context when updating the state, 
+especially for location, clothing, and scene details that may have been shown visually and shoud not be changed.
+"""
+    
     context = f"""
 # LAST 10 MESSAGES OF CONVERSATION HISTORY
 {history_text}
 
 # PREVIOUS STATE
 {state_text}
-
+{image_context}
 # CHARACTER INFO
 - Name: {persona_name}
 
@@ -64,10 +76,11 @@ async def resolve_state(
     previous_state: Optional[str],
     chat_history: List[Dict[str, str]],
     user_message: str,
-    persona_name: str
+    persona_name: str,
+    previous_image_prompt: Optional[str] = None
 ) -> str:
     """
-    Brain 1: Update conversation state
+    Brain 2: Update conversation state (runs after dialogue generation)
     
     Model: x-ai/grok-3-mini:nitro (fast state tracking from app.yaml)
     Temperature: 0.3 (deterministic)
@@ -79,7 +92,7 @@ async def resolve_state(
     
     # Build context
     prompt = PromptService.get("CONVERSATION_STATE_GPT")
-    context = _build_state_context(previous_state, chat_history, persona_name)
+    context = _build_state_context(previous_state, chat_history, persona_name, previous_image_prompt)
     
     # Retry logic
     for attempt in range(1, STATE_RESOLVER_MAX_RETRIES + 1):
@@ -93,10 +106,10 @@ async def resolve_state(
                 {"role": "user", "content": f"Last user message: {user_message}"}
             ]
             
-            # Log user input only
-            log_user_input(
+            # Log complete messages array
+            log_messages_array(
                 brain_name="State Resolver",
-                user_message=user_message,
+                messages=messages,
                 model=state_model
             )
             

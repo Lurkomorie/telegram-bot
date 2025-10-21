@@ -1,6 +1,6 @@
 """
 Multi-Brain Pipeline Orchestrator
-Coordinates State Resolver → Dialogue Specialist → Image Generation
+Coordinates Dialogue Specialist → State Resolver → Image Generation
 """
 import asyncio
 from datetime import datetime
@@ -23,15 +23,15 @@ async def process_message_pipeline(
     tg_chat_id: int
 ):
     """
-    Main pipeline with Redis-based batching: State → Dialogue → [Save] → Image (background)
+    Main pipeline with Redis-based batching: Dialogue → State → [Save] → Image (background)
     
     Flow:
     1. Set processing lock
     2. Loop while messages in queue:
        a. Get batch from Redis
        b. Fetch data (chat, persona, history)
-       c. Brain 1: Resolve state
-       d. Brain 2: Generate dialogue
+       c. Brain 1: Generate dialogue (using previous state)
+       d. Brain 2: Resolve state (update based on dialogue)
        e. Save batch + response to DB
        f. Send response to user
        g. Clear batch from Redis
@@ -140,6 +140,15 @@ async def _process_single_batch(
                 
             messages = crud.get_chat_messages(db, chat_id, limit=20)
             
+            # Get previous image prompt if available
+            log_verbose(f"[BATCH] 🔍 Looking up previous image job...")
+            previous_image_job = crud.get_last_completed_image_job(db, chat_id)
+            previous_image_prompt = previous_image_job.prompt if previous_image_job else None
+            if previous_image_prompt:
+                log_verbose(f"[BATCH] ✅ Found previous image prompt ({len(previous_image_prompt)} chars)")
+            else:
+                log_verbose(f"[BATCH] ℹ️  No previous image prompt found")
+            
             # Extract data before session closes
             previous_state_dict = chat.state_snapshot
             if previous_state_dict and isinstance(previous_state_dict, dict):
@@ -176,20 +185,8 @@ async def _process_single_batch(
         
         print(f"[BATCH] 💬 Current batch text: {batched_text[:100]}...")
         
-        # 2. Brain 1: State Resolver
-        log_always(f"[BATCH] 🧠 Brain 1: Resolving state...")
-        log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message")
-        new_state = await resolve_state(
-            previous_state=previous_state,
-            chat_history=chat_history,
-            user_message=batched_text,
-            persona_name=persona_data["name"]
-        )
-        log_always(f"[BATCH] ✅ Brain 1: State resolved")
-        log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
-        
-        # 3. Brain 2: Dialogue Specialist
-        log_always(f"[BATCH] 🧠 Brain 2: Generating dialogue...")
+        # 2. Brain 1: Dialogue Specialist (responds based on current state)
+        log_always(f"[BATCH] 🧠 Brain 1: Generating dialogue...")
         
         # Check if this is a system-initiated message
         is_resume = "[SYSTEM_RESUME]" in batched_text
@@ -208,13 +205,26 @@ async def _process_single_batch(
             user_message_for_ai = batched_text
         
         dialogue_response = await generate_dialogue(
-            state=new_state,
+            state=previous_state,  # Use previous state for dialogue generation
             chat_history=chat_history,
             user_message=user_message_for_ai,
             persona=persona_data
         )
-        log_always(f"[BATCH] ✅ Brain 2: Dialogue generated ({len(dialogue_response)} chars)")
+        log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
+        
+        # 3. Brain 2: State Resolver (updates state after dialogue)
+        log_always(f"[BATCH] 🧠 Brain 2: Resolving state...")
+        log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message + dialogue response")
+        new_state = await resolve_state(
+            previous_state=previous_state,
+            chat_history=chat_history,
+            user_message=batched_text,
+            persona_name=persona_data["name"],
+            previous_image_prompt=previous_image_prompt
+        )
+        log_always(f"[BATCH] ✅ Brain 2: State resolved")
+        log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
         
         # 4. Save batch messages & response to DB
         log_always(f"[BATCH] 💾 Saving batch to database...")
@@ -267,7 +277,9 @@ async def _process_single_batch(
             batched_text=batched_text,
             persona=persona_data,
             tg_chat_id=tg_chat_id,
-            action_mgr=action_mgr
+            action_mgr=action_mgr,
+            chat_history=chat_history,
+            previous_image_prompt=previous_image_prompt
         ))
         log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         
@@ -290,7 +302,9 @@ async def _background_image_generation(
     batched_text: str,
     persona: dict,
     tg_chat_id: int,
-    action_mgr: ChatActionManager  # Reused to show upload_photo action
+    action_mgr: ChatActionManager,  # Reused to show upload_photo action
+    chat_history: list[dict],  # Add chat history parameter
+    previous_image_prompt: str = None  # Add previous image prompt parameter
 ):
     """Non-blocking image generation"""
     try:
@@ -311,7 +325,9 @@ async def _background_image_generation(
             state=state,
             dialogue_response=dialogue_response,
             user_message=batched_text,
-            persona=persona
+            persona=persona,
+            chat_history=chat_history,
+            previous_image_prompt=previous_image_prompt
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
