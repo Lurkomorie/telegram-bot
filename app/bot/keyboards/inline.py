@@ -99,6 +99,24 @@ def build_image_prompt_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+def build_image_refresh_keyboard(image_job_id: str) -> InlineKeyboardMarkup:
+    """Build keyboard with refresh button for generated images"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Refresh Image", callback_data=f"refresh_image:{image_job_id}")]
+    ])
+
+
+def build_energy_upsell_keyboard(miniapp_url: str) -> InlineKeyboardMarkup:
+    """Build keyboard with button to open premium page in Mini App"""
+    from aiogram.types import WebAppInfo
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="⚡ Get More Energy",
+            web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+        )]
+    ])
+
+
 def build_chat_options_keyboard(persona_id: str) -> InlineKeyboardMarkup:
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[

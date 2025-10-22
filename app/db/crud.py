@@ -134,6 +134,13 @@ def get_active_chat(db: Session, tg_chat_id: int, user_id: int) -> Optional[Chat
     ).order_by(desc(Chat.updated_at)).first()
 
 
+def get_chat_by_tg_chat_id(db: Session, tg_chat_id: int) -> Optional[Chat]:
+    """Get most recent chat by Telegram chat ID (without user_id filter)"""
+    return db.query(Chat).filter(
+        Chat.tg_chat_id == tg_chat_id
+    ).order_by(desc(Chat.updated_at)).first()
+
+
 def update_chat_state(db: Session, chat_id: UUID, state_snapshot: dict):
     """Update chat state snapshot"""
     chat = db.query(Chat).filter(Chat.id == chat_id).first()
@@ -487,5 +494,94 @@ def update_image_job_status(
         job.finished_at = datetime.utcnow()
     
     db.commit()
+
+
+# ========== PERSONA HISTORY OPERATIONS ==========
+
+def get_persona_histories(db: Session, persona_id: UUID):
+    """Get all history starts for a persona"""
+    from app.db.models import PersonaHistoryStart
+    return db.query(PersonaHistoryStart).filter(
+        PersonaHistoryStart.persona_id == persona_id
+    ).all()
+
+
+# ========== USER ENERGY OPERATIONS ==========
+
+def get_user_energy(db: Session, user_id: int) -> dict:
+    """Get user's current energy"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"energy": 0, "max_energy": 0}
+    return {"energy": user.energy, "max_energy": user.max_energy}
+
+
+def deduct_user_energy(db: Session, user_id: int, amount: int = 5) -> bool:
+    """
+    Deduct energy from user
+    Returns True if successful, False if insufficient energy
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    
+    if user.energy < amount:
+        return False
+    
+    user.energy -= amount
+    db.commit()
+    return True
+
+
+def add_user_energy(db: Session, user_id: int, amount: int) -> bool:
+    """
+    Add energy to user (up to max_energy)
+    Returns True if successful
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    
+    user.energy = min(user.energy + amount, user.max_energy)
+    db.commit()
+    return True
+
+
+def check_user_energy(db: Session, user_id: int, required: int = 5) -> bool:
+    """Check if user has enough energy"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    return user.energy >= required
+
+
+def save_energy_upsell_message(db: Session, user_id: int, message_id: int, chat_id: int):
+    """Save the last energy upsell message ID for this user"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_energy_upsell_message_id = message_id
+        user.last_energy_upsell_chat_id = chat_id
+        db.commit()
+
+
+def get_and_clear_energy_upsell_message(db: Session, user_id: int) -> tuple:
+    """
+    Get and clear the last energy upsell message
+    Returns: (message_id, chat_id)
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None, None
+    
+    message_id = user.last_energy_upsell_message_id
+    chat_id = user.last_energy_upsell_chat_id
+    
+    # Clear the tracking
+    user.last_energy_upsell_message_id = None
+    user.last_energy_upsell_chat_id = None
+    db.commit()
+    
+    return message_id, chat_id
+
 
 

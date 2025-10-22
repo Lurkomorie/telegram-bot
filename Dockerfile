@@ -1,3 +1,21 @@
+# Stage 1: Build React Mini App
+FROM node:18-alpine AS miniapp-builder
+
+WORKDIR /build
+
+# Copy Mini App package files
+COPY miniapp/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy Mini App source
+COPY miniapp/ ./
+
+# Build Mini App
+RUN npm run build
+
+# Stage 2: Python application
 FROM python:3.11-slim
 
 # Set working directory
@@ -20,6 +38,9 @@ COPY app ./app
 COPY config ./config
 COPY alembic.ini .
 COPY scripts ./scripts
+
+# Copy built Mini App from builder stage
+COPY --from=miniapp-builder /build/dist ./miniapp/dist
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

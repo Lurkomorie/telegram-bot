@@ -3,10 +3,12 @@ FastAPI application with Telegram webhook and image callback endpoints
 """
 print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from aiogram.types import Update
 from contextlib import asynccontextmanager
-import httpx
 import json
+from pathlib import Path
 
 print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
@@ -19,14 +21,18 @@ print("✅ Bot initialized")
 print("🔧 Loading core modules...")
 from app.core.security import verify_hmac_signature
 from app.core.rate import close_redis
-from app.db.base import get_db, engine
+from app.db.base import get_db
 from app.db import crud
 print("✅ Core modules loaded")
 
-# Import handlers to register them
+# Import handlers to register them (imported for side effects - registration)
 print("📝 Registering handlers...")
-from app.bot.handlers import start, chat, image, settings as settings_handler
+from app.bot.handlers import start, chat, image, settings as settings_handler  # noqa: F401
 print("✅ Handlers registered")
+
+print("🌐 Loading Mini App API...")
+from app.api import miniapp
+print("✅ Mini App API loaded")
 
 
 
@@ -36,6 +42,16 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting bot...")
     load_configs()
+    
+    # Set Mini App menu button
+    try:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        miniapp_url = f"{settings.public_url}/miniapp"
+        menu_button = MenuButtonWebApp(text="App Gallery", web_app=WebAppInfo(url=miniapp_url))
+        await bot.set_chat_menu_button(menu_button=menu_button)
+        print(f"✅ Mini App menu button set: {miniapp_url}")
+    except Exception as e:
+        print(f"⚠️  Failed to set Mini App menu button: {e}")
     
     # Start background scheduler
     from app.core.scheduler import start_scheduler
@@ -58,6 +74,37 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
+
+# Include Mini App API router
+app.include_router(miniapp.router)
+
+# Serve Mini App static files (React build)
+miniapp_build_path = Path(__file__).parent.parent / "miniapp" / "dist"
+if miniapp_build_path.exists():
+    # Mount assets directory
+    app.mount("/miniapp/assets", StaticFiles(directory=miniapp_build_path / "assets"), name="miniapp-assets")
+    
+    # Serve index.html at /miniapp
+    @app.get("/miniapp")
+    async def serve_miniapp():
+        """Serve Mini App index.html"""
+        index_path = miniapp_build_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"error": "Mini App not built"}
+    
+    # Serve other static files (like vite.svg)
+    @app.get("/miniapp/{filename}")
+    async def serve_miniapp_files(filename: str):
+        """Serve static files from Mini App build"""
+        file_path = miniapp_build_path / filename
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return {"error": "File not found"}
+    
+    print(f"✅ Mini App static files mounted at /miniapp")
+else:
+    print(f"⚠️  Mini App build not found at {miniapp_build_path}")
 
 
 @app.get("/")
@@ -263,6 +310,26 @@ async def image_callback(request: Request):
     # Send photo to user if completed
     if status == "COMPLETED" and tg_chat_id and (image_url or image_data):
         try:
+            # Build refresh keyboard
+            from app.bot.keyboards.inline import build_image_refresh_keyboard
+            refresh_keyboard = build_image_refresh_keyboard(job_id_str)
+            
+            # Get the chat and check for previous image message
+            with get_db() as db:
+                chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                if chat and chat.ext and chat.ext.get("last_image_msg_id"):
+                    # Remove refresh button from previous image
+                    try:
+                        prev_msg_id = chat.ext["last_image_msg_id"]
+                        await bot.edit_message_reply_markup(
+                            chat_id=tg_chat_id,
+                            message_id=prev_msg_id,
+                            reply_markup=None
+                        )
+                        print(f"[IMAGE-CALLBACK] 🗑️  Removed refresh button from previous image (msg {prev_msg_id})")
+                    except Exception as e:
+                        print(f"[IMAGE-CALLBACK] ⚠️  Could not remove previous button: {e}")
+            
             # Send photo - handle both binary data and URL
             if image_data:
                 # Send binary image data
@@ -270,16 +337,18 @@ async def image_callback(request: Request):
                 input_file = BufferedInputFile(image_data, filename="generated.png")
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
-                    photo=input_file
+                    photo=input_file,
+                    reply_markup=refresh_keyboard
                 )
             else:
                 # Send via URL
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
-                    photo=image_url
+                    photo=image_url,
+                    reply_markup=refresh_keyboard
                 )
             
-            # Save file_id for caching
+            # Save file_id and message_id for caching and tracking
             if sent_message.photo:
                 file_id = sent_message.photo[-1].file_id
                 with get_db() as db:
@@ -289,6 +358,15 @@ async def image_callback(request: Request):
                         status="completed",
                         result_file_id=file_id
                     )
+                    
+                    # Store this message ID as the last image message
+                    chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                    if chat:
+                        if not chat.ext:
+                            chat.ext = {}
+                        chat.ext["last_image_msg_id"] = sent_message.message_id
+                        db.commit()
+                        print(f"[IMAGE-CALLBACK] 💾 Stored message ID {sent_message.message_id} as last image")
             
             # Stop upload_photo action now that image is sent
             from app.core.action_registry import stop_and_remove_action

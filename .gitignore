@@ -69,4 +69,10 @@ htmlcov/
 *.temp
 .cache/
 
+# Mini App (React/Node.js)
+miniapp/node_modules/
+miniapp/dist/
+miniapp/build/
+miniapp/.vite/
+
 

@@ -101,6 +101,34 @@ async def handle_text_message(message: types.Message):
             first_name=message.from_user.first_name
         )
         
+        # Delete any existing energy upsell message (user is chatting, not low on energy)
+        upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
+        if upsell_msg_id and upsell_chat_id:
+            try:
+                from app.bot.loader import bot
+                await bot.delete_message(chat_id=upsell_chat_id, message_id=upsell_msg_id)
+                log_verbose(f"[CHAT] 🗑️  Deleted energy upsell message {upsell_msg_id}")
+            except Exception as e:
+                log_verbose(f"[CHAT] ⚠️  Failed to delete upsell message: {e}")
+        
+        # Remove refresh button from last image (user is chatting, so it's no longer the last message)
+        chat_for_image_check = crud.get_chat_by_tg_chat_id(db, message.chat.id)
+        if chat_for_image_check and chat_for_image_check.ext and chat_for_image_check.ext.get("last_image_msg_id"):
+            try:
+                from app.bot.loader import bot
+                last_img_msg_id = chat_for_image_check.ext["last_image_msg_id"]
+                await bot.edit_message_reply_markup(
+                    chat_id=message.chat.id,
+                    message_id=last_img_msg_id,
+                    reply_markup=None
+                )
+                # Clear the stored message ID
+                chat_for_image_check.ext["last_image_msg_id"] = None
+                db.commit()
+                log_verbose(f"[CHAT] 🗑️  Removed refresh button from image {last_img_msg_id}")
+            except Exception as e:
+                log_verbose(f"[CHAT] ⚠️  Failed to remove refresh button: {e}")
+        
         # Get active chat
         log_verbose(f"[CHAT] 💬 Getting active chat for TG chat {message.chat.id}")
         chat = crud.get_active_chat(db, message.chat.id, user_id)
