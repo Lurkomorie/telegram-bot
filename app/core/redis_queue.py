@@ -100,7 +100,7 @@ async def clear_batch_messages(chat_id: UUID):
     await redis.delete(queue_key)
 
 
-async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 600):
+async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 600) -> bool:
     """
     Set processing lock for a chat (Redis-based)
     
@@ -108,16 +108,22 @@ async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: 
         chat_id: Chat UUID
         processing: True to lock, False to unlock
         timeout_seconds: Lock timeout (default 10 minutes)
+        
+    Returns:
+        True if lock was acquired (when processing=True), always True for unlock
     """
     redis = await get_redis()
     lock_key = f"processing_lock:{chat_id}"
     
     if processing:
-        # Set lock with expiration (auto-cleanup for stuck states)
-        await redis.setex(lock_key, timeout_seconds, "1")
+        # Use SETNX (set if not exists) for atomic lock acquisition
+        # Returns 1 if key was set, 0 if key already existed
+        result = await redis.set(lock_key, "1", ex=timeout_seconds, nx=True)
+        return result is not None  # True if lock acquired, False if already locked
     else:
         # Clear lock
         await redis.delete(lock_key)
+        return True
 
 
 async def is_processing(chat_id: UUID) -> bool:

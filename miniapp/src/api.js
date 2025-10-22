@@ -64,6 +64,34 @@ export async function fetchUserEnergy(initData) {
 }
 
 /**
+ * Select a scenario and create a chat
+ * @param {string} personaId - Persona ID
+ * @param {string|null} historyId - History ID (optional)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, message}
+ */
+export async function selectScenario(personaId, historyId, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/select-scenario`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify({
+      persona_id: personaId,
+      history_id: historyId,
+    }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Failed to select scenario' }));
+    throw new Error(error.detail || 'Failed to select scenario');
+  }
+  
+  return response.json();
+}
+
+/**
  * Create a Telegram Stars invoice for premium subscription
  * @param {string} planId - Plan ID (2days, month, 3months, year)
  * @param {string} initData - Telegram WebApp initData for authentication

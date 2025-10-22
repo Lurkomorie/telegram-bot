@@ -128,11 +128,6 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         
         job_id = job.id
     
-    # Send generating message
-    generating_msg = await message.answer(
-        ERROR_MESSAGES["image_generating"]
-    )
-    
     # Submit to Runpod with upload_photo action
     try:
         async with send_action_repeatedly(bot, message.chat.id, "upload_photo"):
@@ -158,7 +153,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
                 error=str(e)
             )
         
-        await generating_msg.edit_text(
+        await message.answer(
             ERROR_MESSAGES["image_failed"]
         )
 
@@ -196,7 +191,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
         crud.save_energy_upsell_message(db, user_id, sent_msg.message_id, message.chat.id)
 
 
-async def generate_image_for_refresh_with_msg(generating_msg: types.Message, user_id: int, user_prompt: str, tg_chat_id: int):
+async def generate_image_for_refresh(user_id: int, user_prompt: str, tg_chat_id: int):
     """Generate image for refresh (energy already deducted - costs 3 energy)"""
     config = get_app_config()
     
@@ -209,7 +204,8 @@ async def generate_image_for_refresh_with_msg(generating_msg: types.Message, use
     )
     
     if not allowed:
-        await generating_msg.edit_text(ERROR_MESSAGES["rate_limit_image"])
+        # Send error message directly instead of editing
+        await bot.send_message(tg_chat_id, ERROR_MESSAGES["rate_limit_image"])
         return
     
     with get_db() as db:
@@ -217,14 +213,14 @@ async def generate_image_for_refresh_with_msg(generating_msg: types.Message, use
         chat = crud.get_active_chat(db, tg_chat_id, user_id)
         
         if not chat:
-            await generating_msg.edit_text(ERROR_MESSAGES["no_persona"])
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["no_persona"])
             return
         
         # Get persona
         persona = crud.get_persona_by_id(db, chat.persona_id)
         
         if not persona:
-            await generating_msg.edit_text(ERROR_MESSAGES["persona_not_found"])
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["persona_not_found"])
             return
         
         # Build image prompts using pipeline adapter
@@ -274,7 +270,7 @@ async def generate_image_for_refresh_with_msg(generating_msg: types.Message, use
                 error=str(e)
             )
         
-        await generating_msg.edit_text(ERROR_MESSAGES["image_failed"])
+        await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
 
 
 @router.callback_query(lambda c: c.data.startswith("refresh_image:"))
@@ -324,9 +320,6 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     # Answer the callback first
     await callback.answer("🔄 Refreshing image...")
     
-    # Send "Generating..." message before deleting the old image
-    generating_msg = await callback.message.answer("🎨 <b>Generating your image...</b>")
-    
     # Delete the old image message
     try:
         await callback.message.delete()
@@ -336,14 +329,17 @@ async def refresh_image_callback(callback: types.CallbackQuery):
         with get_db() as db:
             chat = crud.get_chat_by_tg_chat_id(db, callback.message.chat.id)
             if chat and chat.ext:
+                # For JSONB fields, we must mark as modified
+                from sqlalchemy.orm.attributes import flag_modified
                 chat.ext["last_image_msg_id"] = None
+                flag_modified(chat, "ext")
                 db.commit()
                 print(f"[REFRESH-IMAGE] 🗑️  Cleared last_image_msg_id tracking")
     except Exception as e:
         print(f"[REFRESH-IMAGE] ⚠️  Could not delete original image: {e}")
     
     # Generate new image with same prompt (but skip energy deduction since we already did it)
-    await generate_image_for_refresh_with_msg(generating_msg, user_id, user_prompt, callback.message.chat.id)
+    await generate_image_for_refresh(user_id, user_prompt, callback.message.chat.id)
 
 
 @router.callback_query(lambda c: c.data == "cancel_image")

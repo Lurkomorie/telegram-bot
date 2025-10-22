@@ -25,6 +25,16 @@ class User(Base):
     # Settings
     settings = Column(JSONB, default={})
     
+    # Energy system
+    energy = Column(BigInteger, default=100, nullable=False)
+    max_energy = Column(BigInteger, default=100, nullable=False)
+    last_energy_upsell_message_id = Column(BigInteger, nullable=True)
+    last_energy_upsell_chat_id = Column(BigInteger, nullable=True)
+    
+    # Premium subscription
+    is_premium = Column(Boolean, default=False, nullable=False)
+    premium_until = Column(DateTime, nullable=True)
+    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")
@@ -51,6 +61,7 @@ class Persona(Base):
     )
     description = Column(Text, nullable=True)  # Short description for UI
     intro = Column(Text, nullable=True)  # Introduction message
+    avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
@@ -74,7 +85,8 @@ class PersonaHistoryStart(Base):
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
     text = Column(Text, nullable=False)  # Greeting message
-    image_url = Column(Text, nullable=True)  # Pre-generated image URL
+    image_url = Column(Text, nullable=True)  # Pre-generated image URL (portrait)
+    wide_menu_image_url = Column(Text, nullable=True)  # Wide image for menu display
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -97,6 +109,7 @@ class Chat(Base):
     
     # Chat-specific settings
     settings = Column(JSONB, default={})  # Can override persona style per chat
+    ext = Column(JSONB, default={})  # Extended metadata
     
     # Conversation state (mirrors FullState from schemas)
     state_snapshot = Column(JSONB, default={})

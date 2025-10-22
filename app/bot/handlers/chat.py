@@ -114,20 +114,25 @@ async def handle_text_message(message: types.Message):
         # Remove refresh button from last image (user is chatting, so it's no longer the last message)
         chat_for_image_check = crud.get_chat_by_tg_chat_id(db, message.chat.id)
         if chat_for_image_check and chat_for_image_check.ext and chat_for_image_check.ext.get("last_image_msg_id"):
+            from app.bot.loader import bot
+            last_img_msg_id = chat_for_image_check.ext["last_image_msg_id"]
             try:
-                from app.bot.loader import bot
-                last_img_msg_id = chat_for_image_check.ext["last_image_msg_id"]
                 await bot.edit_message_reply_markup(
                     chat_id=message.chat.id,
                     message_id=last_img_msg_id,
                     reply_markup=None
                 )
-                # Clear the stored message ID
-                chat_for_image_check.ext["last_image_msg_id"] = None
-                db.commit()
                 log_verbose(f"[CHAT] 🗑️  Removed refresh button from image {last_img_msg_id}")
             except Exception as e:
-                log_verbose(f"[CHAT] ⚠️  Failed to remove refresh button: {e}")
+                # Button might already be removed, that's okay
+                log_verbose(f"[CHAT] ⚠️  Could not remove refresh button (likely already removed): {e}")
+            finally:
+                # Always clear the stored message ID, even if removal failed
+                # For JSONB fields, we must mark as modified or reassign the whole dict
+                from sqlalchemy.orm.attributes import flag_modified
+                chat_for_image_check.ext["last_image_msg_id"] = None
+                flag_modified(chat_for_image_check, "ext")
+                db.commit()
         
         # Get active chat
         log_verbose(f"[CHAT] 💬 Getting active chat for TG chat {message.chat.id}")
@@ -151,44 +156,83 @@ async def handle_text_message(message: types.Message):
         chat.last_auto_message_at = None
         db.commit()
     
-    # Add message to Redis queue
-    log_verbose(f"[CHAT] 📥 Adding message to Redis queue")
-    queue_length = await redis_queue.add_message_to_queue(
+    # Always add message to queue first
+    log_verbose(f"[CHAT] 📥 Adding '{user_text[:20]}...' to queue")
+    await redis_queue.add_message_to_queue(
         chat_id=chat_id,
         user_id=user_id,
         text=user_text,
         tg_chat_id=tg_chat_id
     )
-    log_verbose(f"[CHAT] 📊 Queue length: {queue_length}")
+    queue_length = await redis_queue.get_queue_length(chat_id)
+    log_always(f"[CHAT] 📊 Queue: {queue_length} message(s)")
     
-    # Check if chat is currently being processed
-    if await redis_queue.is_processing(chat_id):
-        log_always(f"[CHAT] ⏳ Message queued (total: {queue_length})")
+    # Try to acquire processing lock atomically (prevents race conditions)
+    lock_acquired = await redis_queue.set_processing_lock(chat_id, True)
+    
+    if not lock_acquired:
+        # Another handler is already processing - message queued for next batch
+        log_always(f"[CHAT] ⏳ RETURN EARLY - processing active (lock not acquired)")
         return
     
-    # Delay to allow batching of rapid messages
-    batch_delay = config.get("limits", {}).get("batch_delay_seconds", 3)
-    log_verbose(f"[CHAT] ⏱️  Waiting {batch_delay}s for potential batch...")
+    log_always(f"[CHAT] 🔒 Processing lock ACQUIRED (queue: {queue_length})")
+    
+    # Start processing in background (don't await - return webhook immediately)
+    log_always(f"[CHAT] 🚀 Starting background processing")
     
     import asyncio
-    await asyncio.sleep(batch_delay)
+    asyncio.create_task(_background_process(
+        chat_id=chat_id,
+        user_id=user_id,
+        tg_chat_id=tg_chat_id,
+        config=config
+    ))
+
+
+async def _background_process(chat_id, user_id, tg_chat_id, config):
+    """Background task to process messages with batching delay"""
+    from app.bot.loader import bot
     
-    # Check final queue length after delay
-    final_queue_length = await redis_queue.get_queue_length(chat_id)
-    log_always(f"[CHAT] 🚀 Starting batch processing ({final_queue_length} message(s))")
-    
-    # Process through multi-brain pipeline
     try:
-        log_verbose(f"[CHAT] 🧠 Calling multi-brain pipeline...")
+        # Delay to allow rapid messages to accumulate
+        batch_delay = config.get("limits", {}).get("batch_delay_seconds", 3)
+        log_verbose(f"[CHAT-BG] ⏱️  Waiting {batch_delay}s for batching...")
+        
+        import asyncio
+        await asyncio.sleep(batch_delay)
+        
+        # Check final queue length
+        final_queue_length = await redis_queue.get_queue_length(chat_id)
+        log_always(f"[CHAT-BG] 🚀 Processing ({final_queue_length} queued message(s))")
+        
+        # Process through multi-brain pipeline
         await process_message_pipeline(
             chat_id=chat_id,
             user_id=user_id,
             tg_chat_id=tg_chat_id
         )
-        log_verbose(f"[CHAT] ✅ Pipeline completed successfully")
-    except ValueError as e:
-        print(f"[CHAT] ❌ Validation: {e}")
-        await message.answer(ERROR_MESSAGES["chat_not_found"])
+        log_verbose(f"[CHAT-BG] ✅ Pipeline completed successfully")
     except Exception as e:
-        print(f"[CHAT] ❌ Pipeline error: {e}")
-        await message.answer(ERROR_MESSAGES["processing_error"])
+        print(f"[CHAT-BG] ❌ Error: {type(e).__name__}: {e}")
+        
+        # Log queue state for debugging
+        try:
+            queue_length = await redis_queue.get_queue_length(chat_id)
+            batch_messages = await redis_queue.get_batch_messages(chat_id)
+            print(f"[CHAT-BG] 📊 Queue state: {queue_length} messages")
+            for i, msg in enumerate(batch_messages, 1):
+                print(f"[CHAT-BG]    #{i}: {msg.get('text', '')[:50]}")
+        except:
+            pass
+        
+        # Clear lock so user can retry
+        await redis_queue.set_processing_lock(chat_id, False)
+        
+        # Notify user of error
+        try:
+            await bot.send_message(
+                tg_chat_id,
+                "❌ Sorry, I encountered an error processing your message. Please try again."
+            )
+        except:
+            pass

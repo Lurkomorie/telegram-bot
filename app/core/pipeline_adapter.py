@@ -12,9 +12,6 @@ from app.db.models import Persona, Chat, Message
 
 def create_initial_state(persona: Union[Persona, dict]) -> dict:
     """Create initial conversation state (mirrors createInitialState from Sexsplicit)"""
-    appearance = persona.get("appearance") if isinstance(persona, dict) else persona.appearance
-    appearance = appearance or {}
-    
     return {
         "rel": {
             "relationshipStage": "initial",
@@ -25,7 +22,7 @@ def create_initial_state(persona: Union[Persona, dict]) -> dict:
         "scene": {
             "location": "online chat",
             "description": "Having a casual conversation online",
-            "aiClothing": appearance.get("default_clothing", "casual outfit"),
+            "aiClothing": "casual outfit",
             "userClothing": "casual outfit",
             "timeOfDay": "daytime"
         }
@@ -70,23 +67,9 @@ def build_template_replacements(persona: Union[Persona, dict], chat: Union[Chat,
     """Build template replacement dictionary for prompts"""
     # Handle persona as dict or ORM object
     if isinstance(persona, dict):
-        appearance = persona.get("appearance") or {}
-        style = persona.get("style") or {}
         persona_name = persona.get("name", "AI")
     else:
-        appearance = persona.appearance or {}
-        style = persona.style or {}
         persona_name = persona.name
-    
-    # Extract appearance details
-    ethnicity = appearance.get("ethnicity", "unspecified")
-    hair = appearance.get("hair", "hair")
-    eyes = appearance.get("eyes", "eyes")
-    body_type = appearance.get("bodyType", "average build")
-    style_desc = appearance.get("style", "casual clothing")
-    
-    # Build physical description (mirrors buildCharacterPhysicalBasePrompt)
-    physical_desc = f"{ethnicity} woman with {hair}, {eyes}, {body_type}"
     
     # Get current state
     state = {}
@@ -104,8 +87,8 @@ def build_template_replacements(persona: Union[Persona, dict], chat: Union[Chat,
     
     replacements = {
         "{{persona_name}}": persona_name,
-        "{{persona_physical}}": physical_desc,
-        "{{persona_style}}": style_desc,
+        "{{persona_physical}}": "attractive woman",  # Simplified - details in persona.image_prompt
+        "{{persona_style}}": "casual clothing",
         "{{relationship_stage}}": rel.get("relationshipStage", "initial"),
         "{{emotions}}": rel.get("emotions", "neutral"),
         "{{location}}": scene.get("location", "unknown"),
@@ -146,8 +129,8 @@ def build_llm_messages(
     system_base = prompts_config["system"]["default"]
     system_base = apply_template_replacements(system_base, replacements)
     
-    # Add persona-specific system prompt
-    persona_prompt = persona.get("system_prompt") if isinstance(persona, dict) else persona.system_prompt
+    # Add persona-specific system prompt (using 'prompt' field)
+    persona_prompt = persona.get("prompt") if isinstance(persona, dict) else (persona.prompt or "")
     persona_prompt = persona_prompt or ""
     
     # Add conversation state context
@@ -228,53 +211,24 @@ def build_image_prompts(
 ) -> Tuple[str, str]:
     """
     Build image generation prompts (positive and negative)
-    Mirrors the PROMPT_ENGINEER_SYSTEM_PROMPT logic from image-pipeline-service.ts
+    Uses persona.image_prompt directly for character appearance
     """
-    # Handle persona as dict or ORM object
+    # Get persona's image prompt (character appearance tags)
     if isinstance(persona, dict):
-        appearance = persona.get("appearance") or {}
+        character_dna = persona.get("image_prompt") or ""
     else:
-        appearance = persona.appearance or {}
+        character_dna = persona.image_prompt or ""
     
-    # Get current state (now a string wrapped in dict, or empty)
-    state = ""
+    # Get current state
+    state = {}
     if chat:
         if isinstance(chat, dict):
-            state_dict = chat.get("state_snapshot") or {}
+            state = chat.get("state_snapshot") or {}
         else:
-            state_dict = chat.state_snapshot or {}
-        # Extract string state from wrapper
-        state = state_dict.get("state", "")
+            state = chat.state_snapshot or {}
     
-    # Build character DNA (mirrors buildCharacterPhysicalBasePrompt)
-    ethnicity = appearance.get("ethnicity", "")
-    hair = appearance.get("hair", "long hair")
-    eyes = appearance.get("eyes", "beautiful eyes")
-    body_type = appearance.get("bodyType", "")
-    
-    character_dna_tags = []
-    if ethnicity:
-        # Map ethnicity to proper tags (mirrors your ethnicity handling)
-        ethnicity_lower = ethnicity.lower()
-        if "caucasian" in ethnicity_lower or "white" in ethnicity_lower:
-            character_dna_tags.append("pale skin")
-        elif "black" in ethnicity_lower or "african" in ethnicity_lower:
-            character_dna_tags.append("dark skin")
-        elif "asian" in ethnicity_lower:
-            character_dna_tags.append("asian")
-        elif "latina" in ethnicity_lower or "hispanic" in ethnicity_lower:
-            character_dna_tags.append("latina")
-        elif "middle eastern" in ethnicity_lower or "arab" in ethnicity_lower:
-            character_dna_tags.append("middle eastern")
-        elif "indian" in ethnicity_lower:
-            character_dna_tags.append("indian")
-    
-    character_dna_tags.append(hair)
-    character_dna_tags.append(eyes)
-    if body_type:
-        character_dna_tags.append(body_type)
-    
-    character_dna = ", ".join(character_dna_tags)
+    if not state:
+        state = create_initial_state(persona)
     
     # Analyze user request and dialogue for scene context
     combined_text = f"{user_text} {dialogue_response}".lower()
@@ -301,16 +255,18 @@ def build_image_prompts(
         action_tags.append("looking at viewer")
     
     # Clothing tags (from state)
-    clothing = state["scene"].get("aiClothing", "casual outfit")
+    scene = state.get("scene", {})
+    rel = state.get("rel", {})
+    clothing = scene.get("aiClothing", "casual outfit")
     clothing_tags = [clothing]
     
     # Atmosphere tags (from state and context)
-    location = state["scene"].get("location", "indoors")
-    time_of_day = state["scene"].get("timeOfDay", "daytime")
+    location = scene.get("location", "indoors")
+    time_of_day = scene.get("timeOfDay", "daytime")
     atmosphere_tags = [location, time_of_day]
     
     # Expression tags (from state emotions)
-    emotions = state["rel"].get("emotions", "neutral")
+    emotions = rel.get("emotions", "neutral")
     expression_tags = []
     if "happy" in emotions or "cheerful" in emotions:
         expression_tags.append("happy expression")
@@ -337,12 +293,8 @@ def build_image_prompts(
     
     positive_prompt = ", ".join(filter(None, positive_parts))
     
-    # Assemble negative prompt (mirrors buildContextualNegativePrompt)
-    if isinstance(persona, dict):
-        persona_negatives = persona.get("negatives", "")
-    else:
-        persona_negatives = persona.negatives or ""
-    negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {persona_negatives}"
+    # Assemble negative prompt (use base negative prompt)
+    negative_prompt = BASE_NEGATIVE_PROMPT
     
     # Add cross-skin negatives for intimate scenes (mirrors your cross-negative logic)
     if is_intimate:

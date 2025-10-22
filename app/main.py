@@ -319,8 +319,8 @@ async def image_callback(request: Request):
                 chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
                 if chat and chat.ext and chat.ext.get("last_image_msg_id"):
                     # Remove refresh button from previous image
+                    prev_msg_id = chat.ext["last_image_msg_id"]
                     try:
-                        prev_msg_id = chat.ext["last_image_msg_id"]
                         await bot.edit_message_reply_markup(
                             chat_id=tg_chat_id,
                             message_id=prev_msg_id,
@@ -328,7 +328,15 @@ async def image_callback(request: Request):
                         )
                         print(f"[IMAGE-CALLBACK] 🗑️  Removed refresh button from previous image (msg {prev_msg_id})")
                     except Exception as e:
-                        print(f"[IMAGE-CALLBACK] ⚠️  Could not remove previous button: {e}")
+                        # Button might already be removed, that's okay
+                        print(f"[IMAGE-CALLBACK] ⚠️  Could not remove previous button (likely already removed): {e}")
+                    finally:
+                        # Always clear the message ID to avoid trying to remove it again
+                        # For JSONB fields, we must mark as modified or reassign the whole dict
+                        from sqlalchemy.orm.attributes import flag_modified
+                        chat.ext["last_image_msg_id"] = None
+                        flag_modified(chat, "ext")
+                        db.commit()
             
             # Send photo - handle both binary data and URL
             if image_data:
@@ -365,6 +373,9 @@ async def image_callback(request: Request):
                         if not chat.ext:
                             chat.ext = {}
                         chat.ext["last_image_msg_id"] = sent_message.message_id
+                        # For JSONB fields, we must mark as modified
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(chat, "ext")
                         db.commit()
                         print(f"[IMAGE-CALLBACK] 💾 Stored message ID {sent_message.message_id} as last image")
             

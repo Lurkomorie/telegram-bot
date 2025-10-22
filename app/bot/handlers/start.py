@@ -19,6 +19,8 @@ async def cmd_start(message: types.Message):
     command_args = message.text.split(maxsplit=1)
     deep_link_param = command_args[1] if len(command_args) > 1 else None
     
+    print(f"[START] Received /start command. Args: {command_args}, Deep link param: {deep_link_param}")
+    
     # Handle deep link from Mini App
     if deep_link_param and deep_link_param.startswith("persona_"):
         # Parse persona_id and optional history_id

@@ -1,5 +1,9 @@
 # Scenario Selection Fix
 
+## Status: ✅ FIXED (Oct 22, 2025)
+
+The issue with scenario selection not working has been resolved. The miniapp now uses a dedicated API endpoint to create chats and send greeting messages directly.
+
 ## Problem
 
 The "Select This Scenario" button in the miniapp wasn't working. Users could browse characters and scenarios, but clicking the button did nothing.
@@ -12,35 +16,46 @@ Since the miniapp is opened via an InlineKeyboardButton (see `app/bot/keyboards/
 
 ## Solution
 
-Switched from `WebApp.sendData()` to using Telegram deep links:
+Created a new API endpoint that handles scenario selection server-side:
 
-### 1. Frontend Changes (`miniapp/src/App.jsx`)
+### 1. New API Endpoint (`app/api/miniapp.py`)
 
-- **Old approach**: Used `WebApp.sendData(JSON.stringify(data))` to send persona_id and history_id
-- **New approach**: Uses `WebApp.openTelegramLink()` with a deep link in the format: `https://t.me/BOT_USERNAME?start=persona_<UUID>_h<HISTORY_UUID>`
+- **Added `/api/miniapp/select-scenario` endpoint** (POST)
+- **Request body**: `{persona_id: string, history_id: string | null}`
+- **What it does**:
+  1. Validates Telegram WebApp authentication
+  2. Extracts user ID from init data
+  3. Checks if a chat already exists with the persona
+  4. Creates a new chat in the database
+  5. Gets the selected history (or random if not specified)
+  6. Saves greeting messages to the database
+  7. **Directly sends the greeting messages to the user via the bot API**
+  8. Returns success/failure status
+- **Benefits**: No reliance on deep links, more reliable, works consistently
+
+### 2. Frontend API Client (`miniapp/src/api.js`)
+
+- **Added `selectScenario()` function** to call the new endpoint
+- Takes persona_id, history_id (optional), and initData
+- Returns promise with success status
+
+### 3. Frontend Changes (`miniapp/src/App.jsx`)
+
+- **Old approach**: Used `WebApp.sendData()` (doesn't work with inline buttons) or deep links (unreliable)
+- **New approach**: Calls the `selectScenario()` API endpoint
 - When user clicks "Select This Scenario", the miniapp now:
-  1. Opens the deep link using `WebApp.openTelegramLink()`
-  2. Closes itself using `WebApp.close()`
-  3. Redirects user to the bot with the selection encoded in the start parameter
+  1. Shows loading state with MainButton progress indicator
+  2. Calls the API endpoint with persona_id and history_id
+  3. API creates chat and sends greeting directly to user
+  4. Closes the miniapp on success
+  5. Shows alert if chat already exists or on error
 
-### 2. Backend Changes (`app/bot/handlers/start.py`)
+### 4. Backend Integration
 
-- **Updated the `/start` command handler** to parse both persona_id and history_id from deep links
-- **Deep link format**: `/start persona_<UUID>_h<HISTORY_UUID>`
-  - Example: `/start persona_123e4567-e89b-12d3-a456-426614174000_h987fcdeb-51a3-87b6-c765-123456789abc`
-- **Parsing logic**:
-  ```python
-  parts = deep_link_param.replace("persona_", "").split("_h")
-  persona_id = parts[0]
-  history_id = parts[1] if len(parts) > 1 else None
-  ```
-- If history_id is provided, calls `create_new_persona_chat_with_history()`
-- If not, calls `create_new_persona_chat()` (random history)
-
-### 3. Additional Keyboard (`app/bot/keyboards/inline.py`)
-
-- Added `build_persona_gallery_keyboard()` function to create a button that opens the persona gallery page in the miniapp
-- Can be used in commands like `/start` or `/girls` to provide a modern UI for character selection
+- Bot instance is imported in the API route handler
+- Uses `bot.send_message()` and `bot.send_photo()` to send greetings
+- Messages are sent directly to the user's Telegram chat
+- All database operations (chat creation, message storage) happen server-side
 
 ## How It Works Now
 
@@ -48,14 +63,19 @@ Switched from `WebApp.sendData()` to using Telegram deep links:
 2. Miniapp loads and displays persona gallery
 3. User selects a persona → miniapp fetches available scenarios
 4. User clicks "Select This Scenario" button
-5. Miniapp constructs deep link: `https://t.me/sexsplicit_companion_bot?start=persona_<ID>_h<HISTORY_ID>`
-6. Miniapp opens the deep link and closes itself
-7. User is redirected to the bot, which receives the `/start` command with parameters
-8. Bot parses the persona_id and history_id from the deep link
-9. Bot checks if chat exists:
-   - If exists: Shows "Continue / Start New" options
-   - If not: Creates new chat with selected scenario
-10. User starts chatting with the selected persona and scenario
+5. Miniapp calls `/api/miniapp/select-scenario` with persona_id and history_id
+6. API endpoint:
+   - Validates authentication
+   - Checks if chat exists (returns error if it does)
+   - Creates new chat in database
+   - Gets selected scenario (or random if none selected)
+   - Saves greeting messages to database
+   - **Sends greeting directly to user via bot.send_message()**
+7. Miniapp receives success response and closes
+8. User sees the greeting message appear in their Telegram chat
+9. User can immediately start chatting with the selected persona and scenario
+
+**No deep links, no command parsing, no redirect - just a direct API call that creates the chat and sends the message!**
 
 ## Testing
 
@@ -70,15 +90,47 @@ To test the fix:
 
 ## Files Changed
 
-- `miniapp/src/App.jsx` - Changed handleHistoryClick() to use deep links
-- `app/bot/handlers/start.py` - Updated /start handler to parse history_id from deep link
-- `app/bot/keyboards/inline.py` - Added build_persona_gallery_keyboard() function
+- `app/api/miniapp.py` - Added `/select-scenario` endpoint that creates chat and sends greeting
+- `miniapp/src/api.js` - Added `selectScenario()` function to call new endpoint
+- `miniapp/src/App.jsx` - Changed `handleHistoryClick()` to use API endpoint instead of deep links
+- `app/bot/handlers/start.py` - Added debug logging for /start command (deep link support kept for backward compatibility)
 - `miniapp/dist/` - Rebuilt with updated code
+
+## Additional Bug Fixes
+
+### 1. Missing Model Fields (Root Cause Fix)
+
+**The main issue was that database migrations added columns, but the SQLAlchemy model definitions were never updated.**
+
+- **Symptom**: `AttributeError: 'Persona' object has no attribute 'avatar_url'`
+- **Root Cause**: Migrations 007, 008, 010, and 011 added database columns, but `models.py` wasn't updated to reflect them
+- **Missing fields that were added**:
+  - `Persona.avatar_url` (migration 007) - Avatar image for gallery display
+  - `PersonaHistoryStart.wide_menu_image_url` (migration 008) - Wide image for menu
+  - `Chat.ext` (migration 010) - Extended metadata
+  - `User.energy`, `User.max_energy` (migration 007) - Energy system
+  - `User.is_premium`, `User.premium_until` (migration 011) - Premium subscription
+- **Solution**: Updated `app/db/models.py` to include all missing fields
+
+### 2. SQLAlchemy Session Management
+
+Fixed a lazy loading issue in `app/api/miniapp.py`:
+
+- **Problem**: Database session was closing before all ORM attributes were accessed
+- **Symptom**: 500 Internal Server Error when calling `/api/miniapp/personas`
+- **Solution**: Moved the result list initialization outside the session context and ensured all attributes are accessed within the `with get_db() as db:` block
+- This prevents lazy loading errors that occur when trying to access ORM object attributes after the session closes
 
 ## Alternative Approaches Considered
 
-1. **Use a reply keyboard button instead of inline keyboard** - Would work but changes the UX flow
-2. **Make API call to backend instead of deep link** - Would require storing state and polling
-3. **Keep using web_app_data handler** - Only works with reply keyboard buttons
+1. ~~**Use a reply keyboard button instead of inline keyboard**~~ - Would work but changes the UX flow
+2. ~~**Use Telegram deep links**~~ - Unreliable when user is already in chat with bot
+3. ~~**Keep using web_app_data handler**~~ - Only works with reply keyboard buttons
+4. **✅ Direct API endpoint (CHOSEN)** - Most reliable, server-side chat creation, direct message sending
 
-The deep link approach is the cleanest solution that maintains the current UX while providing reliable functionality.
+The API endpoint approach is the most robust solution:
+
+- No reliance on deep links or redirect flows
+- Server-side validation and error handling
+- Direct message sending via bot API
+- Consistent behavior regardless of user's current context

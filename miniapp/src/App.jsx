@@ -1,6 +1,6 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect, useState } from 'react';
-import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy } from './api';
+import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario } from './api';
 import './App.css';
 import BottomNav from './components/BottomNav';
 import HistorySelection from './components/HistorySelection';
@@ -90,15 +90,35 @@ function App() {
     }
   }
 
-  function handleHistoryClick(history) {
-    // Send data back to bot
-    const data = {
-      action: 'select_persona',
-      persona_id: selectedPersona.id,
-      history_id: history ? history.id : null,
-    };
-    
-    WebApp.sendData(JSON.stringify(data));
+  async function handleHistoryClick(history) {
+    try {
+      // Show loading state
+      WebApp.MainButton.setText('Creating chat...');
+      WebApp.MainButton.showProgress();
+      
+      const initData = WebApp.initData;
+      const result = await selectScenario(
+        selectedPersona.id,
+        history ? history.id : null,
+        initData
+      );
+      
+      if (result.success) {
+        // Success - close the miniapp
+        WebApp.close();
+      } else if (result.message === 'existing_chat') {
+        // Chat already exists
+        WebApp.showAlert(`You already have a chat with ${result.persona_name}. Please continue or start a new chat from the bot.`);
+        WebApp.close();
+      } else {
+        WebApp.showAlert('Failed to create chat. Please try again.');
+      }
+    } catch (err) {
+      console.error('Failed to select scenario:', err);
+      WebApp.showAlert('Failed to create chat. Please try again.');
+    } finally {
+      WebApp.MainButton.hideProgress();
+    }
   }
 
   function handleBackToGallery() {

@@ -43,9 +43,8 @@ async def process_message_pipeline(
     print(f"[PIPELINE] 👤 User ID: {user_id}")
     print(f"[PIPELINE] 📱 TG Chat ID: {tg_chat_id}")
     
-    # Set processing lock to prevent overlapping executions (Redis-based)
-    await redis_queue.set_processing_lock(chat_id, True)
-    print(f"[PIPELINE] 🔒 Processing lock SET (Redis)")
+    # Processing lock already set in handler (before batch delay)
+    print(f"[PIPELINE] 🔒 Processing lock confirmed active")
     
     # Stop any existing action (e.g. upload_photo from previous image generation)
     from app.core.action_registry import stop_and_remove_action
@@ -56,25 +55,33 @@ async def process_message_pipeline(
     action_mgr = ChatActionManager(bot, tg_chat_id)
     
     try:
-        # Loop through batches until queue is empty
-        batch_count = 0
+        batch_num = 0
+        
+        # Loop to handle messages that arrive during processing
         while True:
-            batch_count += 1
+            batch_num += 1
             
-            # Get current batch from Redis
+            # Get ALL messages currently in queue
             batch_messages = await redis_queue.get_batch_messages(chat_id)
             
             if not batch_messages:
-                log_always(f"[PIPELINE] ✅ Queue empty, stopping loop")
+                if batch_num == 1:
+                    log_always(f"[PIPELINE] ⚠️  Queue empty (unexpected)")
+                else:
+                    log_always(f"[PIPELINE] ✅ No more messages in queue")
                 break
             
-            log_always(f"[PIPELINE] 📦 Processing batch #{batch_count} ({len(batch_messages)} message(s))")
+            log_always(f"[PIPELINE] 📦 Batch #{batch_num}: {len(batch_messages)} message(s)")
             
-            # Extract text from batch
+            # Combine ALL messages into one text
             batched_text = "\n".join([msg["text"] for msg in batch_messages])
-            log_verbose(f"[PIPELINE] 💬 Text preview: {batched_text[:100]}...")
+            if len(batch_messages) > 1:
+                log_always(f"[PIPELINE] ✅ BATCHING {len(batch_messages)} messages together!")
+                for i, msg in enumerate(batch_messages, 1):
+                    log_always(f"[PIPELINE]    #{i}: {msg['text'][:50]}")
+            log_always(f"[PIPELINE] 💬 Combined text: {batched_text[:200]}...")
             
-            # Process this batch
+            # Process as ONE batch with ONE response
             await _process_single_batch(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -84,11 +91,14 @@ async def process_message_pipeline(
                 action_mgr=action_mgr
             )
             
-            # Clear this batch from Redis
+            # Clear queue ONLY after successful processing (prevents message loss on error)
             await redis_queue.clear_batch_messages(chat_id)
-            log_verbose(f"[PIPELINE] 🧹 Batch cleared from Redis queue")
+            log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete, queue cleared")
             
-        log_always(f"[PIPELINE] ✅ All batches processed ({batch_count - 1} total)")
+            # Brief wait to catch any messages that arrived during processing
+            import asyncio
+            await asyncio.sleep(0.5)
+            log_verbose(f"[PIPELINE] 🔍 Checking for more...")
         
     except Exception as e:
         print(f"[PIPELINE] ❌ Pipeline error: {type(e).__name__}: {e}")
@@ -226,20 +236,20 @@ async def _process_single_batch(
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
         
-        # 4. Save batch messages & response to DB
+        # 4. Save batch messages & response to DB + Clear refresh button
         log_always(f"[BATCH] 💾 Saving batch to database...")
         with get_db() as db:
-            # Save all user messages from this batch (as processed)
-            # Skip saving system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
+            # Save ALL user messages from batch (mark as processed)
+            # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
             messages_to_save = [
                 msg["text"] for msg in batch_messages 
                 if "[SYSTEM_RESUME]" not in msg["text"] and "[AUTO_FOLLOWUP]" not in msg["text"]
             ]
             if messages_to_save:
-                log_verbose(f"[BATCH]    Saving {len(messages_to_save)} user message(s)...")
+                log_always(f"[BATCH]    💾 Saving {len(messages_to_save)} user message(s) to DB")
                 crud.create_batch_messages(db, chat_id, messages_to_save)
             else:
-                log_verbose(f"[BATCH]    No user messages to save (system-initiated mode)")
+                log_verbose(f"[BATCH]    No user messages to save")
             
             # Save assistant message with state
             crud.create_message_with_state(
@@ -254,6 +264,33 @@ async def _process_single_batch(
             # Update chat state and timestamps
             crud.update_chat_state(db, chat_id, {"state": new_state})
             crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
+            
+            # Remove refresh button from last image (in same session to ensure we see current data)
+            chat_for_button = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+            log_always(f"[BATCH] 🔍 Checking for refresh button... ext={chat_for_button.ext if chat_for_button else None}")
+            if chat_for_button and chat_for_button.ext and chat_for_button.ext.get("last_image_msg_id"):
+                last_img_msg_id = chat_for_button.ext["last_image_msg_id"]
+                log_always(f"[BATCH] 🗑️  Found refresh button on message {last_img_msg_id}, removing...")
+                try:
+                    await bot.edit_message_reply_markup(
+                        chat_id=tg_chat_id,
+                        message_id=last_img_msg_id,
+                        reply_markup=None
+                    )
+                    log_always(f"[BATCH] ✅ Removed refresh button from image {last_img_msg_id}")
+                except Exception as e:
+                    # Button might already be removed, that's okay
+                    log_always(f"[BATCH] ⚠️  Could not remove refresh button (likely already removed): {e}")
+                finally:
+                    # Always clear the stored message ID, even if removal failed
+                    # For JSONB fields, we must mark as modified or reassign the whole dict
+                    from sqlalchemy.orm.attributes import flag_modified
+                    chat_for_button.ext["last_image_msg_id"] = None
+                    flag_modified(chat_for_button, "ext")
+                    db.commit()
+                    log_always(f"[BATCH] ✅ Cleared last_image_msg_id from database")
+            else:
+                log_always(f"[BATCH] ℹ️  No refresh button to remove")
         
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         

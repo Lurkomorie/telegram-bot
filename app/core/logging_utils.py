@@ -43,40 +43,11 @@ def log_messages_array(
     model: str
 ) -> None:
     """
-    Log complete messages array being sent to LLM prompts
-    Logs both full array and compact view of last 10 messages
+    Log minimal summary of messages array being sent to LLM
+    Only logs count and roles to avoid cluttering terminal
     """
-    print(f"\n{'='*80}")
-    print(f"[{brain_name}] 📨 MESSAGES SENT TO {model}")
-    print(f"{'='*80}")
-    
-    # Log total count
-    print(f"Total messages: {len(messages)}")
-    
-    # Log ALL messages in full detail
-    print(f"\n{'─'*80}")
-    print("FULL MESSAGE ARRAY:")
-    print(f"{'─'*80}")
-    for idx, msg in enumerate(messages, 1):
-        role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        print(f"\n[Message {idx}/{len(messages)}] Role: {role.upper()}")
-        print(f"Content ({len(content)} chars):")
-        print("─── START ───")
-        print(content)
-        print("─── END ───")
-    
-    # Log LAST 10 messages in compact format
-    print(f"\n{'─'*80}")
-    print("LAST 10 MESSAGES (COMPACT VIEW):")
-    print(f"{'─'*80}")
-    last_ten = messages[-10:] if len(messages) > 10 else messages
-    for idx, msg in enumerate(last_ten, 1):
-        role = msg.get("role", "unknown")
-        content = msg.get("content", "")
-        # Truncate content for compact view
-        preview = content[:150].replace('\n', ' ') + ('...' if len(content) > 150 else '')
-        print(f"{idx}. [{role.upper()}] {preview}")
-    
-    print(f"{'='*80}\n")
+    # Only log a brief summary - no full prompts
+    roles_summary = [msg.get("role", "unknown") for msg in messages]
+    total_chars = sum(len(msg.get("content", "")) for msg in messages)
+    print(f"[{brain_name}] 📨 Sending to {model}: {len(messages)} messages ({total_chars:,} chars) - Roles: {', '.join(roles_summary)}")
 
