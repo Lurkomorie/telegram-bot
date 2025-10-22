@@ -308,6 +308,15 @@ async def _background_image_generation(
 ):
     """Non-blocking image generation"""
     try:
+        # Check if user is premium (premium users get free images)
+        with get_db() as db:
+            is_premium = crud.check_user_premium(db, user_id)
+        
+        if is_premium:
+            log_always(f"[IMAGE-BG] 💎 Premium user {user_id} - free image generation")
+        else:
+            log_verbose(f"[IMAGE-BG] 🆓 Free user {user_id} - automatic image generation")
+        
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")
         log_verbose(f"[IMAGE-BG]    User ID: {user_id}")

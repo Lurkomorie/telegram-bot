@@ -25,14 +25,6 @@ class User(Base):
     # Settings
     settings = Column(JSONB, default={})
     
-    # Energy system for image generation
-    energy = Column(BigInteger, default=100, nullable=False)
-    max_energy = Column(BigInteger, default=100, nullable=False)
-    
-    # Energy upsell message tracking
-    last_energy_upsell_message_id = Column(BigInteger, nullable=True)
-    last_energy_upsell_chat_id = Column(BigInteger, nullable=True)
-    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")
@@ -59,7 +51,6 @@ class Persona(Base):
     )
     description = Column(Text, nullable=True)  # Short description for UI
     intro = Column(Text, nullable=True)  # Introduction message
-    avatar_url = Column(Text, nullable=True)  # Main avatar image for Mini App gallery
     
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
@@ -84,7 +75,6 @@ class PersonaHistoryStart(Base):
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
     text = Column(Text, nullable=False)  # Greeting message
     image_url = Column(Text, nullable=True)  # Pre-generated image URL
-    wide_menu_image_url = Column(Text, nullable=True)  # Wider/horizontal image for history selection menu
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -110,9 +100,6 @@ class Chat(Base):
     
     # Conversation state (mirrors FullState from schemas)
     state_snapshot = Column(JSONB, default={})
-    
-    # Extended metadata (for tracking things like last image message)
-    ext = Column(JSONB, default={})
     
     # Timestamps for auto-message tracking
     last_user_message_at = Column(DateTime, nullable=True)

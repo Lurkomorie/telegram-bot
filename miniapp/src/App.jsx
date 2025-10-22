@@ -16,7 +16,7 @@ function App() {
   const [personas, setPersonas] = useState([]);
   const [selectedPersona, setSelectedPersona] = useState(null);
   const [histories, setHistories] = useState([]);
-  const [energy, setEnergy] = useState({ energy: 100, max_energy: 100 });
+  const [energy, setEnergy] = useState({ energy: 100, max_energy: 100, is_premium: false });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistories, setIsLoadingHistories] = useState(false);
   const [error, setError] = useState(null);
@@ -26,9 +26,9 @@ function App() {
     WebApp.ready();
     WebApp.expand();
     
-    // Set dark background color for Telegram container
-    WebApp.setBackgroundColor('#000000');
-    WebApp.setHeaderColor('#000000');
+    // Set modern dark background color for Telegram container
+    WebApp.setBackgroundColor('#0a0a0a');
+    WebApp.setHeaderColor('#0a0a0a');
     
     // Disable vertical swipes to prevent accidental closes
     WebApp.disableVerticalSwipes();
@@ -125,32 +125,45 @@ function App() {
     }
   }
 
-  // Determine if bottom nav should be shown
-  const showBottomNav = currentPage === 'gallery' || currentPage === 'premium';
+  // Determine if bottom nav should be shown (only on gallery)
+  const showBottomNav = currentPage === 'gallery';
 
   // Get page title
   const getPageTitle = () => {
     if (currentPage === 'gallery') return 'Characters';
     if (currentPage === 'premium') return 'Settings';
+    if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
     return '';
   };
 
+  // Determine if back button should be shown
+  const showBackButton = currentPage === 'premium' || currentPage === 'history';
+
   return (
     <div className={`app ${showBottomNav ? 'app-with-nav' : ''}`}>
-      {currentPage !== 'history' && (
-        <header className="app-header">
-          <div className="header-content">
-            <h1 className="page-title">{getPageTitle()}</h1>
+      <header className="app-header">
+        <div className="header-content">
+          {showBackButton && (
+            <button className="back-button" onClick={handleBackToPrevious}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+            </button>
+          )}
+          <h1 className="page-title">{getPageTitle()}</h1>
+          {currentPage !== 'history' && (
             <div className="energy-display">
-              <span className="energy-icon">⚡</span>
-              <span className="energy-value">{energy.energy}/{energy.max_energy}</span>
+              <span className="energy-icon"></span>
+              <span className="energy-value">
+                {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
+              </span>
               <button className="plus-button" onClick={() => handleNavigate('premium')}>
                 +
               </button>
             </div>
-          </div>
-        </header>
-      )}
+          )}
+        </div>
+      </header>
       
       <main className="app-main">
         {error ? (

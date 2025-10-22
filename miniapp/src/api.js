@@ -45,9 +45,9 @@ export async function fetchPersonaHistories(personaId, initData) {
 }
 
 /**
- * Fetch user energy
+ * Fetch user energy and premium status
  * @param {string} initData - Telegram WebApp initData for authentication
- * @returns {Promise<Object>} Energy object {energy, max_energy}
+ * @returns {Promise<Object>} Energy object {energy, max_energy, is_premium}
  */
 export async function fetchUserEnergy(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/energy`, {
@@ -58,6 +58,29 @@ export async function fetchUserEnergy(initData) {
   
   if (!response.ok) {
     throw new Error('Failed to fetch energy');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Create a Telegram Stars invoice for premium subscription
+ * @param {string} planId - Plan ID (2days, month, 3months, year)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Invoice object {invoice_link}
+ */
+export async function createInvoice(planId, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify({ plan_id: planId }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to create invoice');
   }
   
   return response.json();

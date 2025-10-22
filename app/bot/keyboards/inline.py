@@ -117,6 +117,17 @@ def build_energy_upsell_keyboard(miniapp_url: str) -> InlineKeyboardMarkup:
     ])
 
 
+def build_persona_gallery_keyboard(miniapp_url: str) -> InlineKeyboardMarkup:
+    """Build keyboard with button to open persona gallery in Mini App"""
+    from aiogram.types import WebAppInfo
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="👯 Browse Characters",
+            web_app=WebAppInfo(url=f"{miniapp_url}?page=gallery")
+        )]
+    ])
+
+
 def build_chat_options_keyboard(persona_id: str) -> InlineKeyboardMarkup:
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[

@@ -78,6 +78,19 @@ async def check_inactive_chats_24h():
         print(f"[SCHEDULER] Error checking inactive chats (24h): {e}")
 
 
+async def regenerate_daily_energy():
+    """Regenerate 20 energy daily for all non-premium users"""
+    print("[SCHEDULER] ⚡ Running daily energy regeneration...")
+    
+    try:
+        with get_db() as db:
+            count = crud.regenerate_all_users_daily_energy(db)
+        
+        print(f"[SCHEDULER] ✅ Regenerated energy for {count} users")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error regenerating energy: {e}")
+
+
 async def send_auto_message(chat_id, tg_chat_id):
     """
     Generate and send contextual follow-up using the full multi-brain pipeline
@@ -149,9 +162,12 @@ def start_scheduler():
     # Check for inactive chats every hour (24h threshold)
     scheduler.add_job(check_inactive_chats_24h, 'interval', hours=1)
     
+    # Regenerate energy daily at midnight UTC
+    scheduler.add_job(regenerate_daily_energy, 'cron', hour=0, minute=0)
+    
     scheduler.start()
     
-    print("[SCHEDULER] ✅ Scheduler started - 30min check every 1min, 24h check every 1h")
+    print("[SCHEDULER] ✅ Scheduler started - 30min check every 1min, 24h check every 1h, energy regen daily at 00:00 UTC")
 
 
 def stop_scheduler():

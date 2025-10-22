@@ -5,7 +5,24 @@
   line-height: 1.5;
   font-weight: 400;
 
-  /* Dark theme colors */
+  /* Modern color palette - Red to Orange gradients */
+  --gradient-primary: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  --gradient-secondary: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+  --gradient-subtle: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(249, 115, 22, 0.1) 100%);
+  
+  --color-red: #ef4444;
+  --color-orange: #f97316;
+  --color-red-dark: #dc2626;
+  --color-orange-dark: #ea580c;
+  
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1a1a1a;
+  
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #737373;
+  
   color-scheme: dark;
   
   font-synthesis: none;
@@ -22,7 +39,7 @@
 }
 
 html {
-  background: #000000;
+  background: var(--bg-primary);
   height: 100%;
 }
 
@@ -31,8 +48,8 @@ body {
   padding: 0;
   display: block;
   min-height: 100vh;
-  background: #000000;
-  color: #ffffff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   overflow-x: hidden;
   /* Handle iOS safe areas */
   padding-top: env(safe-area-inset-top, 0px);
@@ -42,23 +59,23 @@ body {
 #root {
   width: 100%;
   min-height: 100vh;
-  background: #000000;
+  background: var(--bg-primary);
 }
 
-/* Scrollbar styling for dark theme */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.5);
-  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.4);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 58, 237, 0.7);
+  background: rgba(239, 68, 68, 0.6);
 }

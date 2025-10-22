@@ -15,13 +15,17 @@ from app.db import crud
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     """Handle /start command with optional deep link parameter"""
-    # Check if there's a deep link parameter (e.g., /start persona_<uuid>)
+    # Check if there's a deep link parameter (e.g., /start persona_<uuid> or persona_<uuid>_h<history_id>)
     command_args = message.text.split(maxsplit=1)
     deep_link_param = command_args[1] if len(command_args) > 1 else None
     
     # Handle deep link from Mini App
     if deep_link_param and deep_link_param.startswith("persona_"):
-        persona_id = deep_link_param.replace("persona_", "")
+        # Parse persona_id and optional history_id
+        # Format: persona_<uuid> OR persona_<uuid>_h<history_uuid>
+        parts = deep_link_param.replace("persona_", "").split("_h")
+        persona_id = parts[0]
+        history_id = parts[1] if len(parts) > 1 else None
         
         # Check if persona exists and get chat status
         existing_chat = None
@@ -51,8 +55,11 @@ async def cmd_start(message: types.Message):
             )
             return
         else:
-            # Create new chat directly
-            await create_new_persona_chat(message, persona_id)
+            # Create new chat directly (with or without history)
+            if history_id:
+                await create_new_persona_chat_with_history(message, persona_id, history_id)
+            else:
+                await create_new_persona_chat(message, persona_id)
             return
     
     # Standard /start flow

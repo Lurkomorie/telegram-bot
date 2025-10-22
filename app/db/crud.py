@@ -584,4 +584,107 @@ def get_and_clear_energy_upsell_message(db: Session, user_id: int) -> tuple:
     return message_id, chat_id
 
 
+# ========== PREMIUM SUBSCRIPTION OPERATIONS ==========
+
+def check_user_premium(db: Session, user_id: int) -> bool:
+    """
+    Check if user has active premium subscription
+    Returns True if user is premium and subscription hasn't expired
+    """
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    
+    # Check if premium and not expired
+    if user.is_premium:
+        if user.premium_until is None:
+            return True  # Lifetime premium
+        if user.premium_until > datetime.utcnow():
+            return True  # Active subscription
+        else:
+            # Expired - clear premium status
+            user.is_premium = False
+            db.commit()
+            return False
+    
+    return False
+
+
+def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
+    """
+    Activate premium subscription for user
+    duration_days: number of days to add to subscription
+    Returns True if successful
+    """
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    
+    # Set premium status
+    user.is_premium = True
+    
+    # Calculate expiry date
+    if user.premium_until and user.premium_until > datetime.utcnow():
+        # Extend existing subscription
+        user.premium_until = user.premium_until + timedelta(days=duration_days)
+    else:
+        # New subscription
+        user.premium_until = datetime.utcnow() + timedelta(days=duration_days)
+    
+    db.commit()
+    return True
+
+
+def regenerate_daily_energy(db: Session, user_id: int) -> bool:
+    """
+    Add 20 energy to user (daily regeneration for free users)
+    Only applies to non-premium users
+    Returns True if energy was added
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+    
+    # Skip if user is premium
+    if check_user_premium(db, user_id):
+        return False
+    
+    # Add 20 energy, capped at max_energy
+    old_energy = user.energy
+    user.energy = min(user.energy + 20, user.max_energy)
+    db.commit()
+    
+    return user.energy > old_energy
+
+
+def regenerate_all_users_daily_energy(db: Session) -> int:
+    """
+    Regenerate energy for all non-premium users
+    Returns count of users who received energy
+    """
+    
+    # Get all non-premium users
+    users = db.query(User).filter(
+        (User.is_premium == False) | 
+        ((User.is_premium == True) & (User.premium_until < datetime.utcnow()))
+    ).all()
+    
+    count = 0
+    for user in users:
+        # Update expired premium status
+        if user.is_premium and user.premium_until and user.premium_until < datetime.utcnow():
+            user.is_premium = False
+        
+        # Add energy if below max
+        if user.energy < user.max_energy:
+            user.energy = min(user.energy + 20, user.max_energy)
+            count += 1
+    
+    db.commit()
+    return count
+
+
 

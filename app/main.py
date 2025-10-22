@@ -27,7 +27,7 @@ print("✅ Core modules loaded")
 
 # Import handlers to register them (imported for side effects - registration)
 print("📝 Registering handlers...")
-from app.bot.handlers import start, chat, image, settings as settings_handler  # noqa: F401
+from app.bot.handlers import start, chat, image, settings as settings_handler, payment  # noqa: F401
 print("✅ Handlers registered")
 
 print("🌐 Loading Mini App API...")

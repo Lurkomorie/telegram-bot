@@ -9,12 +9,6 @@ export default function HistorySelection({ persona, histories, onHistoryClick, o
   if (isLoading) {
     return (
       <div className="history-selection">
-        <div className="history-header">
-          <button className="back-button" onClick={onBack}>
-            ← Back
-          </button>
-          <h2 className="history-title">Choose Scenario</h2>
-        </div>
         <div className="loading">
           <div className="spinner"></div>
           <p>Loading scenarios...</p>
@@ -25,12 +19,6 @@ export default function HistorySelection({ persona, histories, onHistoryClick, o
 
   return (
     <div className="history-selection">
-      <div className="history-header">
-        <button className="back-button" onClick={onBack}>
-          ← Back
-        </button>
-        <h2 className="history-title">Choose Scenario</h2>
-      </div>
 
       <div className="histories-list">
         {histories && histories.length > 0 ? (

@@ -1,89 +1,128 @@
+import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
+import { createInvoice } from '../api';
 import './PremiumPage.css';
 
 /**
  * PremiumPage Component
- * Shows energy packages and pricing for users to purchase more energy
+ * Shows upgrade plans and pricing options
  */
 export default function PremiumPage({ energy, onBack }) {
-  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState('year');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const packages = [
+  const plans = [
     {
-      id: 'starter',
-      name: 'Starter Pack',
-      energy: 50,
-      price: 100, // Telegram Stars
-      popular: false,
+      id: '2days',
+      duration: '2 Days',
+      stars: 250,
+      period: '/ 2 days',
     },
     {
-      id: 'popular',
-      name: 'Popular Pack',
-      energy: 150,
-      price: 250,
-      popular: true,
-      discount: '15% OFF',
+      id: 'month',
+      duration: '1 Month',
+      stars: 500,
+      period: '/ month',
     },
     {
-      id: 'premium',
-      name: 'Premium Pack',
-      energy: 500,
-      price: 750,
-      popular: false,
-      discount: '25% OFF',
+      id: '3months',
+      duration: '3 Months',
+      stars: 1000,
+      period: '/ 3 months',
+    },
+    {
+      id: 'year',
+      duration: '1 Year',
+      stars: 3000,
+      period: '/ year',
     },
   ];
 
-  const handlePurchase = (pkg) => {
-    setSelectedPackage(pkg);
-    // TODO: Implement Telegram Stars payment
-    // For now, just show alert
-    alert(`Purchase ${pkg.name} for ${pkg.price} Stars - Coming soon!`);
+  const features = [
+    { icon: '⚡', text: 'Infinite energy' },
+    { icon: '👯', text: 'Our most advanced AI engines' },
+    { icon: '📸', text: 'Unlimited photo generation' },
+  ];
+
+  const handleUpgrade = async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const selected = plans.find(p => p.id === selectedPlan);
+      const initData = WebApp.initData;
+      
+      // Create invoice via API
+      const { invoice_link } = await createInvoice(selectedPlan, initData);
+      
+      // Open invoice using Telegram WebApp API
+      WebApp.openInvoice(invoice_link, (status) => {
+        if (status === 'paid') {
+          WebApp.showAlert('Payment successful! Your premium subscription is now active.');
+          // Reload the page to refresh premium status
+          window.location.reload();
+        } else if (status === 'cancelled') {
+          WebApp.showAlert('Payment cancelled.');
+        } else if (status === 'failed') {
+          WebApp.showAlert('Payment failed. Please try again.');
+        }
+        setIsProcessing(false);
+      });
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+      WebApp.showAlert('Failed to create payment. Please try again.');
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div className="premium-page">
-      <div className="energy-status-card">
-        <div className="energy-icon">⚡</div>
-        <div className="energy-info">
-          <div className="energy-label">Your Energy</div>
-          <div className="energy-amount">{energy.energy} / {energy.max_energy}</div>
+      <div className="plans-section">
+        <h3 className="plans-title">Plan</h3>
+        
+        <div className="plans-grid">
+          {plans.map((plan, index) => (
+            <div
+              key={plan.id}
+              className={`plan-card ${selectedPlan === plan.id ? 'selected' : ''} ${index >= 2 ? 'full-width' : ''}`}
+              onClick={() => setSelectedPlan(plan.id)}
+            >
+              <div className="plan-content">
+                <div className="plan-info">
+                  <div className="plan-duration">{plan.duration}</div>
+                  <div className="plan-price">
+                    {plan.stars} <span className="plan-period">⭐ {plan.period}</span>
+                  </div>
+                </div>
+                <div className="plan-selector">
+                  {selectedPlan === plan.id && (
+                    <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
 
-      <div className="packages-section">
-        <h3>Energy Packages</h3>
-        <div className="packages-grid">
-          {packages.map((pkg) => (
-            <PackageCard
-              key={pkg.id}
-              package={pkg}
-              onPurchase={() => handlePurchase(pkg)}
-            />
+        <div className="features-list">
+          {features.map((feature, index) => (
+            <div key={index} className="feature-item">
+              <span className="feature-icon">{feature.icon}</span>
+              <span className="feature-text">{feature.text}</span>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="footer-note">
-        <p>💫 Payments are processed securely through Telegram</p>
+        <p>@sexsplicit_companion_bot</p>
       </div>
-    </div>
-  );
-}
 
-function PackageCard({ package: pkg, onPurchase }) {
-  return (
-    <div className={`package-card ${pkg.popular ? 'popular' : ''}`}>
-      {pkg.popular && <div className="popular-badge">MOST POPULAR</div>}
-      {pkg.discount && <div className="discount-badge">{pkg.discount}</div>}
-      
-      <div className="package-icon">⚡</div>
-      <h4 className="package-name">{pkg.name}</h4>
-      <div className="package-energy">+{pkg.energy} Energy</div>
-      <div className="package-price">{pkg.price} ⭐</div>
-      
-      <button className="purchase-button" onClick={onPurchase}>
-        Purchase
+      <button className="upgrade-button-sticky" onClick={handleUpgrade} disabled={isProcessing}>
+        {isProcessing ? 'Processing...' : 'Upgrade 💎'}
       </button>
     </div>
   );

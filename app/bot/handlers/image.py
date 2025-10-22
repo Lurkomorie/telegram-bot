@@ -58,12 +58,17 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     """Generate image for user with given prompt"""
     config = get_app_config()
     
-    # Check energy first
+    # Check if user is premium (premium users get free images)
     with get_db() as db:
-        if not crud.check_user_energy(db, user_id, required=5):
-            # Show energy upsell message
-            await show_energy_upsell_message(message, user_id)
-            return
+        is_premium = crud.check_user_premium(db, user_id)
+    
+    # Check energy for non-premium users
+    if not is_premium:
+        with get_db() as db:
+            if not crud.check_user_energy(db, user_id, required=5):
+                # Show energy upsell message
+                await show_energy_upsell_message(message, user_id)
+                return
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -78,10 +83,14 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         return
     
     with get_db() as db:
-        # Deduct energy
-        if not crud.deduct_user_energy(db, user_id, amount=5):
-            await message.answer("❌ Failed to deduct energy. Please try again.")
-            return
+        # Deduct energy for non-premium users
+        if not is_premium:
+            if not crud.deduct_user_energy(db, user_id, amount=5):
+                await message.answer("❌ Failed to deduct energy. Please try again.")
+                return
+            print(f"[IMAGE] ⚡ Deducted 5 energy from user {user_id}")
+        else:
+            print(f"[IMAGE] 💎 Premium user {user_id} - free image generation")
         
         # Get active chat
         chat = crud.get_active_chat(db, message.chat.id, user_id)
@@ -276,14 +285,20 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     
     print(f"[REFRESH-IMAGE] 🔄 Refresh requested for job {job_id_str} by user {user_id}")
     
-    # Check energy first (refresh costs 3 energy)
+    # Check if user is premium
     with get_db() as db:
-        if not crud.check_user_energy(db, user_id, required=3):
-            await callback.answer("⚡ Not enough energy!", show_alert=True)
-            await show_energy_upsell_message(callback.message, user_id)
-            return
-        
-        # Get original job details
+        is_premium = crud.check_user_premium(db, user_id)
+    
+    # Check energy for non-premium users (refresh costs 3 energy)
+    if not is_premium:
+        with get_db() as db:
+            if not crud.check_user_energy(db, user_id, required=3):
+                await callback.answer("⚡ Not enough energy!", show_alert=True)
+                await show_energy_upsell_message(callback.message, user_id)
+                return
+    
+    # Get original job details
+    with get_db() as db:
         job = crud.get_image_job(db, job_id_str)
         if not job:
             await callback.answer("❌ Job not found", show_alert=True)
@@ -297,12 +312,14 @@ async def refresh_image_callback(callback: types.CallbackQuery):
         # Get user prompt from original job
         user_prompt = job.ext.get("user_prompt", "") if job.ext else ""
         
-        # Deduct 3 energy for refresh
-        if not crud.deduct_user_energy(db, user_id, amount=3):
-            await callback.answer("❌ Failed to deduct energy", show_alert=True)
-            return
-        
-        print(f"[REFRESH-IMAGE] ⚡ Deducted 3 energy for refresh")
+        # Deduct 3 energy for refresh (non-premium only)
+        if not is_premium:
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await callback.answer("❌ Failed to deduct energy", show_alert=True)
+                return
+            print(f"[REFRESH-IMAGE] ⚡ Deducted 3 energy for refresh")
+        else:
+            print(f"[REFRESH-IMAGE] 💎 Premium user - free refresh")
     
     # Answer the callback first
     await callback.answer("🔄 Refreshing image...")
