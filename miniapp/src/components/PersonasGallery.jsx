@@ -48,35 +48,23 @@ function PersonaCard({ persona, onClick }) {
 
   return (
     <div className="persona-card" onClick={onClick}>
-      <div className="persona-image-container">
-        {persona.avatar_url && !imageError ? (
-          <img
-            src={persona.avatar_url}
-            alt={persona.name}
-            className="persona-image"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="persona-image-placeholder">
-            <span className="placeholder-icon">👤</span>
-          </div>
-        )}
-        
-        {persona.badges && persona.badges.length > 0 && (
-          <div className="persona-badges">
-            {persona.badges.slice(0, 2).map((badge, index) => (
-              <span key={index} className="badge">
-                {badge}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      {persona.avatar_url && !imageError ? (
+        <img
+          src={persona.avatar_url}
+          alt={persona.name}
+          className="persona-image"
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <div className="persona-image-placeholder">
+          <span className="placeholder-icon">👤</span>
+        </div>
+      )}
       
       <div className="persona-info">
         <h3 className="persona-name">{persona.name}</h3>
-        {persona.description && (
-          <p className="persona-description">{persona.description}</p>
+        {persona.smallDescription && (
+          <p className="persona-description">{persona.smallDescription}</p>
         )}
       </div>
     </div>

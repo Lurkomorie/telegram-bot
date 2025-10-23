@@ -149,42 +149,23 @@
 }
 
 .history-content {
-  padding: 18px;
+  padding: 12px;
 }
 
+.history-name {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
 .history-description {
   font-size: 13px;
-  color: var(--text-primary);
-  font-weight: 600;
-  margin: 0 0 10px 0;
-  font-style: italic;
-  letter-spacing: 0.2px;
-}
-
-.history-text {
-  font-size: 14px;
   color: var(--text-secondary);
-  margin: 0 0 16px 0;
-  line-height: 1.6;
-}
-
-.select-button {
-  width: 100%;
-  padding: 14px;
-  background: var(--gradient-primary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 14px;
-  font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-
-.select-button:active {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  margin: 0;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
 }
 
 .no-histories {

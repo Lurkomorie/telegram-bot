@@ -5,11 +5,12 @@ import json
 from aiogram import types
 from aiogram.filters import Command
 from app.bot.loader import router
-from app.bot.keyboards.inline import build_persona_selection_keyboard, build_chat_options_keyboard
+from app.bot.keyboards.inline import build_persona_selection_keyboard, build_chat_options_keyboard, build_story_selection_keyboard, build_persona_gallery_keyboard
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.db.base import get_db
 from app.db import crud
+from app.settings import settings, get_ui_text
 
 
 @router.message(Command("start"))
@@ -65,26 +66,33 @@ async def cmd_start(message: types.Message):
             return
     
     # Standard /start flow
+    # Get or create user (DB call needed for user-specific data)
     with get_db() as db:
-        # Get or create user
-        user = crud.get_or_create_user(
+        crud.get_or_create_user(
             db,
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name
         )
-        
-        # Get all personas and extract data while session is active
-        preset_personas = crud.get_preset_personas(db)
-        user_personas = crud.get_user_personas(db, user.id)
-        
-        # Extract data from ORM objects before session closes
-        preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
-        user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
     
-    welcome_text = "👋 <b>Welcome to AI Companion!</b>\n\nI'm here to chat, flirt, and keep you company. Choose one of my preset personalities below, or create your own custom AI girl!\n\n✨ <i>What kind of companion are you looking for?</i>"
+    # Get personas from cache (much faster!)
+    from app.core.persona_cache import get_preset_personas
+    preset_data = get_preset_personas()
+    user_data = []  # User personas disabled
     
-    keyboard = build_persona_selection_keyboard(preset_data, user_data)
+    # Build text with persona descriptions
+    welcome_text = "Choose your companion:\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = p.get('name', 'Unknown')
+        desc = p.get('small_description', '')
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
+    
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url)
     
     await message.answer(
         welcome_text,
@@ -92,23 +100,59 @@ async def cmd_start(message: types.Message):
     )
 
 
+async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False):
+    """Show story selection menu for a persona"""
+    # Get persona from cache
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        if edit:
+            await message.edit_text("❌ Persona not found!")
+        else:
+            await message.answer("❌ Persona not found!")
+        return
+    
+    # Get histories from cache (already formatted as dicts)
+    story_data = get_persona_histories(persona_id)
+        
+    
+    # Build text with story descriptions
+    story_text = get_ui_text("story.title") + "\n\n"
+    for s in story_data:
+        name = s.get('name', 'Story')
+        desc = s.get('small_description', '')
+        if desc:
+            story_text += f"<b>{name}</b> – {desc}\n\n"
+        else:
+            story_text += f"<b>{name}</b>\n\n"
+    
+    keyboard = build_story_selection_keyboard(story_data, persona_id)
+    
+    if edit:
+        await message.edit_text(story_text, reply_markup=keyboard, parse_mode="HTML")
+    else:
+        await message.answer(story_text, reply_markup=keyboard, parse_mode="HTML")
+
+
 async def create_new_persona_chat(message: types.Message, persona_id: str):
     """Helper function to create a new chat with a persona"""
+    # Get persona from cache
+    from app.core.persona_cache import get_persona_by_id, get_random_history
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await message.answer("❌ Persona not found!")
+        return
+    
+    persona_name = persona["name"]
+    persona_intro = persona["intro"]
+    
+    # Create new chat (DB call needed)
     with get_db() as db:
-        persona = crud.get_persona_by_id(db, persona_id)
-        if not persona:
-            await message.answer("❌ Persona not found!")
-            return
-        
-        persona_name = persona.name
-        persona_intro = persona.intro
-        
-        # Create new chat
         chat = crud.create_new_chat(
             db,
             tg_chat_id=message.chat.id,
             user_id=message.from_user.id,
-            persona_id=persona.id
+            persona_id=persona_id
         )
         
         chat_id = chat.id
@@ -121,17 +165,18 @@ async def create_new_persona_chat(message: types.Message, persona_id: str):
     await redis_queue.clear_batch_messages(chat_id)
     await redis_queue.set_processing_lock(chat_id, False)
     
+    # Get random history from cache
+    history_start = get_random_history(persona_id)
+    history_start_data = None
+    description_text = None
+    if history_start:
+        history_start_data = {
+            "text": history_start["text"],
+            "image_url": history_start["image_url"]
+        }
+        description_text = history_start["description"]
+    
     with get_db() as db:
-        # Get random history start
-        history_start = crud.get_random_history_start(db, persona_id)
-        history_start_data = None
-        description_text = None
-        if history_start:
-            history_start_data = {
-                "text": history_start.text,
-                "image_url": history_start.image_url
-            }
-            description_text = history_start.description
         
         # Determine greeting text
         if history_start_data:
@@ -184,32 +229,35 @@ async def create_new_persona_chat(message: types.Message, persona_id: str):
 
 async def create_new_persona_chat_with_history(message: types.Message, persona_id: str, history_id: str):
     """Helper function to create a new chat with a specific history"""
+    # Get persona from cache
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories, get_random_history
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await message.answer("❌ Persona not found!")
+        return
+    
+    # Get the specific history from cache
+    histories = get_persona_histories(persona_id)
+    history_start = None
+    for h in histories:
+        if h["id"] == history_id:
+            history_start = h
+            break
+    
+    if not history_start:
+        # Fallback to random history
+        history_start = get_random_history(persona_id)
+    
+    persona_name = persona["name"]
+    persona_intro = persona["intro"]
+    
+    # Create new chat (DB call needed)
     with get_db() as db:
-        persona = crud.get_persona_by_id(db, persona_id)
-        if not persona:
-            await message.answer("❌ Persona not found!")
-            return
-        
-        # Get the specific history
-        from app.db.models import PersonaHistoryStart
-        history_start = db.query(PersonaHistoryStart).filter(
-            PersonaHistoryStart.id == history_id,
-            PersonaHistoryStart.persona_id == persona_id
-        ).first()
-        
-        if not history_start:
-            # Fallback to random history
-            history_start = crud.get_random_history_start(db, persona_id)
-        
-        persona_name = persona.name
-        persona_intro = persona.intro
-        
-        # Create new chat
         chat = crud.create_new_chat(
             db,
             tg_chat_id=message.chat.id,
             user_id=message.from_user.id,
-            persona_id=persona.id
+            persona_id=persona_id
         )
         
         chat_id = chat.id
@@ -222,16 +270,17 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
     await redis_queue.clear_batch_messages(chat_id)
     await redis_queue.set_processing_lock(chat_id, False)
     
+    # Use selected history or fallback (from cache)
+    history_start_data = None
+    description_text = None
+    if history_start:
+        history_start_data = {
+            "text": history_start["text"],
+            "image_url": history_start["image_url"]
+        }
+        description_text = history_start["description"]
+    
     with get_db() as db:
-        # Use selected history or fallback
-        history_start_data = None
-        description_text = None
-        if history_start:
-            history_start_data = {
-                "text": history_start.text,
-                "image_url": history_start.image_url
-            }
-            description_text = history_start.description
         
         # Determine greeting text
         if history_start_data:
@@ -285,17 +334,24 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
 @router.callback_query(lambda c: c.data == "show_personas")
 async def show_personas_callback(callback: types.CallbackQuery):
     """Show persona selection (callback from other menus)"""
-    with get_db() as db:
-        preset_personas = crud.get_preset_personas(db)
-        user_personas = crud.get_user_personas(db, callback.from_user.id)
-        
-        # Extract data from ORM objects before session closes
-        preset_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in preset_personas]
-        user_data = [{"id": str(p.id), "name": p.name, "key": p.key} for p in user_personas]
+    # Get personas from cache
+    from app.core.persona_cache import get_preset_personas
+    preset_data = get_preset_personas()
+    user_data = []  # User personas disabled
     
-    welcome_text = "👋 <b>Welcome to AI Companion!</b>\n\nI'm here to chat, flirt, and keep you company. Choose one of my preset personalities below, or create your own custom AI girl!\n\n✨ <i>What kind of companion are you looking for?</i>"
+    # Build text with persona descriptions
+    welcome_text = get_ui_text("welcome.title") + "\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = p.get('name', 'Unknown')
+        desc = p.get('small_description', '')
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    keyboard = build_persona_selection_keyboard(preset_data, user_data)
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url)
     
     await callback.message.edit_text(
         welcome_text,
@@ -304,132 +360,59 @@ async def show_personas_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(lambda c: c.data == "discover_characters")
+async def discover_characters_callback(callback: types.CallbackQuery):
+    """Open Mini App gallery to discover all characters"""
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_gallery_keyboard(miniapp_url)
+    
+    title = get_ui_text("welcome.discover_title")
+    description = get_ui_text("welcome.discover_description")
+    
+    await callback.message.edit_text(
+        f"{title}\n\n{description}",
+        reply_markup=keyboard
+    )
+    await callback.answer()
+
+
 @router.callback_query(lambda c: c.data.startswith("select_persona:"))
 async def select_persona_callback(callback: types.CallbackQuery):
-    """Handle persona selection with history starts"""
+    """Handle persona selection - show story selection or chat options"""
     persona_id = callback.data.split(":")[1]
     
+    # Get persona from cache
+    from app.core.persona_cache import get_persona_by_id
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await callback.answer("Persona not found!", show_alert=True)
+        return
+    
+    persona_name = persona["name"]
+    
+    # Check if chat already exists (DB call needed)
     with get_db() as db:
-        # Get persona
-        persona = crud.get_persona_by_id(db, persona_id)
-        if not persona:
-            await callback.answer("Persona not found!", show_alert=True)
-            return
-        
-        # Extract persona data before session closes
-        persona_name = persona.name
-        
-        # Check if chat already exists
         existing_chat = crud.check_existing_chat(
             db,
             tg_chat_id=callback.message.chat.id,
             user_id=callback.from_user.id,
-            persona_id=persona.id
+            persona_id=persona_id
         )
     
     # If chat exists, show Continue/Start New options
     if existing_chat:
         keyboard = build_chat_options_keyboard(persona_id)
+        title = get_ui_text("chat_options.title", persona_name=persona_name)
+        description = get_ui_text("chat_options.description")
         await callback.message.edit_text(
-            f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
-            f"Would you like to continue where you left off, or start a fresh conversation?",
+            f"{title}\n\n{description}",
             reply_markup=keyboard
         )
         await callback.answer()
         return
     
-    # No existing chat - proceed with standard flow (create new chat)
-    with get_db() as db:
-        persona = crud.get_persona_by_id(db, persona_id)
-        persona_intro = persona.intro
-        
-        # Create new chat
-        chat = crud.create_new_chat(
-            db,
-            tg_chat_id=callback.message.chat.id,
-            user_id=callback.from_user.id,
-            persona_id=persona.id
-        )
-        
-        chat_id = chat.id
-        
-        # CRITICAL: Clear any unprocessed messages when switching personas
-        # This prevents old messages from one persona appearing in another chat
-        print(f"[START] 🧹 Clearing unprocessed messages for chat {chat_id}")
-        crud.clear_unprocessed_messages(db, chat_id)
-    
-    # Clear Redis queue and processing lock for this chat
-    await redis_queue.clear_batch_messages(chat_id)
-    await redis_queue.set_processing_lock(chat_id, False)
-    print(f"[START] 🧹 Cleared Redis queue and processing lock")
-    
-    with get_db() as db:
-        # Get random history start and extract data before session closes
-        history_start = crud.get_random_history_start(db, persona_id)
-        history_start_data = None
-        description_text = None
-        if history_start:
-            history_start_data = {
-                "text": history_start.text,
-                "image_url": history_start.image_url
-            }
-            description_text = history_start.description
-        
-        # Determine the greeting text
-        if history_start_data:
-            greeting_text = history_start_data['text']
-        else:
-            greeting_text = persona_intro or f"Hi! I'm {persona_name}. Let's chat!"
-        
-        # If there's a description, save it as a system message first
-        if description_text:
-            crud.create_message_with_state(
-                db,
-                chat_id=chat_id,
-                role="system",
-                text=description_text,
-                is_processed=True
-            )
-        
-        # Save the history start/intro as an assistant message in the database
-        # This ensures it appears in conversation history for context
-        crud.create_message_with_state(
-            db,
-            chat_id=chat_id,
-            role="assistant",
-            text=greeting_text,
-            is_processed=True
-        )
-    
-    # Delete the inline keyboard message
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    
-    # Send description first if it exists (in italic using MarkdownV2)
-    if description_text:
-        escaped_description = escape_markdown_v2(description_text)
-        formatted_description = f"_{escaped_description}_"
-        await callback.message.answer(
-            formatted_description,
-            parse_mode="MarkdownV2"
-        )
-    
-    # Send greeting without the "Switched to" prefix
-    escaped_greeting = escape_markdown_v2(greeting_text)
-    if history_start_data and history_start_data["image_url"]:
-        await callback.message.answer_photo(
-            photo=history_start_data["image_url"],
-            caption=escaped_greeting,
-            parse_mode="MarkdownV2"
-        )
-    else:
-        await callback.message.answer(
-            escaped_greeting,
-            parse_mode="MarkdownV2"
-        )
-    
+    # No existing chat - show story selection
+    await show_story_selection(callback.message, persona_id, edit=True)
     await callback.answer()
 
 
@@ -437,22 +420,23 @@ async def select_persona_callback(callback: types.CallbackQuery):
 async def continue_chat_callback(callback: types.CallbackQuery):
     """Continue existing conversation - send AI message + image via pipeline"""
     from app.core.multi_brain_pipeline import process_message_pipeline
+    from app.core.persona_cache import get_persona_by_id
     
     persona_id = callback.data.split(":")[1]
     
+    # Verify persona exists in cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await callback.answer("Persona not found!", show_alert=True)
+        return
+    
+    # Get existing chat (DB call needed)
     with get_db() as db:
-        # Get persona
-        persona = crud.get_persona_by_id(db, persona_id)
-        if not persona:
-            await callback.answer("Persona not found!", show_alert=True)
-            return
-        
-        # Get existing chat
         chat = crud.check_existing_chat(
             db,
             tg_chat_id=callback.message.chat.id,
             user_id=callback.from_user.id,
-            persona_id=persona.id
+            persona_id=persona_id
         )
         
         if not chat:
@@ -471,7 +455,7 @@ async def continue_chat_callback(callback: types.CallbackQuery):
     # Clear Redis queue and processing lock for this chat
     await redis_queue.clear_batch_messages(chat_id)
     await redis_queue.set_processing_lock(chat_id, False)
-    print(f"[CONTINUE] 🧹 Cleared Redis queue and processing lock")
+    print("[CONTINUE] 🧹 Cleared Redis queue and processing lock")
     
     # Add a special "resume" message to queue
     await redis_queue.add_message_to_queue(
@@ -511,21 +495,22 @@ async def handle_web_app_data(message: types.Message):
                 await message.answer("❌ Invalid selection!")
                 return
             
-            # Check if persona exists
+            # Check if persona exists in cache
+            from app.core.persona_cache import get_persona_by_id
+            persona = get_persona_by_id(persona_id)
+            if not persona:
+                await message.answer("❌ Persona not found!")
+                return
+            
+            persona_name = persona["name"]
+            
+            # Check if chat already exists (DB call needed)
             with get_db() as db:
-                persona = crud.get_persona_by_id(db, persona_id)
-                if not persona:
-                    await message.answer("❌ Persona not found!")
-                    return
-                
-                persona_name = persona.name
-                
-                # Check if chat already exists
                 existing_chat = crud.check_existing_chat(
                     db,
                     tg_chat_id=message.chat.id,
                     user_id=message.from_user.id,
-                    persona_id=persona.id
+                    persona_id=persona_id
                 )
             
             # If history_id is provided, user selected a specific history from Mini App
@@ -561,28 +546,162 @@ async def handle_web_app_data(message: types.Message):
         await message.answer("❌ Failed to process your selection. Please try again.")
 
 
-@router.callback_query(lambda c: c.data.startswith("new_chat:"))
-async def new_chat_callback(callback: types.CallbackQuery):
-    """Start new conversation with same persona (keeps old chat in DB)"""
-    persona_id = callback.data.split(":")[1]
+@router.callback_query(lambda c: c.data.startswith("select_story:"))
+async def select_story_callback(callback: types.CallbackQuery):
+    """Handle story selection and create new chat with selected history"""
+    from app.core.persona_cache import get_persona_by_id
     
+    history_id = callback.data.split(":")[1]
+    
+    # Find the history in cache across all personas
+    history_start = None
+    persona_id = None
+    
+    # We need to find which persona this history belongs to
+    # Since we have histories indexed by persona_id, we need to search
+    # Access the cache module to iterate over all histories
+    from app.core.persona_cache import _CACHE
+    for pid, histories in _CACHE["histories"].items():
+        for h in histories:
+            if h["id"] == history_id:
+                history_start = h
+                persona_id = pid
+                break
+        if history_start:
+            break
+    
+    if not history_start:
+        await callback.answer("Story not found!", show_alert=True)
+        return
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await callback.answer("Persona not found!", show_alert=True)
+        return
+    
+    # Create new chat (DB call needed)
     with get_db() as db:
-        # Get persona
-        persona = crud.get_persona_by_id(db, persona_id)
-        if not persona:
-            await callback.answer("Persona not found!", show_alert=True)
-            return
-        
-        # Extract persona data before session closes
-        persona_name = persona.name
-        persona_intro = persona.intro
-        
-        # Create new chat (always creates new, even if one exists)
         chat = crud.create_new_chat(
             db,
             tg_chat_id=callback.message.chat.id,
             user_id=callback.from_user.id,
-            persona_id=persona.id
+            persona_id=persona_id
+        )
+        
+        chat_id = chat.id
+        
+        # Clear any unprocessed messages
+        print(f"[SELECT_STORY] 🧹 Clearing unprocessed messages for chat {chat_id}")
+        crud.clear_unprocessed_messages(db, chat_id)
+    
+    # Extract history data (from cache)
+    history_start_data = {
+        "text": history_start["text"],
+        "image_url": history_start["image_url"]
+    }
+    description_text = history_start["description"]
+    
+    with get_db() as db:
+        
+        # Determine the greeting text
+        greeting_text = history_start_data['text']
+        
+        # If there's a description, save it as a system message first
+        if description_text:
+            crud.create_message_with_state(
+                db,
+                chat_id=chat_id,
+                role="system",
+                text=description_text,
+                is_processed=True
+            )
+        
+        # Save the history start as an assistant message
+        crud.create_message_with_state(
+            db,
+            chat_id=chat_id,
+            role="assistant",
+            text=greeting_text,
+            is_processed=True
+        )
+    
+    # Clear Redis queue and processing lock
+    await redis_queue.clear_batch_messages(chat_id)
+    await redis_queue.set_processing_lock(chat_id, False)
+    
+    # Delete the inline keyboard message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # Send hint message FIRST (before story starts)
+    hint_text = get_ui_text("hints.restart")
+    await callback.message.answer(
+        escape_markdown_v2(hint_text),
+        parse_mode="MarkdownV2"
+    )
+    
+    # Send description if it exists (in italic using MarkdownV2)
+    if description_text:
+        escaped_description = escape_markdown_v2(description_text)
+        formatted_description = f"_{escaped_description}_"
+        await callback.message.answer(
+            formatted_description,
+            parse_mode="MarkdownV2"
+        )
+    
+    # Send greeting
+    escaped_greeting = escape_markdown_v2(greeting_text)
+    if history_start_data and history_start_data["image_url"]:
+        await callback.message.answer_photo(
+            photo=history_start_data["image_url"],
+            caption=escaped_greeting,
+            parse_mode="MarkdownV2"
+        )
+    else:
+        await callback.message.answer(
+            escaped_greeting,
+            parse_mode="MarkdownV2"
+        )
+    
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("new_chat_select:"))
+async def new_chat_select_callback(callback: types.CallbackQuery):
+    """Show story selection for starting a new conversation"""
+    persona_id = callback.data.split(":")[1]
+    
+    # Show story selection
+    await show_story_selection(callback.message, persona_id, edit=True)
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("new_chat:"))
+async def new_chat_callback(callback: types.CallbackQuery):
+    """Start new conversation with same persona (keeps old chat in DB)"""
+    from app.core.persona_cache import get_persona_by_id, get_random_history
+    
+    persona_id = callback.data.split(":")[1]
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await callback.answer("Persona not found!", show_alert=True)
+        return
+    
+    persona_name = persona["name"]
+    persona_intro = persona["intro"]
+    
+    # Create new chat (DB call needed)
+    with get_db() as db:
+        chat = crud.create_new_chat(
+            db,
+            tg_chat_id=callback.message.chat.id,
+            user_id=callback.from_user.id,
+            persona_id=persona_id
         )
         
         chat_id = chat.id
@@ -594,19 +713,20 @@ async def new_chat_callback(callback: types.CallbackQuery):
     # Clear Redis queue and processing lock for this chat
     await redis_queue.clear_batch_messages(chat_id)
     await redis_queue.set_processing_lock(chat_id, False)
-    print(f"[NEW_CHAT] 🧹 Cleared Redis queue and processing lock")
+    print("[NEW_CHAT] 🧹 Cleared Redis queue and processing lock")
+    
+    # Get random history from cache
+    history_start = get_random_history(persona_id)
+    history_start_data = None
+    description_text = None
+    if history_start:
+        history_start_data = {
+            "text": history_start["text"],
+            "image_url": history_start["image_url"]
+        }
+        description_text = history_start["description"]
     
     with get_db() as db:
-        # Get random history start and extract data before session closes
-        history_start = crud.get_random_history_start(db, persona_id)
-        history_start_data = None
-        description_text = None
-        if history_start:
-            history_start_data = {
-                "text": history_start.text,
-                "image_url": history_start.image_url
-            }
-            description_text = history_start.description
         
         # Determine the greeting text
         if history_start_data:

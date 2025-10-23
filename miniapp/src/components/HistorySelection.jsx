@@ -50,7 +50,7 @@ function HistoryCard({ history, onClick }) {
   const [imageError, setImageError] = useState(false);
 
   return (
-    <div className="history-card">
+    <div className="history-card" onClick={onClick}>
       {history.wide_menu_image_url && !imageError ? (
         <div className="history-image wide">
           <img
@@ -69,13 +69,12 @@ function HistoryCard({ history, onClick }) {
         </div>
       ) : null}
       <div className="history-content">
-        {history.description && (
-          <p className="history-description">{history.description}</p>
+        {history.name && (
+          <p className="history-name">{history.name}</p>
         )}
-        <p className="history-text">"{history.text}"</p>
-        <button className="select-button" onClick={onClick}>
-          Select This Scenario
-        </button>
+        {history.smallDescription && (
+          <p className="history-description">{history.smallDescription}</p>
+        )}
       </div>
     </div>
   );

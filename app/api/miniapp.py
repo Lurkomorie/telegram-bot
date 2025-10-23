@@ -35,34 +35,28 @@ async def get_personas(
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
         raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
     
-    result = []
+    # Get personas from cache (much faster!)
+    from app.core.persona_cache import get_preset_personas, get_random_history
+    personas = get_preset_personas()
     
-    with get_db() as db:
-        # Get all public personas
-        personas = crud.get_preset_personas(db)
+    result = []
+    for persona in personas:
+        persona_id = persona["id"]
         
-        # Build response with persona data
-        # Extract all data while session is active to avoid lazy loading issues
-        for persona in personas:
-            # Access all attributes within the session
-            persona_id = str(persona.id)
-            persona_name = persona.name
-            persona_description = persona.description or ""
-            persona_badges = persona.badges or []
-            
-            # Use avatar_url as primary image, fallback to first history image
-            avatar_url = persona.avatar_url
-            if not avatar_url:
-                history_start = crud.get_random_history_start(db, persona_id)
-                avatar_url = history_start.image_url if history_start else None
-            
-            result.append({
-                "id": persona_id,
-                "name": persona_name,
-                "description": persona_description,
-                "badges": persona_badges,
-                "avatar_url": avatar_url,
-            })
+        # Use avatar_url as primary image, fallback to first history image from cache
+        avatar_url = persona["avatar_url"]
+        if not avatar_url:
+            history_start = get_random_history(persona_id)
+            avatar_url = history_start["image_url"] if history_start else None
+        
+        result.append({
+            "id": persona_id,
+            "name": persona["name"],
+            "description": persona["description"] or "",
+            "smallDescription": persona["small_description"] or "",
+            "badges": persona["badges"] or [],
+            "avatar_url": avatar_url,
+        })
     
     return result
 
@@ -82,28 +76,29 @@ async def get_persona_histories(
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
         raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
     
-    # Convert string persona_id to UUID
+    # Validate persona_id format
     try:
         from uuid import UUID
-        persona_uuid = UUID(persona_id)
+        UUID(persona_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid persona ID format")
     
-    result = []
+    # Get histories from cache
+    from app.core import persona_cache
+    histories = persona_cache.get_persona_histories(persona_id)
     
-    with get_db() as db:
-        # Get histories for this persona
-        histories = crud.get_persona_histories(db, persona_uuid)
-        
-        # Extract all data while session is active to avoid lazy loading issues
-        for history in histories:
-            result.append({
-                "id": str(history.id),
-                "description": history.description or "",
-                "text": history.text,
-                "image_url": history.image_url,
-                "wide_menu_image_url": history.wide_menu_image_url,
-            })
+    # Transform to camelCase for frontend
+    result = []
+    for h in histories:
+        result.append({
+            "id": h["id"],
+            "name": h["name"],
+            "smallDescription": h["small_description"],
+            "description": h["description"],
+            "text": h["text"],
+            "image_url": h["image_url"],
+            "wide_menu_image_url": h["wide_menu_image_url"]
+        })
     
     return result
 
@@ -163,6 +158,7 @@ async def select_scenario(
     """
     Handle scenario selection from Mini App
     Creates a chat and sends the greeting message
+    Returns immediately while processing in background
     
     Returns: {success: bool, message: str}
     """
@@ -182,11 +178,9 @@ async def select_scenario(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse user data: {e}")
     
-    # Import bot and necessary functions
-    from app.bot.loader import bot
-    from app.core.telegram_utils import escape_markdown_v2
-    from app.core import redis_queue
+    # Import necessary functions
     from uuid import UUID
+    import asyncio
     
     try:
         persona_uuid = UUID(request.persona_id)
@@ -194,120 +188,150 @@ async def select_scenario(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid UUID format")
     
-    with get_db() as db:
-        # Get persona
-        persona = crud.get_persona_by_id(db, str(persona_uuid))
-        if not persona:
-            raise HTTPException(status_code=404, detail="Persona not found")
-        
-        persona_name = persona.name
-        persona_intro = persona.intro
-        
-        # Check if chat already exists
-        existing_chat = crud.check_existing_chat(
-            db,
-            tg_chat_id=user_id,  # For private messages, tg_chat_id = user_id
-            user_id=user_id,
-            persona_id=persona.id
-        )
-        
-        if existing_chat:
-            return {
-                "success": False,
-                "message": "existing_chat",
-                "persona_name": persona_name
-            }
-        
-        # Create new chat
-        chat = crud.create_new_chat(
-            db,
-            tg_chat_id=user_id,
-            user_id=user_id,
-            persona_id=persona.id
-        )
-        
-        chat_id = chat.id
-        
-        # Clear any unprocessed messages
-        print(f"[MINIAPP-SELECT] 🧹 Clearing unprocessed messages for chat {chat_id}")
-        crud.clear_unprocessed_messages(db, chat_id)
+    # Get persona from cache
+    from app.core.persona_cache import get_persona_by_id
+    persona = get_persona_by_id(str(persona_uuid))
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
     
-    # Clear Redis queue and processing lock
-    await redis_queue.clear_batch_messages(chat_id)
-    await redis_queue.set_processing_lock(chat_id, False)
+    # Return immediately and process in background
+    asyncio.create_task(_process_scenario_selection(
+        user_id=user_id,
+        persona_uuid=persona_uuid,
+        history_uuid=history_uuid
+    ))
     
-    with get_db() as db:
-        # Get specific history or random one
-        if history_uuid:
-            from app.db.models import PersonaHistoryStart
-            history_start = db.query(PersonaHistoryStart).filter(
-                PersonaHistoryStart.id == history_uuid,
-                PersonaHistoryStart.persona_id == persona_uuid
-            ).first()
-            if not history_start:
-                history_start = crud.get_random_history_start(db, str(persona_uuid))
-        else:
-            history_start = crud.get_random_history_start(db, str(persona_uuid))
-        
-        history_start_data = None
-        description_text = None
-        if history_start:
-            history_start_data = {
-                "text": history_start.text,
-                "image_url": history_start.image_url
-            }
-            description_text = history_start.description
-        
-        # Determine greeting text
-        if history_start_data:
-            greeting_text = history_start_data['text']
-        else:
-            greeting_text = persona_intro or f"Hi! I'm {persona_name}. Let's chat!"
-        
-        # Save description as system message if exists
-        if description_text:
-            crud.create_message_with_state(
-                db,
-                chat_id=chat_id,
-                role="system",
-                text=description_text,
-                is_processed=True
-            )
-        
-        # Save greeting as assistant message
-        crud.create_message_with_state(
-            db,
-            chat_id=chat_id,
-            role="assistant",
-            text=greeting_text,
-            is_processed=True
-        )
+    return {
+        "success": True,
+        "message": "Chat creation started"
+    }
+
+
+async def _process_scenario_selection(
+    user_id: int,
+    persona_uuid,
+    history_uuid: Optional
+):
+    """Background task to process scenario selection"""
+    from uuid import UUID
+    from app.bot.loader import bot
+    from app.core.telegram_utils import escape_markdown_v2
+    from app.core import redis_queue
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories as get_cached_histories, get_random_history
     
-    # Send messages to user
     try:
-        # Clear any previous image's refresh button (scenario selection starts fresh)
+        persona = get_persona_by_id(str(persona_uuid))
+        if not persona:
+            print(f"[MINIAPP-SELECT] ❌ Persona {persona_uuid} not found")
+            return
+        
+        persona_name = persona["name"]
+        persona_intro = persona["intro"]
+        
+        # Clear any previous image's refresh button before deleting chat
         with get_db() as db:
-            existing_chat_check = crud.get_chat_by_tg_chat_id(db, user_id)
-            if existing_chat_check and existing_chat_check.ext and existing_chat_check.ext.get("last_image_msg_id"):
-                last_img_msg_id = existing_chat_check.ext["last_image_msg_id"]
+            existing_chat = crud.check_existing_chat(
+                db,
+                tg_chat_id=user_id,
+                user_id=user_id,
+                persona_id=str(persona_uuid)
+            )
+            
+            if existing_chat and existing_chat.ext and existing_chat.ext.get("last_image_msg_id"):
+                last_img_msg_id = existing_chat.ext["last_image_msg_id"]
                 try:
                     await bot.edit_message_reply_markup(
                         chat_id=user_id,
                         message_id=last_img_msg_id,
                         reply_markup=None
                     )
-                    print(f"[MINIAPP-SELECT] 🗑️  Removed refresh button from previous chat's image")
+                    print("[MINIAPP-SELECT] 🗑️  Removed refresh button from previous image")
                 except Exception as e:
-                    # Button might already be removed, that's okay
-                    print(f"[MINIAPP-SELECT] ⚠️  Could not remove previous refresh button (likely already removed): {e}")
-                finally:
-                    # Always clear the stored message ID, even if removal failed
-                    # For JSONB fields, we must mark as modified or reassign the whole dict
-                    from sqlalchemy.orm.attributes import flag_modified
-                    existing_chat_check.ext["last_image_msg_id"] = None
-                    flag_modified(existing_chat_check, "ext")
-                    db.commit()
+                    print(f"[MINIAPP-SELECT] ⚠️  Could not remove previous refresh button: {e}")
         
+        with get_db() as db:
+            # Check if chat already exists
+            existing_chat = crud.check_existing_chat(
+                db,
+                tg_chat_id=user_id,
+                user_id=user_id,
+                persona_id=str(persona_uuid)
+            )
+            
+            # If chat exists, delete it to start fresh
+            if existing_chat:
+                print(f"[MINIAPP-SELECT] 🗑️  Deleting existing chat {existing_chat.id} for fresh start")
+                db.delete(existing_chat)
+                db.commit()
+            
+            # Create new chat
+            chat = crud.create_new_chat(
+                db,
+                tg_chat_id=user_id,
+                user_id=user_id,
+                persona_id=str(persona_uuid)
+            )
+            
+            chat_id = chat.id
+            
+            # Clear any unprocessed messages
+            print(f"[MINIAPP-SELECT] 🧹 Clearing unprocessed messages for chat {chat_id}")
+            crud.clear_unprocessed_messages(db, chat_id)
+        
+        # Clear Redis queue and processing lock
+        await redis_queue.clear_batch_messages(chat_id)
+        await redis_queue.set_processing_lock(chat_id, False)
+        
+        # Get specific history or random one from cache
+        if history_uuid:
+            histories = get_cached_histories(str(persona_uuid))
+            history_start = None
+            for h in histories:
+                if h["id"] == str(history_uuid):
+                    history_start = h
+                    break
+            if not history_start:
+                history_start = get_random_history(str(persona_uuid))
+        else:
+            history_start = get_random_history(str(persona_uuid))
+        
+        history_start_data = None
+        description_text = None
+        if history_start:
+            history_start_data = {
+                "text": history_start["text"],
+                "image_url": history_start["image_url"]
+            }
+            description_text = history_start["description"]
+        
+        with get_db() as db:
+            
+            # Determine greeting text
+            if history_start_data:
+                greeting_text = history_start_data['text']
+            else:
+                greeting_text = persona_intro or f"Hi! I'm {persona_name}. Let's chat!"
+            
+            # Save description as system message if exists
+            if description_text:
+                crud.create_message_with_state(
+                    db,
+                    chat_id=chat_id,
+                    role="system",
+                    text=description_text,
+                    is_processed=True
+                )
+            
+            # Save greeting as assistant message
+            crud.create_message_with_state(
+                db,
+                chat_id=chat_id,
+                role="assistant",
+                text=greeting_text,
+                is_processed=True
+            )
+        
+        # Send messages to user
         # Send description first if exists
         if description_text:
             escaped_description = escape_markdown_v2(description_text)
@@ -335,15 +359,9 @@ async def select_scenario(
             )
         
         print(f"[MINIAPP-SELECT] ✅ Created chat and sent greeting for persona {persona_name}")
-        
-        return {
-            "success": True,
-            "message": "Chat created successfully"
-        }
     
     except Exception as e:
-        print(f"[MINIAPP-SELECT] ❌ Error sending messages: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to send messages: {str(e)}")
+        print(f"[MINIAPP-SELECT] ❌ Error in background processing: {e}")
 
 
 @router.post("/create-invoice")

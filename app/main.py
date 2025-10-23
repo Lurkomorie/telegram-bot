@@ -2,7 +2,7 @@
 FastAPI application with Telegram webhook and image callback endpoints
 """
 print("📦 Importing FastAPI modules...")
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram.types import Update
@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting bot...")
     load_configs()
+    
+    # Load persona cache
+    from app.core.persona_cache import load_cache
+    load_cache()
+    print("✅ Persona cache loaded")
     
     # Set Mini App menu button
     try:
@@ -123,11 +128,21 @@ async def health():
     return {"status": "healthy"}
 
 
+async def process_update_async(update: Update):
+    """Process update asynchronously without blocking webhook response"""
+    try:
+        await dp.feed_update(bot, update)
+    except Exception as e:
+        print(f"[WEBHOOK] Error processing update: {e}")
+        # Don't propagate - already returned 200 to Telegram
+
+
 @app.post("/webhook/{token}")
-async def telegram_webhook(token: str, request: Request):
+async def telegram_webhook(token: str, request: Request, background_tasks: BackgroundTasks):
     """
     Telegram webhook endpoint
-    Receives updates from Telegram and feeds them to aiogram dispatcher
+    Receives updates from Telegram and processes them in background
+    Returns 200 OK immediately to prevent Telegram timeouts
     """
     if token != settings.WEBHOOK_SECRET:
         raise HTTPException(status_code=403, detail="Invalid webhook token")
@@ -136,14 +151,15 @@ async def telegram_webhook(token: str, request: Request):
         data = await request.json()
         update = Update.model_validate(data)
         
-        # Feed update to dispatcher
-        await dp.feed_update(bot, update)
+        # Process in background - return 200 immediately
+        background_tasks.add_task(process_update_async, update)
         
-        return {"ok": True}
+        return {"ok": True}  # ✅ Immediate response!
     
     except Exception as e:
-        print(f"[WEBHOOK] Error processing update: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        print(f"[WEBHOOK] Error parsing update: {e}")
+        # Still return 200 to prevent Telegram retries
+        return {"ok": True}
 
 
 @app.post("/image/callback")

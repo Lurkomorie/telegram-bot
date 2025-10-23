@@ -60,6 +60,8 @@ class Persona(Base):
         nullable=False
     )
     description = Column(Text, nullable=True)  # Short description for UI
+    small_description = Column(Text, nullable=True)  # Short one-line description for persona selection
+    emoji = Column(String(10), nullable=True)  # Emoji for persona (e.g., "💕", "🌟")
     intro = Column(Text, nullable=True)  # Introduction message
     avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
     
@@ -83,6 +85,8 @@ class PersonaHistoryStart(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
+    name = Column(String(255), nullable=True)  # Story name (e.g., "The Dairy Queen")
+    small_description = Column(Text, nullable=True)  # Short story description for menu
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
     text = Column(Text, nullable=False)  # Greeting message
     image_url = Column(Text, nullable=True)  # Pre-generated image URL (portrait)

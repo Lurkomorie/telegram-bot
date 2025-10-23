@@ -91,33 +91,21 @@ function App() {
   }
 
   async function handleHistoryClick(history) {
+    // Close immediately - optimistic UI
+    WebApp.close();
+    
+    // Fire the API call in the background
     try {
-      // Show loading state
-      WebApp.MainButton.setText('Creating chat...');
-      WebApp.MainButton.showProgress();
-      
       const initData = WebApp.initData;
-      const result = await selectScenario(
+      selectScenario(
         selectedPersona.id,
         history ? history.id : null,
         initData
-      );
-      
-      if (result.success) {
-        // Success - close the miniapp
-        WebApp.close();
-      } else if (result.message === 'existing_chat') {
-        // Chat already exists
-        WebApp.showAlert(`You already have a chat with ${result.persona_name}. Please continue or start a new chat from the bot.`);
-        WebApp.close();
-      } else {
-        WebApp.showAlert('Failed to create chat. Please try again.');
-      }
+      ).catch(err => {
+        console.error('Failed to select scenario:', err);
+      });
     } catch (err) {
-      console.error('Failed to select scenario:', err);
-      WebApp.showAlert('Failed to create chat. Please try again.');
-    } finally {
-      WebApp.MainButton.hideProgress();
+      console.error('Failed to initiate scenario selection:', err);
     }
   }
 
