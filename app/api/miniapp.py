@@ -213,11 +213,10 @@ async def _process_scenario_selection(
     history_uuid: Optional
 ):
     """Background task to process scenario selection"""
-    from uuid import UUID
     from app.bot.loader import bot
     from app.core.telegram_utils import escape_markdown_v2
     from app.core import redis_queue
-    from app.core.persona_cache import get_persona_by_id, get_persona_histories as get_cached_histories, get_random_history
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories as get_cached_histories
     
     try:
         persona = get_persona_by_id(str(persona_uuid))
@@ -258,11 +257,10 @@ async def _process_scenario_selection(
                 persona_id=str(persona_uuid)
             )
             
-            # If chat exists, delete it to start fresh
+            # If chat exists, delete it to start fresh (using proper deletion that handles image_jobs)
             if existing_chat:
                 print(f"[MINIAPP-SELECT] 🗑️  Deleting existing chat {existing_chat.id} for fresh start")
-                db.delete(existing_chat)
-                db.commit()
+                crud.delete_chat(db, existing_chat.id)
             
             # Create new chat
             chat = crud.create_new_chat(
@@ -282,25 +280,26 @@ async def _process_scenario_selection(
         await redis_queue.clear_batch_messages(chat_id)
         await redis_queue.set_processing_lock(chat_id, False)
         
-        # Get specific history or random one from cache
+        # Get specific history from cache (no random selection)
+        history_start = None
         if history_uuid:
             histories = get_cached_histories(str(persona_uuid))
-            history_start = None
             for h in histories:
                 if h["id"] == str(history_uuid):
                     history_start = h
                     break
             if not history_start:
-                history_start = get_random_history(str(persona_uuid))
+                print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found, using persona intro")
         else:
-            history_start = get_random_history(str(persona_uuid))
+            print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
         
         history_start_data = None
         description_text = None
         if history_start:
             history_start_data = {
                 "text": history_start["text"],
-                "image_url": history_start["image_url"]
+                "image_url": history_start["image_url"],
+                "image_prompt": history_start.get("image_prompt")
             }
             description_text = history_start["description"]
         
@@ -330,9 +329,30 @@ async def _process_scenario_selection(
                 text=greeting_text,
                 is_processed=True
             )
+            
+            # Create initial ImageJob for continuity if history has image_prompt
+            if history_start_data and history_start_data.get("image_prompt"):
+                print("[MINIAPP-SELECT] 🎨 Creating initial image job for visual continuity")
+                crud.create_initial_image_job(
+                    db,
+                    user_id=user_id,
+                    persona_id=str(persona_uuid),
+                    chat_id=chat_id,
+                    prompt=history_start_data["image_prompt"],
+                    result_url=history_start_data.get("image_url")
+                )
         
         # Send messages to user
-        # Send description first if exists
+        # Send hint message FIRST (before story starts)
+        from app.settings import get_ui_text
+        hint_text = get_ui_text("hints.restart")
+        await bot.send_message(
+            chat_id=user_id,
+            text=escape_markdown_v2(hint_text),
+            parse_mode="MarkdownV2"
+        )
+        
+        # Send description if exists
         if description_text:
             escaped_description = escape_markdown_v2(description_text)
             formatted_description = f"_{escaped_description}_"

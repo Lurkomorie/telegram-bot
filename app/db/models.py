@@ -91,6 +91,7 @@ class PersonaHistoryStart(Base):
     text = Column(Text, nullable=False)  # Greeting message
     image_url = Column(Text, nullable=True)  # Pre-generated image URL (portrait)
     wide_menu_image_url = Column(Text, nullable=True)  # Wide image for menu display
+    image_prompt = Column(Text, nullable=True)  # SDXL prompt used for the greeting image (for continuity)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -110,6 +111,7 @@ class Chat(Base):
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
     mode = Column(String(20), CheckConstraint("mode IN ('dm', 'group')"), default="dm", nullable=False)
+    status = Column(String(20), CheckConstraint("status IN ('active', 'archived')"), default="active", nullable=False)
     
     # Chat-specific settings
     settings = Column(JSONB, default={})  # Can override persona style per chat
@@ -139,6 +141,7 @@ class Chat(Base):
         Index("ix_chats_tg_chat_id", "tg_chat_id"),
         Index("ix_chats_user_persona", "user_id", "persona_id"),
         Index("ix_chats_last_user_message_at", "last_user_message_at"),
+        Index("ix_chats_status", "status"),
     )
 
 
@@ -208,4 +211,35 @@ class ImageJob(Base):
     __table_args__ = (
         Index("ix_image_jobs_status", "status"),
         Index("ix_image_jobs_chat_id", "chat_id"),
+    )
+
+
+class TgAnalyticsEvent(Base):
+    """Analytics events for tracking all user interactions"""
+    __tablename__ = "tg_analytics_events"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    client_id = Column(BigInteger, nullable=False)  # Telegram user ID
+    event_name = Column(String(100), nullable=False)
+    
+    # Optional persona information
+    persona_id = Column(UUID(as_uuid=True), nullable=True)
+    persona_name = Column(String(255), nullable=True)
+    
+    # Event data
+    message = Column(Text, nullable=True)
+    prompt = Column(Text, nullable=True)
+    negative_prompt = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)  # Cloudflare URL for analytics
+    
+    # Additional metadata
+    meta = Column(JSONB, default={}, nullable=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    __table_args__ = (
+        Index("ix_tg_analytics_client_id", "client_id"),
+        Index("ix_tg_analytics_event_name", "event_name"),
+        Index("ix_tg_analytics_created_at", "created_at"),
+        Index("ix_tg_analytics_client_created", "client_id", "created_at"),
     )

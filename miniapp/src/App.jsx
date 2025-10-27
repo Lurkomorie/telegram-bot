@@ -45,6 +45,11 @@ function App() {
     loadEnergy();
   }, []);
 
+  // Scroll to top whenever page changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+
   async function loadPersonas() {
     try {
       setIsLoading(true);

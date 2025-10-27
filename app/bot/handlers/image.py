@@ -13,6 +13,7 @@ from app.core.rate import check_rate_limit
 from app.core.pipeline_adapter import build_image_prompts
 from app.core.img_runpod import submit_image_job
 from app.core.constants import ERROR_MESSAGES
+from app.core import analytics_service_tg
 import random
 
 
@@ -191,8 +192,11 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
         crud.save_energy_upsell_message(db, user_id, sent_msg.message_id, message.chat.id)
 
 
-async def generate_image_for_refresh(user_id: int, user_prompt: str, tg_chat_id: int):
-    """Generate image for refresh (energy already deducted - costs 3 energy)"""
+async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
+    """Generate image for refresh (energy already deducted - costs 3 energy)
+    
+    Reuses the EXACT same prompts from the original job, only changes the seed.
+    """
     config = get_app_config()
     
     # Rate limit check
@@ -209,6 +213,12 @@ async def generate_image_for_refresh(user_id: int, user_prompt: str, tg_chat_id:
         return
     
     with get_db() as db:
+        # Get original job to reuse its prompts
+        original_job = crud.get_image_job(db, original_job_id)
+        if not original_job:
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
+            return
+        
         # Get active chat
         chat = crud.get_active_chat(db, tg_chat_id, user_id)
         
@@ -223,16 +233,16 @@ async def generate_image_for_refresh(user_id: int, user_prompt: str, tg_chat_id:
             await bot.send_message(tg_chat_id, ERROR_MESSAGES["persona_not_found"])
             return
         
-        # Build image prompts using pipeline adapter
-        positive_prompt, negative_prompt = build_image_prompts(
-            {},  # Empty dict - pipeline_adapter should handle this
-            persona,
-            user_prompt,
-            chat,
-            ""  # No dialogue response for manual image gen
-        )
+        # REUSE EXACT PROMPTS from original job (don't regenerate!)
+        positive_prompt = original_job.prompt
+        negative_prompt = original_job.negative_prompt
+        user_prompt = original_job.ext.get("user_prompt", "") if original_job.ext else ""
         
-        # Create image job
+        print(f"[REFRESH-IMAGE] 🔄 Reusing exact prompts from job {original_job_id}")
+        print(f"[REFRESH-IMAGE]    Positive: {positive_prompt[:100]}...")
+        print(f"[REFRESH-IMAGE]    Negative: {negative_prompt[:100]}...")
+        
+        # Create new image job with SAME prompts, different seed
         seed = random.randint(1, 2147483647)
         job = crud.create_image_job(
             db,
@@ -241,7 +251,7 @@ async def generate_image_for_refresh(user_id: int, user_prompt: str, tg_chat_id:
             prompt=positive_prompt,
             negative_prompt=negative_prompt,
             chat_id=chat.id,
-            ext={"seed": seed, "user_prompt": user_prompt}
+            ext={"seed": seed, "user_prompt": user_prompt, "refreshed_from": original_job_id}
         )
         
         job_id = job.id
@@ -305,8 +315,16 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             await callback.answer("❌ Chat not found", show_alert=True)
             return
         
-        # Get user prompt from original job
-        user_prompt = job.ext.get("user_prompt", "") if job.ext else ""
+        # Get persona for analytics
+        persona = crud.get_persona_by_id(db, chat.persona_id)
+        
+        # Track refresh request
+        analytics_service_tg.track_image_refresh(
+            client_id=user_id,
+            original_job_id=job_id_str,
+            persona_id=chat.persona_id if chat else None,
+            persona_name=persona.name if persona else None
+        )
         
         # Deduct 3 energy for refresh (non-premium only)
         if not is_premium:
@@ -338,8 +356,8 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     except Exception as e:
         print(f"[REFRESH-IMAGE] ⚠️  Could not delete original image: {e}")
     
-    # Generate new image with same prompt (but skip energy deduction since we already did it)
-    await generate_image_for_refresh(user_id, user_prompt, callback.message.chat.id)
+    # Generate new image with EXACT same prompts from original job (only seed changes)
+    await generate_image_for_refresh(user_id, job_id_str, callback.message.chat.id)
 
 
 @router.callback_query(lambda c: c.data == "cancel_image")

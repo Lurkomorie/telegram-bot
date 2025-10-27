@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from app.db.models import User, Persona, Chat, Message, ImageJob
+from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent
 from datetime import datetime
 
 
@@ -90,6 +90,43 @@ def check_existing_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: 
     ).first()
 
 
+def archive_all_user_chats(db: Session, user_id: int):
+    """Archive all chats for a telegram user (to stop scheduler auto-messages)"""
+    db.query(Chat).filter(
+        Chat.user_id == user_id
+    ).update(
+        {"status": "archived"}, synchronize_session=False
+    )
+    db.commit()
+
+
+def archive_user_chats_except(db: Session, user_id: int, chat_id: UUID):
+    """Archive all user chats except the specified one"""
+    db.query(Chat).filter(
+        Chat.user_id == user_id,
+        Chat.id != chat_id
+    ).update(
+        {"status": "archived"}, synchronize_session=False
+    )
+    db.commit()
+
+
+def activate_chat(db: Session, chat_id: UUID, user_id: int):
+    """Reactivate a chat and archive all other chats for that user
+    
+    This is used when a user chooses to "continue" an existing conversation.
+    We archive all their other chats to prevent scheduler messages.
+    """
+    # First, archive all user chats
+    archive_all_user_chats(db, user_id)
+    
+    # Then activate the specified chat
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if chat:
+        chat.status = "active"
+        db.commit()
+
+
 def get_or_create_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID) -> Chat:
     """Get existing chat or create new one"""
     chat = db.query(Chat).filter(
@@ -113,12 +150,20 @@ def get_or_create_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: U
 
 
 def create_new_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID) -> Chat:
-    """Always create a new chat (even if one exists for this persona)"""
+    """Always create a new chat (even if one exists for this persona)
+    
+    Archives all other chats for this telegram user to prevent scheduler
+    from sending auto-messages to old conversations.
+    """
+    # Archive all other chats for this telegram user
+    archive_all_user_chats(db, user_id)
+    
     chat = Chat(
         tg_chat_id=tg_chat_id,
         user_id=user_id,
         persona_id=persona_id,
-        state_snapshot={}
+        state_snapshot={},
+        status="active"
     )
     db.add(chat)
     db.commit()
@@ -127,17 +172,19 @@ def create_new_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID
 
 
 def get_active_chat(db: Session, tg_chat_id: int, user_id: int) -> Optional[Chat]:
-    """Get most recent chat for this Telegram chat"""
+    """Get most recent active chat for this Telegram chat"""
     return db.query(Chat).filter(
         Chat.tg_chat_id == tg_chat_id,
-        Chat.user_id == user_id
+        Chat.user_id == user_id,
+        Chat.status == "active"
     ).order_by(desc(Chat.updated_at)).first()
 
 
 def get_chat_by_tg_chat_id(db: Session, tg_chat_id: int) -> Optional[Chat]:
-    """Get most recent chat by Telegram chat ID (without user_id filter)"""
+    """Get most recent active chat by Telegram chat ID (without user_id filter)"""
     return db.query(Chat).filter(
-        Chat.tg_chat_id == tg_chat_id
+        Chat.tg_chat_id == tg_chat_id,
+        Chat.status == "active"
     ).order_by(desc(Chat.updated_at)).first()
 
 
@@ -321,12 +368,14 @@ def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
     
     Only returns chats where we haven't already sent an auto-message since the last user reply.
     This prevents sending multiple auto-messages if the user doesn't respond.
+    Only queries active chats to prevent messages to archived conversations.
     """
     from datetime import timedelta
     from sqlalchemy import or_, and_
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     return db.query(Chat).filter(
+        Chat.status == "active",  # Only active chats
         Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
         Chat.last_assistant_message_at < threshold,  # More than N minutes ago
         or_(
@@ -351,6 +400,7 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> Lis
     (e.g., at 30min) and the user still hasn't responded. We only re-engage if:
     - It's been at least N minutes since our last auto-message attempt
     - The assistant spoke last (user hasn't replied)
+    - The chat is active (not archived)
     
     This prevents spam while allowing periodic re-engagement for very inactive chats.
     """
@@ -359,6 +409,7 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> Lis
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     return db.query(Chat).filter(
+        Chat.status == "active",  # Only active chats
         Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
         or_(
             Chat.last_user_message_at.is_(None),  # User never replied yet
@@ -450,6 +501,33 @@ def create_image_job(
         negative_prompt=negative_prompt,
         status="queued",
         ext=ext or {}
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def create_initial_image_job(
+    db: Session,
+    user_id: int,
+    persona_id: UUID,
+    chat_id: UUID,
+    prompt: str,
+    result_url: str = None
+) -> ImageJob:
+    """Create a completed initial image job for history_start continuity"""
+    from datetime import datetime
+    job = ImageJob(
+        user_id=user_id,
+        persona_id=persona_id,
+        chat_id=chat_id,
+        prompt=prompt,
+        negative_prompt="",  # Not relevant for history images
+        status="completed",
+        result_url=result_url,
+        finished_at=datetime.utcnow(),
+        ext={"source": "history_start"}
     )
     db.add(job)
     db.commit()
@@ -685,6 +763,137 @@ def regenerate_all_users_daily_energy(db: Session) -> int:
     
     db.commit()
     return count
+
+
+# ========== ANALYTICS OPERATIONS ==========
+
+def create_analytics_event(
+    db: Session,
+    client_id: int,
+    event_name: str,
+    persona_id: UUID = None,
+    persona_name: str = None,
+    message: str = None,
+    prompt: str = None,
+    negative_prompt: str = None,
+    image_url: str = None,
+    meta: dict = None
+) -> TgAnalyticsEvent:
+    """Create a new analytics event"""
+    event = TgAnalyticsEvent(
+        client_id=client_id,
+        event_name=event_name,
+        persona_id=persona_id,
+        persona_name=persona_name,
+        message=message,
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        image_url=image_url,
+        meta=meta or {}
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+def get_analytics_events_by_user(db: Session, client_id: int, limit: int = 1000) -> List[TgAnalyticsEvent]:
+    """Get all analytics events for a specific user, sorted by created_at ASC (oldest first, like chat)"""
+    return db.query(TgAnalyticsEvent).filter(
+        TgAnalyticsEvent.client_id == client_id
+    ).order_by(TgAnalyticsEvent.created_at).limit(limit).all()
+
+
+def get_all_analytics_events(db: Session, limit: int = 10000, offset: int = 0) -> List[TgAnalyticsEvent]:
+    """Get all analytics events, sorted by created_at DESC"""
+    return db.query(TgAnalyticsEvent).order_by(
+        desc(TgAnalyticsEvent.created_at)
+    ).limit(limit).offset(offset).all()
+
+
+def get_analytics_stats(db: Session) -> dict:
+    """Get analytics statistics"""
+    from sqlalchemy import func, distinct
+    from datetime import timedelta
+    
+    # Total unique users
+    total_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id))).scalar()
+    
+    # Total events
+    total_events = db.query(func.count(TgAnalyticsEvent.id)).scalar()
+    
+    # Total messages (user + ai)
+    total_messages = db.query(func.count(TgAnalyticsEvent.id)).filter(
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
+    ).scalar()
+    
+    # Total image generations
+    total_images = db.query(func.count(TgAnalyticsEvent.id)).filter(
+        TgAnalyticsEvent.event_name == 'image_generated'
+    ).scalar()
+    
+    # Active users (last 7 days)
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    active_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id))).filter(
+        TgAnalyticsEvent.created_at >= seven_days_ago
+    ).scalar()
+    
+    # Most popular personas with unique user counts
+    popular_personas = db.query(
+        TgAnalyticsEvent.persona_name,
+        func.count(TgAnalyticsEvent.id).label('interaction_count'),
+        func.count(distinct(TgAnalyticsEvent.client_id)).label('user_count')
+    ).filter(
+        TgAnalyticsEvent.persona_name.isnot(None)
+    ).group_by(
+        TgAnalyticsEvent.persona_name
+    ).order_by(desc('interaction_count')).limit(10).all()
+    
+    # Average messages per user
+    avg_messages_per_user = total_messages / total_users if total_users > 0 else 0
+    
+    return {
+        'total_users': total_users or 0,
+        'total_events': total_events or 0,
+        'total_messages': total_messages or 0,
+        'total_images': total_images or 0,
+        'active_users_7d': active_users or 0,
+        'avg_messages_per_user': round(avg_messages_per_user, 2),
+        'popular_personas': [
+            {
+                'name': name,
+                'interaction_count': interaction_count,
+                'user_count': user_count
+            } for name, interaction_count, user_count in popular_personas
+        ]
+    }
+
+
+def get_all_users_from_analytics(db: Session) -> List[dict]:
+    """Get all users with their message counts"""
+    from sqlalchemy import func
+    
+    users = db.query(
+        TgAnalyticsEvent.client_id,
+        func.count(TgAnalyticsEvent.id).label('total_events'),
+        func.max(TgAnalyticsEvent.created_at).label('last_activity')
+    ).group_by(
+        TgAnalyticsEvent.client_id
+    ).order_by(desc('last_activity')).all()
+    
+    result = []
+    for user in users:
+        # Get user info from User table
+        user_obj = db.query(User).filter(User.id == user.client_id).first()
+        result.append({
+            'client_id': user.client_id,
+            'username': user_obj.username if user_obj else None,
+            'first_name': user_obj.first_name if user_obj else None,
+            'total_events': user.total_events,
+            'last_activity': user.last_activity.isoformat() if user.last_activity else None
+        })
+    
+    return result
 
 
 

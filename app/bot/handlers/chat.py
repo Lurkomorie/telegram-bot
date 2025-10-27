@@ -13,6 +13,7 @@ from app.core.multi_brain_pipeline import process_message_pipeline
 from app.core.constants import ERROR_MESSAGES
 from app.core.logging_utils import log_verbose, log_always
 from app.core import redis_queue
+from app.core import analytics_service_tg
 
 
 @router.message(Command("clear"))
@@ -41,6 +42,14 @@ async def cmd_clear(message: types.Message):
         
         chat_id = chat.id
         log_verbose(f"[CLEAR] 💬 Deleting chat {chat_id}")
+        
+        # Track clear command
+        analytics_service_tg.track_chat_cleared(
+            client_id=user_id,
+            chat_id=chat_id,
+            persona_id=chat.persona_id,
+            persona_name=None  # Could fetch persona name if needed
+        )
         
         # Clear Redis queue for this chat
         await redis_queue.clear_batch_messages(chat_id)
@@ -149,6 +158,20 @@ async def handle_text_message(message: types.Message):
         # Extract data before session closes
         chat_id = chat.id
         tg_chat_id = chat.tg_chat_id
+        persona_id = chat.persona_id
+        
+        # Get persona for analytics
+        persona = crud.get_persona_by_id(db, chat.persona_id)
+        persona_name = persona.name if persona else None
+        
+        # Track user message
+        analytics_service_tg.track_user_message(
+            client_id=user_id,
+            message=user_text,
+            persona_id=persona_id,
+            persona_name=persona_name,
+            chat_id=chat_id
+        )
         
         # Update last user message timestamp and clear auto-message timestamp
         # (clearing auto-message timestamp allows scheduler to send another follow-up later if needed)

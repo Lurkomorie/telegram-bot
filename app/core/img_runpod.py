@@ -51,11 +51,7 @@ async def submit_image_job(
             "webhook_url": webhook_url,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
-            "width": img_config["width"],
-            "height": img_config["height"],
             "steps": img_config["steps"],
-            "cfg_scale": img_config["cfg_scale"],
-            "sampler_name": img_config["sampler_name"],
             "seed": seed  # Must be >= 0
         }
     }

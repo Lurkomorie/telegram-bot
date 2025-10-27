@@ -62,7 +62,8 @@ def load_cache():
                     "description": history.description,
                     "text": history.text,
                     "image_url": history.image_url,
-                    "wide_menu_image_url": history.wide_menu_image_url
+                    "wide_menu_image_url": history.wide_menu_image_url,
+                    "image_prompt": history.image_prompt
                 }
                 history_list.append(history_dict)
             

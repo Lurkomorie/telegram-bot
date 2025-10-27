@@ -39,3 +39,4 @@ def downgrade():
     op.drop_column('personas', 'emoji')
     op.drop_column('personas', 'small_description')
 
+

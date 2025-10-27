@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # Security
     IMAGE_CALLBACK_SECRET: str
     
+    # Cloudflare (for analytics image storage)
+    CLOUDFLARE_API_TOKEN: str
+    CLOUDFLARE_ACCOUNT_ID: str
+    CLOUDFLARE_ACCOUNT_HASH: str
+    
     # App
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"

@@ -23,6 +23,7 @@ from app.core.security import verify_hmac_signature
 from app.core.rate import close_redis
 from app.db.base import get_db
 from app.db import crud
+from app.core import analytics_service_tg
 print("✅ Core modules loaded")
 
 # Import handlers to register them (imported for side effects - registration)
@@ -33,6 +34,10 @@ print("✅ Handlers registered")
 print("🌐 Loading Mini App API...")
 from app.api import miniapp
 print("✅ Mini App API loaded")
+
+print("📊 Loading Analytics API...")
+from app.api import analytics
+print("✅ Analytics API loaded")
 
 
 
@@ -80,8 +85,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
 
-# Include Mini App API router
+# Include API routers
 app.include_router(miniapp.router)
+app.include_router(analytics.router)
 
 # Serve Mini App static files (React build)
 miniapp_build_path = Path(__file__).parent.parent / "miniapp" / "dist"
@@ -110,6 +116,39 @@ if miniapp_build_path.exists():
     print(f"✅ Mini App static files mounted at /miniapp")
 else:
     print(f"⚠️  Mini App build not found at {miniapp_build_path}")
+
+# Serve Analytics Dashboard static files (React build)
+analytics_build_path = Path(__file__).parent.parent / "analytics-dashboard" / "dist"
+if analytics_build_path.exists():
+    # Mount assets directory
+    app.mount("/analytics/assets", StaticFiles(directory=analytics_build_path / "assets"), name="analytics-assets")
+    
+    # Serve index.html at /analytics
+    @app.get("/analytics")
+    async def serve_analytics():
+        """Serve Analytics Dashboard index.html"""
+        index_path = analytics_build_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"error": "Analytics Dashboard not built"}
+    
+    # Catch-all route for React Router (must be after /analytics/assets)
+    @app.get("/analytics/{full_path:path}")
+    async def serve_analytics_routes(full_path: str):
+        """Serve Analytics Dashboard for all routes (React Router)"""
+        # If requesting a file that exists, serve it
+        file_path = analytics_build_path / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        # Otherwise serve index.html (for React Router)
+        index_path = analytics_build_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"error": "File not found"}
+    
+    print(f"✅ Analytics Dashboard mounted at /analytics")
+else:
+    print(f"⚠️  Analytics Dashboard build not found at {analytics_build_path}")
 
 
 @app.get("/")
@@ -400,6 +439,28 @@ async def image_callback(request: Request):
             await stop_and_remove_action(tg_chat_id)
             
             print(f"[IMAGE-CALLBACK] ✅ Image sent to chat {tg_chat_id}")
+            
+            # Track image generation for analytics (with Cloudflare upload in background)
+            # Get job details for tracking
+            with get_db() as db:
+                job_details = crud.get_image_job(db, job_id_str)
+                if job_details:
+                    chat_details = crud.get_chat_by_id(db, job_details.chat_id) if job_details.chat_id else None
+                    persona_details = crud.get_persona_by_id(db, job_details.persona_id) if job_details.persona_id else None
+                    
+                    # Use image_data if available, otherwise use image_url
+                    image_source = image_data if image_data else image_url
+                    
+                    analytics_service_tg.track_image_generated(
+                        client_id=job_details.user_id,
+                        image_url_or_bytes=image_source,
+                        persona_id=job_details.persona_id,
+                        persona_name=persona_details.name if persona_details else None,
+                        prompt=job_details.prompt,
+                        negative_prompt=job_details.negative_prompt,
+                        chat_id=job_details.chat_id,
+                        job_id=job_id_str
+                    )
         
         except Exception as e:
             print(f"[IMAGE-CALLBACK] ❌ Error sending photo: {e}")

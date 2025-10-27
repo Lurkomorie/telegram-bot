@@ -15,6 +15,7 @@ from app.core import redis_queue
 from app.db.base import get_db
 from app.db import crud
 from app.bot.loader import bot
+from app.core import analytics_service_tg
 
 
 async def process_message_pipeline(
@@ -299,6 +300,15 @@ async def _process_single_batch(
         await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
         log_always(f"[BATCH] ✅ Response sent to user")
         log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+        
+        # Track AI message
+        analytics_service_tg.track_ai_message(
+            client_id=user_id,
+            message=dialogue_response,
+            persona_id=persona_data["id"],
+            persona_name=persona_data["name"],
+            chat_id=chat_id
+        )
         
         # Stop typing indicator
         await action_mgr.stop()

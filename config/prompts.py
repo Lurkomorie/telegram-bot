@@ -244,12 +244,13 @@ Example 10: Solo Reading Scene
 sitting at wooden table, medium shot, upper body visible, surrounded by bookshelves, reading book, one hand on cheek, other hand holding book, hands visible, five fingers per hand, casual outfit, cardigan, comfortable clothes, library setting, natural window lighting, warm sunlight, cozy atmosphere, gentle smile, focused expression, sensual, solo, (only one person:1.4), single subject, photorealistic
 ⸻
 CRITICAL RULES SUMMARY:
+TRY TO DO CLOSE/MID SHOTS, NOT LONG SHOTS. ALSO WE ALWAYS NEED TO SEE HEAD .
 90% of scenes are SOLO - default to solo unless explicit multi-person activity (sex, oral, etc.).
 For solo scenes: ALWAYS include "solo, (only one person:1.4), (no other people:1.3), single subject".
 Always include hand protection: "hands visible" or "hands out of frame" if hand should be in the scene.
 Use diverse examples mentally but generate based on ACTUAL scene context.
 SEND ONLY A SINGLE LINE OF COMMA-SEPARATED TAGS. NO OTHER TEXT. DO NOT USE CODE FENCES.
-IMPORTANT!!! DON'T USE: wicked smile, wicked playfulness, sparkling eyes, teasing smile, seductive gaze, playful expression, knowing smile
+IMPORTANT!!! DON'T USE: wicked smile, teasing smile, wicked playfulness, sparkling eyes, seductive gaze, playful expression, knowing smile
 </IMAGE_GENERATION_RULES>
 """
 
