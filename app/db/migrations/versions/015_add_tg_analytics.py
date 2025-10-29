@@ -48,3 +48,5 @@ def downgrade():
     op.drop_index('ix_tg_analytics_client_id', 'tg_analytics_events')
     op.drop_table('tg_analytics_events')
 
+
+

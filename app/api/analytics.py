@@ -99,3 +99,5 @@ async def get_user_events(client_id: int, limit: int = 1000) -> List[Dict[str, A
         print(f"[ANALYTICS-API] Error fetching user events: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching user events: {str(e)}")
 
+
+

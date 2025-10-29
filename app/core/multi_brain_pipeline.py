@@ -168,6 +168,9 @@ async def _process_single_batch(
             else:
                 previous_state = None
             
+            # Extract memory
+            memory = chat.memory
+            
             # Build chat history (all existing processed messages)
             chat_history = [
                 {"role": m.role, "content": m.text} 
@@ -185,6 +188,7 @@ async def _process_single_batch(
         log_always(f"[BATCH] ✅ Data fetched: {len(chat_history)} msgs, persona={persona_data['name']}")
         log_verbose(f"[BATCH]    History: {len(chat_history)} messages")
         log_verbose(f"[BATCH]    Previous state: {'Found' if previous_state else 'None (creating new)'}")
+        log_verbose(f"[BATCH]    Memory: {len(memory) if memory else 0} chars")
         
         # Log conversation history for debugging
         if chat_history:
@@ -219,7 +223,8 @@ async def _process_single_batch(
             state=previous_state,  # Use previous state for dialogue generation
             chat_history=chat_history,
             user_message=user_message_for_ai,
-            persona=persona_data
+            persona=persona_data,
+            memory=memory  # Pass conversation memory
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -312,6 +317,15 @@ async def _process_single_batch(
         
         # Stop typing indicator
         await action_mgr.stop()
+        
+        # 5.5. Trigger background memory update (fire and forget)
+        from app.core.memory_service import trigger_memory_update
+        asyncio.create_task(trigger_memory_update(
+            chat_id=chat_id,
+            user_message=batched_text,
+            ai_message=dialogue_response
+        ))
+        log_verbose(f"[BATCH] 🧠 Memory update triggered (background)")
         
         # 6. Start background image generation for this batch
         log_always(f"[BATCH] 🎨 Starting background image generation...")

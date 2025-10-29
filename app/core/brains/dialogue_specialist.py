@@ -66,7 +66,8 @@ async def generate_dialogue(
     state: str,
     chat_history: List[Dict[str, str]],
     user_message: str,
-    persona: Dict[str, str]  # {name, prompt}
+    persona: Dict[str, str],  # {name, prompt}
+    memory: str = None  # Optional conversation memory
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -87,6 +88,17 @@ async def generate_dialogue(
         state=state
     )
     
+    # Add memory context if available
+    memory_context = ""
+    if memory and memory.strip():
+        memory_context = f"""
+
+# CONVERSATION MEMORY
+{memory}
+
+Note: This memory contains important facts about the user and past interactions. Use these details naturally in your responses to show continuity and personalization.
+"""
+    
     # Add current state context as string
     state_context = f"""
 
@@ -101,7 +113,7 @@ async def generate_dialogue(
 - Vary your physical actions and dialogue - never use the exact same phrases twice.
 """
     
-    full_system_prompt = system_prompt + state_context
+    full_system_prompt = system_prompt + memory_context + state_context
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):

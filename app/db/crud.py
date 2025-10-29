@@ -197,6 +197,15 @@ def update_chat_state(db: Session, chat_id: UUID, state_snapshot: dict):
         db.commit()
 
 
+def update_chat_memory(db: Session, chat_id: UUID, memory: str):
+    """Update chat memory"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if chat:
+        chat.memory = memory
+        chat.updated_at = datetime.utcnow()
+        db.commit()
+
+
 def clear_chat_history(db: Session, chat_id: UUID):
     """Clear all messages in a chat"""
     db.query(Message).filter(Message.chat_id == chat_id).delete()

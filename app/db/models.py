@@ -120,6 +120,9 @@ class Chat(Base):
     # Conversation state (mirrors FullState from schemas)
     state_snapshot = Column(JSONB, default={})
     
+    # Memory system - stores important conversation facts
+    memory = Column(Text, nullable=True)
+    
     # Timestamps for auto-message tracking
     last_user_message_at = Column(DateTime, nullable=True)
     last_assistant_message_at = Column(DateTime, nullable=True)
