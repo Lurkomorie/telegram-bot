@@ -15,7 +15,24 @@ COPY miniapp/ ./
 # Build Mini App
 RUN npm run build
 
-# Stage 2: Python application
+# Stage 2: Build Analytics Dashboard
+FROM node:18-alpine AS analytics-builder
+
+WORKDIR /build
+
+# Copy Analytics Dashboard package files
+COPY analytics-dashboard/package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy Analytics Dashboard source
+COPY analytics-dashboard/ ./
+
+# Build Analytics Dashboard
+RUN npm run build
+
+# Stage 3: Python application
 FROM python:3.11-slim
 
 # Set working directory
@@ -41,6 +58,9 @@ COPY scripts ./scripts
 
 # Copy built Mini App from builder stage
 COPY --from=miniapp-builder /build/dist ./miniapp/dist
+
+# Copy built Analytics Dashboard from builder stage
+COPY --from=analytics-builder /build/dist ./analytics-dashboard/dist
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
