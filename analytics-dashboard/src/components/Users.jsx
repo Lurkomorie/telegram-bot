@@ -60,6 +60,9 @@ export default function Users() {
                 User ID
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Acquisition Source
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total Events
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -94,6 +97,18 @@ export default function Users() {
                   {user.client_id}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.acquisition_source ? (
+                    <span 
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                      title={user.acquisition_timestamp ? `Acquired: ${formatDate(user.acquisition_timestamp)}` : 'Acquisition source'}
+                    >
+                      {user.acquisition_source}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 italic">direct</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.total_events}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -115,6 +130,7 @@ export default function Users() {
     </div>
   );
 }
+
 
 
 

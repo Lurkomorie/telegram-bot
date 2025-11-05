@@ -35,6 +35,10 @@ class User(Base):
     is_premium = Column(Boolean, default=False, nullable=False)
     premium_until = Column(DateTime, nullable=True)
     
+    # Acquisition tracking (for ads attribution)
+    acquisition_source = Column(String(64), nullable=True)  # First deep-link payload
+    acquisition_timestamp = Column(DateTime, nullable=True)  # When user first arrived
+    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")

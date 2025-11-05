@@ -11,18 +11,38 @@ from datetime import datetime
 
 # ========== USER OPERATIONS ==========
 
-def get_or_create_user(db: Session, telegram_id: int, username: str = None, first_name: str = None) -> User:
-    """Get existing user or create new one"""
+def get_or_create_user(db: Session, telegram_id: int, username: str = None, first_name: str = None, acquisition_source: str = None) -> User:
+    """Get existing user or create new one
+    
+    Args:
+        telegram_id: Telegram user ID
+        username: User's username
+        first_name: User's first name
+        acquisition_source: Deep-link payload for ads attribution (only set on first visit)
+    
+    Returns:
+        User object
+    """
     user = db.query(User).filter(User.id == telegram_id).first()
     if not user:
+        # New user - set acquisition source if provided
         user = User(
             id=telegram_id,
             username=username,
-            first_name=first_name
+            first_name=first_name,
+            acquisition_source=acquisition_source if acquisition_source else None,
+            acquisition_timestamp=datetime.utcnow() if acquisition_source else None
         )
         db.add(user)
         db.commit()
         db.refresh(user)
+    else:
+        # Existing user - only set acquisition source if not already set (first-touch attribution)
+        if acquisition_source and not user.acquisition_source:
+            user.acquisition_source = acquisition_source
+            user.acquisition_timestamp = datetime.utcnow()
+            db.commit()
+            db.refresh(user)
     return user
 
 
@@ -879,7 +899,7 @@ def get_analytics_stats(db: Session) -> dict:
 
 
 def get_all_users_from_analytics(db: Session) -> List[dict]:
-    """Get all users with their message counts"""
+    """Get all users with their message counts and acquisition source"""
     from sqlalchemy import func
     
     users = db.query(
@@ -899,7 +919,9 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
             'username': user_obj.username if user_obj else None,
             'first_name': user_obj.first_name if user_obj else None,
             'total_events': user.total_events,
-            'last_activity': user.last_activity.isoformat() if user.last_activity else None
+            'last_activity': user.last_activity.isoformat() if user.last_activity else None,
+            'acquisition_source': user_obj.acquisition_source if user_obj else None,
+            'acquisition_timestamp': user_obj.acquisition_timestamp.isoformat() if user_obj and user_obj.acquisition_timestamp else None
         })
     
     return result

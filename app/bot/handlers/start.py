@@ -75,12 +75,19 @@ async def cmd_start(message: types.Message):
     
     # Standard /start flow
     # Get or create user (DB call needed for user-specific data)
+    # Pass acquisition_source for ads attribution (only if not a persona deep link)
+    acquisition_source = None
+    if deep_link_param and not deep_link_param.startswith("persona_"):
+        # Only track non-persona payloads as acquisition source (max 64 chars)
+        acquisition_source = deep_link_param[:64]
+    
     with get_db() as db:
         crud.get_or_create_user(
             db,
             telegram_id=message.from_user.id,
             username=message.from_user.username,
-            first_name=message.from_user.first_name
+            first_name=message.from_user.first_name,
+            acquisition_source=acquisition_source
         )
     
     # Get personas from cache (much faster!)
@@ -471,14 +478,6 @@ async def continue_chat_callback(callback: types.CallbackQuery):
         await callback.answer("Persona not found!", show_alert=True)
         return
     
-    # Track chat continued
-    analytics_service_tg.track_chat_continued(
-        client_id=callback.from_user.id,
-        chat_id=None,  # Will be set below
-        persona_id=persona_id,
-        persona_name=persona["name"]
-    )
-    
     # Get existing chat (DB call needed)
     with get_db() as db:
         chat = crud.check_existing_chat(
@@ -498,6 +497,14 @@ async def continue_chat_callback(callback: types.CallbackQuery):
         # Activate this chat and archive all others for this user
         # This prevents the scheduler from sending auto-messages to old conversations
         crud.activate_chat(db, chat_id, callback.from_user.id)
+    
+    # Track chat continued (after chat_id is retrieved)
+    analytics_service_tg.track_chat_continued(
+        client_id=callback.from_user.id,
+        chat_id=chat_id,
+        persona_id=persona_id,
+        persona_name=persona["name"]
+    )
     
     # Delete the inline keyboard message
     try:
