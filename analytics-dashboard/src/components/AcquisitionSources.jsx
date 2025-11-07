@@ -6,6 +6,7 @@ export default function AcquisitionSources() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'user_count', direction: 'desc' });
 
   useEffect(() => {
     fetchSources();
@@ -22,6 +23,46 @@ export default function AcquisitionSources() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedSources = () => {
+    const sortedSources = [...sources];
+    sortedSources.sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // Handle null values
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    return sortedSources;
+  };
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) {
+      return <span className="text-gray-300 ml-1">↕</span>;
+    }
+    return (
+      <span className="ml-1">
+        {sortConfig.direction === 'asc' ? '↑' : '↓'}
+      </span>
+    );
   };
 
   if (loading) {
@@ -43,6 +84,7 @@ export default function AcquisitionSources() {
   // Calculate totals
   const totalUsers = sources.reduce((sum, source) => sum + source.user_count, 0);
   const totalEvents = sources.reduce((sum, source) => sum + source.total_events, 0);
+  const sortedSources = getSortedSources();
 
   return (
     <div className="p-8">
@@ -68,24 +110,48 @@ export default function AcquisitionSources() {
       </div>
 
       {/* Sources Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Source
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('source')}
+              >
+                <div className="flex items-center">
+                  Source
+                  <SortIcon columnKey="source" />
+                </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Users
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('user_count')}
+              >
+                <div className="flex items-center">
+                  Users
+                  <SortIcon columnKey="user_count" />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 New Users (14d)
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total Events
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_events')}
+              >
+                <div className="flex items-center">
+                  Total Events
+                  <SortIcon columnKey="total_events" />
+                </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Avg Events per User
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('avg_events_per_user')}
+              >
+                <div className="flex items-center">
+                  Avg Events per User
+                  <SortIcon columnKey="avg_events_per_user" />
+                </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 % of Total Users
@@ -93,7 +159,7 @@ export default function AcquisitionSources() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sources.map((source, index) => {
+            {sortedSources.map((source, index) => {
               const userPercentage = totalUsers > 0 ? ((source.user_count / totalUsers) * 100).toFixed(1) : 0;
               
               return (
