@@ -32,3 +32,4 @@ export default function Sparkline({ data, width = 70, height = 24 }) {
   );
 }
 
+
