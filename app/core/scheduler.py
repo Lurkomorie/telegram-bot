@@ -154,20 +154,28 @@ async def send_auto_message(chat_id, tg_chat_id):
 
 def start_scheduler():
     """Start the background scheduler"""
+    from app.settings import settings
+    
     print("[SCHEDULER] Starting background scheduler...")
     
-    # Check for inactive chats every minute (30min threshold)
-    scheduler.add_job(check_inactive_chats, 'interval', minutes=1)
+    # Only add followup jobs if enabled
+    if settings.ENABLE_FOLLOWUPS:
+        # Check for inactive chats every minute (30min threshold)
+        scheduler.add_job(check_inactive_chats, 'interval', minutes=1)
+        
+        # Check for inactive chats every hour (24h threshold)
+        scheduler.add_job(check_inactive_chats_24h, 'interval', hours=1)
+        
+        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 1h)")
+    else:
+        print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Check for inactive chats every hour (24h threshold)
-    scheduler.add_job(check_inactive_chats_24h, 'interval', hours=1)
-    
-    # Regenerate energy daily at midnight UTC
+    # Regenerate energy daily at midnight UTC (always enabled)
     scheduler.add_job(regenerate_daily_energy, 'cron', hour=0, minute=0)
     
     scheduler.start()
     
-    print("[SCHEDULER] ✅ Scheduler started - 30min check every 1min, 24h check every 1h, energy regen daily at 00:00 UTC")
+    print("[SCHEDULER] ✅ Scheduler started - energy regen daily at 00:00 UTC")
 
 
 def stop_scheduler():

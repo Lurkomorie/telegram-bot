@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Statistics from './components/Statistics';
 import Users from './components/Users';
 import UserTimeline from './components/UserTimeline';
+import AcquisitionSources from './components/AcquisitionSources';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
             <Route path="/statistics" element={<Statistics />} />
             <Route path="/users" element={<Users />} />
             <Route path="/users/:clientId" element={<UserTimeline />} />
+            <Route path="/acquisition-sources" element={<AcquisitionSources />} />
           </Routes>
         </main>
       </div>

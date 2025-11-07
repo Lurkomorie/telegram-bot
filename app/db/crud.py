@@ -905,7 +905,8 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
     users = db.query(
         TgAnalyticsEvent.client_id,
         func.count(TgAnalyticsEvent.id).label('total_events'),
-        func.max(TgAnalyticsEvent.created_at).label('last_activity')
+        func.max(TgAnalyticsEvent.created_at).label('last_activity'),
+        func.min(TgAnalyticsEvent.created_at).label('first_activity')
     ).group_by(
         TgAnalyticsEvent.client_id
     ).order_by(desc('last_activity')).all()
@@ -914,15 +915,165 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
     for user in users:
         # Get user info from User table
         user_obj = db.query(User).filter(User.id == user.client_id).first()
+        
+        # Get sparkline data and consecutive days streak
+        sparkline_data = get_user_sparkline_data(db, user.client_id)
+        consecutive_days = get_user_consecutive_days(db, user.client_id)
+        
         result.append({
             'client_id': user.client_id,
             'username': user_obj.username if user_obj else None,
             'first_name': user_obj.first_name if user_obj else None,
             'total_events': user.total_events,
             'last_activity': user.last_activity.isoformat() if user.last_activity else None,
+            'first_activity': user.first_activity.isoformat() if user.first_activity else None,
             'acquisition_source': user_obj.acquisition_source if user_obj else None,
-            'acquisition_timestamp': user_obj.acquisition_timestamp.isoformat() if user_obj and user_obj.acquisition_timestamp else None
+            'acquisition_timestamp': user_obj.acquisition_timestamp.isoformat() if user_obj and user_obj.acquisition_timestamp else None,
+            'sparkline_data': sparkline_data,
+            'consecutive_days_streak': consecutive_days
         })
+    
+    return result
+
+
+def get_user_sparkline_data(db: Session, client_id: int, days: int = 14) -> List[int]:
+    """Get user message activity for the last N days as sparkline data"""
+    from sqlalchemy import func, cast, Date
+    from datetime import datetime, timedelta
+    
+    # Calculate date range
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days - 1)
+    
+    # Query user_message events grouped by date
+    daily_counts = db.query(
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.client_id == client_id,
+        TgAnalyticsEvent.event_name == 'user_message',
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by('date').all()
+    
+    # Create a dict for quick lookup
+    counts_dict = {row.date: row.count for row in daily_counts}
+    
+    # Build complete array with 0 for missing days
+    sparkline = []
+    current_date = start_date
+    for _ in range(days):
+        count = counts_dict.get(current_date, 0)
+        sparkline.append(count)
+        current_date += timedelta(days=1)
+    
+    return sparkline
+
+
+def get_user_consecutive_days(db: Session, client_id: int) -> int:
+    """Calculate current active streak of consecutive days with user messages"""
+    from sqlalchemy import cast, Date, distinct
+    from datetime import datetime, timedelta
+    
+    # Get distinct dates with user messages, ordered descending
+    message_dates = db.query(
+        distinct(cast(TgAnalyticsEvent.created_at, Date)).label('date')
+    ).filter(
+        TgAnalyticsEvent.client_id == client_id,
+        TgAnalyticsEvent.event_name == 'user_message'
+    ).order_by(desc('date')).all()
+    
+    if not message_dates:
+        return 0
+    
+    # Calculate streak from today going backwards
+    today = datetime.utcnow().date()
+    yesterday = today - timedelta(days=1)
+    
+    # Check if user has activity today or yesterday (to count as active streak)
+    latest_date = message_dates[0].date
+    if latest_date != today and latest_date != yesterday:
+        return 0  # Streak is broken
+    
+    # Count consecutive days
+    streak = 0
+    expected_date = today if latest_date == today else yesterday
+    
+    for row in message_dates:
+        if row.date == expected_date or row.date == expected_date - timedelta(days=1):
+            streak += 1
+            expected_date = row.date - timedelta(days=1)
+        else:
+            break
+    
+    return streak
+
+
+def get_acquisition_source_stats(db: Session) -> List[dict]:
+    """Get statistics grouped by acquisition source"""
+    from sqlalchemy import func, cast, Date
+    from datetime import datetime, timedelta
+    
+    # Get all users with their acquisition source
+    users = db.query(User).all()
+    
+    # Calculate date range for sparklines (14 days)
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=13)
+    
+    # Group by acquisition source
+    source_stats = {}
+    for user in users:
+        source = user.acquisition_source if user.acquisition_source else 'direct'
+        
+        if source not in source_stats:
+            source_stats[source] = {
+                'source': source,
+                'user_count': 0,
+                'total_events': 0,
+                'user_first_activities': []
+            }
+        
+        source_stats[source]['user_count'] += 1
+        
+        # Get total events for this user
+        event_count = db.query(func.count(TgAnalyticsEvent.id)).filter(
+            TgAnalyticsEvent.client_id == user.id
+        ).scalar() or 0
+        
+        source_stats[source]['total_events'] += event_count
+        
+        # Get user's first activity date
+        first_activity = db.query(func.min(TgAnalyticsEvent.created_at)).filter(
+            TgAnalyticsEvent.client_id == user.id
+        ).scalar()
+        
+        if first_activity:
+            source_stats[source]['user_first_activities'].append(first_activity.date())
+    
+    # Calculate average events per user and sparkline data
+    result = []
+    for source, stats in source_stats.items():
+        avg_events = stats['total_events'] / stats['user_count'] if stats['user_count'] > 0 else 0
+        
+        # Create sparkline showing new users per day for last 14 days
+        sparkline = []
+        current_date = start_date
+        for _ in range(14):
+            count = sum(1 for date in stats['user_first_activities'] if date == current_date)
+            sparkline.append(count)
+            current_date += timedelta(days=1)
+        
+        result.append({
+            'source': source,
+            'user_count': stats['user_count'],
+            'total_events': stats['total_events'],
+            'avg_events_per_user': round(avg_events, 2),
+            'sparkline_data': sparkline
+        })
+    
+    # Sort by user count descending
+    result.sort(key=lambda x: x['user_count'], reverse=True)
     
     return result
 

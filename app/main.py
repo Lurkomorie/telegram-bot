@@ -14,9 +14,20 @@ print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
 print("✅ Settings loaded")
 
-print("🤖 Initializing bot...")
-from app.bot.loader import bot, dp
-print("✅ Bot initialized")
+# Conditionally initialize bot based on ENABLE_BOT flag
+bot = None
+dp = None
+if settings.ENABLE_BOT:
+    print("🤖 Initializing bot...")
+    from app.bot.loader import bot, dp
+    print("✅ Bot initialized")
+    
+    # Import handlers to register them (imported for side effects - registration)
+    print("📝 Registering handlers...")
+    from app.bot.handlers import start, chat, image, settings as settings_handler, payment  # noqa: F401
+    print("✅ Handlers registered")
+else:
+    print("⚠️  Bot disabled (ENABLE_BOT=False)")
 
 print("🔧 Loading core modules...")
 from app.core.security import verify_hmac_signature
@@ -25,11 +36,6 @@ from app.db.base import get_db
 from app.db import crud
 from app.core import analytics_service_tg
 print("✅ Core modules loaded")
-
-# Import handlers to register them (imported for side effects - registration)
-print("📝 Registering handlers...")
-from app.bot.handlers import start, chat, image, settings as settings_handler, payment  # noqa: F401
-print("✅ Handlers registered")
 
 print("🌐 Loading Mini App API...")
 from app.api import miniapp
@@ -45,7 +51,7 @@ print("✅ Analytics API loaded")
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
     # Startup
-    print("🚀 Starting bot...")
+    print("🚀 Starting application...")
     load_configs()
     
     # Load persona cache
@@ -53,34 +59,42 @@ async def lifespan(app: FastAPI):
     load_cache()
     print("✅ Persona cache loaded")
     
-    # Set Mini App menu button
-    try:
-        from aiogram.types import MenuButtonWebApp, WebAppInfo
-        miniapp_url = f"{settings.public_url}/miniapp"
-        menu_button = MenuButtonWebApp(text="App Gallery", web_app=WebAppInfo(url=miniapp_url))
-        await bot.set_chat_menu_button(menu_button=menu_button)
-        print(f"✅ Mini App menu button set: {miniapp_url}")
-    except Exception as e:
-        print(f"⚠️  Failed to set Mini App menu button: {e}")
+    # Set Mini App menu button (only if bot is enabled)
+    if settings.ENABLE_BOT and bot:
+        try:
+            from aiogram.types import MenuButtonWebApp, WebAppInfo
+            miniapp_url = f"{settings.public_url}/miniapp"
+            menu_button = MenuButtonWebApp(text="App Gallery", web_app=WebAppInfo(url=miniapp_url))
+            await bot.set_chat_menu_button(menu_button=menu_button)
+            print(f"✅ Mini App menu button set: {miniapp_url}")
+        except Exception as e:
+            print(f"⚠️  Failed to set Mini App menu button: {e}")
     
     # Start background scheduler
     from app.core.scheduler import start_scheduler
     start_scheduler()
     
-    print("✅ Bot started successfully")
+    if settings.ENABLE_BOT:
+        print("✅ Bot started successfully")
+    else:
+        print("✅ Application started (bot disabled)")
     
     yield
     
     # Shutdown
-    print("🛑 Shutting down bot...")
+    print("🛑 Shutting down application...")
     
     # Stop scheduler
     from app.core.scheduler import stop_scheduler
     stop_scheduler()
     
     await close_redis()
-    await bot.session.close()
-    print("✅ Bot stopped")
+    
+    # Close bot session only if bot was initialized
+    if settings.ENABLE_BOT and bot:
+        await bot.session.close()
+    
+    print("✅ Application stopped")
 
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
@@ -176,29 +190,33 @@ async def process_update_async(update: Update):
         # Don't propagate - already returned 200 to Telegram
 
 
-@app.post("/webhook/{token}")
-async def telegram_webhook(token: str, request: Request, background_tasks: BackgroundTasks):
-    """
-    Telegram webhook endpoint
-    Receives updates from Telegram and processes them in background
-    Returns 200 OK immediately to prevent Telegram timeouts
-    """
-    if token != settings.WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid webhook token")
-    
-    try:
-        data = await request.json()
-        update = Update.model_validate(data)
+# Only register webhook endpoint if bot is enabled
+if settings.ENABLE_BOT:
+    @app.post("/webhook/{token}")
+    async def telegram_webhook(token: str, request: Request, background_tasks: BackgroundTasks):
+        """
+        Telegram webhook endpoint
+        Receives updates from Telegram and processes them in background
+        Returns 200 OK immediately to prevent Telegram timeouts
+        """
+        if token != settings.WEBHOOK_SECRET:
+            raise HTTPException(status_code=403, detail="Invalid webhook token")
         
-        # Process in background - return 200 immediately
-        background_tasks.add_task(process_update_async, update)
+        try:
+            data = await request.json()
+            update = Update.model_validate(data)
+            
+            # Process in background - return 200 immediately
+            background_tasks.add_task(process_update_async, update)
+            
+            return {"ok": True}  # ✅ Immediate response!
         
-        return {"ok": True}  # ✅ Immediate response!
-    
-    except Exception as e:
-        print(f"[WEBHOOK] Error parsing update: {e}")
-        # Still return 200 to prevent Telegram retries
-        return {"ok": True}
+        except Exception as e:
+            print(f"[WEBHOOK] Error parsing update: {e}")
+            # Still return 200 to prevent Telegram retries
+            return {"ok": True}
+else:
+    print("⚠️  Webhook endpoint disabled (ENABLE_BOT=False)")
 
 
 @app.post("/image/callback")

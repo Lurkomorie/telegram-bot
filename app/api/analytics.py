@@ -100,5 +100,25 @@ async def get_user_events(client_id: int, limit: int = 1000) -> List[Dict[str, A
         raise HTTPException(status_code=500, detail=f"Error fetching user events: {str(e)}")
 
 
+@router.get("/acquisition-sources")
+async def get_acquisition_sources() -> List[Dict[str, Any]]:
+    """
+    Get acquisition source statistics
+    
+    Returns list of acquisition sources with:
+        - source: Acquisition source name
+        - user_count: Number of users from this source
+        - total_events: Total events from users of this source
+        - avg_events_per_user: Average events per user from this source
+    """
+    try:
+        with get_db() as db:
+            stats = crud.get_acquisition_source_stats(db)
+            return stats
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching acquisition source stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching acquisition source stats: {str(e)}")
+
+
 
 

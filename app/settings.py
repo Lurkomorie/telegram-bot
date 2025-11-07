@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: Optional[str] = "production"  # For verbose logging (development/dev/local or production)
     
+    # Feature flags
+    ENABLE_BOT: bool = True  # Set to False to disable bot (useful for local testing of APIs)
+    ENABLE_FOLLOWUPS: bool = True  # Set to False to disable auto follow-up messages
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

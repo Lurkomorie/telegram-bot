@@ -68,7 +68,13 @@ IMAGE_CALLBACK_SECRET=another_random_secret
 
 ENV=development
 LOG_LEVEL=INFO
+
+# Optional: Feature flags for local testing
+ENABLE_BOT=False        # Disable bot to prevent dual responses
+ENABLE_FOLLOWUPS=False  # Disable auto follow-up messages
 ```
+
+> **💡 Tip for Local Development**: When testing APIs (analytics, miniapp) locally while your production bot is running, set `ENABLE_BOT=False` to prevent your local instance from responding to user messages. This avoids users getting duplicate responses from both your server and local machine.
 
 4. **Run database migrations**
 
@@ -128,6 +134,16 @@ telegram-bot/
 ```
 
 ## ⚙️ Configuration
+
+### Environment Variables
+
+#### Feature Flags
+
+- **`ENABLE_BOT`** (default: `True`)  
+  Set to `False` to disable the Telegram bot entirely. The FastAPI server will still run, allowing you to test analytics dashboard and miniapp APIs without the bot responding to messages. Useful for local development when production bot is running.
+
+- **`ENABLE_FOLLOWUPS`** (default: `True`)  
+  Set to `False` to disable automatic follow-up messages (30-minute and 24-hour re-engagement messages). Energy regeneration still runs.
 
 ### app.yaml
 
