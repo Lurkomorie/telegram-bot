@@ -72,6 +72,7 @@ LOG_LEVEL=INFO
 # Optional: Feature flags for local testing
 ENABLE_BOT=False        # Disable bot to prevent dual responses
 ENABLE_FOLLOWUPS=False  # Disable auto follow-up messages
+ENABLE_IMAGES_IN_FOLLOWUP=False  # Disable images in auto follow-ups
 ```
 
 > **💡 Tip for Local Development**: When testing APIs (analytics, miniapp) locally while your production bot is running, set `ENABLE_BOT=False` to prevent your local instance from responding to user messages. This avoids users getting duplicate responses from both your server and local machine.
@@ -144,6 +145,9 @@ telegram-bot/
 
 - **`ENABLE_FOLLOWUPS`** (default: `True`)  
   Set to `False` to disable automatic follow-up messages (30-minute and 24-hour re-engagement messages). Energy regeneration still runs.
+
+- **`ENABLE_IMAGES_IN_FOLLOWUP`** (default: `False`)  
+  Set to `True` to enable image generation during auto follow-up messages. Disabled by default to save resources and reduce costs, as follow-ups are frequent and images may not be necessary for re-engagement.
 
 ### app.yaml
 
@@ -270,6 +274,9 @@ ngrok http 8080
 # Set webhook to ngrok URL
 curl -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
   -d "url=https://your-ngrok-url.ngrok.io/webhook/${WEBHOOK_SECRET}"
+
+  curl -X POST "https://api.telegram.org/bot8266552305:AAHqT32CMUyH7ahgPe1kGK06RxwNEnjlIA8/setWebhook" \
+  -d "url=https://984e5f4a7c0c.ngrok-free.app/webhook/m1RJyAvMKf8Vgyf_DLe7vcqP22wj2z5XecJV5zxVQqg"
 ```
 
 ### Test Image Callback
@@ -354,4 +361,3 @@ Proprietary - All Rights Reserved
 ---
 
 **Built with ❤️ for immersive AI companionship**
-

@@ -745,9 +745,9 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
     return True
 
 
-def regenerate_daily_energy(db: Session, user_id: int) -> bool:
+def regenerate_user_energy(db: Session, user_id: int) -> bool:
     """
-    Add 20 energy to user (daily regeneration for free users)
+    Add 2 energy to user (2-hour regeneration for free users)
     Only applies to non-premium users
     Returns True if energy was added
     """
@@ -759,17 +759,17 @@ def regenerate_daily_energy(db: Session, user_id: int) -> bool:
     if check_user_premium(db, user_id):
         return False
     
-    # Add 20 energy, capped at max_energy
+    # Add 2 energy, capped at max_energy
     old_energy = user.energy
-    user.energy = min(user.energy + 20, user.max_energy)
+    user.energy = min(user.energy + 2, user.max_energy)
     db.commit()
     
     return user.energy > old_energy
 
 
-def regenerate_all_users_daily_energy(db: Session) -> int:
+def regenerate_all_users_energy(db: Session) -> int:
     """
-    Regenerate energy for all non-premium users
+    Regenerate 2 energy for all non-premium users (runs every 2 hours)
     Returns count of users who received energy
     """
     
@@ -787,7 +787,7 @@ def regenerate_all_users_daily_energy(db: Session) -> int:
         
         # Add energy if below max
         if user.energy < user.max_energy:
-            user.energy = min(user.energy + 20, user.max_energy)
+            user.energy = min(user.energy + 2, user.max_energy)
             count += 1
     
     db.commit()
@@ -1076,6 +1076,323 @@ def get_acquisition_source_stats(db: Session) -> List[dict]:
     result.sort(key=lambda x: x['user_count'], reverse=True)
     
     return result
+
+
+# ========== TIME-SERIES ANALYTICS FUNCTIONS ==========
+
+
+def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+    """
+    Get message counts over time bucketed by interval
+    
+    Args:
+        db: Database session
+        interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
+        limit_hours: How many hours of history to fetch
+    
+    Returns:
+        List of {timestamp, count} dictionaries
+    """
+    from sqlalchemy import func, text
+    from datetime import datetime, timedelta
+    
+    # Calculate cutoff time
+    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+    
+    # Use PostgreSQL's date_trunc for time bucketing
+    if interval_minutes == 1:
+        trunc_spec = 'minute'
+    elif interval_minutes < 60:
+        # For 5, 15, 30 minutes, we'll use minute and group manually
+        trunc_spec = 'minute'
+    elif interval_minutes == 60:
+        trunc_spec = 'hour'
+    elif interval_minutes == 360:
+        trunc_spec = 'hour'
+    elif interval_minutes == 720:
+        trunc_spec = 'hour'
+    else:  # 1440 (1 day)
+        trunc_spec = 'day'
+    
+    query = db.query(
+        func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
+        TgAnalyticsEvent.created_at >= cutoff_time
+    ).group_by('time_bucket').order_by('time_bucket')
+    
+    results = query.all()
+    
+    # For intervals that don't align with date_trunc, we need to further group
+    if interval_minutes in [5, 15, 30]:
+        # Group by floor(minutes / interval) * interval
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            # Round down to nearest interval
+            dt = row.time_bucket
+            total_minutes = dt.hour * 60 + dt.minute
+            bucket_num = total_minutes // interval_minutes
+            bucket_minutes = bucket_num * interval_minutes
+            bucket_time = dt.replace(hour=bucket_minutes // 60, minute=bucket_minutes % 60, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 360:
+        # 6 hours: group by floor(hour / 6) * 6
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 6) * 6
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 720:
+        # 12 hours: group by floor(hour / 12) * 12
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 12) * 12
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    
+    return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
+
+
+def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+    """
+    Get auto-followup message counts over time bucketed by interval
+    
+    Args:
+        db: Database session
+        interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
+        limit_hours: How many hours of history to fetch
+    
+    Returns:
+        List of {timestamp, count} dictionaries
+    """
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    # Calculate cutoff time
+    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+    
+    # Use PostgreSQL's date_trunc for time bucketing
+    if interval_minutes == 1:
+        trunc_spec = 'minute'
+    elif interval_minutes < 60:
+        trunc_spec = 'minute'
+    elif interval_minutes == 60:
+        trunc_spec = 'hour'
+    elif interval_minutes == 360:
+        trunc_spec = 'hour'
+    elif interval_minutes == 720:
+        trunc_spec = 'hour'
+    else:  # 1440 (1 day)
+        trunc_spec = 'day'
+    
+    query = db.query(
+        func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'auto_followup_message',
+        TgAnalyticsEvent.created_at >= cutoff_time
+    ).group_by('time_bucket').order_by('time_bucket')
+    
+    results = query.all()
+    
+    # Apply same bucketing logic as get_messages_over_time
+    if interval_minutes in [5, 15, 30]:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            total_minutes = dt.hour * 60 + dt.minute
+            bucket_num = total_minutes // interval_minutes
+            bucket_minutes = bucket_num * interval_minutes
+            bucket_time = dt.replace(hour=bucket_minutes // 60, minute=bucket_minutes % 60, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 360:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 6) * 6
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 720:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 12) * 12
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    
+    return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
+
+
+def get_active_users_over_time(db: Session, days: int = 7) -> List[dict]:
+    """
+    Get daily unique active user counts
+    
+    Args:
+        db: Database session
+        days: Number of days to fetch (7, 30, or 90)
+    
+    Returns:
+        List of {date, count} dictionaries
+    """
+    from sqlalchemy import func, cast, Date, distinct
+    from datetime import datetime, timedelta
+    
+    # Calculate date range
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days - 1)
+    
+    # Query unique users per day
+    results = db.query(
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(distinct(TgAnalyticsEvent.client_id)).label('count')
+    ).filter(
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by('date').order_by('date').all()
+    
+    # Create a dict for quick lookup
+    counts_dict = {row.date: row.count for row in results}
+    
+    # Fill in missing days with 0
+    result_list = []
+    current_date = start_date
+    for _ in range(days):
+        count = counts_dict.get(current_date, 0)
+        result_list.append({
+            'date': current_date.isoformat(),
+            'count': count
+        })
+        current_date += timedelta(days=1)
+    
+    return result_list
+
+
+def get_messages_by_persona(db: Session) -> List[dict]:
+    """
+    Get message count distribution by persona
+    
+    Returns:
+        List of {persona_name, count} dictionaries
+    """
+    from sqlalchemy import func
+    
+    results = db.query(
+        TgAnalyticsEvent.persona_name,
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
+        TgAnalyticsEvent.persona_name.isnot(None)
+    ).group_by(
+        TgAnalyticsEvent.persona_name
+    ).order_by(desc('count')).all()
+    
+    return [{'persona_name': row.persona_name, 'count': row.count} for row in results]
+
+
+def get_images_over_time(db: Session, days: int = 7) -> List[dict]:
+    """
+    Get daily image generation counts
+    
+    Args:
+        db: Database session
+        days: Number of days to fetch (7, 30, or 90)
+    
+    Returns:
+        List of {date, count} dictionaries
+    """
+    from sqlalchemy import func, cast, Date
+    from datetime import datetime, timedelta
+    
+    # Calculate date range
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days - 1)
+    
+    # Query image generations per day
+    results = db.query(
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'image_generated',
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by('date').order_by('date').all()
+    
+    # Create a dict for quick lookup
+    counts_dict = {row.date: row.count for row in results}
+    
+    # Fill in missing days with 0
+    result_list = []
+    current_date = start_date
+    for _ in range(days):
+        count = counts_dict.get(current_date, 0)
+        result_list.append({
+            'date': current_date.isoformat(),
+            'count': count
+        })
+        current_date += timedelta(days=1)
+    
+    return result_list
+
+
+def get_engagement_heatmap(db: Session) -> List[dict]:
+    """
+    Get message counts by hour of day and day of week
+    
+    Returns:
+        List of {hour, day_of_week, count} dictionaries
+        hour: 0-23
+        day_of_week: 0-6 (0=Monday, 6=Sunday)
+    """
+    from sqlalchemy import func, extract
+    from datetime import datetime, timedelta
+    
+    # Get data from last 30 days for meaningful heatmap
+    cutoff_time = datetime.utcnow() - timedelta(days=30)
+    
+    results = db.query(
+        extract('hour', TgAnalyticsEvent.created_at).label('hour'),
+        extract('dow', TgAnalyticsEvent.created_at).label('day_of_week'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
+        TgAnalyticsEvent.created_at >= cutoff_time
+    ).group_by('hour', 'day_of_week').all()
+    
+    return [
+        {
+            'hour': int(row.hour),
+            'day_of_week': int(row.day_of_week),
+            'count': row.count
+        } 
+        for row in results
+    ]
 
 
 

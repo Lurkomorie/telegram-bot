@@ -306,13 +306,14 @@ async def _process_single_batch(
         log_always(f"[BATCH] ✅ Response sent to user")
         log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
         
-        # Track AI message
+        # Track AI message (distinguish auto-followup from regular messages)
         analytics_service_tg.track_ai_message(
             client_id=user_id,
             message=dialogue_response,
             persona_id=persona_data["id"],
             persona_name=persona_data["name"],
-            chat_id=chat_id
+            chat_id=chat_id,
+            is_auto_followup=is_auto_followup
         )
         
         # Stop typing indicator
@@ -328,21 +329,29 @@ async def _process_single_batch(
         log_verbose(f"[BATCH] 🧠 Memory update triggered (background)")
         
         # 6. Start background image generation for this batch
-        log_always(f"[BATCH] 🎨 Starting background image generation...")
-        asyncio.create_task(_background_image_generation(
-            chat_id=chat_id,
-            user_id=user_id,
-            persona_id=persona_data["id"],
-            state=new_state,
-            dialogue_response=dialogue_response,
-            batched_text=batched_text,
-            persona=persona_data,
-            tg_chat_id=tg_chat_id,
-            action_mgr=action_mgr,
-            chat_history=chat_history,
-            previous_image_prompt=previous_image_prompt
-        ))
-        log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
+        # Skip image generation for auto-followups if disabled by feature flag
+        from app.settings import settings
+        should_generate_image = not is_auto_followup or settings.ENABLE_IMAGES_IN_FOLLOWUP
+        
+        if should_generate_image:
+            log_always(f"[BATCH] 🎨 Starting background image generation...")
+            asyncio.create_task(_background_image_generation(
+                chat_id=chat_id,
+                user_id=user_id,
+                persona_id=persona_data["id"],
+                state=new_state,
+                dialogue_response=dialogue_response,
+                batched_text=batched_text,
+                persona=persona_data,
+                tg_chat_id=tg_chat_id,
+                action_mgr=action_mgr,
+                chat_history=chat_history,
+                previous_image_prompt=previous_image_prompt
+            ))
+            log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
+        else:
+            log_always(f"[BATCH] ⏭️  Skipping image generation (auto-followup with ENABLE_IMAGES_IN_FOLLOWUP=False)")
+            log_always(f"[BATCH] ✅ Batch complete (text sent, no image)")
         
     except Exception as e:
         print(f"[BATCH] ❌ Batch processing error: {type(e).__name__}: {e}")

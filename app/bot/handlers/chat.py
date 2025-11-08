@@ -110,6 +110,21 @@ async def handle_text_message(message: types.Message):
             first_name=message.from_user.first_name
         )
         
+        # Check if user is premium (premium users get free messages)
+        is_premium = crud.check_user_premium(db, user_id)
+        
+        # Check energy for non-premium users (1 energy per message)
+        if not is_premium:
+            if not crud.check_user_energy(db, user_id, required=1):
+                # Show energy upsell message
+                from app.bot.handlers.image import show_energy_upsell_message
+                await show_energy_upsell_message(message, user_id)
+                log_verbose(f"[CHAT] ⚠️  User {user_id} has insufficient energy")
+                return
+            log_verbose(f"[CHAT] ⚡ User has sufficient energy")
+        else:
+            log_verbose(f"[CHAT] 💎 Premium user - free messages")
+        
         # Delete any existing energy upsell message (user is chatting, not low on energy)
         upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
         if upsell_msg_id and upsell_chat_id:
@@ -178,6 +193,15 @@ async def handle_text_message(message: types.Message):
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
         chat.last_auto_message_at = None
         db.commit()
+        
+        # Deduct energy for non-premium users (1 energy per message)
+        if not is_premium:
+            if crud.deduct_user_energy(db, user_id, amount=1):
+                log_verbose(f"[CHAT] ⚡ Deducted 1 energy from user {user_id}")
+            else:
+                log_verbose(f"[CHAT] ⚠️  Failed to deduct energy from user {user_id}")
+                await message.answer("❌ Failed to deduct energy. Please try again.")
+                return
     
     # Always add message to queue first
     log_verbose(f"[CHAT] 📥 Adding '{user_text[:20]}...' to queue")

@@ -98,18 +98,21 @@ def track_ai_message(
     message: str,
     persona_id: Optional[UUID] = None,
     persona_name: Optional[str] = None,
-    chat_id: Optional[UUID] = None
+    chat_id: Optional[UUID] = None,
+    is_auto_followup: bool = False
 ):
     """Track AI sending a message"""
+    event_name = "auto_followup_message" if is_auto_followup else "ai_message"
     track_event_tg(
         client_id=client_id,
-        event_name="ai_message",
+        event_name=event_name,
         persona_id=persona_id,
         persona_name=persona_name,
         message=message[:1000],  # Limit message length
         meta={
             "chat_id": str(chat_id) if chat_id else None,
-            "message_length": len(message)
+            "message_length": len(message),
+            "is_auto_followup": is_auto_followup
         }
     )
 

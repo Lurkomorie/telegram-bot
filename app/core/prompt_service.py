@@ -4,7 +4,8 @@ Centralized prompt management service
 from config.prompts import (
     CHAT_GPT,
     IMAGE_TAG_GENERATOR_GPT,
-    CONVERSATION_STATE_GPT
+    CONVERSATION_STATE_GPT,
+    MEMORY_EXTRACTOR_GPT
 )
 
 
@@ -15,6 +16,7 @@ class PromptService:
         "CHAT_GPT": CHAT_GPT,
         "IMAGE_TAG_GENERATOR_GPT": IMAGE_TAG_GENERATOR_GPT,
         "CONVERSATION_STATE_GPT": CONVERSATION_STATE_GPT,
+        "MEMORY_EXTRACTOR_GPT": MEMORY_EXTRACTOR_GPT,
     }
     
     @classmethod

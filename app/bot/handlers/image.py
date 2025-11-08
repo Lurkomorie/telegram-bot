@@ -182,8 +182,10 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
     sent_msg = await message.answer(
         f"⚡ <b>You're out of energy!</b>\n\n"
         f"You have {user_energy['energy']}/{user_energy['max_energy']} energy.\n"
-        f"Image generation costs <b>5 energy</b> per image.\n\n"
-        f"💎 Get more energy to continue generating amazing images!",
+        f"• Text messages cost <b>1 energy</b> each\n"
+        f"• Image generation costs <b>5 energy</b> per image\n"
+        f"• You regenerate <b>2 energy every 2 hours</b>\n\n"
+        f"💎 Get unlimited energy with Premium!",
         reply_markup=keyboard
     )
     

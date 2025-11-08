@@ -166,10 +166,17 @@ function App() {
           <h1 className="page-title">{getPageTitle()}</h1>
           {currentPage !== 'history' && (
             <div className="energy-display">
-              <span className="energy-icon"></span>
-              <span className="energy-value">
-                {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
-              </span>
+              <div className="energy-content">
+                <span className="energy-icon"></span>
+                <div className="energy-info">
+                  <span className="energy-value">
+                    {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
+                  </span>
+                  {!energy.is_premium && (
+                    <span className="energy-regen">+2 ⭐ every 2h</span>
+                  )}
+                </div>
+              </div>
               <button className="plus-button" onClick={() => handleNavigate('premium')}>
                 +
               </button>

@@ -30,15 +30,15 @@ class Settings(BaseSettings):
     # AI Services
     OPENROUTER_API_KEY: str
     RUNPOD_API_KEY_POD: str
-    RUNPOD_ENDPOINT: str = "https://aa9yxd4ap6p47w-8000.proxy.runpod.net/run"
+    RUNPOD_ENDPOINT: str
     
     # Security
     IMAGE_CALLBACK_SECRET: str
     
     # Cloudflare (for analytics image storage)
-    CLOUDFLARE_API_TOKEN: str
-    CLOUDFLARE_ACCOUNT_ID: str
-    CLOUDFLARE_ACCOUNT_HASH: str
+    CLOUDFLARE_API_TOKEN: Optional[str] = None
+    CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
+    CLOUDFLARE_ACCOUNT_HASH: Optional[str] = None
     
     # App
     ENV: str = "production"
@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     # Feature flags
     ENABLE_BOT: bool = True  # Set to False to disable bot (useful for local testing of APIs)
     ENABLE_FOLLOWUPS: bool = True  # Set to False to disable auto follow-up messages
+    ENABLE_IMAGES_IN_FOLLOWUP: bool = False  # Set to True to generate images during auto follow-ups
     
     class Config:
         env_file = ".env"
