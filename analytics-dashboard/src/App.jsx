@@ -4,6 +4,7 @@ import Statistics from './components/Statistics';
 import Users from './components/Users';
 import UserTimeline from './components/UserTimeline';
 import AcquisitionSources from './components/AcquisitionSources';
+import Images from './components/Images';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/users/:clientId" element={<UserTimeline />} />
             <Route path="/acquisition-sources" element={<AcquisitionSources />} />
+            <Route path="/images" element={<Images />} />
           </Routes>
         </main>
       </div>

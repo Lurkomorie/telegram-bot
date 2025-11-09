@@ -469,6 +469,9 @@ async def image_callback(request: Request):
                     # Use image_data if available, otherwise use image_url
                     image_source = image_data if image_data else image_url
                     
+                    # Extract source metadata from job
+                    is_auto_followup = job_details.ext.get("is_auto_followup", False) if job_details.ext else False
+                    
                     analytics_service_tg.track_image_generated(
                         client_id=job_details.user_id,
                         image_url_or_bytes=image_source,
@@ -477,7 +480,8 @@ async def image_callback(request: Request):
                         prompt=job_details.prompt,
                         negative_prompt=job_details.negative_prompt,
                         chat_id=job_details.chat_id,
-                        job_id=job_id_str
+                        job_id=job_id_str,
+                        is_auto_followup=is_auto_followup
                     )
         
         except Exception as e:

@@ -302,5 +302,40 @@ async def get_engagement_heatmap() -> List[Dict[str, Any]]:
         raise HTTPException(status_code=500, detail=f"Error fetching engagement heatmap: {str(e)}")
 
 
+@router.get("/images")
+async def get_images(page: int = 1, per_page: int = 100) -> Dict[str, Any]:
+    """
+    Get all generated images with pagination
+    
+    Args:
+        page: Page number (1-indexed, default: 1)
+        per_page: Number of items per page (default: 100, max: 500)
+    
+    Returns:
+        Dictionary with:
+        - images: List of image records with user, persona, and source info
+        - total: Total number of images
+        - page: Current page number
+        - per_page: Items per page
+        - total_pages: Total number of pages
+    """
+    try:
+        # Validate and cap per_page
+        if per_page < 1:
+            per_page = 100
+        if per_page > 500:
+            per_page = 500
+        
+        if page < 1:
+            page = 1
+        
+        with get_db() as db:
+            data = crud.get_all_images_paginated(db, page, per_page)
+            return data
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching images: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching images: {str(e)}")
+
+
 
 

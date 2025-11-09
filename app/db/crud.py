@@ -1395,4 +1395,74 @@ def get_engagement_heatmap(db: Session) -> List[dict]:
     ]
 
 
+def get_all_images_paginated(db: Session, page: int = 1, per_page: int = 100) -> dict:
+    """
+    Get all generated images with pagination
+    
+    Args:
+        db: Database session
+        page: Page number (1-indexed)
+        per_page: Number of items per page
+    
+    Returns:
+        Dictionary with:
+        - images: List of image records with user, persona, and source info
+        - total: Total number of images
+        - page: Current page number
+        - per_page: Items per page
+        - total_pages: Total number of pages
+    """
+    from sqlalchemy import func
+    
+    # Query image_generated events with user and persona info
+    offset = (page - 1) * per_page
+    
+    # Get total count
+    total = db.query(func.count(TgAnalyticsEvent.id)).filter(
+        TgAnalyticsEvent.event_name == 'image_generated'
+    ).scalar() or 0
+    
+    # Get paginated images
+    images_query = db.query(TgAnalyticsEvent).filter(
+        TgAnalyticsEvent.event_name == 'image_generated'
+    ).order_by(desc(TgAnalyticsEvent.created_at)).limit(per_page).offset(offset).all()
+    
+    # Build response with user info
+    images_list = []
+    for img_event in images_query:
+        # Get user info
+        user = db.query(User).filter(User.id == img_event.client_id).first()
+        
+        # Determine source from meta field
+        source = 'message_response'  # default
+        if img_event.meta and isinstance(img_event.meta, dict):
+            if img_event.meta.get('source') == 'history_start':
+                source = 'history_start'
+            elif img_event.meta.get('is_auto_followup'):
+                source = 'scheduler'
+        
+        images_list.append({
+            'id': str(img_event.id),
+            'created_at': img_event.created_at.isoformat(),
+            'image_url': img_event.image_url,
+            'prompt': img_event.prompt,
+            'negative_prompt': img_event.negative_prompt,
+            'source': source,
+            'user_id': img_event.client_id,
+            'username': user.username if user else None,
+            'first_name': user.first_name if user else None,
+            'persona_id': str(img_event.persona_id) if img_event.persona_id else None,
+            'persona_name': img_event.persona_name,
+            'meta': img_event.meta
+        })
+    
+    return {
+        'images': images_list,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page  # Ceiling division
+    }
+
+
 

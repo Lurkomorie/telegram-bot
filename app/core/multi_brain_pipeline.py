@@ -346,7 +346,8 @@ async def _process_single_batch(
                 tg_chat_id=tg_chat_id,
                 action_mgr=action_mgr,
                 chat_history=chat_history,
-                previous_image_prompt=previous_image_prompt
+                previous_image_prompt=previous_image_prompt,
+                is_auto_followup=is_auto_followup
             ))
             log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         else:
@@ -374,7 +375,8 @@ async def _background_image_generation(
     tg_chat_id: int,
     action_mgr: ChatActionManager,  # Reused to show upload_photo action
     chat_history: list[dict],  # Add chat history parameter
-    previous_image_prompt: str = None  # Add previous image prompt parameter
+    previous_image_prompt: str = None,  # Add previous image prompt parameter
+    is_auto_followup: bool = False  # Track if image is from scheduler
 ):
     """Non-blocking image generation"""
     try:
@@ -426,7 +428,8 @@ async def _background_image_generation(
         log_verbose(f"[IMAGE-BG] 💾 Creating job record in database...")
         with get_db() as db:
             job = crud.create_image_job(
-                db, user_id, persona_id, positive, negative, chat_id
+                db, user_id, persona_id, positive, negative, chat_id,
+                ext={"is_auto_followup": is_auto_followup}
             )
             job_id = job.id
         log_verbose(f"[IMAGE-BG]    Job ID: {job_id}")

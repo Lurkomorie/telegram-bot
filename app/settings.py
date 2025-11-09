@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     ENABLE_BOT: bool = True  # Set to False to disable bot (useful for local testing of APIs)
     ENABLE_FOLLOWUPS: bool = True  # Set to False to disable auto follow-up messages
     ENABLE_IMAGES_IN_FOLLOWUP: bool = False  # Set to True to generate images during auto follow-ups
+    SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
     
     class Config:
         env_file = ".env"

@@ -128,7 +128,8 @@ async def _upload_and_track_image(
     negative_prompt: Optional[str] = None,
     chat_id: Optional[UUID] = None,
     job_id: Optional[str] = None,
-    is_refresh: bool = False
+    is_refresh: bool = False,
+    is_auto_followup: bool = False
 ):
     """
     Upload image to Cloudflare and track event
@@ -159,6 +160,7 @@ async def _upload_and_track_image(
                 "chat_id": str(chat_id) if chat_id else None,
                 "job_id": job_id,
                 "is_refresh": is_refresh,
+                "is_auto_followup": is_auto_followup,
                 "cloudflare_upload_success": result.success
             }
         )
@@ -174,13 +176,15 @@ def track_image_generated(
     prompt: Optional[str] = None,
     negative_prompt: Optional[str] = None,
     chat_id: Optional[UUID] = None,
-    job_id: Optional[str] = None
+    job_id: Optional[str] = None,
+    is_auto_followup: bool = False
 ):
     """
     Track image generation (uploads to Cloudflare in background)
     
     Args:
         image_url_or_bytes: Either Telegram photo URL or binary image data
+        is_auto_followup: Whether image was generated from auto-followup message
     """
     import random
     filename = f"tg_image_{client_id}_{random.randint(1000, 9999)}.png"
@@ -197,7 +201,8 @@ def track_image_generated(
             negative_prompt=negative_prompt,
             chat_id=chat_id,
             job_id=job_id,
-            is_refresh=False
+            is_refresh=False,
+            is_auto_followup=is_auto_followup
         )
     )
 

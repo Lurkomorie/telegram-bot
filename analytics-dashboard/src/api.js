@@ -59,6 +59,12 @@ export const api = {
     const response = await fetch(`${API_BASE}/api/analytics/engagement-heatmap`);
     if (!response.ok) throw new Error('Failed to fetch engagement heatmap');
     return response.json();
+  },
+
+  async getImages(page = 1, perPage = 100) {
+    const response = await fetch(`${API_BASE}/api/analytics/images?page=${page}&per_page=${perPage}`);
+    if (!response.ok) throw new Error('Failed to fetch images');
+    return response.json();
   }
 };
 
