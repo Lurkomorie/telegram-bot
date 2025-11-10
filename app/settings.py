@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     ENABLE_FOLLOWUPS: bool = True  # Set to False to disable auto follow-up messages
     ENABLE_IMAGES_IN_FOLLOWUP: bool = False  # Set to True to generate images during auto follow-ups
     SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
+    FORCE_IMAGES_ALWAYS: bool = False  # Debug flag to force images every message (bypasses AI decision)
+    ENABLE_ENERGY_REGEN: bool = True  # Set to False to disable automatic energy regeneration (2-hour cycle)
+    
+    # Testing/Development
+    FOLLOWUP_TEST_USERS: Optional[str] = None  # Comma-separated user IDs to restrict followups to (e.g., "123456,789012")
     
     class Config:
         env_file = ".env"
@@ -64,6 +69,17 @@ class Settings(BaseSettings):
             return f"https://{self.RAILWAY_PUBLIC_DOMAIN}"
         else:
             raise ValueError("Either PUBLIC_BASE_URL or RAILWAY_PUBLIC_DOMAIN must be set")
+    
+    @property
+    def followup_test_user_ids(self) -> Optional[list[int]]:
+        """Parse comma-separated test user IDs for followup whitelist"""
+        if not self.FOLLOWUP_TEST_USERS:
+            return None
+        try:
+            return [int(uid.strip()) for uid in self.FOLLOWUP_TEST_USERS.split(',') if uid.strip()]
+        except ValueError:
+            print(f"⚠️  Warning: Invalid FOLLOWUP_TEST_USERS format: {self.FOLLOWUP_TEST_USERS}")
+            return None
 
 
 # Global settings instance

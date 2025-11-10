@@ -79,4 +79,5 @@ STATE_RESOLVER_MAX_RETRIES = 2
 DIALOGUE_SPECIALIST_MAX_RETRIES = 3
 IMAGE_ENGINEER_MAX_RETRIES = 3
 IMAGE_ENGINEER_BASE_DELAY = 1  # seconds, will be exponentially increased
+IMAGE_DECISION_MAX_RETRIES = 2  # Fast model, fewer retries needed
 

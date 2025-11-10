@@ -392,18 +392,23 @@ def update_chat_timestamps(db: Session, chat_id: UUID, user_at=None, assistant_a
     db.commit()
 
 
-def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
+def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[List[int]] = None) -> List[Chat]:
     """Get chats where assistant spoke last and it's been >N minutes (for auto-messages)
     
     Only returns chats where we haven't already sent an auto-message since the last user reply.
     This prevents sending multiple auto-messages if the user doesn't respond.
     Only queries active chats to prevent messages to archived conversations.
+    
+    Args:
+        db: Database session
+        minutes: Number of minutes of inactivity required
+        test_user_ids: Optional list of user IDs to restrict results to (for testing)
     """
     from datetime import timedelta
     from sqlalchemy import or_, and_
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
-    return db.query(Chat).filter(
+    query = db.query(Chat).filter(
         Chat.status == "active",  # Only active chats
         Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
         Chat.last_assistant_message_at < threshold,  # More than N minutes ago
@@ -419,10 +424,16 @@ def get_inactive_chats(db: Session, minutes: int = 5) -> List[Chat]:
                 Chat.last_auto_message_at < Chat.last_user_message_at  # Auto-msg was before last user msg
             )
         )
-    ).all()
+    )
+    
+    # Filter by test users if whitelist is provided
+    if test_user_ids is not None:
+        query = query.filter(Chat.user_id.in_(test_user_ids))
+    
+    return query.all()
 
 
-def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> List[Chat]:
+def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_user_ids: Optional[List[int]] = None) -> List[Chat]:
     """Get chats inactive for long periods (24h+) that need re-engagement
     
     This allows sending a follow-up even if we already sent an auto-message earlier
@@ -432,12 +443,17 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> Lis
     - The chat is active (not archived)
     
     This prevents spam while allowing periodic re-engagement for very inactive chats.
+    
+    Args:
+        db: Database session
+        minutes: Number of minutes of inactivity required
+        test_user_ids: Optional list of user IDs to restrict results to (for testing)
     """
     from datetime import timedelta
     from sqlalchemy import or_
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
-    return db.query(Chat).filter(
+    query = db.query(Chat).filter(
         Chat.status == "active",  # Only active chats
         Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
         or_(
@@ -449,10 +465,37 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440) -> Lis
             Chat.last_auto_message_at.is_(None),  # Never sent an auto-message
             Chat.last_auto_message_at < threshold  # Or last auto-message was long ago
         )
-    ).all()
+    )
+    
+    # Filter by test users if whitelist is provided
+    if test_user_ids is not None:
+        query = query.filter(Chat.user_id.in_(test_user_ids))
+    
+    return query.all()
 
 
 # ========== ENHANCED MESSAGE CREATION ==========
+
+def increment_chat_message_count(db: Session, chat_id: UUID, increment_by: int = 1) -> int:
+    """
+    Increment message counter for a chat and return new count
+    
+    Args:
+        db: Database session
+        chat_id: Chat UUID
+        increment_by: Number to increment by (default 1)
+    
+    Returns:
+        New message count
+    """
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if chat:
+        chat.message_count += increment_by
+        db.commit()
+        db.refresh(chat)
+        return chat.message_count
+    return 0
+
 
 def create_message_with_state(
     db: Session, 
@@ -475,6 +518,10 @@ def create_message_with_state(
     db.add(message)
     db.commit()
     db.refresh(message)
+    
+    # Increment message counter (1 for each message saved)
+    increment_chat_message_count(db, chat_id, increment_by=1)
+    
     return message
 
 
@@ -501,6 +548,9 @@ def create_batch_messages(
     # Refresh all messages
     for msg in messages:
         db.refresh(msg)
+    
+    # Increment message counter by batch size
+    increment_chat_message_count(db, chat_id, increment_by=len(messages))
     
     return messages
 

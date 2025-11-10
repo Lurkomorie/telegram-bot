@@ -34,9 +34,9 @@ def _apply_template_replacements(
         "{{core.personality.prompts}}": "",
         "{{sexual.archetypes}}": "Balanced",
         "{{sexual.archetype.prompts}}": "",
-        # User profile (optional for v1)
+        # User profile
         "{{user.name}}": "the user",
-        "{{user.lang}}": "en",
+        "{{user.lang}}": "[detect from conversation]",
     }
     
     result = template
@@ -67,17 +67,26 @@ async def generate_dialogue(
     chat_history: List[Dict[str, str]],
     user_message: str,
     persona: Dict[str, str],  # {name, prompt}
-    memory: str = None  # Optional conversation memory
+    memory: str = None,  # Optional conversation memory
+    is_auto_followup: bool = False  # Use cheaper model for scheduled followups
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
     
-    Model: meta-llama/llama-3.3-70b-instruct (from app.yaml)
+    Model: Uses main model or followup_model depending on is_auto_followup
     Temperature: 0.8-1.0 (creative, varies on retry)
     Retries: 3 attempts with validation
     """
     config = get_app_config()
-    dialogue_model = config["llm"]["model"]
+    
+    # Select model based on context
+    if is_auto_followup:
+        dialogue_model = config["llm"].get("followup_model", config["llm"]["model"])
+        print(f"[DIALOGUE] 🔄 Using followup model: {dialogue_model}")
+    else:
+        dialogue_model = config["llm"]["model"]
+        print(f"[DIALOGUE] 💬 Using main dialogue model: {dialogue_model}")
+    
     max_retries = DIALOGUE_SPECIALIST_MAX_RETRIES
     
     # Build system prompt with replacements
@@ -111,9 +120,32 @@ Note: This memory contains important facts about the user and past interactions.
 - Reference specific details from the user's message (their words, their questions, their actions).
 - Build on the conversation naturally - don't reset or start over.
 - Vary your physical actions and dialogue - never use the exact same phrases twice.
+
+# LANGUAGE CONSISTENCY WARNING
+- If you see mixed languages in conversation history (English + Russian in same message), these are ERRORS from past.
+- DO NOT copy this pattern. Use ONLY the language from user's CURRENT message.
+- Example: If history shows "_I smile_ *Привет*" but user writes Russian → YOU write ALL in Russian.
 """
     
-    full_system_prompt = system_prompt + memory_context + state_context
+    # Add enhanced instructions for auto-followup messages
+    followup_guidance = ""
+    if is_auto_followup:
+        followup_guidance = f"""
+
+# IMPORTANT - AUTO-FOLLOWUP RULES
+You are reaching out after a period of silence. Follow these rules:
+- **CRITICAL**: Write in the SAME LANGUAGE as the previous conversation. NO mixed languages.
+- Use *actions* for physical descriptions and actions (e.g., *smiles*, *leans closer*)
+- Stay deeply in character as {persona.get("name", "your character")}
+- Be engaging, natural, and true to your personality
+- Reference your previous conversation naturally - show you remember
+- Keep it conversational and concise (2-4 sentences ideal)
+- Create intrigue or warmth to draw them back into conversation
+- Be flirty/playful when appropriate to your character
+- Don't apologize for the silence - just naturally re-engage
+"""
+    
+    full_system_prompt = system_prompt + memory_context + state_context + followup_guidance
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):

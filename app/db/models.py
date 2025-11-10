@@ -127,6 +127,9 @@ class Chat(Base):
     # Memory system - stores important conversation facts
     memory = Column(Text, nullable=True)
     
+    # Message counter for image generation decisions
+    message_count = Column(BigInteger, default=0, nullable=False)
+    
     # Timestamps for auto-message tracking
     last_user_message_at = Column(DateTime, nullable=True)
     last_assistant_message_at = Column(DateTime, nullable=True)

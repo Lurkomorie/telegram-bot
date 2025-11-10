@@ -184,11 +184,15 @@ async def _process_single_batch(
                 "prompt": persona.prompt or "",
                 "image_prompt": persona.image_prompt or ""
             }
+            
+            # Get message count for image decision
+            current_message_count = chat.message_count
         
         log_always(f"[BATCH] ✅ Data fetched: {len(chat_history)} msgs, persona={persona_data['name']}")
         log_verbose(f"[BATCH]    History: {len(chat_history)} messages")
         log_verbose(f"[BATCH]    Previous state: {'Found' if previous_state else 'None (creating new)'}")
         log_verbose(f"[BATCH]    Memory: {len(memory) if memory else 0} chars")
+        log_verbose(f"[BATCH]    Message count: {current_message_count}")
         
         # Log conversation history for debugging
         if chat_history:
@@ -199,6 +203,33 @@ async def _process_single_batch(
             print(f"[BATCH] 📚 No conversation history (new chat)")
         
         print(f"[BATCH] 💬 Current batch text: {batched_text[:100]}...")
+        
+        # 1.5 Brain 4: Image Decision (decide before dialogue generation)
+        from app.settings import settings
+        should_generate_image_flag = False
+        decision_reason = "not determined"
+        
+        # Check feature flag to force images always (debug mode)
+        if settings.FORCE_IMAGES_ALWAYS:
+            should_generate_image_flag = True
+            decision_reason = "FORCE_IMAGES_ALWAYS flag enabled"
+            log_always(f"[BATCH] 🎨 Image decision: FORCED YES - {decision_reason}")
+        # First two messages in chat always get images
+        elif current_message_count <= 2:
+            should_generate_image_flag = True
+            decision_reason = "first two messages in chat"
+            log_always(f"[BATCH] 🎨 Image decision: YES - {decision_reason}")
+        else:
+            # Use AI to decide
+            from app.core.brains.image_decision_specialist import should_generate_image
+            log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation...")
+            should_generate_image_flag, decision_reason = await should_generate_image(
+                previous_state=previous_state or "",
+                user_message=batched_text,
+                chat_history=chat_history,
+                persona_name=persona_data["name"]
+            )
+            log_always(f"[BATCH] ✅ Brain 4: Decision = {'YES' if should_generate_image_flag else 'NO'} - {decision_reason}")
         
         # 2. Brain 1: Dialogue Specialist (responds based on current state)
         log_always(f"[BATCH] 🧠 Brain 1: Generating dialogue...")
@@ -224,7 +255,8 @@ async def _process_single_batch(
             chat_history=chat_history,
             user_message=user_message_for_ai,
             persona=persona_data,
-            memory=memory  # Pass conversation memory
+            memory=memory,  # Pass conversation memory
+            is_auto_followup=is_auto_followup  # Use cheaper model with enhanced prompt for followups
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -328,13 +360,13 @@ async def _process_single_batch(
         ))
         log_verbose(f"[BATCH] 🧠 Memory update triggered (background)")
         
-        # 6. Start background image generation for this batch
-        # Skip image generation for auto-followups if disabled by feature flag
-        from app.settings import settings
-        should_generate_image = not is_auto_followup or settings.ENABLE_IMAGES_IN_FOLLOWUP
+        # 6. Start background image generation based on AI decision
+        # Combine AI decision with auto-followup check
+        should_skip_followup_image = is_auto_followup and not settings.ENABLE_IMAGES_IN_FOLLOWUP
+        final_should_generate = should_generate_image_flag and not should_skip_followup_image
         
-        if should_generate_image:
-            log_always(f"[BATCH] 🎨 Starting background image generation...")
+        if final_should_generate:
+            log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
             asyncio.create_task(_background_image_generation(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -351,7 +383,11 @@ async def _process_single_batch(
             ))
             log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         else:
-            log_always(f"[BATCH] ⏭️  Skipping image generation (auto-followup with ENABLE_IMAGES_IN_FOLLOWUP=False)")
+            if should_skip_followup_image:
+                skip_reason = "auto-followup with ENABLE_IMAGES_IN_FOLLOWUP=False"
+            else:
+                skip_reason = decision_reason
+            log_always(f"[BATCH] ⏭️  Skipping image generation (reason: {skip_reason})")
             log_always(f"[BATCH] ✅ Batch complete (text sent, no image)")
         
     except Exception as e:

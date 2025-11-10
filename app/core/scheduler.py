@@ -13,15 +13,22 @@ scheduler = AsyncIOScheduler()
 
 async def check_inactive_chats():
     """Check for chats inactive >30min and send follow-up"""
+    from app.settings import settings
+    
     print("[SCHEDULER] Checking for inactive chats (30min)...")
+    
+    # Check if test user whitelist is enabled
+    test_user_ids = settings.followup_test_user_ids
+    if test_user_ids:
+        print(f"[SCHEDULER] 🧪 Test mode: Followups restricted to user IDs: {test_user_ids}")
     
     try:
         # Extract chat data while in session context
         with get_db() as db:
-            inactive_chats = crud.get_inactive_chats(db, minutes=30)
+            inactive_chats = crud.get_inactive_chats(db, minutes=30, test_user_ids=test_user_ids)
             # Extract needed data before session closes
             chat_data = [
-                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id}
+                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
                 for chat in inactive_chats
             ]
         
@@ -48,17 +55,24 @@ async def check_inactive_chats_24h():
     and the user still hasn't responded. We only re-engage if it's been
     24 hours since our last auto-message attempt.
     """
+    from app.settings import settings
+    
     print("[SCHEDULER] Checking for inactive chats (24h re-engagement)...")
+    
+    # Check if test user whitelist is enabled
+    test_user_ids = settings.followup_test_user_ids
+    if test_user_ids:
+        print(f"[SCHEDULER] 🧪 Test mode: Followups restricted to user IDs: {test_user_ids}")
     
     try:
         # Extract chat data while in session context
         with get_db() as db:
             # Use the special re-engagement function that allows follow-ups
             # even if we already sent an auto-message (as long as it was 24h ago)
-            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440)  # 24 hours
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440, test_user_ids=test_user_ids)  # 24 hours
             # Extract needed data before session closes
             chat_data = [
-                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id}
+                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
                 for chat in inactive_chats
             ]
         
@@ -170,12 +184,16 @@ def start_scheduler():
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Regenerate energy every 2 hours (always enabled)
-    scheduler.add_job(regenerate_2hour_energy, 'interval', hours=2)
+    # Regenerate energy every 2 hours (if enabled)
+    if settings.ENABLE_ENERGY_REGEN:
+        scheduler.add_job(regenerate_2hour_energy, 'interval', hours=2)
+        print("[SCHEDULER] ✅ Energy regeneration enabled (every 2 hours)")
+    else:
+        print("[SCHEDULER] ⚠️  Energy regeneration disabled (ENABLE_ENERGY_REGEN=False)")
     
     scheduler.start()
     
-    print("[SCHEDULER] ✅ Scheduler started - energy regen every 2 hours")
+    print("[SCHEDULER] ✅ Scheduler started")
 
 
 def stop_scheduler():

@@ -149,6 +149,9 @@ telegram-bot/
 - **`ENABLE_IMAGES_IN_FOLLOWUP`** (default: `False`)  
   Set to `True` to enable image generation during auto follow-up messages. Disabled by default to save resources and reduce costs, as follow-ups are frequent and images may not be necessary for re-engagement.
 
+- **`FOLLOWUP_TEST_USERS`** (default: `None`)  
+  Comma-separated list of Telegram user IDs to restrict followups to (e.g., `"123456,789012"`). When set, only these users will receive automatic follow-up messages. Useful for testing followups in development/staging without affecting all users. Leave unset in production to enable followups for all users.
+
 ### app.yaml
 
 All non-prompt settings (model params, limits, image settings):
