@@ -173,7 +173,7 @@ function App() {
                     {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
                   </span>
                   {!energy.is_premium && (
-                    <span className="energy-regen">+2 ⭐ every 2h</span>
+                    <span className="energy-regen">+2 ⭐ every 1h</span>
                   )}
                 </div>
               </div>

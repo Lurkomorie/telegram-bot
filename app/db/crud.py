@@ -797,7 +797,7 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
 
 def regenerate_user_energy(db: Session, user_id: int) -> bool:
     """
-    Add 2 energy to user (2-hour regeneration for free users)
+    Add 2 energy to user (hourly regeneration for free users)
     Only applies to non-premium users
     Returns True if energy was added
     """
@@ -819,7 +819,7 @@ def regenerate_user_energy(db: Session, user_id: int) -> bool:
 
 def regenerate_all_users_energy(db: Session) -> int:
     """
-    Regenerate 2 energy for all non-premium users (runs every 2 hours)
+    Regenerate 2 energy for all non-premium users (runs every hour)
     Returns count of users who received energy
     """
     

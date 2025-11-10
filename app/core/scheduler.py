@@ -40,7 +40,7 @@ async def check_inactive_chats():
         
         for data in chat_data:
             try:
-                await send_auto_message(data["chat_id"], data["tg_chat_id"])
+                await send_auto_message(data["chat_id"], data["tg_chat_id"], followup_type="30min")
             except Exception as e:
                 print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
                 
@@ -84,7 +84,7 @@ async def check_inactive_chats_24h():
         
         for data in chat_data:
             try:
-                await send_auto_message(data["chat_id"], data["tg_chat_id"])
+                await send_auto_message(data["chat_id"], data["tg_chat_id"], followup_type="24h")
             except Exception as e:
                 print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
                 
@@ -92,9 +92,9 @@ async def check_inactive_chats_24h():
         print(f"[SCHEDULER] Error checking inactive chats (24h): {e}")
 
 
-async def regenerate_2hour_energy():
-    """Regenerate 2 energy every 2 hours for all non-premium users"""
-    print("[SCHEDULER] ⚡ Running 2-hour energy regeneration...")
+async def regenerate_hourly_energy():
+    """Regenerate 2 energy every hour for all non-premium users"""
+    print("[SCHEDULER] ⚡ Running hourly energy regeneration...")
     
     try:
         with get_db() as db:
@@ -105,14 +105,19 @@ async def regenerate_2hour_energy():
         print(f"[SCHEDULER] ❌ Error regenerating energy: {e}")
 
 
-async def send_auto_message(chat_id, tg_chat_id):
+async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
     """
     Generate and send contextual follow-up using the full multi-brain pipeline
     
     This uses a special [AUTO_FOLLOWUP] marker to tell the AI to generate
     a natural follow-up message based on the conversation context.
+    
+    Args:
+        chat_id: Chat UUID
+        tg_chat_id: Telegram chat ID
+        followup_type: Type of followup ("30min" or "24h")
     """
-    print(f"[SCHEDULER] 🤖 Generating auto-follow-up for chat {chat_id}")
+    print(f"[SCHEDULER] 🤖 Generating auto-follow-up for chat {chat_id} (type: {followup_type})")
     
     # Get user_id and conversation context from database
     with get_db() as db:
@@ -143,7 +148,8 @@ async def send_auto_message(chat_id, tg_chat_id):
         chat_id=chat_id,
         user_id=user_id,
         text=selected_prompt,
-        tg_chat_id=tg_chat_id
+        tg_chat_id=tg_chat_id,
+        context={"followup_type": followup_type}
     )
     
     print(f"[SCHEDULER] 📥 Auto-follow-up queued, starting pipeline...")
@@ -184,10 +190,10 @@ def start_scheduler():
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Regenerate energy every 2 hours (if enabled)
+    # Regenerate energy every hour (if enabled)
     if settings.ENABLE_ENERGY_REGEN:
-        scheduler.add_job(regenerate_2hour_energy, 'interval', hours=2)
-        print("[SCHEDULER] ✅ Energy regeneration enabled (every 2 hours)")
+        scheduler.add_job(regenerate_hourly_energy, 'interval', hours=1)
+        print("[SCHEDULER] ✅ Energy regeneration enabled (2 energy every hour)")
     else:
         print("[SCHEDULER] ⚠️  Energy regeneration disabled (ENABLE_ENERGY_REGEN=False)")
     

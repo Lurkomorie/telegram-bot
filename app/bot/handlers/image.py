@@ -7,6 +7,7 @@ from app.bot.loader import router, bot
 from app.bot.keyboards.inline import build_image_prompt_keyboard
 from app.db.base import get_db
 from app.db import crud
+from app.db.models import User
 from app.settings import get_app_config
 from app.core.actions import send_action_repeatedly
 from app.core.rate import check_rate_limit
@@ -93,6 +94,10 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         else:
             print(f"[IMAGE] 💎 Premium user {user_id} - free image generation")
         
+        # Get user's global message count for priority determination
+        user = db.query(User).filter(User.id == user_id).first()
+        global_message_count = user.global_message_count if user else 999
+        
         # Get active chat
         chat = crud.get_active_chat(db, message.chat.id, user_id)
         
@@ -129,6 +134,19 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         
         job_id = job.id
     
+    # Determine priority based on rules (same as pipeline)
+    if is_premium:
+        queue_priority = "high"
+        priority_reason = "premium user"
+    elif global_message_count <= 2:
+        queue_priority = "high"
+        priority_reason = f"first 2 messages globally (count: {global_message_count})"
+    else:
+        queue_priority = "medium"
+        priority_reason = "regular user message"
+    
+    print(f"[IMAGE] 📊 Queue priority: {queue_priority} ({priority_reason})")
+    
     # Submit to Runpod with upload_photo action
     try:
         async with send_action_repeatedly(bot, message.chat.id, "upload_photo"):
@@ -136,7 +154,8 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
                 job_id=job_id,
                 prompt=positive_prompt,
                 negative_prompt=negative_prompt,
-                seed=seed
+                seed=seed,
+                queue_priority=queue_priority
             )
             
             # Job submitted successfully
@@ -184,7 +203,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
         f"You have {user_energy['energy']}/{user_energy['max_energy']} energy.\n"
         f"• Text messages cost <b>1 energy</b> each\n"
         f"• Image generation costs <b>5 energy</b> per image\n"
-        f"• You regenerate <b>2 energy every 2 hours</b>\n\n"
+        f"• Energy regenerates at <b>2 per hour</b>\n\n"
         f"💎 Get unlimited energy with Premium!",
         reply_markup=keyboard
     )
@@ -213,6 +232,13 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         # Send error message directly instead of editing
         await bot.send_message(tg_chat_id, ERROR_MESSAGES["rate_limit_image"])
         return
+    
+    # Check if user is premium for priority determination
+    with get_db() as db:
+        is_premium = crud.check_user_premium(db, user_id)
+        # Get user's global message count for priority determination
+        user = db.query(User).filter(User.id == user_id).first()
+        global_message_count = user.global_message_count if user else 999
     
     with get_db() as db:
         # Get original job to reuse its prompts
@@ -258,6 +284,19 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         
         job_id = job.id
     
+    # Determine priority based on rules (same as pipeline)
+    if is_premium:
+        queue_priority = "high"
+        priority_reason = "premium user"
+    elif global_message_count <= 2:
+        queue_priority = "high"
+        priority_reason = f"first 2 messages globally (count: {global_message_count})"
+    else:
+        queue_priority = "medium"
+        priority_reason = "regular user message"
+    
+    print(f"[REFRESH-IMAGE] 📊 Queue priority: {queue_priority} ({priority_reason})")
+    
     # Submit to Runpod with upload_photo action
     try:
         async with send_action_repeatedly(bot, tg_chat_id, "upload_photo"):
@@ -265,7 +304,8 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
                 job_id=job_id,
                 prompt=positive_prompt,
                 negative_prompt=negative_prompt,
-                seed=seed
+                seed=seed,
+                queue_priority=queue_priority
             )
             
             # Job submitted successfully

@@ -12,7 +12,8 @@ async def submit_image_job(
     job_id: UUID,
     prompt: str,
     negative_prompt: str,
-    seed: int = None
+    seed: int = None,
+    queue_priority: str = "medium"
 ) -> dict:
     """
     Submit image generation job to Runpod
@@ -22,6 +23,7 @@ async def submit_image_job(
         prompt: Positive prompt for image generation
         negative_prompt: Negative prompt
         seed: Random seed (optional)
+        queue_priority: Priority for queue management (high, medium, low, noImage)
     
     Returns:
         Runpod API response
@@ -52,9 +54,12 @@ async def submit_image_job(
             "prompt": prompt,
             "negative_prompt": negative_prompt,
             "steps": img_config["steps"],
-            "seed": seed  # Must be >= 0
+            "seed": seed,  # Must be >= 0
+            "queuePriority": queue_priority
         }
     }
+    
+    print(f"[RUNPOD] Queue priority: {queue_priority}")
     
     headers = {
         "Authorization": f"Bearer {settings.RUNPOD_API_KEY_POD}",
@@ -82,10 +87,14 @@ async def dispatch_image_generation(
     job_id: UUID,
     prompt: str,
     negative_prompt: str,
-    tg_chat_id: int
+    tg_chat_id: int,
+    queue_priority: str = "medium"
 ) -> bool:
     """
     Dispatch image generation to RunPod (used by pipeline)
+    
+    Args:
+        queue_priority: Priority for queue management (high, medium, low, noImage)
     
     Returns:
         True if dispatched successfully, False otherwise
@@ -102,7 +111,8 @@ async def dispatch_image_generation(
         result = await submit_image_job(
             job_id=job_id,
             prompt=prompt,
-            negative_prompt=negative_prompt
+            negative_prompt=negative_prompt,
+            queue_priority=queue_priority
         )
         
         log_always(f"[RUNPOD] ✅ Job dispatched successfully")
