@@ -47,7 +47,7 @@ export default function Users() {
       if (bValue === null || bValue === undefined) return -1;
 
       // For dates and numbers, convert to comparable values
-      if (sortConfig.key === 'first_activity' || sortConfig.key === 'last_activity') {
+      if (sortConfig.key === 'first_activity' || sortConfig.key === 'last_activity' || sortConfig.key === 'last_message_send') {
         aValue = new Date(aValue).getTime();
         bValue = new Date(bValue).getTime();
       }
@@ -133,8 +133,20 @@ export default function Users() {
                   <SortIcon columnKey="total_events" />
                 </div>
               </th>
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('message_events_count')}
+              >
+                <div className="flex items-center">
+                  Send Message Events
+                  <SortIcon columnKey="message_events_count" />
+                </div>
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Activity (14d)
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Activity Send Message
               </th>
               <th 
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -161,6 +173,15 @@ export default function Users() {
                 <div className="flex items-center">
                   Last Activity
                   <SortIcon columnKey="last_activity" />
+                </div>
+              </th>
+              <th 
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('last_message_send')}
+              >
+                <div className="flex items-center">
+                  Last Message Send
+                  <SortIcon columnKey="last_message_send" />
                 </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -206,8 +227,14 @@ export default function Users() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.total_events}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.message_events_count}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Sparkline data={user.sparkline_data} />
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Sparkline data={user.message_sparkline_data} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.consecutive_days_streak > 0 ? (
@@ -223,6 +250,9 @@ export default function Users() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {user.last_activity ? formatDate(user.last_activity) : 'N/A'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {user.last_message_send ? formatDate(user.last_message_send) : 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <button

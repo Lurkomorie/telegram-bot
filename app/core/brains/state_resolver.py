@@ -121,7 +121,7 @@ async def resolve_state(
                     model=state_model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=500
+                    max_tokens=800
                 )
             
             brain_start = time.time()
@@ -130,7 +130,7 @@ async def resolve_state(
                 messages=messages,
                 model=state_model,
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=800
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000
@@ -155,8 +155,9 @@ async def resolve_state(
                     # Invalid format - trigger retry
                     raise ValueError(f"Invalid state format (missing 'relationshipStage=' prefix). Got: {raw_response[:200]}")
             
-            # Additional validation: check basic structure
-            if " | " not in state_text or "emotions=" not in state_text:
+            # Additional validation: check basic structure (accept both " | " and "|" separators)
+            has_separator = " | " in state_text or "|" in state_text
+            if not has_separator or "emotions=" not in state_text:
                 raise ValueError(f"Invalid state structure (missing required fields). Got: {state_text[:200]}")
             
             # Development-only: Log full response

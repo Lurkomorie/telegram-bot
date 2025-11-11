@@ -1006,9 +1006,22 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
         # Get user info from User table
         user_obj = db.query(User).filter(User.id == user.client_id).first()
         
-        # Get sparkline data and consecutive days streak
-        sparkline_data = get_user_sparkline_data(db, user.client_id)
+        # Get sparkline data for all events and consecutive days streak
+        sparkline_data = get_user_activity_sparkline_data(db, user.client_id)
         consecutive_days = get_user_consecutive_days(db, user.client_id)
+        
+        # Get message-specific analytics
+        message_events_count = db.query(func.count(TgAnalyticsEvent.id)).filter(
+            TgAnalyticsEvent.client_id == user.client_id,
+            TgAnalyticsEvent.event_name == 'user_message'
+        ).scalar() or 0
+        
+        last_message_send = db.query(func.max(TgAnalyticsEvent.created_at)).filter(
+            TgAnalyticsEvent.client_id == user.client_id,
+            TgAnalyticsEvent.event_name == 'user_message'
+        ).scalar()
+        
+        message_sparkline_data = get_user_sparkline_data(db, user.client_id)
         
         result.append({
             'client_id': user.client_id,
@@ -1020,10 +1033,46 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
             'acquisition_source': user_obj.acquisition_source if user_obj else None,
             'acquisition_timestamp': user_obj.acquisition_timestamp.isoformat() if user_obj and user_obj.acquisition_timestamp else None,
             'sparkline_data': sparkline_data,
-            'consecutive_days_streak': consecutive_days
+            'consecutive_days_streak': consecutive_days,
+            'message_events_count': message_events_count,
+            'last_message_send': last_message_send.isoformat() if last_message_send else None,
+            'message_sparkline_data': message_sparkline_data
         })
     
     return result
+
+
+def get_user_activity_sparkline_data(db: Session, client_id: int, days: int = 14) -> List[int]:
+    """Get user activity (all events) for the last N days as sparkline data"""
+    from sqlalchemy import func, cast, Date
+    from datetime import datetime, timedelta
+    
+    # Calculate date range
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=days - 1)
+    
+    # Query all events grouped by date
+    daily_counts = db.query(
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.client_id == client_id,
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by('date').all()
+    
+    # Create a dict for quick lookup
+    counts_dict = {row.date: row.count for row in daily_counts}
+    
+    # Build complete array with 0 for missing days
+    sparkline = []
+    current_date = start_date
+    for _ in range(days):
+        count = counts_dict.get(current_date, 0)
+        sparkline.append(count)
+        current_date += timedelta(days=1)
+    
+    return sparkline
 
 
 def get_user_sparkline_data(db: Session, client_id: int, days: int = 14) -> List[int]:
