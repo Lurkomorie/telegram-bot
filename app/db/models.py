@@ -39,6 +39,9 @@ class User(Base):
     acquisition_source = Column(String(64), nullable=True)  # First deep-link payload
     acquisition_timestamp = Column(DateTime, nullable=True)  # When user first arrived
     
+    # Age verification
+    age_verified = Column(Boolean, default=False, nullable=False)  # Whether user confirmed 18+
+    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")

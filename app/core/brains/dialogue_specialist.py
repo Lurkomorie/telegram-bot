@@ -8,7 +8,8 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
-from app.core.logging_utils import log_messages_array
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+import time
 
 
 def _apply_template_replacements(
@@ -178,6 +179,21 @@ You are reaching out after a period of silence. Follow these rules:
                 model=dialogue_model
             )
             
+            # Development-only: Log full request
+            if is_development():
+                log_dev_request(
+                    brain_name="Dialogue Specialist",
+                    model=dialogue_model,
+                    messages=messages,
+                    temperature=min(temperature, 1.0),
+                    top_p=0.9,
+                    frequency_penalty=0.3,
+                    presence_penalty=0.3,
+                    max_tokens=config["llm"].get("max_tokens", 512)
+                )
+            
+            brain_start = time.time()
+            
             response = await generate_text(
                 messages=messages,
                 model=dialogue_model,
@@ -188,8 +204,20 @@ You are reaching out after a period of silence. Follow these rules:
                 max_tokens=config["llm"].get("max_tokens", 512)
             )
             
+            brain_duration_ms = (time.time() - brain_start) * 1000
+            
             # Validate response
             response_text = response.strip()
+            
+            # Development-only: Log full response
+            if is_development():
+                log_dev_response(
+                    brain_name="Dialogue Specialist",
+                    model=dialogue_model,
+                    response=response_text,
+                    duration_ms=brain_duration_ms
+                )
+            
             if _is_valid_response(response_text):
                 print(f"[DIALOGUE] ✅ Generated response ({len(response_text)} chars)")
                 return response_text

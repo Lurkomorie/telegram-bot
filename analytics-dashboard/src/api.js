@@ -37,6 +37,12 @@ export const api = {
     return response.json();
   },
 
+  async getUserMessagesOverTime(interval = '1h') {
+    const response = await fetch(`${API_BASE}/api/analytics/user-messages-over-time?interval=${interval}`);
+    if (!response.ok) throw new Error('Failed to fetch user messages over time');
+    return response.json();
+  },
+
   async getActiveUsersOverTime(period = '7d') {
     const response = await fetch(`${API_BASE}/api/analytics/active-users-over-time?period=${period}`);
     if (!response.ok) throw new Error('Failed to fetch active users over time');
@@ -58,6 +64,12 @@ export const api = {
   async getEngagementHeatmap() {
     const response = await fetch(`${API_BASE}/api/analytics/engagement-heatmap`);
     if (!response.ok) throw new Error('Failed to fetch engagement heatmap');
+    return response.json();
+  },
+
+  async getImageWaitingTime(interval = '1h') {
+    const response = await fetch(`${API_BASE}/api/analytics/image-waiting-time?interval=${interval}`);
+    if (!response.ok) throw new Error('Failed to fetch image waiting time');
     return response.json();
   },
 

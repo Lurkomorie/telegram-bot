@@ -413,6 +413,10 @@ async def image_callback(request: Request):
             
             # Send photo - handle both binary data and URL
             if image_data:
+                # Strip color profile to prevent yellowish tint in Telegram
+                from app.core.image_utils import strip_color_profile_safe
+                image_data = strip_color_profile_safe(image_data)
+                
                 # Send binary image data
                 from aiogram.types import BufferedInputFile
                 input_file = BufferedInputFile(image_data, filename="generated.png")

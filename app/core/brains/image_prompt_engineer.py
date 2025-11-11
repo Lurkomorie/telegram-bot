@@ -8,7 +8,8 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import IMAGE_ENGINEER_MAX_RETRIES, IMAGE_ENGINEER_BASE_DELAY
-from app.core.logging_utils import log_messages_array
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+import time
 
 
 def _build_image_context(
@@ -97,6 +98,19 @@ async def generate_image_plan(
                 model=model
             )
             
+            # Development-only: Log full request
+            if is_development():
+                log_dev_request(
+                    brain_name="Image Prompt Engineer",
+                    model=model,
+                    messages=messages,
+                    temperature=0.5,
+                    frequency_penalty=0.1,
+                    max_tokens=512
+                )
+            
+            brain_start = time.time()
+            
             result = await generate_text(
                 messages=messages,
                 model=model,
@@ -105,8 +119,19 @@ async def generate_image_plan(
                 max_tokens=512
             )
             
+            brain_duration_ms = (time.time() - brain_start) * 1000
+            
             # Just return the string response directly
             result_text = result.strip()
+            
+            # Development-only: Log full response
+            if is_development():
+                log_dev_response(
+                    brain_name="Image Prompt Engineer",
+                    model=model,
+                    response=result_text,
+                    duration_ms=brain_duration_ms
+                )
             
             print(f"[IMAGE-PLAN] ✅ Generated prompt: {result_text[:100]}...")
             return result_text

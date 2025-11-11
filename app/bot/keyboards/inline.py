@@ -240,3 +240,13 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def build_age_verification_keyboard() -> InlineKeyboardMarkup:
+    """Build keyboard for age verification confirmation"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("age_verification.confirm_button"),
+            callback_data="confirm_age_18"
+        )]
+    ])
+
+

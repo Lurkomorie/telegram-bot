@@ -5,7 +5,7 @@ import json
 from aiogram import types
 from aiogram.filters import Command
 from app.bot.loader import router
-from app.bot.keyboards.inline import build_persona_selection_keyboard, build_chat_options_keyboard, build_story_selection_keyboard, build_persona_gallery_keyboard
+from app.bot.keyboards.inline import build_persona_selection_keyboard, build_chat_options_keyboard, build_story_selection_keyboard, build_persona_gallery_keyboard, build_age_verification_keyboard
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.db.base import get_db
@@ -28,6 +28,32 @@ async def cmd_start(message: types.Message):
     deep_link_param = command_args[1] if len(command_args) > 1 else None
     
     print(f"[START] Received /start command. Args: {command_args}, Deep link param: {deep_link_param}")
+    
+    # Get or create user first to check age verification
+    acquisition_source = None
+    if deep_link_param and not deep_link_param.startswith("persona_"):
+        # Only track non-persona payloads as acquisition source (max 64 chars)
+        acquisition_source = deep_link_param[:64]
+    
+    with get_db() as db:
+        user = crud.get_or_create_user(
+            db,
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            acquisition_source=acquisition_source
+        )
+        
+        # Check if user has verified their age
+        if not user.age_verified:
+            # Show age verification message
+            age_verification_text = get_ui_text("age_verification.message")
+            keyboard = build_age_verification_keyboard()
+            await message.answer(
+                age_verification_text,
+                reply_markup=keyboard
+            )
+            return
     
     # Handle deep link from Mini App
     if deep_link_param and deep_link_param.startswith("persona_"):
@@ -73,22 +99,7 @@ async def cmd_start(message: types.Message):
                 await show_story_selection(message, persona_id)
             return
     
-    # Standard /start flow
-    # Get or create user (DB call needed for user-specific data)
-    # Pass acquisition_source for ads attribution (only if not a persona deep link)
-    acquisition_source = None
-    if deep_link_param and not deep_link_param.startswith("persona_"):
-        # Only track non-persona payloads as acquisition source (max 64 chars)
-        acquisition_source = deep_link_param[:64]
-    
-    with get_db() as db:
-        crud.get_or_create_user(
-            db,
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-            acquisition_source=acquisition_source
-        )
+    # Standard /start flow (user is age verified)
     
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas
@@ -761,6 +772,45 @@ async def new_chat_callback(callback: types.CallbackQuery):
     
     # Show story selection instead of randomly picking one
     await show_story_selection(callback.message, persona_id)
+    await callback.answer()
+
+
+@router.callback_query(lambda c: c.data == "confirm_age_18")
+async def confirm_age_callback(callback: types.CallbackQuery):
+    """Handle age verification confirmation"""
+    # Update user's age_verified status
+    with get_db() as db:
+        crud.update_user_age_verified(db, callback.from_user.id)
+    
+    # Delete the age verification message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # Show persona selection (standard /start flow)
+    from app.core.persona_cache import get_preset_personas
+    preset_data = get_preset_personas()
+    user_data = []  # User personas disabled
+    
+    # Build text with persona descriptions
+    welcome_text = "Choose your companion:\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = p.get('name', 'Unknown')
+        desc = p.get('small_description', '')
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
+    
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url)
+    
+    await callback.message.answer(
+        welcome_text,
+        reply_markup=keyboard
+    )
     await callback.answer()
 
 

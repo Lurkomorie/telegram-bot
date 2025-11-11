@@ -8,7 +8,8 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import STATE_RESOLVER_MAX_RETRIES
-from app.core.logging_utils import log_messages_array
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+import time
 
 
 def _create_initial_state(persona_name: str) -> str:
@@ -113,6 +114,18 @@ async def resolve_state(
                 model=state_model
             )
             
+            # Development-only: Log full request
+            if is_development():
+                log_dev_request(
+                    brain_name="State Resolver",
+                    model=state_model,
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=500
+                )
+            
+            brain_start = time.time()
+            
             result = await generate_text(
                 messages=messages,
                 model=state_model,
@@ -120,8 +133,19 @@ async def resolve_state(
                 max_tokens=500
             )
             
+            brain_duration_ms = (time.time() - brain_start) * 1000
+            
             # Just return the string response directly
             state_text = result.strip()
+            
+            # Development-only: Log full response
+            if is_development():
+                log_dev_response(
+                    brain_name="State Resolver",
+                    model=state_model,
+                    response=state_text,
+                    duration_ms=brain_duration_ms
+                )
             
             # Log full state for debugging repetition issues
             print(f"[STATE-RESOLVER] ✅ State resolved ({len(state_text)} chars)")

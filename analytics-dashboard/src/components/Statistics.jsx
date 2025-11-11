@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatNumber } from '../utils';
 import TimeSeriesChart from './TimeSeriesChart';
+import MultiLineChart from './MultiLineChart';
 import PieChartComponent from './PieChartComponent';
 import HeatmapChart from './HeatmapChart';
 import TimeRangeSelector from './TimeRangeSelector';
@@ -33,6 +34,10 @@ export default function Statistics() {
   const [messagesData, setMessagesData] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
 
+  const [userMessagesInterval, setUserMessagesInterval] = useState('1h');
+  const [userMessagesData, setUserMessagesData] = useState([]);
+  const [userMessagesLoading, setUserMessagesLoading] = useState(true);
+
   const [scheduledInterval, setScheduledInterval] = useState('1h');
   const [scheduledData, setScheduledData] = useState([]);
   const [scheduledLoading, setScheduledLoading] = useState(true);
@@ -51,6 +56,10 @@ export default function Statistics() {
   const [heatmapData, setHeatmapData] = useState([]);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
 
+  const [imageWaitingInterval, setImageWaitingInterval] = useState('1h');
+  const [imageWaitingData, setImageWaitingData] = useState([]);
+  const [imageWaitingLoading, setImageWaitingLoading] = useState(true);
+
   useEffect(() => {
     fetchStats();
     fetchPersonaData();
@@ -60,6 +69,10 @@ export default function Statistics() {
   useEffect(() => {
     fetchMessagesData();
   }, [messagesInterval]);
+
+  useEffect(() => {
+    fetchUserMessagesData();
+  }, [userMessagesInterval]);
 
   useEffect(() => {
     fetchScheduledData();
@@ -72,6 +85,10 @@ export default function Statistics() {
   useEffect(() => {
     fetchImagesData();
   }, [imagesPeriod]);
+
+  useEffect(() => {
+    fetchImageWaitingData();
+  }, [imageWaitingInterval]);
 
   const fetchStats = async () => {
     try {
@@ -95,6 +112,18 @@ export default function Statistics() {
       console.error('Error fetching messages data:', err);
     } finally {
       setMessagesLoading(false);
+    }
+  };
+
+  const fetchUserMessagesData = async () => {
+    try {
+      setUserMessagesLoading(true);
+      const data = await api.getUserMessagesOverTime(userMessagesInterval);
+      setUserMessagesData(data);
+    } catch (err) {
+      console.error('Error fetching user messages data:', err);
+    } finally {
+      setUserMessagesLoading(false);
     }
   };
 
@@ -158,6 +187,18 @@ export default function Statistics() {
     }
   };
 
+  const fetchImageWaitingData = async () => {
+    try {
+      setImageWaitingLoading(true);
+      const data = await api.getImageWaitingTime(imageWaitingInterval);
+      setImageWaitingData(data);
+    } catch (err) {
+      console.error('Error fetching image waiting time data:', err);
+    } finally {
+      setImageWaitingLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -174,13 +215,25 @@ export default function Statistics() {
     );
   }
 
+  // Format waiting time for display
+  const formatWaitingTime = (seconds) => {
+    if (seconds === 0) return '0s';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const minutes = seconds / 60;
+    if (minutes < 60) return `${minutes.toFixed(1)}min`;
+    const hours = minutes / 60;
+    return `${hours.toFixed(1)}h`;
+  };
+
   const statCards = [
     { label: 'Total Users', value: stats.total_users, icon: '👥', color: 'blue' },
     { label: 'Total Messages', value: stats.total_messages, icon: '💬', color: 'green' },
     { label: 'Total Images', value: stats.total_images, icon: '🖼️', color: 'purple' },
     { label: 'Active Users (7d)', value: stats.active_users_7d, icon: '⚡', color: 'yellow' },
     { label: 'Total Events', value: stats.total_events, icon: '📊', color: 'indigo' },
-    { label: 'Avg Messages/User', value: stats.avg_messages_per_user.toFixed(1), icon: '📈', color: 'pink' }
+    { label: 'Avg Messages/User', value: stats.avg_messages_per_user.toFixed(1), icon: '📈', color: 'pink' },
+    { label: 'Avg Image Wait Time', value: formatWaitingTime(stats.avg_image_waiting_time), icon: '⏱️', color: 'teal' },
+    { label: 'Failed Images', value: stats.failed_images_count, icon: '❌', color: 'red' }
   ];
 
   return (
@@ -227,6 +280,28 @@ export default function Statistics() {
             </div>
           ) : (
             <TimeSeriesChart data={messagesData} title="" color="#10b981" height={300} />
+          )}
+        </div>
+      </div>
+
+      {/* User Sent Messages Over Time */}
+      <div className="mb-8">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-gray-800">User Sent Messages Over Time</h3>
+            <TimeRangeSelector
+              value={userMessagesInterval}
+              onChange={setUserMessagesInterval}
+              options={TIME_INTERVAL_OPTIONS}
+              label="Interval"
+            />
+          </div>
+          {userMessagesLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          ) : (
+            <TimeSeriesChart data={userMessagesData} title="" color="#3b82f6" height={300} />
           )}
         </div>
       </div>
@@ -363,6 +438,33 @@ export default function Statistics() {
         ) : (
           <HeatmapChart data={heatmapData} title="Engagement Heatmap" />
         )}
+      </div>
+
+      {/* Image Generation Waiting Time */}
+      <div className="mb-8">
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-gray-800">Image Generation Waiting Time Over Time</h3>
+            <TimeRangeSelector
+              value={imageWaitingInterval}
+              onChange={setImageWaitingInterval}
+              options={TIME_INTERVAL_OPTIONS}
+              label="Interval"
+            />
+          </div>
+          {imageWaitingLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          ) : (
+            <MultiLineChart 
+              data={imageWaitingData} 
+              title="" 
+              height={300}
+              yAxisLabel="Waiting Time"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

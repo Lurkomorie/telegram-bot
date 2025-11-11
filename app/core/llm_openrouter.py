@@ -62,7 +62,8 @@ async def generate_text(
     
     timeout = timeout_sec if timeout_sec is not None else llm_config["timeout_sec"]
     
-    from app.core.logging_utils import log_verbose, log_always
+    from app.core.logging_utils import log_verbose, log_always, log_dev_request, log_dev_response
+    import time
     
     # Verbose logging for development
     log_always(f"[LLM] 🤖 Calling {body['model']} (temp={body['temperature']}, max_tokens={body['max_tokens']})")
@@ -87,8 +88,22 @@ async def generate_text(
         else:
             log_verbose(f"[LLM]       {content[:200]}... ({len(content)} chars)")
     
+    # Development-only: Log full request details
+    log_dev_request(
+        brain_name="LLM Client",
+        model=body['model'],
+        messages=messages,
+        temperature=body['temperature'],
+        max_tokens=body['max_tokens'],
+        top_p=top_p,
+        frequency_penalty=frequency_penalty,
+        presence_penalty=presence_penalty
+    )
+    
     # Retry logic for 5xx errors and timeouts
     max_retries = 3
+    request_start = time.time()
+    
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -97,8 +112,20 @@ async def generate_text(
                 
                 data = response.json()
                 result = data["choices"][0]["message"]["content"]
-                log_always(f"[LLM] ✅ Response received ({len(result)} chars)")
+                
+                request_duration_ms = (time.time() - request_start) * 1000
+                
+                log_always(f"[LLM] ✅ Response received ({len(result)} chars) in {request_duration_ms:.2f}ms")
                 log_verbose(f"[LLM] 📝 Response preview: {result[:200]}...")
+                
+                # Development-only: Log full response
+                log_dev_response(
+                    brain_name="LLM Client",
+                    model=body['model'],
+                    response=result,
+                    duration_ms=request_duration_ms
+                )
+                
                 return result
                 
         except (httpx.TimeoutException, httpx.HTTPStatusError) as e:

@@ -8,7 +8,8 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import IMAGE_DECISION_MAX_RETRIES
-from app.core.logging_utils import log_messages_array
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+import time
 
 
 def _extract_location_from_state(state: str) -> str:
@@ -111,6 +112,18 @@ async def should_generate_image(
                 model=decision_model
             )
             
+            # Development-only: Log full request
+            if is_development():
+                log_dev_request(
+                    brain_name="Image Decision Specialist",
+                    model=decision_model,
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=50
+                )
+            
+            brain_start = time.time()
+            
             result = await generate_text(
                 messages=messages,
                 model=decision_model,
@@ -118,8 +131,19 @@ async def should_generate_image(
                 max_tokens=50  # Short response
             )
             
+            brain_duration_ms = (time.time() - brain_start) * 1000
+            
             # Parse result (format: "YES - reason" or "NO - reason")
             result_text = result.strip()
+            
+            # Development-only: Log full response
+            if is_development():
+                log_dev_response(
+                    brain_name="Image Decision Specialist",
+                    model=decision_model,
+                    response=result_text,
+                    duration_ms=brain_duration_ms
+                )
             
             # Extract decision and reason
             if result_text.upper().startswith("YES"):

@@ -200,6 +200,46 @@ async def get_scheduled_messages_over_time(interval: str = "1h") -> List[Dict[st
         raise HTTPException(status_code=500, detail=f"Error fetching scheduled messages over time: {str(e)}")
 
 
+@router.get("/user-messages-over-time")
+async def get_user_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
+    """
+    Get user-sent message counts over time bucketed by interval
+    
+    Args:
+        interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+    
+    Returns:
+        List of {timestamp, count} dictionaries
+    """
+    try:
+        # Parse interval (same map as messages-over-time)
+        interval_map = {
+            "1m": (1, 60),
+            "5m": (5, 180),
+            "15m": (15, 360),
+            "30m": (30, 720),
+            "1h": (60, 1440),
+            "6h": (360, 10080),
+            "12h": (720, 20160),
+            "1d": (1440, 43200)
+        }
+        
+        if interval not in interval_map:
+            raise HTTPException(status_code=400, detail=f"Invalid interval. Must be one of: {', '.join(interval_map.keys())}")
+        
+        interval_minutes, limit_minutes = interval_map[interval]
+        limit_hours = limit_minutes // 60
+        
+        with get_db() as db:
+            data = crud.get_user_messages_over_time(db, interval_minutes, limit_hours)
+            return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching user messages over time: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching user messages over time: {str(e)}")
+
+
 @router.get("/active-users-over-time")
 async def get_active_users_over_time(period: str = "7d") -> List[Dict[str, Any]]:
     """
@@ -281,6 +321,47 @@ async def get_images_over_time(period: str = "7d") -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching images over time: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching images over time: {str(e)}")
+
+
+@router.get("/image-waiting-time")
+async def get_image_waiting_time(interval: str = "1h") -> List[Dict[str, Any]]:
+    """
+    Get average image generation waiting time over time with premium/free breakdown
+    
+    Args:
+        interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+    
+    Returns:
+        List of {timestamp, avg_waiting_time, avg_premium, avg_free} dictionaries
+        All times in seconds
+    """
+    try:
+        # Parse interval (same map as messages-over-time)
+        interval_map = {
+            "1m": (1, 60),
+            "5m": (5, 180),
+            "15m": (15, 360),
+            "30m": (30, 720),
+            "1h": (60, 1440),
+            "6h": (360, 10080),
+            "12h": (720, 20160),
+            "1d": (1440, 43200)
+        }
+        
+        if interval not in interval_map:
+            raise HTTPException(status_code=400, detail=f"Invalid interval. Must be one of: {', '.join(interval_map.keys())}")
+        
+        interval_minutes, limit_minutes = interval_map[interval]
+        limit_hours = limit_minutes // 60
+        
+        with get_db() as db:
+            data = crud.get_image_waiting_time_over_time(db, interval_minutes, limit_hours)
+            return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching image waiting time: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching image waiting time: {str(e)}")
 
 
 @router.get("/engagement-heatmap")

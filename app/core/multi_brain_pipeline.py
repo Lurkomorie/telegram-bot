@@ -9,7 +9,7 @@ from app.core.brains.state_resolver import resolve_state
 from app.core.brains.dialogue_specialist import generate_dialogue
 from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
 from app.core.chat_actions import ChatActionManager
-from app.core.logging_utils import log_verbose, log_always, is_development
+from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.db.base import get_db
@@ -44,6 +44,10 @@ async def process_message_pipeline(
     print(f"[PIPELINE] 👤 User ID: {user_id}")
     print(f"[PIPELINE] 📱 TG Chat ID: {tg_chat_id}")
     
+    # Create pipeline timer for development
+    pipeline_timer = PipelineTimer(f"Message Pipeline (Chat: {chat_id})")
+    pipeline_timer.start_stage("Initialization")
+    
     # Processing lock already set in handler (before batch delay)
     print(f"[PIPELINE] 🔒 Processing lock confirmed active")
     
@@ -55,12 +59,16 @@ async def process_message_pipeline(
     # Create action manager for persistent indicators
     action_mgr = ChatActionManager(bot, tg_chat_id)
     
+    pipeline_timer.end_stage()
+    
     try:
         batch_num = 0
         
         # Loop to handle messages that arrive during processing
         while True:
             batch_num += 1
+            
+            pipeline_timer.start_stage(f"Batch #{batch_num}: Get Messages from Queue")
             
             # Get ALL messages currently in queue
             batch_messages = await redis_queue.get_batch_messages(chat_id)
@@ -70,7 +78,10 @@ async def process_message_pipeline(
                     log_always(f"[PIPELINE] ⚠️  Queue empty (unexpected)")
                 else:
                     log_always(f"[PIPELINE] ✅ No more messages in queue")
+                pipeline_timer.end_stage()
                 break
+            
+            pipeline_timer.end_stage()
             
             log_always(f"[PIPELINE] 📦 Batch #{batch_num}: {len(batch_messages)} message(s)")
             
@@ -82,6 +93,8 @@ async def process_message_pipeline(
                     log_always(f"[PIPELINE]    #{i}: {msg['text'][:50]}")
             log_always(f"[PIPELINE] 💬 Combined text: {batched_text[:200]}...")
             
+            pipeline_timer.start_stage(f"Batch #{batch_num}: Process Messages")
+            
             # Process as ONE batch with ONE response
             await _process_single_batch(
                 chat_id=chat_id,
@@ -89,17 +102,27 @@ async def process_message_pipeline(
                 tg_chat_id=tg_chat_id,
                 batch_messages=batch_messages,
                 batched_text=batched_text,
-                action_mgr=action_mgr
+                action_mgr=action_mgr,
+                pipeline_timer=pipeline_timer
             )
+            
+            pipeline_timer.end_stage()
+            
+            pipeline_timer.start_stage(f"Batch #{batch_num}: Clear Queue")
             
             # Clear queue ONLY after successful processing (prevents message loss on error)
             await redis_queue.clear_batch_messages(chat_id)
             log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete, queue cleared")
             
+            pipeline_timer.end_stage()
+            
             # Brief wait to catch any messages that arrived during processing
             import asyncio
             await asyncio.sleep(0.5)
             log_verbose(f"[PIPELINE] 🔍 Checking for more...")
+        
+        # Finish timing
+        pipeline_timer.finish()
         
     except Exception as e:
         print(f"[PIPELINE] ❌ Pipeline error: {type(e).__name__}: {e}")
@@ -125,14 +148,22 @@ async def _process_single_batch(
     tg_chat_id: int,
     batch_messages: list[dict],  # List of {user_id, text, tg_chat_id}
     batched_text: str,
-    action_mgr: ChatActionManager
+    action_mgr: ChatActionManager,
+    pipeline_timer: PipelineTimer
 ):
     """Process a single batch of messages"""
     try:
+        log_dev_section("BATCH PROCESSING")
+        
+        pipeline_timer.start_stage("Start Typing Indicator")
+        
         # Show typing indicator
         log_verbose(f"[BATCH] ⌨️  Starting typing indicator...")
         await action_mgr.start("typing")
         log_verbose(f"[BATCH] ✅ Typing indicator started")
+        
+        pipeline_timer.end_stage()
+        pipeline_timer.start_stage("Fetch Data from Database")
         
         # 1. Fetch data
         log_verbose(f"[BATCH] 📚 Step 1: Fetching data from database...")
@@ -188,6 +219,8 @@ async def _process_single_batch(
             # Get message count for image decision
             current_message_count = chat.message_count
         
+        pipeline_timer.end_stage()
+        
         log_always(f"[BATCH] ✅ Data fetched: {len(chat_history)} msgs, persona={persona_data['name']}")
         log_verbose(f"[BATCH]    History: {len(chat_history)} messages")
         log_verbose(f"[BATCH]    Previous state: {'Found' if previous_state else 'None (creating new)'}")
@@ -203,6 +236,8 @@ async def _process_single_batch(
             print(f"[BATCH] 📚 No conversation history (new chat)")
         
         print(f"[BATCH] 💬 Current batch text: {batched_text[:100]}...")
+        
+        pipeline_timer.start_stage("Brain 4: Image Decision")
         
         # 1.5 Brain 4: Image Decision (decide before dialogue generation)
         from app.settings import settings
@@ -230,6 +265,9 @@ async def _process_single_batch(
                 persona_name=persona_data["name"]
             )
             log_always(f"[BATCH] ✅ Brain 4: Decision = {'YES' if should_generate_image_flag else 'NO'} - {decision_reason}")
+        
+        pipeline_timer.end_stage()
+        pipeline_timer.start_stage("Brain 1: Dialogue Generation")
         
         # 2. Brain 1: Dialogue Specialist (responds based on current state)
         log_always(f"[BATCH] 🧠 Brain 1: Generating dialogue...")
@@ -261,6 +299,9 @@ async def _process_single_batch(
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
         
+        pipeline_timer.end_stage()
+        pipeline_timer.start_stage("Brain 2: State Resolution")
+        
         # 3. Brain 2: State Resolver (updates state after dialogue)
         log_always(f"[BATCH] 🧠 Brain 2: Resolving state...")
         log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message + dialogue response")
@@ -273,6 +314,9 @@ async def _process_single_batch(
         )
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
+        
+        pipeline_timer.end_stage()
+        pipeline_timer.start_stage("Save to Database")
         
         # 4. Save batch messages & response to DB + Clear refresh button
         log_always(f"[BATCH] 💾 Saving batch to database...")
@@ -332,11 +376,16 @@ async def _process_single_batch(
         
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         
+        pipeline_timer.end_stage()
+        pipeline_timer.start_stage("Send Response to User")
+        
         # 5. Send response to user (with MarkdownV2 formatting preserved)
         escaped_response = escape_markdown_v2(dialogue_response)
         await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
         log_always(f"[BATCH] ✅ Response sent to user")
         log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+        
+        pipeline_timer.end_stage()
         
         # Track AI message (distinguish auto-followup from regular messages)
         analytics_service_tg.track_ai_message(
@@ -351,6 +400,8 @@ async def _process_single_batch(
         # Stop typing indicator
         await action_mgr.stop()
         
+        pipeline_timer.start_stage("Trigger Background Tasks")
+        
         # 5.5. Trigger background memory update (fire and forget)
         from app.core.memory_service import trigger_memory_update
         asyncio.create_task(trigger_memory_update(
@@ -359,6 +410,8 @@ async def _process_single_batch(
             ai_message=dialogue_response
         ))
         log_verbose(f"[BATCH] 🧠 Memory update triggered (background)")
+        
+        pipeline_timer.end_stage()
         
         # 6. Start background image generation based on AI decision
         # Combine AI decision with auto-followup check

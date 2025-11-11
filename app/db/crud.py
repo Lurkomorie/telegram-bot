@@ -46,6 +46,35 @@ def get_or_create_user(db: Session, telegram_id: int, username: str = None, firs
     return user
 
 
+def get_user(db: Session, telegram_id: int) -> Optional[User]:
+    """Get user by telegram ID
+    
+    Args:
+        telegram_id: Telegram user ID
+    
+    Returns:
+        User object or None if not found
+    """
+    return db.query(User).filter(User.id == telegram_id).first()
+
+
+def update_user_age_verified(db: Session, telegram_id: int) -> User:
+    """Mark user as age verified
+    
+    Args:
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Updated User object
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user:
+        user.age_verified = True
+        db.commit()
+        db.refresh(user)
+    return user
+
+
 # ========== PERSONA OPERATIONS ==========
 
 def get_persona_by_key(db: Session, key: str) -> Optional[Persona]:
@@ -931,6 +960,10 @@ def get_analytics_stats(db: Session) -> dict:
     # Average messages per user
     avg_messages_per_user = total_messages / total_users if total_users > 0 else 0
     
+    # Image waiting time and failed images
+    avg_image_waiting_time = get_avg_image_waiting_time(db)
+    failed_images_count = get_failed_images_count(db)
+    
     return {
         'total_users': total_users or 0,
         'total_events': total_events or 0,
@@ -938,6 +971,8 @@ def get_analytics_stats(db: Session) -> dict:
         'total_images': total_images or 0,
         'active_users_7d': active_users or 0,
         'avg_messages_per_user': round(avg_messages_per_user, 2),
+        'avg_image_waiting_time': round(avg_image_waiting_time, 2),
+        'failed_images_count': failed_images_count,
         'popular_personas': [
             {
                 'name': name,
@@ -1218,6 +1253,88 @@ def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours:
     return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
 
 
+def get_user_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+    """
+    Get user-sent message counts over time bucketed by interval
+    
+    Args:
+        db: Database session
+        interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
+        limit_hours: How many hours of history to fetch
+    
+    Returns:
+        List of {timestamp, count} dictionaries
+    """
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    
+    # Calculate cutoff time
+    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+    
+    # Use PostgreSQL's date_trunc for time bucketing
+    if interval_minutes == 1:
+        trunc_spec = 'minute'
+    elif interval_minutes < 60:
+        trunc_spec = 'minute'
+    elif interval_minutes == 60:
+        trunc_spec = 'hour'
+    elif interval_minutes == 360:
+        trunc_spec = 'hour'
+    elif interval_minutes == 720:
+        trunc_spec = 'hour'
+    else:  # 1440 (1 day)
+        trunc_spec = 'day'
+    
+    query = db.query(
+        func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'user_message',
+        TgAnalyticsEvent.created_at >= cutoff_time
+    ).group_by('time_bucket').order_by('time_bucket')
+    
+    results = query.all()
+    
+    # Apply same bucketing logic as get_messages_over_time
+    if interval_minutes in [5, 15, 30]:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            total_minutes = dt.hour * 60 + dt.minute
+            bucket_num = total_minutes // interval_minutes
+            bucket_minutes = bucket_num * interval_minutes
+            bucket_time = dt.replace(hour=bucket_minutes // 60, minute=bucket_minutes % 60, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 360:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 6) * 6
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    elif interval_minutes == 720:
+        from collections import defaultdict
+        bucketed = defaultdict(int)
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 12) * 12
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            bucketed[bucket_time] += row.count
+        
+        return [{'timestamp': ts.isoformat(), 'count': count} for ts, count in sorted(bucketed.items())]
+    
+    return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
+
+
 def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
     """
     Get auto-followup message counts over time bucketed by interval
@@ -1443,6 +1560,201 @@ def get_engagement_heatmap(db: Session) -> List[dict]:
         } 
         for row in results
     ]
+
+
+def get_avg_image_waiting_time(db: Session) -> float:
+    """
+    Get average image generation waiting time in seconds
+    
+    Returns:
+        Average waiting time in seconds (float), or 0.0 if no completed images
+    """
+    from sqlalchemy import func, extract
+    
+    result = db.query(
+        func.avg(
+            extract('epoch', ImageJob.finished_at - ImageJob.created_at)
+        ).label('avg_seconds')
+    ).filter(
+        ImageJob.status == 'completed',
+        ImageJob.finished_at.isnot(None)
+    ).scalar()
+    
+    return float(result) if result else 0.0
+
+
+def get_failed_images_count(db: Session) -> int:
+    """
+    Get count of failed image generation jobs
+    
+    Returns:
+        Count of failed images (int)
+    """
+    from sqlalchemy import func
+    
+    result = db.query(func.count(ImageJob.id)).filter(
+        ImageJob.status == 'failed'
+    ).scalar()
+    
+    return result or 0
+
+
+def get_image_waiting_time_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+    """
+    Get average image generation waiting time over time with premium/free breakdown
+    
+    Args:
+        db: Database session
+        interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
+        limit_hours: How many hours of history to fetch
+    
+    Returns:
+        List of {timestamp, avg_waiting_time, avg_premium, avg_free} dictionaries
+        All times in seconds
+    """
+    from sqlalchemy import func, extract, case
+    from datetime import datetime, timedelta
+    
+    # Calculate cutoff time
+    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+    
+    # Use PostgreSQL's date_trunc for time bucketing
+    if interval_minutes == 1:
+        trunc_spec = 'minute'
+    elif interval_minutes < 60:
+        trunc_spec = 'minute'
+    elif interval_minutes == 60:
+        trunc_spec = 'hour'
+    elif interval_minutes == 360:
+        trunc_spec = 'hour'
+    elif interval_minutes == 720:
+        trunc_spec = 'hour'
+    else:  # 1440 (1 day)
+        trunc_spec = 'day'
+    
+    # Query with join to User table for premium status
+    query = db.query(
+        func.date_trunc(trunc_spec, ImageJob.created_at).label('time_bucket'),
+        func.avg(
+            extract('epoch', ImageJob.finished_at - ImageJob.created_at)
+        ).label('avg_waiting_time'),
+        func.avg(
+            case(
+                (User.is_premium == True, extract('epoch', ImageJob.finished_at - ImageJob.created_at)),
+                else_=None
+            )
+        ).label('avg_premium'),
+        func.avg(
+            case(
+                (User.is_premium == False, extract('epoch', ImageJob.finished_at - ImageJob.created_at)),
+                else_=None
+            )
+        ).label('avg_free')
+    ).join(
+        User, ImageJob.user_id == User.id
+    ).filter(
+        ImageJob.status == 'completed',
+        ImageJob.finished_at.isnot(None),
+        ImageJob.created_at >= cutoff_time
+    ).group_by('time_bucket').order_by('time_bucket')
+    
+    results = query.all()
+    
+    # For intervals that don't align with date_trunc, we need to further group
+    if interval_minutes in [5, 15, 30]:
+        from collections import defaultdict
+        
+        # Group data by bucket
+        bucketed = defaultdict(lambda: {'total': [], 'premium': [], 'free': []})
+        
+        for row in results:
+            dt = row.time_bucket
+            total_minutes = dt.hour * 60 + dt.minute
+            bucket_num = total_minutes // interval_minutes
+            bucket_minutes = bucket_num * interval_minutes
+            bucket_time = dt.replace(hour=bucket_minutes // 60, minute=bucket_minutes % 60, second=0, microsecond=0)
+            
+            if row.avg_waiting_time:
+                bucketed[bucket_time]['total'].append(row.avg_waiting_time)
+            if row.avg_premium:
+                bucketed[bucket_time]['premium'].append(row.avg_premium)
+            if row.avg_free:
+                bucketed[bucket_time]['free'].append(row.avg_free)
+        
+        # Calculate averages for each bucket
+        result_list = []
+        for ts in sorted(bucketed.keys()):
+            data = bucketed[ts]
+            result_list.append({
+                'timestamp': ts.isoformat(),
+                'avg_waiting_time': sum(data['total']) / len(data['total']) if data['total'] else None,
+                'avg_premium': sum(data['premium']) / len(data['premium']) if data['premium'] else None,
+                'avg_free': sum(data['free']) / len(data['free']) if data['free'] else None
+            })
+        
+        return result_list
+    elif interval_minutes == 360:
+        from collections import defaultdict
+        bucketed = defaultdict(lambda: {'total': [], 'premium': [], 'free': []})
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 6) * 6
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            
+            if row.avg_waiting_time:
+                bucketed[bucket_time]['total'].append(row.avg_waiting_time)
+            if row.avg_premium:
+                bucketed[bucket_time]['premium'].append(row.avg_premium)
+            if row.avg_free:
+                bucketed[bucket_time]['free'].append(row.avg_free)
+        
+        result_list = []
+        for ts in sorted(bucketed.keys()):
+            data = bucketed[ts]
+            result_list.append({
+                'timestamp': ts.isoformat(),
+                'avg_waiting_time': sum(data['total']) / len(data['total']) if data['total'] else None,
+                'avg_premium': sum(data['premium']) / len(data['premium']) if data['premium'] else None,
+                'avg_free': sum(data['free']) / len(data['free']) if data['free'] else None
+            })
+        
+        return result_list
+    elif interval_minutes == 720:
+        from collections import defaultdict
+        bucketed = defaultdict(lambda: {'total': [], 'premium': [], 'free': []})
+        
+        for row in results:
+            dt = row.time_bucket
+            bucket_hour = (dt.hour // 12) * 12
+            bucket_time = dt.replace(hour=bucket_hour, minute=0, second=0, microsecond=0)
+            
+            if row.avg_waiting_time:
+                bucketed[bucket_time]['total'].append(row.avg_waiting_time)
+            if row.avg_premium:
+                bucketed[bucket_time]['premium'].append(row.avg_premium)
+            if row.avg_free:
+                bucketed[bucket_time]['free'].append(row.avg_free)
+        
+        result_list = []
+        for ts in sorted(bucketed.keys()):
+            data = bucketed[ts]
+            result_list.append({
+                'timestamp': ts.isoformat(),
+                'avg_waiting_time': sum(data['total']) / len(data['total']) if data['total'] else None,
+                'avg_premium': sum(data['premium']) / len(data['premium']) if data['premium'] else None,
+                'avg_free': sum(data['free']) / len(data['free']) if data['free'] else None
+            })
+        
+        return result_list
+    
+    # Return direct results for 1min, 1hour, and 1day intervals
+    return [{
+        'timestamp': row.time_bucket.isoformat(),
+        'avg_waiting_time': float(row.avg_waiting_time) if row.avg_waiting_time else None,
+        'avg_premium': float(row.avg_premium) if row.avg_premium else None,
+        'avg_free': float(row.avg_free) if row.avg_free else None
+    } for row in results]
 
 
 def get_all_images_paginated(db: Session, page: int = 1, per_page: int = 100) -> dict:
