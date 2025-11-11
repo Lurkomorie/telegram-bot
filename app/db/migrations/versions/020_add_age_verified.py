@@ -17,11 +17,23 @@ depends_on = None
 
 def upgrade():
     """Add age_verified field to users table"""
-    # Add column with default False
-    op.add_column('users', sa.Column('age_verified', sa.Boolean, nullable=False, server_default='false'))
+    # Check if column already exists to make migration idempotent
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('users')]
+    
+    if 'age_verified' not in columns:
+        # Add column with default False
+        op.add_column('users', sa.Column('age_verified', sa.Boolean, nullable=False, server_default='false'))
 
 
 def downgrade():
     """Remove age_verified field from users table"""
-    op.drop_column('users', 'age_verified')
+    # Check if column exists before trying to drop it
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('users')]
+    
+    if 'age_verified' in columns:
+        op.drop_column('users', 'age_verified')
 
