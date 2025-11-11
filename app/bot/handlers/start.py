@@ -46,14 +46,69 @@ async def cmd_start(message: types.Message):
         
         # Check if user has verified their age
         if not user.age_verified:
-            # Show age verification message
+            # Show age verification message with deep link encoded in callback
             age_verification_text = get_ui_text("age_verification.message")
-            keyboard = build_age_verification_keyboard()
+            keyboard = build_age_verification_keyboard(deep_link=deep_link_param)
+            if deep_link_param:
+                print(f"[START] 🔗 Showing age verification with deep link: {deep_link_param}")
             await message.answer(
                 age_verification_text,
                 reply_markup=keyboard
             )
             return
+    
+    # Handle telegram_ads_* deep links (e.g., telegram_ads_kiki3)
+    if deep_link_param and deep_link_param.startswith("telegram_ads_"):
+        import re
+        # Parse format: telegram_ads_<persona_key><history_index>
+        # Example: telegram_ads_kiki3 -> persona_key="kiki", history_index=3
+        match = re.match(r'^telegram_ads_([a-z]+)(\d+)$', deep_link_param)
+        if match:
+            persona_key = match.group(1)
+            history_index = int(match.group(2))
+            
+            print(f"[START-ADS] 📢 Parsed ad deep link: persona_key={persona_key}, history_index={history_index}")
+            
+            # Get persona and history from cache
+            from app.core.persona_cache import get_persona_with_history_by_index
+            persona, history = get_persona_with_history_by_index(persona_key, history_index)
+            
+            if not persona:
+                await message.answer(f"❌ Character '{persona_key}' not found!")
+                return
+            
+            if not history:
+                await message.answer(f"❌ Story #{history_index} not found for {persona['name']}!")
+                return
+            
+            persona_id = persona["id"]
+            history_id = history["id"]
+            persona_name = persona["name"]
+            
+            # Check if chat already exists
+            with get_db() as db:
+                existing_chat = crud.check_existing_chat(
+                    db,
+                    tg_chat_id=message.chat.id,
+                    user_id=message.from_user.id,
+                    persona_id=persona_id
+                )
+            
+            if existing_chat:
+                keyboard = build_chat_options_keyboard(persona_id)
+                await message.answer(
+                    f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
+                    f"Would you like to continue where you left off, or start a fresh conversation?",
+                    reply_markup=keyboard
+                )
+                return
+            else:
+                # Create new chat with the specific history from the ad
+                await create_new_persona_chat_with_history(message, persona_id, history_id)
+                return
+        else:
+            print(f"[START-ADS] ⚠️  Invalid ad deep link format: {deep_link_param}")
+            # Fall through to standard flow
     
     # Handle deep link from Mini App
     if deep_link_param and deep_link_param.startswith("persona_"):
@@ -778,9 +833,12 @@ async def new_chat_callback(callback: types.CallbackQuery):
 @router.callback_query(lambda c: c.data == "confirm_age_18")
 async def confirm_age_callback(callback: types.CallbackQuery):
     """Handle age verification confirmation"""
-    # Update user's age_verified status
+    import re
+    
+    # Update user's age_verified status and get pending deep link
     with get_db() as db:
         crud.update_user_age_verified(db, callback.from_user.id)
+        pending_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)
     
     # Delete the age verification message
     try:
@@ -788,7 +846,94 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     except Exception:
         pass
     
-    # Show persona selection (standard /start flow)
+    # If there's a pending deep link, execute it
+    if pending_deep_link:
+        print(f"[AGE-VERIFY] 🔗 Executing pending deep link: {pending_deep_link}")
+        
+        # Handle telegram_ads_* format
+        if pending_deep_link.startswith("telegram_ads_"):
+            match = re.match(r'^telegram_ads_([a-z]+)(\d+)$', pending_deep_link)
+            if match:
+                persona_key = match.group(1)
+                history_index = int(match.group(2))
+                
+                print(f"[AGE-VERIFY-ADS] 📢 Processing ad deep link: persona_key={persona_key}, history_index={history_index}")
+                
+                # Get persona and history from cache
+                from app.core.persona_cache import get_persona_with_history_by_index
+                persona, history = get_persona_with_history_by_index(persona_key, history_index)
+                
+                if persona and history:
+                    persona_id = persona["id"]
+                    history_id = history["id"]
+                    persona_name = persona["name"]
+                    
+                    # Check if chat already exists
+                    with get_db() as db:
+                        existing_chat = crud.check_existing_chat(
+                            db,
+                            tg_chat_id=callback.message.chat.id,
+                            user_id=callback.from_user.id,
+                            persona_id=persona_id
+                        )
+                    
+                    if existing_chat:
+                        keyboard = build_chat_options_keyboard(persona_id)
+                        await callback.message.answer(
+                            f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
+                            f"Would you like to continue where you left off, or start a fresh conversation?",
+                            reply_markup=keyboard
+                        )
+                    else:
+                        # Create new chat with the specific history from the ad
+                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                    
+                    await callback.answer()
+                    return
+                else:
+                    print(f"[AGE-VERIFY-ADS] ❌ Could not find persona/history for {pending_deep_link}")
+        
+        # Handle persona_* format (from miniapp)
+        elif pending_deep_link.startswith("persona_"):
+            parts = pending_deep_link.replace("persona_", "").split("_h")
+            persona_id = parts[0]
+            history_id = parts[1] if len(parts) > 1 else None
+            
+            # Check if persona exists
+            from app.core.persona_cache import get_persona_by_id
+            persona = get_persona_by_id(persona_id)
+            
+            if persona:
+                persona_name = persona["name"]
+                
+                # Check if chat already exists
+                with get_db() as db:
+                    existing_chat = crud.check_existing_chat(
+                        db,
+                        tg_chat_id=callback.message.chat.id,
+                        user_id=callback.from_user.id,
+                        persona_id=persona_id
+                    )
+                
+                if existing_chat:
+                    keyboard = build_chat_options_keyboard(persona_id)
+                    await callback.message.answer(
+                        f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
+                        f"Would you like to continue where you left off, or start a fresh conversation?",
+                        reply_markup=keyboard
+                    )
+                else:
+                    if history_id:
+                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                    else:
+                        await show_story_selection(callback.message, persona_id)
+                
+                await callback.answer()
+                return
+            else:
+                print(f"[AGE-VERIFY] ❌ Could not find persona for {pending_deep_link}")
+    
+    # No pending deep link or it failed - show standard persona selection
     from app.core.persona_cache import get_preset_personas
     preset_data = get_preset_personas()
     user_data = []  # User personas disabled

@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
     FORCE_IMAGES_ALWAYS: bool = False  # Debug flag to force images every message (bypasses AI decision)
     ENABLE_ENERGY_REGEN: bool = True  # Set to False to disable automatic energy regeneration (2-hour cycle)
+    MAX_CONCURRENT_IMAGES_PER_USER: int = 2  # Maximum number of images a user can generate simultaneously
     
     # Testing/Development
     FOLLOWUP_TEST_USERS: Optional[str] = None  # Comma-separated user IDs to restrict followups to (e.g., "123456,789012")

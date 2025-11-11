@@ -1,6 +1,6 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect, useState } from 'react';
-import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario } from './api';
+import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, checkAgeVerification, verifyAge } from './api';
 import './App.css';
 import BottomNav from './components/BottomNav';
 import HistorySelection from './components/HistorySelection';
@@ -20,6 +20,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistories, setIsLoadingHistories] = useState(false);
   const [error, setError] = useState(null);
+  const [showAgeVerification, setShowAgeVerification] = useState(false);
+  const [isVerifyingAge, setIsVerifyingAge] = useState(false);
+  const [ageCheckComplete, setAgeCheckComplete] = useState(false);
 
   useEffect(() => {
     // Initialize Telegram Web App
@@ -33,17 +36,69 @@ function App() {
     // Disable vertical swipes to prevent accidental closes
     WebApp.disableVerticalSwipes();
     
-    // Check URL parameters for routing
-    const urlParams = new URLSearchParams(window.location.search);
-    const page = urlParams.get('page');
-    if (page === 'premium') {
-      setCurrentPage('premium');
-    }
-    
-    // Load initial data
-    loadPersonas();
-    loadEnergy();
+    // Check age verification first before loading any data
+    checkAgeStatus();
   }, []);
+
+  async function checkAgeStatus() {
+    try {
+      const initData = WebApp.initData;
+      const result = await checkAgeVerification(initData);
+      
+      if (!result.age_verified) {
+        // User hasn't verified age - show blocking modal
+        setShowAgeVerification(true);
+        setIsLoading(false);
+      } else {
+        // User is verified - proceed to load app
+        setAgeCheckComplete(true);
+        
+        // Check URL parameters for routing
+        const urlParams = new URLSearchParams(window.location.search);
+        const page = urlParams.get('page');
+        if (page === 'premium') {
+          setCurrentPage('premium');
+        }
+        
+        // Load initial data
+        loadPersonas();
+        loadEnergy();
+      }
+    } catch (err) {
+      console.error('Failed to check age verification:', err);
+      // On error, assume not verified for safety
+      setShowAgeVerification(true);
+      setIsLoading(false);
+    }
+  }
+
+  async function handleAgeConfirmation() {
+    try {
+      setIsVerifyingAge(true);
+      const initData = WebApp.initData;
+      await verifyAge(initData);
+      
+      // Age verified successfully
+      setShowAgeVerification(false);
+      setAgeCheckComplete(true);
+      
+      // Check URL parameters for routing
+      const urlParams = new URLSearchParams(window.location.search);
+      const page = urlParams.get('page');
+      if (page === 'premium') {
+        setCurrentPage('premium');
+      }
+      
+      // Load initial data
+      loadPersonas();
+      loadEnergy();
+    } catch (err) {
+      console.error('Failed to verify age:', err);
+      WebApp.showAlert('Failed to verify age. Please try again.');
+    } finally {
+      setIsVerifyingAge(false);
+    }
+  }
 
   // Scroll to top whenever page changes
   useEffect(() => {
@@ -154,6 +209,75 @@ function App() {
 
   return (
     <div className={`app ${showBottomNav ? 'app-with-nav' : ''}`}>
+      {/* Age Verification Modal - Blocking overlay */}
+      {showAgeVerification && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#0a0a0a',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+        }}>
+          <div style={{
+            backgroundColor: '#1a1a1a',
+            borderRadius: '16px',
+            padding: '32px 24px',
+            maxWidth: '400px',
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔞</div>
+            <h2 style={{ 
+              color: '#ffffff', 
+              fontSize: '24px', 
+              fontWeight: '600', 
+              marginBottom: '16px',
+              lineHeight: '1.3',
+            }}>
+              Age Verification Required
+            </h2>
+            <p style={{ 
+              color: '#888888', 
+              fontSize: '16px', 
+              marginBottom: '24px',
+              lineHeight: '1.5',
+            }}>
+              You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.
+            </p>
+            <button
+              onClick={handleAgeConfirmation}
+              disabled={isVerifyingAge}
+              style={{
+                width: '100%',
+                padding: '16px',
+                backgroundColor: isVerifyingAge ? '#333333' : '#007AFF',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: isVerifyingAge ? 'not-allowed' : 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                if (!isVerifyingAge) e.target.style.backgroundColor = '#0051D5';
+              }}
+              onMouseLeave={(e) => {
+                if (!isVerifyingAge) e.target.style.backgroundColor = '#007AFF';
+              }}
+            >
+              {isVerifyingAge ? 'Verifying...' : 'I am 18 years or older'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="app-header">
         <div className="header-content">
           {showBackButton && (

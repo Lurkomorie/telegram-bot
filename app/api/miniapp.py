@@ -141,6 +141,78 @@ async def get_user_energy(
         return {"energy": 100, "max_energy": 100, "is_premium": False}  # Default fallback
 
 
+@router.get("/user/age-status")
+async def get_user_age_status(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get user's age verification status
+    
+    Returns: {age_verified: bool}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        return {"age_verified": False}  # Default for testing
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            # Get or create user
+            user = crud.get_or_create_user(db, telegram_id=user_id)
+            return {"age_verified": user.age_verified}
+    
+    except Exception as e:
+        print(f"[AGE-STATUS-API] Error: {e}")
+        return {"age_verified": False}  # Default fallback
+
+
+@router.post("/user/verify-age")
+async def verify_user_age(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Mark user as age verified
+    
+    Returns: {success: bool, age_verified: bool}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            # Update user's age_verified status
+            user = crud.update_user_age_verified(db, telegram_id=user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            print(f"[AGE-VERIFY-API] ✅ User {user_id} verified age from miniapp")
+            return {"success": True, "age_verified": True}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[AGE-VERIFY-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to verify age: {str(e)}")
+
+
 class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None

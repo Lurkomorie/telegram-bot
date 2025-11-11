@@ -383,13 +383,27 @@ async def _process_single_batch(
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         
         pipeline_timer.end_stage()
+        
+        # 6. Determine image generation logic
+        # Combine AI decision with scheduler followup type and settings
+        should_skip_30min_followup = followup_type == "30min"  # Always skip for 30min
+        should_skip_followup_image = is_auto_followup and not settings.ENABLE_IMAGES_IN_FOLLOWUP
+        final_should_generate = should_generate_image_flag and not should_skip_followup_image and not should_skip_30min_followup
+        
+        # For 24h follow-ups with images, delay sending text until image is ready
+        should_wait_for_image = followup_type == "24h" and final_should_generate
+        
         pipeline_timer.start_stage("Send Response to User")
         
         # 5. Send response to user (with MarkdownV2 formatting preserved)
-        escaped_response = escape_markdown_v2(dialogue_response)
-        await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
-        log_always(f"[BATCH] ✅ Response sent to user")
-        log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+        # For 24h follow-ups with images, delay sending text until image is ready
+        if should_wait_for_image:
+            log_always(f"[BATCH] ⏳ Delaying text message send - will be sent as image caption (24h followup)")
+        else:
+            escaped_response = escape_markdown_v2(dialogue_response)
+            await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
+            log_always(f"[BATCH] ✅ Response sent to user")
+            log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
         
         pipeline_timer.end_stage()
         
@@ -419,11 +433,7 @@ async def _process_single_batch(
         
         pipeline_timer.end_stage()
         
-        # 6. Start background image generation based on AI decision
-        # Combine AI decision with scheduler followup type and settings
-        should_skip_30min_followup = followup_type == "30min"  # Always skip for 30min
-        should_skip_followup_image = is_auto_followup and not settings.ENABLE_IMAGES_IN_FOLLOWUP
-        final_should_generate = should_generate_image_flag and not should_skip_followup_image and not should_skip_30min_followup
+        # 7. Start background image generation based on AI decision
         
         if final_should_generate:
             log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
@@ -440,9 +450,13 @@ async def _process_single_batch(
                 chat_history=chat_history,
                 previous_image_prompt=previous_image_prompt,
                 is_auto_followup=is_auto_followup,
-                followup_type=followup_type
+                followup_type=followup_type,
+                should_send_as_caption=should_wait_for_image  # Pass flag to send text with image
             ))
-            log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
+            if should_wait_for_image:
+                log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
+            else:
+                log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         else:
             if should_skip_30min_followup:
                 skip_reason = "30min scheduler (noImage)"
@@ -476,10 +490,21 @@ async def _background_image_generation(
     chat_history: list[dict],  # Add chat history parameter
     previous_image_prompt: str = None,  # Add previous image prompt parameter
     is_auto_followup: bool = False,  # Track if image is from scheduler
-    followup_type: str = None  # Type of followup ("30min" or "24h")
+    followup_type: str = None,  # Type of followup ("30min" or "24h")
+    should_send_as_caption: bool = False  # If True, send dialogue_response as photo caption
 ):
     """Non-blocking image generation"""
+    counter_incremented = False  # Track if we incremented counter for error handling
     try:
+        from app.settings import settings
+        
+        # Check concurrent image limit
+        current_count = await redis_queue.get_user_image_count(user_id)
+        if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
+            log_always(f"[IMAGE-BG] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
+            await action_mgr.stop()
+            return
+        
         # Check if user is premium (premium users get free images)
         with get_db() as db:
             is_premium = crud.check_user_premium(db, user_id)
@@ -535,10 +560,26 @@ async def _background_image_generation(
         
         # Create job record
         log_verbose(f"[IMAGE-BG] 💾 Creating job record in database...")
+        
+        # Build ext metadata
+        job_ext = {
+            "is_auto_followup": is_auto_followup
+        }
+        
+        # For 24h follow-ups, store dialogue text to send as caption
+        if should_send_as_caption:
+            job_ext["pending_caption"] = dialogue_response
+            log_always(f"[IMAGE-BG] 📝 Storing dialogue text as pending caption (24h followup)")
+        
+        # Increment concurrent image counter (track that we incremented for error handling)
+        new_count = await redis_queue.increment_user_image_count(user_id)
+        counter_incremented = True
+        log_verbose(f"[IMAGE-BG] 📊 Incremented user image count to {new_count}")
+        
         with get_db() as db:
             job = crud.create_image_job(
                 db, user_id, persona_id, positive, negative, chat_id,
-                ext={"is_auto_followup": is_auto_followup}
+                ext=job_ext
             )
             job_id = job.id
         log_verbose(f"[IMAGE-BG]    Job ID: {job_id}")
@@ -575,6 +616,9 @@ async def _background_image_generation(
         
         if not result:
             print(f"[IMAGE-BG] ⚠️ Job dispatch failed")
+            # Decrement counter since dispatch failed
+            await redis_queue.decrement_user_image_count(user_id)
+            print(f"[IMAGE-BG] 📊 Decremented user image count (dispatch failed)")
             # Stop action on dispatch failure
             from app.core.action_registry import stop_and_remove_action
             await stop_and_remove_action(tg_chat_id)
@@ -586,6 +630,11 @@ async def _background_image_generation(
         if is_development():
             import traceback
             traceback.print_exc()
+        
+        # Decrement counter if we incremented it (error occurred after increment)
+        if counter_incremented:
+            await redis_queue.decrement_user_image_count(user_id)
+            print(f"[IMAGE-BG] 📊 Decremented user image count (error recovery)")
         
         # Stop action on exception
         from app.core.action_registry import stop_and_remove_action

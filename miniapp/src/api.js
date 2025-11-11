@@ -64,6 +64,45 @@ export async function fetchUserEnergy(initData) {
 }
 
 /**
+ * Check user's age verification status
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Age status object {age_verified: bool}
+ */
+export async function checkAgeVerification(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/age-status`, {
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to check age verification');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Verify user's age (mark as 18+)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success: bool, age_verified: bool}
+ */
+export async function verifyAge(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/verify-age`, {
+    method: 'POST',
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to verify age');
+  }
+  
+  return response.json();
+}
+
+/**
  * Select a scenario and create a chat
  * @param {string} personaId - Persona ID
  * @param {string|null} historyId - History ID (optional)

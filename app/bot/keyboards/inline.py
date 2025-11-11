@@ -240,12 +240,21 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def build_age_verification_keyboard() -> InlineKeyboardMarkup:
-    """Build keyboard for age verification confirmation"""
+def build_age_verification_keyboard(deep_link: str = None) -> InlineKeyboardMarkup:
+    """Build keyboard for age verification confirmation
+    
+    Args:
+        deep_link: Optional deep link to pass through callback (e.g., "telegram_ads_kiki3")
+    """
+    callback_data = "confirm_age_18"
+    if deep_link:
+        # Encode deep link in callback data (max 64 bytes for callback_data)
+        callback_data = f"confirm_age_18:{deep_link}"
+    
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=get_ui_text("age_verification.confirm_button"),
-            callback_data="confirm_age_18"
+            callback_data=callback_data
         )]
     ])
 

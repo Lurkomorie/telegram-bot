@@ -350,6 +350,19 @@ async def image_callback(request: Request):
                 result_url=image_url
             )
             
+            # Decrement concurrent image counter
+            user_id_for_decrement = job.user_id
+            
+            # Extract job.ext data while still in session (to avoid detached instance errors)
+            job_ext_data = job.ext if job.ext else {}
+            pending_caption = job_ext_data.get("pending_caption")
+            is_auto_followup = job_ext_data.get("is_auto_followup", False)
+            job_user_id = job.user_id
+            job_persona_id = job.persona_id
+            job_prompt = job.prompt
+            job_negative_prompt = job.negative_prompt
+            job_chat_id = job.chat_id
+            
             # Get chat info for sending photo
             if job.chat_id:
                 # Get existing chat
@@ -372,6 +385,10 @@ async def image_callback(request: Request):
                 status="failed",
                 error=error_msg
             )
+            
+            # Decrement concurrent image counter
+            user_id_for_decrement = job.user_id
+            
             tg_chat_id = None
         
         else:
@@ -379,6 +396,12 @@ async def image_callback(request: Request):
             new_status = "running" if status == "IN_PROGRESS" else "queued"
             crud.update_image_job_status(db, job_id_str, status=new_status)
             return {"ok": True, "message": f"Status updated to {new_status}"}
+    
+    # Decrement concurrent image counter for completed/failed jobs
+    if status in ("COMPLETED", "FAILED") and 'user_id_for_decrement' in locals():
+        from app.core import redis_queue
+        await redis_queue.decrement_user_image_count(user_id_for_decrement)
+        print(f"[IMAGE-CALLBACK] 📊 Decremented user image count for user {user_id_for_decrement}")
     
     # Send photo to user if completed
     if status == "COMPLETED" and tg_chat_id and (image_url or image_data):
@@ -411,6 +434,15 @@ async def image_callback(request: Request):
                         flag_modified(chat, "ext")
                         db.commit()
             
+            # Check if there's a pending caption (for 24h follow-ups)
+            # Note: pending_caption was extracted earlier in the db session
+            if pending_caption:
+                print(f"[IMAGE-CALLBACK] 📝 Found pending caption - will send text with image (24h followup)")
+                
+                # Format caption for Telegram MarkdownV2
+                from app.core.telegram_utils import escape_markdown_v2
+                pending_caption = escape_markdown_v2(pending_caption)
+            
             # Send photo - handle both binary data and URL
             if image_data:
                 # Strip color profile to prevent yellowish tint in Telegram
@@ -423,6 +455,8 @@ async def image_callback(request: Request):
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
                     photo=input_file,
+                    caption=pending_caption,
+                    parse_mode="MarkdownV2" if pending_caption else None,
                     reply_markup=refresh_keyboard
                 )
             else:
@@ -430,8 +464,13 @@ async def image_callback(request: Request):
                 sent_message = await bot.send_photo(
                     chat_id=tg_chat_id,
                     photo=image_url,
+                    caption=pending_caption,
+                    parse_mode="MarkdownV2" if pending_caption else None,
                     reply_markup=refresh_keyboard
                 )
+            
+            if pending_caption:
+                print(f"[IMAGE-CALLBACK] ✅ Image sent with caption (24h followup mode)")
             
             # Save file_id and message_id for caching and tracking
             if sent_message.photo:
@@ -463,30 +502,26 @@ async def image_callback(request: Request):
             print(f"[IMAGE-CALLBACK] ✅ Image sent to chat {tg_chat_id}")
             
             # Track image generation for analytics (with Cloudflare upload in background)
-            # Get job details for tracking
+            # Use job details extracted earlier from the db session
             with get_db() as db:
-                job_details = crud.get_image_job(db, job_id_str)
-                if job_details:
-                    chat_details = crud.get_chat_by_id(db, job_details.chat_id) if job_details.chat_id else None
-                    persona_details = crud.get_persona_by_id(db, job_details.persona_id) if job_details.persona_id else None
-                    
-                    # Use image_data if available, otherwise use image_url
-                    image_source = image_data if image_data else image_url
-                    
-                    # Extract source metadata from job
-                    is_auto_followup = job_details.ext.get("is_auto_followup", False) if job_details.ext else False
-                    
-                    analytics_service_tg.track_image_generated(
-                        client_id=job_details.user_id,
-                        image_url_or_bytes=image_source,
-                        persona_id=job_details.persona_id,
-                        persona_name=persona_details.name if persona_details else None,
-                        prompt=job_details.prompt,
-                        negative_prompt=job_details.negative_prompt,
-                        chat_id=job_details.chat_id,
-                        job_id=job_id_str,
-                        is_auto_followup=is_auto_followup
-                    )
+                chat_details = crud.get_chat_by_id(db, job_chat_id) if job_chat_id else None
+                persona_details = crud.get_persona_by_id(db, job_persona_id) if job_persona_id else None
+                
+                # Use image_data if available, otherwise use image_url
+                image_source = image_data if image_data else image_url
+                
+                # Use is_auto_followup extracted earlier
+                analytics_service_tg.track_image_generated(
+                    client_id=job_user_id,
+                    image_url_or_bytes=image_source,
+                    persona_id=job_persona_id,
+                    persona_name=persona_details.name if persona_details else None,
+                    prompt=job_prompt,
+                    negative_prompt=job_negative_prompt,
+                    chat_id=job_chat_id,
+                    job_id=job_id_str,
+                    is_auto_followup=is_auto_followup
+                )
         
         except Exception as e:
             print(f"[IMAGE-CALLBACK] ❌ Error sending photo: {e}")

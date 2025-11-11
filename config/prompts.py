@@ -250,6 +250,8 @@ IMPORTANT!!! DON'T USE: wicked smile, teasing smile, wicked playfulness, sparkli
 """
 
 CONVERSATION_STATE_GPT = """
+⚠️ CRITICAL: Your response must be EXACTLY one line starting with relationshipStage= - no dialogue, no extra text, no explanations!
+
 Objective
 
 Update state ONLY when conversation explicitly mentions changes. Maintain previous state for unchanged fields. Output one single line of key="value" pairs joined with | in the exact key order below. No extra text.
@@ -259,7 +261,7 @@ Output Contract (Strict)
 Exact key order (must match):
 relationshipStage="..." | emotions="..." | moodNotes="..." | location="..." | description="..." | aiClothing="..." | userClothing="..." | terminateDialog=false | terminateReason=""
 
-Only one line. No newlines, no JSON, no code fences, no surrounding text.
+Only one line. No newlines, no JSON, no code fences, no surrounding text, no character dialogue.
 
 Quotes: wrap every value in straight double quotes "; escape internal quotes as \".
 

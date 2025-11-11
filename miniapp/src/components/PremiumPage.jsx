@@ -79,8 +79,6 @@ export default function PremiumPage({ energy, onBack }) {
   return (
     <div className="premium-page">
       <div className="plans-section">
-        <h3 className="plans-title">Plan</h3>
-        
         <div className="plans-grid">
           {plans.map((plan, index) => (
             <div

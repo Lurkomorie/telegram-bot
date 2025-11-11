@@ -84,6 +84,14 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         await message.answer(ERROR_MESSAGES["rate_limit_image"])
         return
     
+    # Check concurrent image limit
+    from app.core import redis_queue
+    from app.settings import settings
+    current_count = await redis_queue.get_user_image_count(user_id)
+    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
+        print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
+        return
+    
     with get_db() as db:
         # Deduct energy for non-premium users
         if not is_premium:
@@ -134,6 +142,10 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         
         job_id = job.id
     
+    # Increment concurrent image counter (after job creation, before submission)
+    await redis_queue.increment_user_image_count(user_id)
+    print(f"[IMAGE] 📊 Incremented user image count")
+    
     # Determine priority based on rules (same as pipeline)
     if is_premium:
         queue_priority = "high"
@@ -164,6 +176,10 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     
     except Exception as e:
         print(f"[IMAGE] Error submitting job: {e}")
+        
+        # Decrement counter since submission failed
+        await redis_queue.decrement_user_image_count(user_id)
+        print(f"[IMAGE] 📊 Decremented user image count (submission failed)")
         
         with get_db() as db:
             crud.update_image_job_status(
@@ -233,6 +249,14 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         await bot.send_message(tg_chat_id, ERROR_MESSAGES["rate_limit_image"])
         return
     
+    # Check concurrent image limit
+    from app.core import redis_queue
+    from app.settings import settings
+    current_count = await redis_queue.get_user_image_count(user_id)
+    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
+        print(f"[REFRESH-IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
+        return
+    
     # Check if user is premium for priority determination
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)
@@ -284,6 +308,10 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         
         job_id = job.id
     
+    # Increment concurrent image counter (after job creation, before submission)
+    await redis_queue.increment_user_image_count(user_id)
+    print(f"[REFRESH-IMAGE] 📊 Incremented user image count")
+    
     # Determine priority based on rules (same as pipeline)
     if is_premium:
         queue_priority = "high"
@@ -313,6 +341,10 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
     
     except Exception as e:
         print(f"[REFRESH-IMAGE] ❌ Error submitting job: {e}")
+        
+        # Decrement counter since submission failed
+        await redis_queue.decrement_user_image_count(user_id)
+        print(f"[REFRESH-IMAGE] 📊 Decremented user image count (submission failed)")
         
         with get_db() as db:
             crud.update_image_job_status(

@@ -84,6 +84,14 @@ def get_persona_by_id(persona_id: str) -> Optional[Dict[str, Any]]:
     return _CACHE["by_id"].get(str(persona_id))
 
 
+def get_persona_by_key(persona_key: str) -> Optional[Dict[str, Any]]:
+    """Get cached persona by key"""
+    for persona in _CACHE["presets"]:
+        if persona.get("key") == persona_key:
+            return persona
+    return None
+
+
 def get_persona_histories(persona_id: str) -> List[Dict[str, Any]]:
     """Get cached histories for a persona"""
     return _CACHE["histories"].get(str(persona_id), [])
@@ -93,6 +101,27 @@ def get_random_history(persona_id: str) -> Optional[Dict[str, Any]]:
     """Get random history for persona from cache"""
     histories = _CACHE["histories"].get(str(persona_id), [])
     return random.choice(histories) if histories else None
+
+
+def get_persona_with_history_by_index(persona_key: str, history_index: int) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Get persona by key and specific history by index
+    
+    Args:
+        persona_key: Persona key (e.g., "kiki")
+        history_index: Index of history (0-based)
+    
+    Returns:
+        Tuple of (persona_dict, history_dict) or (None, None) if not found
+    """
+    persona = get_persona_by_key(persona_key)
+    if not persona:
+        return None, None
+    
+    histories = get_persona_histories(persona["id"])
+    if history_index < 0 or history_index >= len(histories):
+        return persona, None
+    
+    return persona, histories[history_index]
 
 
 def is_cache_loaded() -> bool:

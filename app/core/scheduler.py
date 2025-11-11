@@ -54,6 +54,10 @@ async def check_inactive_chats_24h():
     This allows sending a second auto-message even if we sent one at 30min
     and the user still hasn't responded. We only re-engage if it's been
     24 hours since our last auto-message attempt.
+    
+    Rate-limited to process max 4 chats per run to avoid overwhelming
+    the image generation queue. With 5-minute intervals, this means
+    4 low-priority image requests every 5 minutes.
     """
     from app.settings import settings
     
@@ -80,9 +84,17 @@ async def check_inactive_chats_24h():
             print(f"[SCHEDULER] No inactive chats found (24h)")
             return
         
-        print(f"[SCHEDULER] Found {len(chat_data)} inactive chats needing re-engagement (24h)")
+        total_chats = len(chat_data)
+        print(f"[SCHEDULER] Found {total_chats} inactive chats needing re-engagement (24h)")
         
-        for data in chat_data:
+        # Rate limit: Process max 4 chats per run to prevent overwhelming the queue
+        max_per_run = 4
+        chats_to_process = chat_data[:max_per_run]
+        
+        if total_chats > max_per_run:
+            print(f"[SCHEDULER] ⏱️  Rate limiting: Processing {max_per_run} of {total_chats} chats (remaining will be processed in next run)")
+        
+        for data in chats_to_process:
             try:
                 await send_auto_message(data["chat_id"], data["tg_chat_id"], followup_type="24h")
             except Exception as e:
@@ -183,10 +195,11 @@ def start_scheduler():
         # Check for inactive chats every minute (30min threshold)
         scheduler.add_job(check_inactive_chats, 'interval', minutes=1)
         
-        # Check for inactive chats every hour (24h threshold)
-        scheduler.add_job(check_inactive_chats_24h, 'interval', hours=1)
+        # Check for inactive chats every 5 minutes (24h threshold)
+        # Processes max 4 chats per run = 4 low-priority image requests every 5 minutes
+        scheduler.add_job(check_inactive_chats_24h, 'interval', minutes=5)
         
-        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 1h)")
+        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 5min with max 4 chats/run)")
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     

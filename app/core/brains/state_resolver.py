@@ -135,8 +135,29 @@ async def resolve_state(
             
             brain_duration_ms = (time.time() - brain_start) * 1000
             
-            # Just return the string response directly
-            state_text = result.strip()
+            # Parse and validate the response
+            raw_response = result.strip()
+            
+            # Validate: state must start with "relationshipStage="
+            # If LLM returned extra text, try to extract the correct line
+            if raw_response.startswith("relationshipStage="):
+                # Take only the first line (in case there's extra text after)
+                state_text = raw_response.split("\n")[0].strip()
+            else:
+                # Try to find the state line in the response
+                for line in raw_response.split("\n"):
+                    line = line.strip()
+                    if line.startswith("relationshipStage="):
+                        state_text = line
+                        print("[STATE-RESOLVER] ⚠️ Extracted state from multi-line response")
+                        break
+                else:
+                    # Invalid format - trigger retry
+                    raise ValueError(f"Invalid state format (missing 'relationshipStage=' prefix). Got: {raw_response[:200]}")
+            
+            # Additional validation: check basic structure
+            if " | " not in state_text or "emotions=" not in state_text:
+                raise ValueError(f"Invalid state structure (missing required fields). Got: {state_text[:200]}")
             
             # Development-only: Log full response
             if is_development():
@@ -153,7 +174,7 @@ async def resolve_state(
             
             # Check if state has changed
             if previous_state and state_text == previous_state:
-                print(f"[STATE-RESOLVER] ⚠️  WARNING: State unchanged from previous!")
+                print("[STATE-RESOLVER] ⚠️  WARNING: State unchanged from previous!")
             
             return state_text
             
