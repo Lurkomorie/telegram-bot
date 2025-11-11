@@ -1,7 +1,7 @@
 """Add age_verified field to users for age verification
 
-Revision ID: 019
-Revises: 018
+Revision ID: 020
+Revises: 019
 Create Date: 2025-11-10
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '019'
-down_revision = '018'
+revision = '020'
+down_revision = '019'
 branch_labels = None
 depends_on = None
 
