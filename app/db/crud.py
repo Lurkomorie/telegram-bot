@@ -434,19 +434,20 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
 
 
 def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_user_ids: Optional[List[int]] = None) -> List[Chat]:
-    """Get chats inactive for long periods (24h+) that need re-engagement
+    """Get chats inactive for long periods (24h+) that need a single re-engagement message
     
-    This allows sending a follow-up even if we already sent an auto-message earlier
-    (e.g., at 30min) and the user still hasn't responded. We only re-engage if:
-    - It's been at least N minutes since our last auto-message attempt
-    - The assistant spoke last (user hasn't replied)
+    This allows sending ONE follow-up 24h after we already sent a 30min auto-message
+    and the user still hasn't responded. We only re-engage if:
+    - We already sent a 30min auto-message (last_auto_message_at is set)
+    - It's been at least N minutes (typically 24h) since that auto-message
+    - The assistant spoke last (user hasn't replied since the auto-message)
     - The chat is active (not archived)
     
-    This prevents spam while allowing periodic re-engagement for very inactive chats.
+    Sends only ONE 24h message. Stops until user replies, which resets the cycle.
     
     Args:
         db: Database session
-        minutes: Number of minutes of inactivity required
+        minutes: Number of minutes of inactivity required (default: 1440 = 24 hours)
         test_user_ids: Optional list of user IDs to restrict results to (for testing)
     """
     from datetime import timedelta
@@ -460,10 +461,14 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
             Chat.last_user_message_at.is_(None),  # User never replied yet
             Chat.last_assistant_message_at > Chat.last_user_message_at  # Or assistant spoke last
         ),
-        # Either never sent auto-message, or last auto-message was more than N minutes ago
+        # Must have sent a 30min message already
+        Chat.last_auto_message_at.isnot(None),
+        # That message was 24h ago
+        Chat.last_auto_message_at < threshold,
+        # User hasn't replied since that auto message (prevents infinite loop)
         or_(
-            Chat.last_auto_message_at.is_(None),  # Never sent an auto-message
-            Chat.last_auto_message_at < threshold  # Or last auto-message was long ago
+            Chat.last_user_message_at.is_(None),  # User never replied
+            Chat.last_auto_message_at > Chat.last_user_message_at  # Auto message sent after user's last reply
         )
     )
     
