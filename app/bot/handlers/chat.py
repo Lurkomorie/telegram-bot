@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
+from app.db.models import User
 from app.settings import get_app_config
 from app.core.rate import check_rate_limit
 from app.core.multi_brain_pipeline import process_message_pipeline
@@ -202,6 +203,13 @@ async def handle_text_message(message: types.Message):
                 log_verbose(f"[CHAT] ⚠️  Failed to deduct energy from user {user_id}")
                 await message.answer("❌ Failed to deduct energy. Please try again.")
                 return
+        
+        # Increment global message counter for priority queue logic
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            user.global_message_count += 1
+            db.commit()
+            log_verbose(f"[CHAT] 📊 Global message count: {user.global_message_count}")
     
     # Always add message to queue first
     log_verbose(f"[CHAT] 📥 Adding '{user_text[:20]}...' to queue")

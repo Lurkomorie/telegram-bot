@@ -29,7 +29,8 @@ async def add_message_to_queue(
     chat_id: UUID,
     user_id: int,
     text: str,
-    tg_chat_id: int
+    tg_chat_id: int,
+    context: Dict = None
 ) -> int:
     """
     Add a message to the Redis queue for a chat
@@ -39,6 +40,7 @@ async def add_message_to_queue(
         user_id: Telegram user ID
         text: Message text
         tg_chat_id: Telegram chat ID
+        context: Optional context dict (e.g., {"followup_type": "30min"})
     
     Returns:
         Queue length after adding
@@ -49,7 +51,8 @@ async def add_message_to_queue(
     message_data = {
         "user_id": user_id,
         "text": text,
-        "tg_chat_id": tg_chat_id
+        "tg_chat_id": tg_chat_id,
+        "context": context or {}
     }
     
     # Add to end of queue (RPUSH = append)

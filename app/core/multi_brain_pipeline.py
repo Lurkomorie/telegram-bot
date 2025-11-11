@@ -14,6 +14,7 @@ from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.db.base import get_db
 from app.db import crud
+from app.db.models import User
 from app.bot.loader import bot
 from app.core import analytics_service_tg
 
@@ -276,6 +277,11 @@ async def _process_single_batch(
         is_resume = "[SYSTEM_RESUME]" in batched_text
         is_auto_followup = "[AUTO_FOLLOWUP]" in batched_text
         
+        # Get followup type from context (if applicable)
+        followup_type = None
+        if batch_messages and batch_messages[0].get("context"):
+            followup_type = batch_messages[0]["context"].get("followup_type")
+        
         if is_resume:
             log_verbose(f"[BATCH]    Resume mode: AI initiating conversation")
             # Generate a welcome-back style message
@@ -414,9 +420,10 @@ async def _process_single_batch(
         pipeline_timer.end_stage()
         
         # 6. Start background image generation based on AI decision
-        # Combine AI decision with auto-followup check
+        # Combine AI decision with scheduler followup type and settings
+        should_skip_30min_followup = followup_type == "30min"  # Always skip for 30min
         should_skip_followup_image = is_auto_followup and not settings.ENABLE_IMAGES_IN_FOLLOWUP
-        final_should_generate = should_generate_image_flag and not should_skip_followup_image
+        final_should_generate = should_generate_image_flag and not should_skip_followup_image and not should_skip_30min_followup
         
         if final_should_generate:
             log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
@@ -432,11 +439,14 @@ async def _process_single_batch(
                 action_mgr=action_mgr,
                 chat_history=chat_history,
                 previous_image_prompt=previous_image_prompt,
-                is_auto_followup=is_auto_followup
+                is_auto_followup=is_auto_followup,
+                followup_type=followup_type
             ))
             log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         else:
-            if should_skip_followup_image:
+            if should_skip_30min_followup:
+                skip_reason = "30min scheduler (noImage)"
+            elif should_skip_followup_image:
                 skip_reason = "auto-followup with ENABLE_IMAGES_IN_FOLLOWUP=False"
             else:
                 skip_reason = decision_reason
@@ -465,18 +475,28 @@ async def _background_image_generation(
     action_mgr: ChatActionManager,  # Reused to show upload_photo action
     chat_history: list[dict],  # Add chat history parameter
     previous_image_prompt: str = None,  # Add previous image prompt parameter
-    is_auto_followup: bool = False  # Track if image is from scheduler
+    is_auto_followup: bool = False,  # Track if image is from scheduler
+    followup_type: str = None  # Type of followup ("30min" or "24h")
 ):
     """Non-blocking image generation"""
     try:
         # Check if user is premium (premium users get free images)
         with get_db() as db:
             is_premium = crud.check_user_premium(db, user_id)
+            # Get user's global message count for priority determination
+            user = db.query(User).filter(User.id == user_id).first()
+            global_message_count = user.global_message_count if user else 999
         
         if is_premium:
             log_always(f"[IMAGE-BG] 💎 Premium user {user_id} - free image generation")
         else:
-            log_verbose(f"[IMAGE-BG] 🆓 Free user {user_id} - automatic image generation")
+            # Deduct energy for non-premium users (5 energy per image)
+            with get_db() as db:
+                if not crud.deduct_user_energy(db, user_id, amount=5):
+                    log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image - skipping")
+                    await action_mgr.stop()
+                    return
+                log_always(f"[IMAGE-BG] ⚡ Deducted 5 energy from user {user_id}")
         
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")
@@ -523,13 +543,34 @@ async def _background_image_generation(
             job_id = job.id
         log_verbose(f"[IMAGE-BG]    Job ID: {job_id}")
         
+        # Determine priority based on rules:
+        # - Premium users: high
+        # - First 2 global messages: high
+        # - 24h scheduler: low
+        # - Default: medium
+        if is_premium:
+            queue_priority = "high"
+            priority_reason = "premium user"
+        elif global_message_count <= 2:
+            queue_priority = "high"
+            priority_reason = f"first 2 messages globally (count: {global_message_count})"
+        elif followup_type == "24h":
+            queue_priority = "low"
+            priority_reason = "24h scheduler re-engagement"
+        else:
+            queue_priority = "medium"
+            priority_reason = "regular user message"
+        
+        log_always(f"[IMAGE-BG] 📊 Queue priority: {queue_priority} ({priority_reason})")
+        
         # Dispatch to RunPod
         from app.core.img_runpod import dispatch_image_generation
         result = await dispatch_image_generation(
             job_id=job_id,
             prompt=positive,
             negative_prompt=negative,
-            tg_chat_id=tg_chat_id
+            tg_chat_id=tg_chat_id,
+            queue_priority=queue_priority
         )
         
         if not result:

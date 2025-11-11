@@ -35,6 +35,9 @@ class User(Base):
     is_premium = Column(Boolean, default=False, nullable=False)
     premium_until = Column(DateTime, nullable=True)
     
+    # Global message counter (for priority queue logic)
+    global_message_count = Column(BigInteger, default=0, nullable=False)
+    
     # Acquisition tracking (for ads attribution)
     acquisition_source = Column(String(64), nullable=True)  # First deep-link payload
     acquisition_timestamp = Column(DateTime, nullable=True)  # When user first arrived
