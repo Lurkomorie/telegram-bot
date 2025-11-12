@@ -7,7 +7,9 @@ export default function Sidebar() {
     { path: '/statistics', label: 'Statistics', icon: '📊' },
     { path: '/users', label: 'Users', icon: '👥' },
     { path: '/acquisition-sources', label: 'Acquisition Sources', icon: '🎯' },
-    { path: '/images', label: 'Images', icon: '🖼️' }
+    { path: '/images', label: 'Images', icon: '🖼️' },
+    { path: '/system-messages', label: 'System Messages', icon: '📨' },
+    { path: '/system-messages/templates', label: 'Templates', icon: '📝' }
   ];
 
   return (
