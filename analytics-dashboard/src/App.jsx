@@ -4,6 +4,7 @@ import Statistics from './components/Statistics';
 import Users from './components/Users';
 import UserTimeline from './components/UserTimeline';
 import AcquisitionSources from './components/AcquisitionSources';
+import StartCodes from './components/StartCodes';
 import Images from './components/Images';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
             <Route path="/users" element={<Users />} />
             <Route path="/users/:clientId" element={<UserTimeline />} />
             <Route path="/acquisition-sources" element={<AcquisitionSources />} />
+            <Route path="/start-codes" element={<StartCodes />} />
             <Route path="/images" element={<Images />} />
           </Routes>
         </main>

@@ -79,3 +79,5 @@ def strip_color_profile_safe(image_data: bytes) -> bytes:
         print(f"[IMAGE-UTILS] ⚠️  Falling back to original image due to error: {e}")
         return image_data
 
+
+

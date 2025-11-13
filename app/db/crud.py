@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent
+from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode
 from datetime import datetime
 
 
@@ -282,6 +282,35 @@ def delete_chat(db: Session, chat_id: UUID):
     db.delete(chat)
     db.commit()
     return True
+
+
+def delete_all_user_chats(db: Session, user_id: int):
+    """Delete all chats and messages for a user
+    
+    Args:
+        user_id: Telegram user ID
+    
+    Returns:
+        Number of chats deleted
+    """
+    # Get all chats for the user
+    chats = db.query(Chat).filter(Chat.user_id == user_id).all()
+    chat_ids = [chat.id for chat in chats]
+    
+    if not chat_ids:
+        return 0
+    
+    # Set chat_id to NULL for any image jobs associated with these chats
+    # (preserves image job history but disconnects from deleted chats)
+    db.query(ImageJob).filter(ImageJob.chat_id.in_(chat_ids)).update(
+        {"chat_id": None}, synchronize_session=False
+    )
+    
+    # Delete all chats (messages will be deleted automatically due to cascade)
+    deleted_count = db.query(Chat).filter(Chat.user_id == user_id).delete(synchronize_session=False)
+    db.commit()
+    
+    return deleted_count
 
 
 # ========== MESSAGE OPERATIONS ==========
@@ -988,40 +1017,144 @@ def get_analytics_stats(db: Session) -> dict:
     }
 
 
-def get_all_users_from_analytics(db: Session) -> List[dict]:
-    """Get all users with their message counts and acquisition source"""
-    from sqlalchemy import func
+def get_all_users_from_analytics(db: Session, limit: int = 100, offset: int = 0) -> dict:
+    """Get all users with their message counts and acquisition source (optimized with pagination)
     
-    users = db.query(
+    Args:
+        db: Database session
+        limit: Number of users to return (default 100)
+        offset: Number of users to skip (default 0)
+    
+    Returns:
+        Dict with 'users', 'total', 'limit', 'offset' keys
+    """
+    from sqlalchemy import func, cast, Date, case, and_, literal_column
+    from datetime import datetime, timedelta
+    
+    # Get total count first
+    total_users = db.query(func.count(func.distinct(TgAnalyticsEvent.client_id))).scalar() or 0
+    
+    # Get basic user stats with single query using window functions
+    users_query = db.query(
         TgAnalyticsEvent.client_id,
         func.count(TgAnalyticsEvent.id).label('total_events'),
         func.max(TgAnalyticsEvent.created_at).label('last_activity'),
-        func.min(TgAnalyticsEvent.created_at).label('first_activity')
+        func.min(TgAnalyticsEvent.created_at).label('first_activity'),
+        func.sum(
+            case((TgAnalyticsEvent.event_name == 'user_message', 1), else_=0)
+        ).label('message_events_count'),
+        func.max(
+            case((TgAnalyticsEvent.event_name == 'user_message', TgAnalyticsEvent.created_at), else_=None)
+        ).label('last_message_send')
     ).group_by(
         TgAnalyticsEvent.client_id
-    ).order_by(desc('last_activity')).all()
+    ).order_by(desc('last_activity')).limit(limit).offset(offset).all()
     
+    if not users_query:
+        return {
+            'users': [],
+            'total': total_users,
+            'limit': limit,
+            'offset': offset
+        }
+    
+    # Get all client IDs for batch queries
+    client_ids = [u.client_id for u in users_query]
+    
+    # Batch fetch user info from User table
+    user_objs = db.query(User).filter(User.id.in_(client_ids)).all()
+    user_dict = {u.id: u for u in user_objs}
+    
+    # Batch fetch sparkline data for all users (last 14 days)
+    end_date = datetime.utcnow().date()
+    start_date = end_date - timedelta(days=13)
+    
+    # Get all event counts by date for all users at once
+    all_events_sparkline = db.query(
+        TgAnalyticsEvent.client_id,
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.client_id.in_(client_ids),
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by(TgAnalyticsEvent.client_id, 'date').all()
+    
+    # Get message counts by date for all users at once
+    message_sparkline = db.query(
+        TgAnalyticsEvent.client_id,
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.client_id.in_(client_ids),
+        TgAnalyticsEvent.event_name == 'user_message',
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date
+    ).group_by(TgAnalyticsEvent.client_id, 'date').all()
+    
+    # Organize sparkline data by client_id
+    all_events_dict = {}
+    for row in all_events_sparkline:
+        if row.client_id not in all_events_dict:
+            all_events_dict[row.client_id] = {}
+        all_events_dict[row.client_id][row.date] = row.count
+    
+    message_dict = {}
+    for row in message_sparkline:
+        if row.client_id not in message_dict:
+            message_dict[row.client_id] = {}
+        message_dict[row.client_id][row.date] = row.count
+    
+    # Batch fetch consecutive days data
+    message_dates_query = db.query(
+        TgAnalyticsEvent.client_id,
+        func.array_agg(
+            func.distinct(cast(TgAnalyticsEvent.created_at, Date))
+        ).label('dates')
+    ).filter(
+        TgAnalyticsEvent.client_id.in_(client_ids),
+        TgAnalyticsEvent.event_name == 'user_message'
+    ).group_by(TgAnalyticsEvent.client_id).all()
+    
+    consecutive_days_dict = {}
+    today = datetime.utcnow().date()
+    yesterday = today - timedelta(days=1)
+    
+    for row in message_dates_query:
+        dates = sorted(row.dates, reverse=True) if row.dates else []
+        if not dates:
+            consecutive_days_dict[row.client_id] = 0
+            continue
+        
+        # Check if user has activity today or yesterday
+        if dates[0] not in (today, yesterday):
+            consecutive_days_dict[row.client_id] = 0
+            continue
+        
+        # Count consecutive days
+        streak = 1
+        expected_date = dates[0] - timedelta(days=1)
+        for date in dates[1:]:
+            if date == expected_date:
+                streak += 1
+                expected_date = date - timedelta(days=1)
+            else:
+                break
+        consecutive_days_dict[row.client_id] = streak
+    
+    # Build result
     result = []
-    for user in users:
-        # Get user info from User table
-        user_obj = db.query(User).filter(User.id == user.client_id).first()
+    for user in users_query:
+        user_obj = user_dict.get(user.client_id)
         
-        # Get sparkline data for all events and consecutive days streak
-        sparkline_data = get_user_activity_sparkline_data(db, user.client_id)
-        consecutive_days = get_user_consecutive_days(db, user.client_id)
-        
-        # Get message-specific analytics
-        message_events_count = db.query(func.count(TgAnalyticsEvent.id)).filter(
-            TgAnalyticsEvent.client_id == user.client_id,
-            TgAnalyticsEvent.event_name == 'user_message'
-        ).scalar() or 0
-        
-        last_message_send = db.query(func.max(TgAnalyticsEvent.created_at)).filter(
-            TgAnalyticsEvent.client_id == user.client_id,
-            TgAnalyticsEvent.event_name == 'user_message'
-        ).scalar()
-        
-        message_sparkline_data = get_user_sparkline_data(db, user.client_id)
+        # Build sparkline arrays (14 days)
+        sparkline_data = []
+        message_sparkline_data = []
+        current_date = start_date
+        for _ in range(14):
+            sparkline_data.append(all_events_dict.get(user.client_id, {}).get(current_date, 0))
+            message_sparkline_data.append(message_dict.get(user.client_id, {}).get(current_date, 0))
+            current_date += timedelta(days=1)
         
         result.append({
             'client_id': user.client_id,
@@ -1033,13 +1166,18 @@ def get_all_users_from_analytics(db: Session) -> List[dict]:
             'acquisition_source': user_obj.acquisition_source if user_obj else None,
             'acquisition_timestamp': user_obj.acquisition_timestamp.isoformat() if user_obj and user_obj.acquisition_timestamp else None,
             'sparkline_data': sparkline_data,
-            'consecutive_days_streak': consecutive_days,
-            'message_events_count': message_events_count,
-            'last_message_send': last_message_send.isoformat() if last_message_send else None,
+            'consecutive_days_streak': consecutive_days_dict.get(user.client_id, 0),
+            'message_events_count': user.message_events_count or 0,
+            'last_message_send': user.last_message_send.isoformat() if user.last_message_send else None,
             'message_sparkline_data': message_sparkline_data
         })
     
-    return result
+    return {
+        'users': result,
+        'total': total_users,
+        'limit': limit,
+        'offset': offset
+    }
 
 
 def get_user_activity_sparkline_data(db: Session, client_id: int, days: int = 14) -> List[int]:
@@ -1879,6 +2017,129 @@ def get_all_images_paginated(db: Session, page: int = 1, per_page: int = 100) ->
         'per_page': per_page,
         'total_pages': (total + per_page - 1) // per_page  # Ceiling division
     }
+
+
+# ========== START CODE OPERATIONS ==========
+
+def get_start_code(db: Session, code: str) -> Optional[StartCode]:
+    """Get start code by code
+    
+    Args:
+        db: Database session
+        code: 5-character alphanumeric code
+    
+    Returns:
+        StartCode object or None if not found
+    """
+    return db.query(StartCode).filter(StartCode.code == code.upper()).first()
+
+
+def get_all_start_codes(db: Session) -> List[StartCode]:
+    """Get all start codes
+    
+    Args:
+        db: Database session
+    
+    Returns:
+        List of StartCode objects ordered by created_at desc
+    """
+    return db.query(StartCode).order_by(desc(StartCode.created_at)).all()
+
+
+def create_start_code(
+    db: Session,
+    code: str,
+    description: str = None,
+    persona_id: str = None,
+    history_id: str = None,
+    is_active: bool = True
+) -> StartCode:
+    """Create new start code
+    
+    Args:
+        db: Database session
+        code: 5-character alphanumeric code
+        description: Info text about this code
+        persona_id: Optional persona UUID
+        history_id: Optional history UUID
+        is_active: Whether code is active
+    
+    Returns:
+        Created StartCode object
+    """
+    # Convert code to uppercase for consistency
+    code = code.upper()
+    
+    start_code = StartCode(
+        code=code,
+        description=description,
+        persona_id=UUID(persona_id) if persona_id else None,
+        history_id=UUID(history_id) if history_id else None,
+        is_active=is_active
+    )
+    db.add(start_code)
+    db.commit()
+    db.refresh(start_code)
+    return start_code
+
+
+def update_start_code(
+    db: Session,
+    code: str,
+    description: str = None,
+    persona_id: str = None,
+    history_id: str = None,
+    is_active: bool = None
+) -> Optional[StartCode]:
+    """Update start code
+    
+    Args:
+        db: Database session
+        code: 5-character alphanumeric code
+        description: Info text about this code
+        persona_id: Optional persona UUID (None to clear)
+        history_id: Optional history UUID (None to clear)
+        is_active: Whether code is active
+    
+    Returns:
+        Updated StartCode object or None if not found
+    """
+    start_code = get_start_code(db, code)
+    if not start_code:
+        return None
+    
+    if description is not None:
+        start_code.description = description
+    if persona_id is not None:
+        start_code.persona_id = UUID(persona_id) if persona_id else None
+    if history_id is not None:
+        start_code.history_id = UUID(history_id) if history_id else None
+    if is_active is not None:
+        start_code.is_active = is_active
+    
+    start_code.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(start_code)
+    return start_code
+
+
+def delete_start_code(db: Session, code: str) -> bool:
+    """Delete start code
+    
+    Args:
+        db: Database session
+        code: 5-character alphanumeric code
+    
+    Returns:
+        True if deleted, False if not found
+    """
+    start_code = get_start_code(db, code)
+    if not start_code:
+        return False
+    
+    db.delete(start_code)
+    db.commit()
+    return True
 
 
 

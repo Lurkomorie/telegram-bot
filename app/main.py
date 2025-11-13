@@ -59,6 +59,11 @@ async def lifespan(app: FastAPI):
     load_cache()
     print("✅ Persona cache loaded")
     
+    # Load start code cache
+    from app.core.start_code_cache import load_cache as load_start_code_cache
+    load_start_code_cache()
+    print("✅ Start code cache loaded")
+    
     # Set Mini App menu button (only if bot is enabled)
     if settings.ENABLE_BOT and bot:
         try:

@@ -7,8 +7,8 @@ export const api = {
     return response.json();
   },
 
-  async getUsers() {
-    const response = await fetch(`${API_BASE}/api/analytics/users`);
+  async getUsers(limit = 500, offset = 0) {
+    const response = await fetch(`${API_BASE}/api/analytics/users?limit=${limit}&offset=${offset}`);
     if (!response.ok) throw new Error('Failed to fetch users');
     return response.json();
   },
@@ -76,6 +76,70 @@ export const api = {
   async getImages(page = 1, perPage = 100) {
     const response = await fetch(`${API_BASE}/api/analytics/images?page=${page}&per_page=${perPage}`);
     if (!response.ok) throw new Error('Failed to fetch images');
+    return response.json();
+  },
+
+  async getStartCodes() {
+    const response = await fetch(`${API_BASE}/api/analytics/start-codes`);
+    if (!response.ok) throw new Error('Failed to fetch start codes');
+    return response.json();
+  },
+
+  async createStartCode(data) {
+    const response = await fetch(`${API_BASE}/api/analytics/start-codes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create start code');
+    }
+    return response.json();
+  },
+
+  async updateStartCode(code, data) {
+    const response = await fetch(`${API_BASE}/api/analytics/start-codes/${code}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update start code');
+    }
+    return response.json();
+  },
+
+  async deleteStartCode(code) {
+    const response = await fetch(`${API_BASE}/api/analytics/start-codes/${code}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete start code');
+    }
+    return response.json();
+  },
+
+  async getPersonasWithHistories() {
+    const response = await fetch(`${API_BASE}/api/analytics/personas-with-histories`);
+    if (!response.ok) throw new Error('Failed to fetch personas with histories');
+    return response.json();
+  },
+
+  async deleteUserChats(clientId) {
+    const response = await fetch(`${API_BASE}/api/analytics/users/${clientId}/chats`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete user chats');
+    }
     return response.json();
   }
 };

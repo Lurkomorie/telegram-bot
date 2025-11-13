@@ -259,3 +259,25 @@ class TgAnalyticsEvent(Base):
         Index("ix_tg_analytics_created_at", "created_at"),
         Index("ix_tg_analytics_client_created", "client_id", "created_at"),
     )
+
+
+class StartCode(Base):
+    """Start codes for bot acquisition tracking and onboarding"""
+    __tablename__ = "start_codes"
+    
+    code = Column(String(5), primary_key=True)  # 5-character alphanumeric code
+    description = Column(Text, nullable=True)  # Info text about this code
+    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=True)  # Optional persona
+    history_id = Column(UUID(as_uuid=True), ForeignKey("persona_history_starts.id"), nullable=True)  # Optional history
+    is_active = Column(Boolean, default=True, nullable=False)  # Active/inactive toggle
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    persona = relationship("Persona")
+    history = relationship("PersonaHistoryStart")
+    
+    __table_args__ = (
+        Index("ix_start_codes_is_active", "is_active"),
+    )

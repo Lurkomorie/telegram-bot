@@ -2,7 +2,8 @@
 Analytics API endpoints for viewing statistics and user event timelines
 """
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, Field, validator
 from app.db.base import get_db
 from app.db import crud
 
@@ -33,23 +34,49 @@ async def get_analytics_stats() -> Dict[str, Any]:
 
 
 @router.get("/users")
-async def get_all_users() -> List[Dict[str, Any]]:
+async def get_all_users(limit: int = 100, offset: int = 0) -> Dict[str, Any]:
     """
-    Get all users with their event counts
+    Get all users with their event counts (paginated for performance)
     
-    Returns list of users with:
+    Args:
+        limit: Number of users to return per page (default 100, max 500)
+        offset: Number of users to skip (default 0)
+    
+    Returns:
+        Dictionary with:
+        - users: List of user objects with analytics data
+        - total: Total number of users
+        - limit: Items per page
+        - offset: Current offset
+        
+    Each user object contains:
         - client_id: Telegram user ID
         - username: Telegram username (if available)
         - first_name: User's first name (if available)
         - total_events: Total events for this user
         - last_activity: Last activity timestamp
+        - sparkline_data: 14-day activity chart data
+        - consecutive_days_streak: Current active streak
+        - message_events_count: Number of user messages
+        - last_message_send: Last user message timestamp
     """
     try:
+        # Validate and cap limit
+        if limit < 1:
+            limit = 100
+        if limit > 500:
+            limit = 500
+        
+        if offset < 0:
+            offset = 0
+        
         with get_db() as db:
-            users = crud.get_all_users_from_analytics(db)
-            return users
+            result = crud.get_all_users_from_analytics(db, limit=limit, offset=offset)
+            return result
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching users: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
 
 
@@ -418,5 +445,304 @@ async def get_images(page: int = 1, per_page: int = 100) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Error fetching images: {str(e)}")
 
 
+# ========== START CODES ENDPOINTS ==========
+
+class CreateStartCodeRequest(BaseModel):
+    code: str = Field(..., min_length=5, max_length=5)
+    description: Optional[str] = None
+    persona_id: Optional[str] = None
+    history_id: Optional[str] = None
+    is_active: bool = True
+    
+    @validator('code')
+    def validate_code(cls, v):
+        if not v.isalnum():
+            raise ValueError('Code must be alphanumeric')
+        return v.upper()
+
+
+class UpdateStartCodeRequest(BaseModel):
+    description: Optional[str] = None
+    persona_id: Optional[str] = None
+    history_id: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/start-codes")
+async def get_start_codes() -> List[Dict[str, Any]]:
+    """
+    Get all start codes with their configuration
+    
+    Returns:
+        List of start codes with code, description, persona info, history info, is_active, and usage stats
+    """
+    try:
+        with get_db() as db:
+            from sqlalchemy import func
+            
+            start_codes = crud.get_all_start_codes(db)
+            
+            # Get user counts for all codes in a single query
+            user_counts_query = db.query(
+                crud.User.acquisition_source,
+                func.count(crud.User.id).label('count')
+            ).filter(
+                crud.User.acquisition_source.in_([sc.code for sc in start_codes])
+            ).group_by(crud.User.acquisition_source).all()
+            
+            # Build lookup dict
+            user_counts = {row.acquisition_source: row.count for row in user_counts_query}
+            
+            result = []
+            for sc in start_codes:
+                code_data = {
+                    "code": sc.code,
+                    "description": sc.description,
+                    "persona_id": str(sc.persona_id) if sc.persona_id else None,
+                    "persona_name": sc.persona.name if sc.persona else None,
+                    "history_id": str(sc.history_id) if sc.history_id else None,
+                    "history_name": sc.history.name if sc.history else None,
+                    "is_active": sc.is_active,
+                    "user_count": user_counts.get(sc.code, 0),
+                    "created_at": sc.created_at.isoformat(),
+                    "updated_at": sc.updated_at.isoformat() if sc.updated_at else None
+                }
+                result.append(code_data)
+            
+            return result
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching start codes: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching start codes: {str(e)}")
+
+
+@router.post("/start-codes")
+async def create_start_code(request: CreateStartCodeRequest) -> Dict[str, Any]:
+    """
+    Create a new start code
+    
+    Args:
+        request: Start code creation data
+    
+    Returns:
+        Created start code data
+    """
+    try:
+        with get_db() as db:
+            # Check if code already exists
+            existing = crud.get_start_code(db, request.code)
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Start code '{request.code}' already exists")
+            
+            # Validate persona and history if provided
+            if request.persona_id:
+                from app.core.persona_cache import get_persona_by_id
+                persona = get_persona_by_id(request.persona_id)
+                if not persona:
+                    raise HTTPException(status_code=404, detail=f"Persona not found: {request.persona_id}")
+            
+            if request.history_id:
+                from app.core.persona_cache import get_persona_histories
+                # Need to verify history exists and belongs to persona
+                if not request.persona_id:
+                    raise HTTPException(status_code=400, detail="persona_id required when history_id is provided")
+                
+                histories = get_persona_histories(request.persona_id)
+                history_found = any(h["id"] == request.history_id for h in histories)
+                if not history_found:
+                    raise HTTPException(status_code=404, detail=f"History not found or doesn't belong to persona")
+            
+            # Create start code
+            start_code = crud.create_start_code(
+                db,
+                code=request.code,
+                description=request.description,
+                persona_id=request.persona_id,
+                history_id=request.history_id,
+                is_active=request.is_active
+            )
+            
+            # Reload cache to include new code
+            from app.core.start_code_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "code": start_code.code,
+                "description": start_code.description,
+                "persona_id": str(start_code.persona_id) if start_code.persona_id else None,
+                "history_id": str(start_code.history_id) if start_code.history_id else None,
+                "is_active": start_code.is_active,
+                "created_at": start_code.created_at.isoformat()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error creating start code: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creating start code: {str(e)}")
+
+
+@router.put("/start-codes/{code}")
+async def update_start_code(code: str, request: UpdateStartCodeRequest) -> Dict[str, Any]:
+    """
+    Update a start code
+    
+    Args:
+        code: 5-character alphanumeric code
+        request: Update data
+    
+    Returns:
+        Updated start code data
+    """
+    try:
+        with get_db() as db:
+            # Check if code exists
+            existing = crud.get_start_code(db, code)
+            if not existing:
+                raise HTTPException(status_code=404, detail=f"Start code '{code}' not found")
+            
+            # Validate persona and history if provided
+            if request.persona_id:
+                from app.core.persona_cache import get_persona_by_id
+                persona = get_persona_by_id(request.persona_id)
+                if not persona:
+                    raise HTTPException(status_code=404, detail=f"Persona not found: {request.persona_id}")
+            
+            if request.history_id:
+                persona_id = request.persona_id if request.persona_id else str(existing.persona_id)
+                if not persona_id:
+                    raise HTTPException(status_code=400, detail="persona_id required when history_id is provided")
+                
+                from app.core.persona_cache import get_persona_histories
+                histories = get_persona_histories(persona_id)
+                history_found = any(h["id"] == request.history_id for h in histories)
+                if not history_found:
+                    raise HTTPException(status_code=404, detail=f"History not found or doesn't belong to persona")
+            
+            # Update start code
+            start_code = crud.update_start_code(
+                db,
+                code=code,
+                description=request.description,
+                persona_id=request.persona_id,
+                history_id=request.history_id,
+                is_active=request.is_active
+            )
+            
+            if not start_code:
+                raise HTTPException(status_code=404, detail=f"Start code '{code}' not found")
+            
+            # Reload cache to reflect updates
+            from app.core.start_code_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "code": start_code.code,
+                "description": start_code.description,
+                "persona_id": str(start_code.persona_id) if start_code.persona_id else None,
+                "history_id": str(start_code.history_id) if start_code.history_id else None,
+                "is_active": start_code.is_active,
+                "updated_at": start_code.updated_at.isoformat() if start_code.updated_at else None
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error updating start code: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating start code: {str(e)}")
+
+
+@router.delete("/start-codes/{code}")
+async def delete_start_code(code: str) -> Dict[str, Any]:
+    """
+    Delete a start code
+    
+    Args:
+        code: 5-character alphanumeric code
+    
+    Returns:
+        Success message
+    """
+    try:
+        with get_db() as db:
+            success = crud.delete_start_code(db, code)
+            if not success:
+                raise HTTPException(status_code=404, detail=f"Start code '{code}' not found")
+            
+            # Reload cache to remove deleted code
+            from app.core.start_code_cache import reload_cache
+            reload_cache()
+            
+            return {"message": f"Start code '{code}' deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error deleting start code: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting start code: {str(e)}")
+
+
+@router.get("/personas-with-histories")
+async def get_personas_with_histories() -> List[Dict[str, Any]]:
+    """
+    Get all public personas with their histories for dropdown selection
+    
+    Returns:
+        List of personas with their histories
+    """
+    try:
+        from app.core.persona_cache import get_preset_personas, get_persona_histories
+        
+        personas = get_preset_personas()
+        result = []
+        
+        for persona in personas:
+            histories = get_persona_histories(persona["id"])
+            result.append({
+                "id": persona["id"],
+                "name": persona["name"],
+                "key": persona["key"],
+                "histories": [
+                    {
+                        "id": h["id"],
+                        "name": h["name"]
+                    }
+                    for h in histories
+                ]
+            })
+        
+        return result
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching personas with histories: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching personas: {str(e)}")
+
+
+@router.delete("/users/{client_id}/chats")
+async def delete_user_chats(client_id: int) -> Dict[str, Any]:
+    """
+    Delete all chats and messages for a specific user
+    
+    Args:
+        client_id: Telegram user ID
+    
+    Returns:
+        Success message with count of deleted chats
+    """
+    try:
+        with get_db() as db:
+            # Check if user exists
+            user = crud.get_user(db, client_id)
+            if not user:
+                raise HTTPException(status_code=404, detail=f"User {client_id} not found")
+            
+            # Delete all user chats
+            deleted_count = crud.delete_all_user_chats(db, client_id)
+            
+            return {
+                "message": f"Successfully deleted {deleted_count} chat(s) for user {client_id}",
+                "deleted_count": deleted_count,
+                "user_id": client_id
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error deleting user chats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting user chats: {str(e)}")
 
 

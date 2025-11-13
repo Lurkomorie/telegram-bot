@@ -57,6 +57,60 @@ async def cmd_start(message: types.Message):
             )
             return
     
+    # Handle start codes (5-character alphanumeric codes)
+    if deep_link_param and len(deep_link_param) == 5 and deep_link_param.isalnum():
+        print(f"[START-CODE] 🎫 Detected start code: {deep_link_param}")
+        
+        # Check cache first (fast lookup)
+        from app.core.start_code_cache import get_start_code as get_cached_start_code
+        start_code = get_cached_start_code(deep_link_param)
+        
+        if start_code and start_code.get("is_active"):
+            print(f"[START-CODE] ✅ Valid start code found: {start_code['code']}")
+            
+            # If start code has persona and history configured, redirect to that story
+            if start_code.get("persona_id") and start_code.get("history_id"):
+                persona_id = start_code["persona_id"]
+                history_id = start_code["history_id"]
+                
+                # Get persona from cache for name
+                from app.core.persona_cache import get_persona_by_id
+                persona = get_persona_by_id(persona_id)
+                
+                if persona:
+                    persona_name = persona["name"]
+                    
+                    # Check if chat already exists
+                    with get_db() as db:
+                        existing_chat = crud.check_existing_chat(
+                            db,
+                            tg_chat_id=message.chat.id,
+                            user_id=message.from_user.id,
+                            persona_id=persona_id
+                        )
+                    
+                    if existing_chat:
+                        keyboard = build_chat_options_keyboard(persona_id)
+                        await message.answer(
+                            f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
+                            f"Would you like to continue where you left off, or start a fresh conversation?",
+                            reply_markup=keyboard
+                        )
+                        return
+                    else:
+                        # Create new chat with the specific history from start code
+                        await create_new_persona_chat_with_history(message, persona_id, history_id)
+                        return
+                else:
+                    print(f"[START-CODE] ⚠️  Persona {persona_id} not found in cache")
+                    # Fall through to default persona selection
+            else:
+                print(f"[START-CODE] ℹ️  No persona/history configured, showing default selection")
+                # Fall through to default persona selection
+        else:
+            print(f"[START-CODE] ⚠️  Start code not found or inactive: {deep_link_param}")
+            # Fall through to normal flow
+    
     # Handle telegram_ads_* deep links (e.g., telegram_ads_kiki3)
     if deep_link_param and deep_link_param.startswith("telegram_ads_"):
         import re
@@ -850,8 +904,60 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     if pending_deep_link:
         print(f"[AGE-VERIFY] 🔗 Executing pending deep link: {pending_deep_link}")
         
+        # Handle start codes (5-character alphanumeric codes)
+        if len(pending_deep_link) == 5 and pending_deep_link.isalnum():
+            print(f"[AGE-VERIFY-CODE] 🎫 Processing start code: {pending_deep_link}")
+            
+            # Check cache first (fast lookup)
+            from app.core.start_code_cache import get_start_code as get_cached_start_code
+            start_code = get_cached_start_code(pending_deep_link)
+            
+            if start_code and start_code.get("is_active"):
+                print(f"[AGE-VERIFY-CODE] ✅ Valid start code found: {start_code['code']}")
+                
+                # If start code has persona and history configured, redirect to that story
+                if start_code.get("persona_id") and start_code.get("history_id"):
+                    persona_id = start_code["persona_id"]
+                    history_id = start_code["history_id"]
+                    
+                    # Get persona from cache for name
+                    from app.core.persona_cache import get_persona_by_id
+                    persona = get_persona_by_id(persona_id)
+                    
+                    if persona:
+                        persona_name = persona["name"]
+                        
+                        # Check if chat already exists
+                        with get_db() as db:
+                            existing_chat = crud.check_existing_chat(
+                                db,
+                                tg_chat_id=callback.message.chat.id,
+                                user_id=callback.from_user.id,
+                                persona_id=persona_id
+                            )
+                        
+                        if existing_chat:
+                            keyboard = build_chat_options_keyboard(persona_id)
+                            await callback.message.answer(
+                                f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
+                                f"Would you like to continue where you left off, or start a fresh conversation?",
+                                reply_markup=keyboard
+                            )
+                        else:
+                            # Create new chat with the specific history from start code
+                            await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                        
+                        await callback.answer()
+                        return
+                    else:
+                        print(f"[AGE-VERIFY-CODE] ⚠️  Persona {persona_id} not found in cache")
+                else:
+                    print(f"[AGE-VERIFY-CODE] ℹ️  No persona/history configured, showing default selection")
+            else:
+                print(f"[AGE-VERIFY-CODE] ⚠️  Start code not found or inactive: {pending_deep_link}")
+        
         # Handle telegram_ads_* format
-        if pending_deep_link.startswith("telegram_ads_"):
+        elif pending_deep_link.startswith("telegram_ads_"):
             match = re.match(r'^telegram_ads_([a-z]+)(\d+)$', pending_deep_link)
             if match:
                 persona_key = match.group(1)

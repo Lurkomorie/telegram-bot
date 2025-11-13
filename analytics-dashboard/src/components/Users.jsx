@@ -6,25 +6,71 @@ import Sparkline from './Sparkline';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: 'first_activity', direction: 'desc' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (append = false) => {
     try {
-      setLoading(true);
-      const data = await api.getUsers();
-      setUsers(data);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      
+      const offset = append ? users.length : 0;
+      const limit = 500; // Fetch 500 users at a time
+      
+      const data = await api.getUsers(limit, offset);
+      
+      if (append) {
+        setUsers(prev => [...prev, ...data.users]);
+      } else {
+        setUsers(data.users);
+      }
+      
+      setTotalUsers(data.total);
+      setHasMore(data.users.length === limit);
       setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreUsers = () => {
+    if (!loadingMore && hasMore) {
+      fetchUsers(true);
+    }
+  };
+
+  const handleDeleteChats = async (userId, userName) => {
+    if (!confirm(`Are you sure you want to delete all chats and messages for ${userName || userId}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingUserId(userId);
+      const result = await api.deleteUserChats(userId);
+      alert(result.message);
+      // Refresh users list after deletion
+      await fetchUsers();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -36,9 +82,25 @@ export default function Users() {
     setSortConfig({ key, direction });
   };
 
-  const getSortedUsers = () => {
-    const sortedUsers = [...users];
-    sortedUsers.sort((a, b) => {
+  const getFilteredAndSortedUsers = () => {
+    // Filter users based on search query
+    let filteredUsers = users.filter(user => {
+      if (!searchQuery) return true;
+      
+      const query = searchQuery.toLowerCase();
+      const firstName = (user.first_name || '').toLowerCase();
+      const username = (user.username || '').toLowerCase();
+      const clientId = user.client_id.toString();
+      const acquisitionSource = (user.acquisition_source || '').toLowerCase();
+      
+      return firstName.includes(query) || 
+             username.includes(query) || 
+             clientId.includes(query) ||
+             acquisitionSource.includes(query);
+    });
+
+    // Sort filtered users
+    filteredUsers.sort((a, b) => {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
 
@@ -60,7 +122,8 @@ export default function Users() {
       }
       return 0;
     });
-    return sortedUsers;
+    
+    return filteredUsers;
   };
 
   const SortIcon = ({ columnKey }) => {
@@ -90,13 +153,36 @@ export default function Users() {
     );
   }
 
-  const sortedUsers = getSortedUsers();
+  const filteredUsers = getFilteredAndSortedUsers();
 
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-800">Users</h2>
-        <p className="text-gray-500 mt-1">{users.length} total users</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-800">Users</h2>
+            <p className="text-gray-500 mt-1">
+              {searchQuery ? (
+                <>
+                  {filteredUsers.length} matching users (of {users.length} loaded, {totalUsers} total)
+                </>
+              ) : (
+                <>
+                  Showing {users.length} of {totalUsers} total users
+                </>
+              )}
+            </p>
+          </div>
+          <div className="w-96">
+            <input
+              type="text"
+              placeholder="Search by name, username, ID, or source..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
@@ -190,7 +276,7 @@ export default function Users() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedUsers.map((user) => (
+            {filteredUsers.map((user) => (
               <tr key={user.client_id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -255,18 +341,48 @@ export default function Users() {
                   {user.last_message_send ? formatDate(user.last_message_send) : 'N/A'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button
-                    onClick={() => navigate(`/users/${user.client_id}`)}
-                    className="text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    View Timeline
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigate(`/users/${user.client_id}`)}
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      View Timeline
+                    </button>
+                    <button
+                      onClick={() => handleDeleteChats(user.client_id, user.first_name || user.username)}
+                      disabled={deletingUserId === user.client_id}
+                      className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Delete all chats and messages for this user"
+                    >
+                      {deletingUserId === user.client_id ? 'Deleting...' : '🗑️ Delete Chats'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Load More Button */}
+      {hasMore && !searchQuery && (
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={loadMoreUsers}
+            disabled={loadingMore}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loadingMore ? 'Loading...' : `Load More Users (${totalUsers - users.length} remaining)`}
+          </button>
+        </div>
+      )}
+
+      {/* No More Users Message */}
+      {!hasMore && users.length > 0 && !searchQuery && (
+        <div className="mt-6 text-center text-gray-500">
+          All {totalUsers} users loaded
+        </div>
+      )}
     </div>
   );
 }
