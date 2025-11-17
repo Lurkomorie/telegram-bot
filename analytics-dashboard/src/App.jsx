@@ -6,24 +6,38 @@ import UserTimeline from './components/UserTimeline';
 import AcquisitionSources from './components/AcquisitionSources';
 import StartCodes from './components/StartCodes';
 import Images from './components/Images';
+import PremiumStatistics from './components/PremiumStatistics';
+import ReferralStats from './components/ReferralStats';
+import AuthGuard from './components/AuthGuard';
 
 function App() {
   return (
     <Router basename="/analytics">
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar />
-        <main className="flex-1 overflow-auto">
-          <Routes>
-            <Route path="/" element={<Navigate to="/statistics" replace />} />
-            <Route path="/statistics" element={<Statistics />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/users/:clientId" element={<UserTimeline />} />
-            <Route path="/acquisition-sources" element={<AcquisitionSources />} />
-            <Route path="/start-codes" element={<StartCodes />} />
-            <Route path="/images" element={<Images />} />
-          </Routes>
-        </main>
-      </div>
+      <Routes>
+        {/* Referral route without auth - public */}
+        <Route path="/referral/:sourceName" element={<ReferralStats />} />
+        
+        {/* Main routes with sidebar and auth */}
+        <Route path="/*" element={
+          <AuthGuard>
+            <div className="flex h-screen bg-gray-100">
+              <Sidebar />
+              <main className="flex-1 overflow-auto">
+                <Routes>
+                  <Route path="/" element={<Navigate to="/statistics" replace />} />
+                  <Route path="/statistics" element={<Statistics />} />
+                  <Route path="/users" element={<Users />} />
+                  <Route path="/users/:clientId" element={<UserTimeline />} />
+                  <Route path="/acquisition-sources" element={<AcquisitionSources />} />
+                  <Route path="/start-codes" element={<StartCodes />} />
+                  <Route path="/images" element={<Images />} />
+                  <Route path="/premium-statistics" element={<PremiumStatistics />} />
+                </Routes>
+              </main>
+            </div>
+          </AuthGuard>
+        } />
+      </Routes>
     </Router>
   );
 }

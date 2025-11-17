@@ -1,8 +1,15 @@
 const API_BASE = '';  // Same origin
 
 export const api = {
-  async getStats() {
-    const response = await fetch(`${API_BASE}/api/analytics/stats`);
+  async getStats(startDate = null, endDate = null, acquisitionSource = null) {
+    let url = `${API_BASE}/api/analytics/stats`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch stats');
     return response.json();
   },
@@ -19,56 +26,106 @@ export const api = {
     return response.json();
   },
 
-  async getAcquisitionSources() {
-    const response = await fetch(`${API_BASE}/api/analytics/acquisition-sources`);
+  async getAcquisitionSources(startDate = null, endDate = null) {
+    let url = `${API_BASE}/api/analytics/acquisition-sources`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch acquisition sources');
     return response.json();
   },
 
-  async getMessagesOverTime(interval = '1h') {
-    const response = await fetch(`${API_BASE}/api/analytics/messages-over-time?interval=${interval}`);
+  async getMessagesOverTime(interval = '1h', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ interval });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/messages-over-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch messages over time');
     return response.json();
   },
 
-  async getScheduledMessagesOverTime(interval = '1h') {
-    const response = await fetch(`${API_BASE}/api/analytics/scheduled-messages-over-time?interval=${interval}`);
+  async getScheduledMessagesOverTime(interval = '1h', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ interval });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/scheduled-messages-over-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch scheduled messages over time');
     return response.json();
   },
 
-  async getUserMessagesOverTime(interval = '1h') {
-    const response = await fetch(`${API_BASE}/api/analytics/user-messages-over-time?interval=${interval}`);
+  async getUserMessagesOverTime(interval = '1h', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ interval });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/user-messages-over-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch user messages over time');
     return response.json();
   },
 
-  async getActiveUsersOverTime(period = '7d') {
-    const response = await fetch(`${API_BASE}/api/analytics/active-users-over-time?period=${period}`);
+  async getActiveUsersOverTime(period = '7d', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ period });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/active-users-over-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch active users over time');
     return response.json();
   },
 
-  async getMessagesByPersona() {
-    const response = await fetch(`${API_BASE}/api/analytics/messages-by-persona`);
+  async getMessagesByPersona(startDate = null, endDate = null, acquisitionSource = null) {
+    let url = `${API_BASE}/api/analytics/messages-by-persona`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch messages by persona');
     return response.json();
   },
 
-  async getImagesOverTime(period = '7d') {
-    const response = await fetch(`${API_BASE}/api/analytics/images-over-time?period=${period}`);
+  async getImagesOverTime(period = '7d', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ period });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/images-over-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch images over time');
     return response.json();
   },
 
-  async getEngagementHeatmap() {
-    const response = await fetch(`${API_BASE}/api/analytics/engagement-heatmap`);
+  async getEngagementHeatmap(startDate = null, endDate = null, acquisitionSource = null) {
+    let url = `${API_BASE}/api/analytics/engagement-heatmap`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch engagement heatmap');
     return response.json();
   },
 
-  async getImageWaitingTime(interval = '1h') {
-    const response = await fetch(`${API_BASE}/api/analytics/image-waiting-time?interval=${interval}`);
+  async getImageWaitingTime(interval = '1h', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ interval });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/image-waiting-time?${params.toString()}`);
     if (!response.ok) throw new Error('Failed to fetch image waiting time');
     return response.json();
   },
@@ -140,6 +197,19 @@ export const api = {
       const error = await response.json();
       throw new Error(error.detail || 'Failed to delete user chats');
     }
+    return response.json();
+  },
+
+  async getPremiumStats(startDate = null, endDate = null, acquisitionSource = null) {
+    let url = `${API_BASE}/api/analytics/premium-stats`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    if (params.toString()) url += `?${params.toString()}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch premium stats');
     return response.json();
   }
 };

@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import Sparkline from './Sparkline';
+import DateRangeFilter from './DateRangeFilter';
 
 export default function AcquisitionSources() {
+  // Date filter state
+  const getDefaultStartDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split('T')[0];
+  };
+  
+  const getDefaultEndDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
+  const [endDate, setEndDate] = useState(getDefaultEndDate());
+
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -10,12 +25,12 @@ export default function AcquisitionSources() {
 
   useEffect(() => {
     fetchSources();
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchSources = async () => {
     try {
       setLoading(true);
-      const data = await api.getAcquisitionSources();
+      const data = await api.getAcquisitionSources(startDate, endDate);
       setSources(data);
       setError(null);
     } catch (err) {
@@ -92,6 +107,14 @@ export default function AcquisitionSources() {
         <h2 className="text-3xl font-bold text-gray-800">Acquisition Sources</h2>
         <p className="text-gray-500 mt-1">User acquisition breakdown by source</p>
       </div>
+
+      {/* Date Range Filter */}
+      <DateRangeFilter 
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={setStartDate}
+        onEndDateChange={setEndDate}
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

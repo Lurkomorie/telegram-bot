@@ -6,7 +6,65 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode
-from datetime import datetime
+from datetime import datetime, date
+
+
+def apply_date_filter(query, model_field, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """
+    Apply date range filter to a query
+    
+    Args:
+        query: SQLAlchemy query object
+        model_field: The datetime field to filter on (e.g., TgAnalyticsEvent.created_at)
+        start_date: Start date string in YYYY-MM-DD format
+        end_date: End date string in YYYY-MM-DD format
+    
+    Returns:
+        Filtered query
+    """
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            query = query.filter(model_field >= start_dt)
+        except ValueError:
+            pass  # Invalid date format, skip filter
+    
+    if end_date:
+        try:
+            # Add 1 day to include the entire end date
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            end_dt = end_dt.replace(hour=23, minute=59, second=59)
+            query = query.filter(model_field <= end_dt)
+        except ValueError:
+            pass  # Invalid date format, skip filter
+    
+    return query
+
+
+def apply_acquisition_source_filter(db: Session, query, acquisition_source: Optional[str] = None):
+    """
+    Apply acquisition source filter to a query that involves TgAnalyticsEvent
+    
+    Args:
+        db: Database session
+        query: SQLAlchemy query object
+        acquisition_source: Acquisition source to filter by
+    
+    Returns:
+        Filtered query
+    """
+    if not acquisition_source:
+        return query
+    
+    # Use a subquery approach to filter by acquisition source
+    # This is safer than trying to join User table
+    user_ids_subquery = db.query(User.id).filter(
+        User.acquisition_source == acquisition_source
+    ).subquery()
+    
+    query = query.filter(TgAnalyticsEvent.client_id.in_(user_ids_subquery))
+    
+    return query
 
 
 # ========== USER OPERATIONS ==========
@@ -953,41 +1011,67 @@ def get_all_analytics_events(db: Session, limit: int = 10000, offset: int = 0) -
     ).limit(limit).offset(offset).all()
 
 
-def get_analytics_stats(db: Session) -> dict:
-    """Get analytics statistics"""
+def get_analytics_stats(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> dict:
+    """Get analytics statistics
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    """
     from sqlalchemy import func, distinct
     from datetime import timedelta
     
+    # Base queries with date filter
+    base_query = db.query(TgAnalyticsEvent)
+    base_query = apply_date_filter(base_query, TgAnalyticsEvent.created_at, start_date, end_date)
+    base_query = apply_acquisition_source_filter(db, base_query, acquisition_source)
+    
     # Total unique users
-    total_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id))).scalar()
+    total_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id)))
+    total_users = apply_date_filter(total_users, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_users = apply_acquisition_source_filter(db, total_users, acquisition_source)
+    total_users = total_users.scalar()
     
     # Total events
-    total_events = db.query(func.count(TgAnalyticsEvent.id)).scalar()
+    total_events = base_query.count()
     
     # Total messages (user + ai)
     total_messages = db.query(func.count(TgAnalyticsEvent.id)).filter(
         TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
-    ).scalar()
+    )
+    total_messages = apply_date_filter(total_messages, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_messages = apply_acquisition_source_filter(db, total_messages, acquisition_source)
+    total_messages = total_messages.scalar()
     
     # Total image generations
     total_images = db.query(func.count(TgAnalyticsEvent.id)).filter(
         TgAnalyticsEvent.event_name == 'image_generated'
-    ).scalar()
+    )
+    total_images = apply_date_filter(total_images, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_images = apply_acquisition_source_filter(db, total_images, acquisition_source)
+    total_images = total_images.scalar()
     
     # Active users (last 7 days)
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
     active_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id))).filter(
         TgAnalyticsEvent.created_at >= seven_days_ago
-    ).scalar()
+    )
+    active_users = apply_date_filter(active_users, TgAnalyticsEvent.created_at, start_date, end_date)
+    active_users = apply_acquisition_source_filter(db, active_users, acquisition_source)
+    active_users = active_users.scalar()
     
     # Most popular personas with unique user counts
-    popular_personas = db.query(
+    popular_personas_query = db.query(
         TgAnalyticsEvent.persona_name,
         func.count(TgAnalyticsEvent.id).label('interaction_count'),
         func.count(distinct(TgAnalyticsEvent.client_id)).label('user_count')
     ).filter(
         TgAnalyticsEvent.persona_name.isnot(None)
-    ).group_by(
+    )
+    popular_personas_query = apply_date_filter(popular_personas_query, TgAnalyticsEvent.created_at, start_date, end_date)
+    popular_personas_query = apply_acquisition_source_filter(db, popular_personas_query, acquisition_source)
+    popular_personas = popular_personas_query.group_by(
         TgAnalyticsEvent.persona_name
     ).order_by(desc('interaction_count')).limit(10).all()
     
@@ -995,8 +1079,8 @@ def get_analytics_stats(db: Session) -> dict:
     avg_messages_per_user = total_messages / total_users if total_users > 0 else 0
     
     # Image waiting time and failed images
-    avg_image_waiting_time = get_avg_image_waiting_time(db)
-    failed_images_count = get_failed_images_count(db)
+    avg_image_waiting_time = get_avg_image_waiting_time(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
+    failed_images_count = get_failed_images_count(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
     
     return {
         'total_users': total_users or 0,
@@ -1286,70 +1370,110 @@ def get_user_consecutive_days(db: Session, client_id: int) -> int:
     return streak
 
 
-def get_acquisition_source_stats(db: Session) -> List[dict]:
-    """Get statistics grouped by acquisition source"""
-    from sqlalchemy import func, cast, Date
+def get_acquisition_source_stats(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[dict]:
+    """Get statistics grouped by acquisition source
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+    """
+    from sqlalchemy import func, cast, Date, case
     from datetime import datetime, timedelta
     
-    # Get all users with their acquisition source
-    users = db.query(User).all()
-    
     # Calculate date range for sparklines (14 days)
-    end_date = datetime.utcnow().date()
-    start_date = end_date - timedelta(days=13)
+    end_date_calc = datetime.utcnow().date()
+    start_date_calc = end_date_calc - timedelta(days=13)
     
-    # Group by acquisition source
+    # Get user counts by acquisition source (with date filter on acquisition_timestamp)
+    user_counts_query = db.query(
+        func.coalesce(User.acquisition_source, 'direct').label('source'),
+        func.count(User.id).label('user_count')
+    )
+    # Apply date filter to user acquisition
+    if start_date or end_date:
+        user_counts_query = apply_date_filter(user_counts_query, User.acquisition_timestamp, start_date, end_date)
+    user_counts_query = user_counts_query.group_by(
+        func.coalesce(User.acquisition_source, 'direct')
+    ).all()
+    
+    # Get event counts by acquisition source (with date filter on event created_at)
+    event_counts_query = db.query(
+        func.coalesce(User.acquisition_source, 'direct').label('source'),
+        func.count(TgAnalyticsEvent.id).label('total_events')
+    ).join(
+        TgAnalyticsEvent, User.id == TgAnalyticsEvent.client_id
+    )
+    # Apply date filter to events
+    if start_date or end_date:
+        event_counts_query = apply_date_filter(event_counts_query, TgAnalyticsEvent.created_at, start_date, end_date)
+    event_counts_query = event_counts_query.group_by(
+        func.coalesce(User.acquisition_source, 'direct')
+    ).all()
+    
+    # Build result dict with main stats
     source_stats = {}
-    for user in users:
-        source = user.acquisition_source if user.acquisition_source else 'direct'
-        
-        if source not in source_stats:
-            source_stats[source] = {
-                'source': source,
-                'user_count': 0,
-                'total_events': 0,
-                'user_first_activities': []
-            }
-        
-        source_stats[source]['user_count'] += 1
-        
-        # Get total events for this user
-        event_count = db.query(func.count(TgAnalyticsEvent.id)).filter(
-            TgAnalyticsEvent.client_id == user.id
-        ).scalar() or 0
-        
-        source_stats[source]['total_events'] += event_count
-        
-        # Get user's first activity date
-        first_activity = db.query(func.min(TgAnalyticsEvent.created_at)).filter(
-            TgAnalyticsEvent.client_id == user.id
-        ).scalar()
-        
-        if first_activity:
-            source_stats[source]['user_first_activities'].append(first_activity.date())
     
-    # Calculate average events per user and sparkline data
-    result = []
-    for source, stats in source_stats.items():
-        avg_events = stats['total_events'] / stats['user_count'] if stats['user_count'] > 0 else 0
-        
-        # Create sparkline showing new users per day for last 14 days
+    # First, populate with user counts
+    for row in user_counts_query:
+        source_stats[row.source] = {
+            'source': row.source,
+            'user_count': row.user_count,
+            'total_events': 0,
+            'avg_events_per_user': 0,
+            'sparkline_data': []
+        }
+    
+    # Then add event counts
+    event_counts_dict = {row.source: row.total_events for row in event_counts_query}
+    for source in source_stats.keys():
+        total_events = event_counts_dict.get(source, 0)
+        source_stats[source]['total_events'] = total_events
+        source_stats[source]['avg_events_per_user'] = round(total_events / source_stats[source]['user_count'], 2) if source_stats[source]['user_count'] > 0 else 0
+    
+    # Get sparkline data (new users per day for last 14 days) in a single query
+    # Create a subquery for each user's first activity date
+    user_first_activity = db.query(
+        User.id.label('user_id'),
+        func.coalesce(User.acquisition_source, 'direct').label('source'),
+        func.min(cast(TgAnalyticsEvent.created_at, Date)).label('first_activity_date')
+    ).join(
+        TgAnalyticsEvent, User.id == TgAnalyticsEvent.client_id
+    ).group_by(User.id, func.coalesce(User.acquisition_source, 'direct')).subquery()
+    
+    # Get counts by source and date
+    sparkline_data = db.query(
+        user_first_activity.c.source,
+        user_first_activity.c.first_activity_date,
+        func.count(user_first_activity.c.user_id).label('count')
+    ).filter(
+        user_first_activity.c.first_activity_date >= start_date_calc,
+        user_first_activity.c.first_activity_date <= end_date_calc
+    ).group_by(
+        user_first_activity.c.source,
+        user_first_activity.c.first_activity_date
+    ).all()
+    
+    # Build sparkline lookup dict
+    sparkline_lookup = {}
+    for row in sparkline_data:
+        if row.source not in sparkline_lookup:
+            sparkline_lookup[row.source] = {}
+        sparkline_lookup[row.source][row.first_activity_date] = row.count
+    
+    # Fill in sparkline data for each source
+    for source in source_stats.keys():
         sparkline = []
-        current_date = start_date
+        current_date = start_date_calc
+        
         for _ in range(14):
-            count = sum(1 for date in stats['user_first_activities'] if date == current_date)
+            count = sparkline_lookup.get(source, {}).get(current_date, 0)
             sparkline.append(count)
             current_date += timedelta(days=1)
         
-        result.append({
-            'source': source,
-            'user_count': stats['user_count'],
-            'total_events': stats['total_events'],
-            'avg_events_per_user': round(avg_events, 2),
-            'sparkline_data': sparkline
-        })
+        source_stats[source]['sparkline_data'] = sparkline
     
-    # Sort by user count descending
+    # Convert to list and sort by user count
+    result = list(source_stats.values())
     result.sort(key=lambda x: x['user_count'], reverse=True)
     
     return result
@@ -1358,23 +1482,25 @@ def get_acquisition_source_stats(db: Session) -> List[dict]:
 # ========== TIME-SERIES ANALYTICS FUNCTIONS ==========
 
 
-def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get message counts over time bucketed by interval
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
         interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
-        limit_hours: How many hours of history to fetch
+        limit_hours: How many hours of history to fetch - only used if start_date/end_date not provided
     
     Returns:
         List of {timestamp, count} dictionaries
     """
     from sqlalchemy import func, text
     from datetime import datetime, timedelta
-    
-    # Calculate cutoff time
-    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
     
     # Use PostgreSQL's date_trunc for time bucketing
     if interval_minutes == 1:
@@ -1395,9 +1521,18 @@ def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours:
         func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
-        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
-        TgAnalyticsEvent.created_at >= cutoff_time
-    ).group_by('time_bucket').order_by('time_bucket')
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
+    )
+    
+    # Apply date filters (default to limit_hours if not provided)
+    if not start_date and not end_date:
+        cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+        query = query.filter(TgAnalyticsEvent.created_at >= cutoff_time)
+    else:
+        query = apply_date_filter(query, TgAnalyticsEvent.created_at, start_date, end_date)
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    query = query.group_by('time_bucket').order_by('time_bucket')
     
     results = query.all()
     
@@ -1445,23 +1580,25 @@ def get_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours:
     return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
 
 
-def get_user_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+def get_user_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get user-sent message counts over time bucketed by interval
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
         interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
-        limit_hours: How many hours of history to fetch
+        limit_hours: How many hours of history to fetch - only used if start_date/end_date not provided
     
     Returns:
         List of {timestamp, count} dictionaries
     """
     from sqlalchemy import func
     from datetime import datetime, timedelta
-    
-    # Calculate cutoff time
-    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
     
     # Use PostgreSQL's date_trunc for time bucketing
     if interval_minutes == 1:
@@ -1481,9 +1618,18 @@ def get_user_messages_over_time(db: Session, interval_minutes: int = 60, limit_h
         func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
-        TgAnalyticsEvent.event_name == 'user_message',
-        TgAnalyticsEvent.created_at >= cutoff_time
-    ).group_by('time_bucket').order_by('time_bucket')
+        TgAnalyticsEvent.event_name == 'user_message'
+    )
+    
+    # Apply date filters (default to limit_hours if not provided)
+    if not start_date and not end_date:
+        cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+        query = query.filter(TgAnalyticsEvent.created_at >= cutoff_time)
+    else:
+        query = apply_date_filter(query, TgAnalyticsEvent.created_at, start_date, end_date)
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    query = query.group_by('time_bucket').order_by('time_bucket')
     
     results = query.all()
     
@@ -1527,23 +1673,25 @@ def get_user_messages_over_time(db: Session, interval_minutes: int = 60, limit_h
     return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
 
 
-def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get auto-followup message counts over time bucketed by interval
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
         interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
-        limit_hours: How many hours of history to fetch
+        limit_hours: How many hours of history to fetch - only used if start_date/end_date not provided
     
     Returns:
         List of {timestamp, count} dictionaries
     """
     from sqlalchemy import func
     from datetime import datetime, timedelta
-    
-    # Calculate cutoff time
-    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
     
     # Use PostgreSQL's date_trunc for time bucketing
     if interval_minutes == 1:
@@ -1563,9 +1711,18 @@ def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, li
         func.date_trunc(trunc_spec, TgAnalyticsEvent.created_at).label('time_bucket'),
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
-        TgAnalyticsEvent.event_name == 'auto_followup_message',
-        TgAnalyticsEvent.created_at >= cutoff_time
-    ).group_by('time_bucket').order_by('time_bucket')
+        TgAnalyticsEvent.event_name == 'auto_followup_message'
+    )
+    
+    # Apply date filters (default to limit_hours if not provided)
+    if not start_date and not end_date:
+        cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+        query = query.filter(TgAnalyticsEvent.created_at >= cutoff_time)
+    else:
+        query = apply_date_filter(query, TgAnalyticsEvent.created_at, start_date, end_date)
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    query = query.group_by('time_bucket').order_by('time_bucket')
     
     results = query.all()
     
@@ -1609,13 +1766,18 @@ def get_scheduled_messages_over_time(db: Session, interval_minutes: int = 60, li
     return [{'timestamp': row.time_bucket.isoformat(), 'count': row.count} for row in results]
 
 
-def get_active_users_over_time(db: Session, days: int = 7) -> List[dict]:
+def get_active_users_over_time(db: Session, days: int = 7, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get daily unique active user counts
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
-        days: Number of days to fetch (7, 30, or 90)
+        days: Number of days to fetch (7, 30, or 90) - only used if start_date/end_date not provided
     
     Returns:
         List of {date, count} dictionaries
@@ -1623,25 +1785,33 @@ def get_active_users_over_time(db: Session, days: int = 7) -> List[dict]:
     from sqlalchemy import func, cast, Date, distinct
     from datetime import datetime, timedelta
     
-    # Calculate date range
-    end_date = datetime.utcnow().date()
-    start_date = end_date - timedelta(days=days - 1)
+    # Use provided dates or calculate from days parameter
+    if start_date and end_date:
+        start_date_calc = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_calc = datetime.strptime(end_date, '%Y-%m-%d').date()
+        days = (end_date_calc - start_date_calc).days + 1
+    else:
+        end_date_calc = datetime.utcnow().date()
+        start_date_calc = end_date_calc - timedelta(days=days - 1)
     
     # Query unique users per day
-    results = db.query(
+    query = db.query(
         cast(TgAnalyticsEvent.created_at, Date).label('date'),
         func.count(distinct(TgAnalyticsEvent.client_id)).label('count')
     ).filter(
-        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
-        cast(TgAnalyticsEvent.created_at, Date) <= end_date
-    ).group_by('date').order_by('date').all()
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date_calc,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date_calc
+    )
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    results = query.group_by('date').order_by('date').all()
     
     # Create a dict for quick lookup
     counts_dict = {row.date: row.count for row in results}
     
     # Fill in missing days with 0
     result_list = []
-    current_date = start_date
+    current_date = start_date_calc
     for _ in range(days):
         count = counts_dict.get(current_date, 0)
         result_list.append({
@@ -1653,35 +1823,49 @@ def get_active_users_over_time(db: Session, days: int = 7) -> List[dict]:
     return result_list
 
 
-def get_messages_by_persona(db: Session) -> List[dict]:
+def get_messages_by_persona(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get message count distribution by persona
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
     
     Returns:
         List of {persona_name, count} dictionaries
     """
     from sqlalchemy import func
     
-    results = db.query(
+    query = db.query(
         TgAnalyticsEvent.persona_name,
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
         TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
         TgAnalyticsEvent.persona_name.isnot(None)
-    ).group_by(
+    )
+    
+    query = apply_date_filter(query, TgAnalyticsEvent.created_at, start_date, end_date)
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    results = query.group_by(
         TgAnalyticsEvent.persona_name
     ).order_by(desc('count')).all()
     
     return [{'persona_name': row.persona_name, 'count': row.count} for row in results]
 
 
-def get_images_over_time(db: Session, days: int = 7) -> List[dict]:
+def get_images_over_time(db: Session, days: int = 7, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get daily image generation counts
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
-        days: Number of days to fetch (7, 30, or 90)
+        days: Number of days to fetch (7, 30, or 90) - only used if start_date/end_date not provided
     
     Returns:
         List of {date, count} dictionaries
@@ -1689,26 +1873,34 @@ def get_images_over_time(db: Session, days: int = 7) -> List[dict]:
     from sqlalchemy import func, cast, Date
     from datetime import datetime, timedelta
     
-    # Calculate date range
-    end_date = datetime.utcnow().date()
-    start_date = end_date - timedelta(days=days - 1)
+    # Use provided dates or calculate from days parameter
+    if start_date and end_date:
+        start_date_calc = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_calc = datetime.strptime(end_date, '%Y-%m-%d').date()
+        days = (end_date_calc - start_date_calc).days + 1
+    else:
+        end_date_calc = datetime.utcnow().date()
+        start_date_calc = end_date_calc - timedelta(days=days - 1)
     
     # Query image generations per day
-    results = db.query(
+    query = db.query(
         cast(TgAnalyticsEvent.created_at, Date).label('date'),
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
         TgAnalyticsEvent.event_name == 'image_generated',
-        cast(TgAnalyticsEvent.created_at, Date) >= start_date,
-        cast(TgAnalyticsEvent.created_at, Date) <= end_date
-    ).group_by('date').order_by('date').all()
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date_calc,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date_calc
+    )
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    results = query.group_by('date').order_by('date').all()
     
     # Create a dict for quick lookup
     counts_dict = {row.date: row.count for row in results}
     
     # Fill in missing days with 0
     result_list = []
-    current_date = start_date
+    current_date = start_date_calc
     for _ in range(days):
         count = counts_dict.get(current_date, 0)
         result_list.append({
@@ -1720,9 +1912,14 @@ def get_images_over_time(db: Session, days: int = 7) -> List[dict]:
     return result_list
 
 
-def get_engagement_heatmap(db: Session) -> List[dict]:
+def get_engagement_heatmap(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get message counts by hour of day and day of week
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
     
     Returns:
         List of {hour, day_of_week, count} dictionaries
@@ -1732,17 +1929,23 @@ def get_engagement_heatmap(db: Session) -> List[dict]:
     from sqlalchemy import func, extract
     from datetime import datetime, timedelta
     
-    # Get data from last 30 days for meaningful heatmap
-    cutoff_time = datetime.utcnow() - timedelta(days=30)
-    
-    results = db.query(
+    query = db.query(
         extract('hour', TgAnalyticsEvent.created_at).label('hour'),
         extract('dow', TgAnalyticsEvent.created_at).label('day_of_week'),
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
-        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message']),
-        TgAnalyticsEvent.created_at >= cutoff_time
-    ).group_by('hour', 'day_of_week').all()
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
+    )
+    
+    # Apply date filters (default to last 30 days if not provided)
+    if not start_date and not end_date:
+        cutoff_time = datetime.utcnow() - timedelta(days=30)
+        query = query.filter(TgAnalyticsEvent.created_at >= cutoff_time)
+    else:
+        query = apply_date_filter(query, TgAnalyticsEvent.created_at, start_date, end_date)
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    results = query.group_by('hour', 'day_of_week').all()
     
     return [
         {
@@ -1754,51 +1957,211 @@ def get_engagement_heatmap(db: Session) -> List[dict]:
     ]
 
 
-def get_avg_image_waiting_time(db: Session) -> float:
+def get_avg_image_waiting_time(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> float:
     """
     Get average image generation waiting time in seconds
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
     
     Returns:
         Average waiting time in seconds (float), or 0.0 if no completed images
     """
     from sqlalchemy import func, extract
     
-    result = db.query(
+    query = db.query(
         func.avg(
             extract('epoch', ImageJob.finished_at - ImageJob.created_at)
         ).label('avg_seconds')
     ).filter(
         ImageJob.status == 'completed',
         ImageJob.finished_at.isnot(None)
-    ).scalar()
+    )
+    
+    if acquisition_source:
+        query = query.join(User, ImageJob.user_id == User.id).filter(User.acquisition_source == acquisition_source)
+    
+    query = apply_date_filter(query, ImageJob.created_at, start_date, end_date)
+    result = query.scalar()
     
     return float(result) if result else 0.0
 
 
-def get_failed_images_count(db: Session) -> int:
+def get_failed_images_count(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> int:
     """
     Get count of failed image generation jobs
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
     
     Returns:
         Count of failed images (int)
     """
     from sqlalchemy import func
     
-    result = db.query(func.count(ImageJob.id)).filter(
+    query = db.query(func.count(ImageJob.id)).filter(
         ImageJob.status == 'failed'
-    ).scalar()
+    )
+    
+    if acquisition_source:
+        query = query.join(User, ImageJob.user_id == User.id).filter(User.acquisition_source == acquisition_source)
+    
+    query = apply_date_filter(query, ImageJob.created_at, start_date, end_date)
+    result = query.scalar()
     
     return result or 0
 
 
-def get_image_waiting_time_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24) -> List[dict]:
+def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> dict:
+    """
+    Get premium user statistics and metrics
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Returns:
+        Dictionary with premium statistics
+    """
+    from sqlalchemy import func, distinct, case
+    from datetime import timedelta
+    
+    # Currently active premium users
+    active_premium_query = db.query(func.count(User.id)).filter(
+        User.is_premium == True,
+        (User.premium_until.is_(None)) | (User.premium_until > datetime.utcnow())
+    )
+    if acquisition_source:
+        active_premium_query = active_premium_query.filter(User.acquisition_source == acquisition_source)
+    total_premium_users = active_premium_query.scalar() or 0
+    
+    # Total users who EVER bought premium (including expired)
+    ever_premium_query = db.query(func.count(User.id)).filter(
+        User.is_premium == True
+    )
+    if acquisition_source:
+        ever_premium_query = ever_premium_query.filter(User.acquisition_source == acquisition_source)
+    total_ever_premium_users = ever_premium_query.scalar() or 0
+    
+    # Free users (never bought premium)
+    free_query = db.query(func.count(User.id)).filter(
+        User.is_premium == False
+    )
+    if acquisition_source:
+        free_query = free_query.filter(User.acquisition_source == acquisition_source)
+    total_free_users = free_query.scalar() or 0
+    
+    # Conversion rate (based on ever bought premium)
+    total_users = total_ever_premium_users + total_free_users
+    conversion_rate = (total_ever_premium_users / total_users * 100) if total_users > 0 else 0
+    
+    # Premium activations over time (ALL time, not just last 30 days)
+    # This shows when users became premium (joined while premium or upgraded)
+    premium_users_over_time_query = db.query(
+        func.date_trunc('day', User.created_at).label('date'),
+        func.count(User.id).label('count')
+    ).filter(
+        User.is_premium == True
+    )
+    if acquisition_source:
+        premium_users_over_time_query = premium_users_over_time_query.filter(User.acquisition_source == acquisition_source)
+    premium_users_over_time = premium_users_over_time_query.group_by(func.date_trunc('day', User.created_at)).order_by('date').all()
+    
+    premium_users_over_time_data = [
+        {'date': row.date.isoformat() if row.date else None, 'count': row.count}
+        for row in premium_users_over_time
+    ]
+    
+    # Premium vs Free image generation (with date filter)
+    image_query = db.query(
+        User.is_premium,
+        func.count(ImageJob.id).label('image_count')
+    ).join(User, ImageJob.user_id == User.id).filter(
+        ImageJob.status == 'completed'
+    )
+    if acquisition_source:
+        image_query = image_query.filter(User.acquisition_source == acquisition_source)
+    
+    image_query = apply_date_filter(image_query, ImageJob.created_at, start_date, end_date)
+    image_results = image_query.group_by(User.is_premium).all()
+    
+    premium_images = 0
+    free_images = 0
+    for row in image_results:
+        if row.is_premium:
+            premium_images = row.image_count
+        else:
+            free_images = row.image_count
+    
+    # Premium vs Free engagement (messages, with date filter)
+    message_query = db.query(
+        TgAnalyticsEvent.client_id,
+        func.count(TgAnalyticsEvent.id).label('message_count')
+    ).filter(
+        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
+    )
+    
+    message_query = apply_date_filter(message_query, TgAnalyticsEvent.created_at, start_date, end_date)
+    message_query = apply_acquisition_source_filter(db, message_query, acquisition_source)
+    message_results = message_query.group_by(TgAnalyticsEvent.client_id).subquery()
+    
+    engagement_query = db.query(
+        User.is_premium,
+        func.count(message_results.c.client_id).label('user_count'),
+        func.avg(message_results.c.message_count).label('avg_messages')
+    ).join(message_results, User.id == message_results.c.client_id)
+    if acquisition_source:
+        engagement_query = engagement_query.filter(User.acquisition_source == acquisition_source)
+    engagement_results = engagement_query.group_by(User.is_premium).all()
+    
+    premium_engagement = {'user_count': 0, 'avg_messages': 0}
+    free_engagement = {'user_count': 0, 'avg_messages': 0}
+    
+    for row in engagement_results:
+        data = {
+            'user_count': row.user_count,
+            'avg_messages': float(row.avg_messages) if row.avg_messages else 0
+        }
+        if row.is_premium:
+            premium_engagement = data
+        else:
+            free_engagement = data
+    
+    return {
+        'total_premium_users': total_premium_users,  # Currently active premium
+        'total_ever_premium_users': total_ever_premium_users,  # Total who ever bought premium
+        'total_free_users': total_free_users,
+        'conversion_rate': round(conversion_rate, 2),
+        'premium_users_over_time': premium_users_over_time_data,
+        'premium_vs_free_images': {
+            'premium': premium_images,
+            'free': free_images
+        },
+        'premium_vs_free_engagement': {
+            'premium': premium_engagement,
+            'free': free_engagement
+        }
+    }
+
+
+def get_image_waiting_time_over_time(db: Session, interval_minutes: int = 60, limit_hours: int = 24, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
     """
     Get average image generation waiting time over time with premium/free breakdown
     
     Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+    
+    Args:
         db: Database session
         interval_minutes: Time bucket size (1, 5, 15, 30, 60, 360, 720, 1440)
-        limit_hours: How many hours of history to fetch
+        limit_hours: How many hours of history to fetch - only used if start_date/end_date not provided
     
     Returns:
         List of {timestamp, avg_waiting_time, avg_premium, avg_free} dictionaries
@@ -1806,9 +2169,6 @@ def get_image_waiting_time_over_time(db: Session, interval_minutes: int = 60, li
     """
     from sqlalchemy import func, extract, case
     from datetime import datetime, timedelta
-    
-    # Calculate cutoff time
-    cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
     
     # Use PostgreSQL's date_trunc for time bucketing
     if interval_minutes == 1:
@@ -1846,9 +2206,20 @@ def get_image_waiting_time_over_time(db: Session, interval_minutes: int = 60, li
         User, ImageJob.user_id == User.id
     ).filter(
         ImageJob.status == 'completed',
-        ImageJob.finished_at.isnot(None),
-        ImageJob.created_at >= cutoff_time
-    ).group_by('time_bucket').order_by('time_bucket')
+        ImageJob.finished_at.isnot(None)
+    )
+    
+    # Apply date filters (default to limit_hours if not provided)
+    if not start_date and not end_date:
+        cutoff_time = datetime.utcnow() - timedelta(hours=limit_hours)
+        query = query.filter(ImageJob.created_at >= cutoff_time)
+    else:
+        query = apply_date_filter(query, ImageJob.created_at, start_date, end_date)
+    
+    if acquisition_source:
+        query = query.filter(User.acquisition_source == acquisition_source)
+    
+    query = query.group_by('time_bucket').order_by('time_bucket')
     
     results = query.all()
     

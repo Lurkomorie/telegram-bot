@@ -1,9 +1,10 @@
 """
 Analytics API endpoints for viewing statistics and user event timelines
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, validator
+from datetime import datetime, date
 from app.db.base import get_db
 from app.db import crud
 
@@ -11,9 +12,17 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
 @router.get("/stats")
-async def get_analytics_stats() -> Dict[str, Any]:
+async def get_analytics_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> Dict[str, Any]:
     """
     Get overall analytics statistics
+    
+    Args:
+        start_date: Filter events from this date onwards (YYYY-MM-DD)
+        end_date: Filter events up to this date (YYYY-MM-DD)
     
     Returns:
         - total_users: Total unique users
@@ -26,10 +35,12 @@ async def get_analytics_stats() -> Dict[str, Any]:
     """
     try:
         with get_db() as db:
-            stats = crud.get_analytics_stats(db)
+            stats = crud.get_analytics_stats(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return stats
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching stats: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error fetching statistics: {str(e)}")
 
 
@@ -128,9 +139,16 @@ async def get_user_events(client_id: int, limit: int = 1000) -> List[Dict[str, A
 
 
 @router.get("/acquisition-sources")
-async def get_acquisition_sources() -> List[Dict[str, Any]]:
+async def get_acquisition_sources(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+) -> List[Dict[str, Any]]:
     """
     Get acquisition source statistics
+    
+    Args:
+        start_date: Filter events from this date onwards (YYYY-MM-DD)
+        end_date: Filter events up to this date (YYYY-MM-DD)
     
     Returns list of acquisition sources with:
         - source: Acquisition source name
@@ -140,7 +158,7 @@ async def get_acquisition_sources() -> List[Dict[str, Any]]:
     """
     try:
         with get_db() as db:
-            stats = crud.get_acquisition_source_stats(db)
+            stats = crud.get_acquisition_source_stats(db, start_date=start_date, end_date=end_date)
             return stats
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching acquisition source stats: {e}")
@@ -148,12 +166,19 @@ async def get_acquisition_sources() -> List[Dict[str, Any]]:
 
 
 @router.get("/messages-over-time")
-async def get_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
+async def get_messages_over_time(
+    interval: str = "1h",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get message counts over time bucketed by interval
     
     Args:
         interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {timestamp, count} dictionaries
@@ -178,7 +203,7 @@ async def get_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
         limit_hours = limit_minutes // 60
         
         with get_db() as db:
-            data = crud.get_messages_over_time(db, interval_minutes, limit_hours)
+            data = crud.get_messages_over_time(db, interval_minutes, limit_hours, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -188,12 +213,19 @@ async def get_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
 
 
 @router.get("/scheduled-messages-over-time")
-async def get_scheduled_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
+async def get_scheduled_messages_over_time(
+    interval: str = "1h",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get auto-followup message counts over time bucketed by interval
     
     Args:
         interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {timestamp, count} dictionaries
@@ -218,7 +250,7 @@ async def get_scheduled_messages_over_time(interval: str = "1h") -> List[Dict[st
         limit_hours = limit_minutes // 60
         
         with get_db() as db:
-            data = crud.get_scheduled_messages_over_time(db, interval_minutes, limit_hours)
+            data = crud.get_scheduled_messages_over_time(db, interval_minutes, limit_hours, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -228,12 +260,19 @@ async def get_scheduled_messages_over_time(interval: str = "1h") -> List[Dict[st
 
 
 @router.get("/user-messages-over-time")
-async def get_user_messages_over_time(interval: str = "1h") -> List[Dict[str, Any]]:
+async def get_user_messages_over_time(
+    interval: str = "1h",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get user-sent message counts over time bucketed by interval
     
     Args:
         interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {timestamp, count} dictionaries
@@ -258,7 +297,7 @@ async def get_user_messages_over_time(interval: str = "1h") -> List[Dict[str, An
         limit_hours = limit_minutes // 60
         
         with get_db() as db:
-            data = crud.get_user_messages_over_time(db, interval_minutes, limit_hours)
+            data = crud.get_user_messages_over_time(db, interval_minutes, limit_hours, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -268,12 +307,19 @@ async def get_user_messages_over_time(interval: str = "1h") -> List[Dict[str, An
 
 
 @router.get("/active-users-over-time")
-async def get_active_users_over_time(period: str = "7d") -> List[Dict[str, Any]]:
+async def get_active_users_over_time(
+    period: str = "7d",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get daily unique active user counts
     
     Args:
         period: Time period (7d, 30d, 90d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {date, count} dictionaries
@@ -291,7 +337,7 @@ async def get_active_users_over_time(period: str = "7d") -> List[Dict[str, Any]]
         days = period_map[period]
         
         with get_db() as db:
-            data = crud.get_active_users_over_time(db, days)
+            data = crud.get_active_users_over_time(db, days, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -301,16 +347,24 @@ async def get_active_users_over_time(period: str = "7d") -> List[Dict[str, Any]]
 
 
 @router.get("/messages-by-persona")
-async def get_messages_by_persona() -> List[Dict[str, Any]]:
+async def get_messages_by_persona(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get message count distribution by persona
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {persona_name, count} dictionaries
     """
     try:
         with get_db() as db:
-            data = crud.get_messages_by_persona(db)
+            data = crud.get_messages_by_persona(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching messages by persona: {e}")
@@ -318,12 +372,19 @@ async def get_messages_by_persona() -> List[Dict[str, Any]]:
 
 
 @router.get("/images-over-time")
-async def get_images_over_time(period: str = "7d") -> List[Dict[str, Any]]:
+async def get_images_over_time(
+    period: str = "7d",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get daily image generation counts
     
     Args:
         period: Time period (7d, 30d, 90d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {date, count} dictionaries
@@ -341,7 +402,7 @@ async def get_images_over_time(period: str = "7d") -> List[Dict[str, Any]]:
         days = period_map[period]
         
         with get_db() as db:
-            data = crud.get_images_over_time(db, days)
+            data = crud.get_images_over_time(db, days, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -351,12 +412,19 @@ async def get_images_over_time(period: str = "7d") -> List[Dict[str, Any]]:
 
 
 @router.get("/image-waiting-time")
-async def get_image_waiting_time(interval: str = "1h") -> List[Dict[str, Any]]:
+async def get_image_waiting_time(
+    interval: str = "1h",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get average image generation waiting time over time with premium/free breakdown
     
     Args:
         interval: Time interval (1m, 5m, 15m, 30m, 1h, 6h, 12h, 1d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {timestamp, avg_waiting_time, avg_premium, avg_free} dictionaries
@@ -382,7 +450,7 @@ async def get_image_waiting_time(interval: str = "1h") -> List[Dict[str, Any]]:
         limit_hours = limit_minutes // 60
         
         with get_db() as db:
-            data = crud.get_image_waiting_time_over_time(db, interval_minutes, limit_hours)
+            data = crud.get_image_waiting_time_over_time(db, interval_minutes, limit_hours, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except HTTPException:
         raise
@@ -392,9 +460,17 @@ async def get_image_waiting_time(interval: str = "1h") -> List[Dict[str, Any]]:
 
 
 @router.get("/engagement-heatmap")
-async def get_engagement_heatmap() -> List[Dict[str, Any]]:
+async def get_engagement_heatmap(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
     """
     Get message counts by hour of day and day of week
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
     
     Returns:
         List of {hour, day_of_week, count} dictionaries
@@ -403,7 +479,7 @@ async def get_engagement_heatmap() -> List[Dict[str, Any]]:
     """
     try:
         with get_db() as db:
-            data = crud.get_engagement_heatmap(db)
+            data = crud.get_engagement_heatmap(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
             return data
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching engagement heatmap: {e}")
@@ -744,5 +820,36 @@ async def delete_user_chats(client_id: int) -> Dict[str, Any]:
     except Exception as e:
         print(f"[ANALYTICS-API] Error deleting user chats: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting user chats: {str(e)}")
+
+
+@router.get("/premium-stats")
+async def get_premium_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> Dict[str, Any]:
+    """
+    Get premium user statistics and metrics
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+    
+    Returns:
+        Dictionary with:
+        - total_premium_users: Total premium users
+        - total_free_users: Total free users
+        - conversion_rate: Percentage of users who are premium
+        - premium_users_over_time: Daily premium user counts
+        - premium_vs_free_images: Image generation comparison
+        - premium_vs_free_engagement: Message count comparison
+    """
+    try:
+        with get_db() as db:
+            stats = crud.get_premium_stats(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
+            return stats
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching premium stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching premium stats: {str(e)}")
 
 
