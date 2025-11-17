@@ -71,6 +71,8 @@ EXPOSE 8080
 
 # Run migrations and start server
 CMD set -e && \
+    echo "🔧 Checking alembic version..." && \
+    python scripts/fix_alembic_version.py && \
     echo "🔄 Running migrations..." && \
     alembic upgrade head && \
     echo "✅ Migrations complete" && \
