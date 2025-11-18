@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str
+    TEST_DATABASE_URL: Optional[str] = None
+    USE_TEST_DB: bool = False
     REDIS_URL: str
     
     # AI Services
@@ -81,6 +83,15 @@ class Settings(BaseSettings):
         except ValueError:
             print(f"⚠️  Warning: Invalid FOLLOWUP_TEST_USERS format: {self.FOLLOWUP_TEST_USERS}")
             return None
+    
+    @property
+    def active_database_url(self) -> str:
+        """Get the active database URL based on USE_TEST_DB flag"""
+        if self.USE_TEST_DB and self.TEST_DATABASE_URL:
+            print("🔄 Using TEST database")
+            return self.TEST_DATABASE_URL
+        print("📊 Using MAIN database")
+        return self.DATABASE_URL
 
 
 # Global settings instance

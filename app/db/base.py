@@ -9,7 +9,7 @@ from app.settings import settings
 
 # Create engine
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.active_database_url,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,

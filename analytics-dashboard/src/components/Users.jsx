@@ -14,6 +14,8 @@ export default function Users() {
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingUserId, setDeletingUserId] = useState(null);
   const [hasMore, setHasMore] = useState(true);
+  const [messageFilter, setMessageFilter] = useState({ min: '', max: '' });
+  const [streakFilter, setStreakFilter] = useState({ min: '', max: '' });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -83,20 +85,41 @@ export default function Users() {
   };
 
   const getFilteredAndSortedUsers = () => {
-    // Filter users based on search query
+    // Filter users based on search query and numeric filters
     let filteredUsers = users.filter(user => {
-      if (!searchQuery) return true;
+      // Search query filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const firstName = (user.first_name || '').toLowerCase();
+        const username = (user.username || '').toLowerCase();
+        const clientId = user.client_id.toString();
+        const acquisitionSource = (user.acquisition_source || '').toLowerCase();
+        
+        const matchesSearch = firstName.includes(query) || 
+               username.includes(query) || 
+               clientId.includes(query) ||
+               acquisitionSource.includes(query);
+        
+        if (!matchesSearch) return false;
+      }
       
-      const query = searchQuery.toLowerCase();
-      const firstName = (user.first_name || '').toLowerCase();
-      const username = (user.username || '').toLowerCase();
-      const clientId = user.client_id.toString();
-      const acquisitionSource = (user.acquisition_source || '').toLowerCase();
+      // Message filter
+      if (messageFilter.min !== '' && user.message_events_count < parseInt(messageFilter.min)) {
+        return false;
+      }
+      if (messageFilter.max !== '' && user.message_events_count > parseInt(messageFilter.max)) {
+        return false;
+      }
       
-      return firstName.includes(query) || 
-             username.includes(query) || 
-             clientId.includes(query) ||
-             acquisitionSource.includes(query);
+      // Streak filter
+      if (streakFilter.min !== '' && user.consecutive_days_streak < parseInt(streakFilter.min)) {
+        return false;
+      }
+      if (streakFilter.max !== '' && user.consecutive_days_streak > parseInt(streakFilter.max)) {
+        return false;
+      }
+      
+      return true;
     });
 
     // Sort filtered users
@@ -158,11 +181,11 @@ export default function Users() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-3xl font-bold text-gray-800">Users</h2>
             <p className="text-gray-500 mt-1">
-              {searchQuery ? (
+              {searchQuery || messageFilter.min || messageFilter.max || streakFilter.min || streakFilter.max ? (
                 <>
                   {filteredUsers.length} matching users (of {users.length} loaded, {totalUsers} total)
                 </>
@@ -182,6 +205,67 @@ export default function Users() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+        </div>
+        
+        {/* Filters */}
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Send Message Events
+            </label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                placeholder="Min"
+                value={messageFilter.min}
+                onChange={(e) => setMessageFilter({ ...messageFilter, min: e.target.value })}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={messageFilter.max}
+                onChange={(e) => setMessageFilter({ ...messageFilter, max: e.target.value })}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Streak (days)
+            </label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                placeholder="Min"
+                value={streakFilter.min}
+                onChange={(e) => setStreakFilter({ ...streakFilter, min: e.target.value })}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={streakFilter.max}
+                onChange={(e) => setStreakFilter({ ...streakFilter, max: e.target.value })}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          
+          {(messageFilter.min || messageFilter.max || streakFilter.min || streakFilter.max) && (
+            <button
+              onClick={() => {
+                setMessageFilter({ min: '', max: '' });
+                setStreakFilter({ min: '', max: '' });
+              }}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -285,12 +369,12 @@ export default function Users() {
                         {(user.first_name || user.username || 'U')[0].toUpperCase()}
                       </span>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
+                    <div className="max-w-[200px]">
+                      <div className="text-sm font-medium text-gray-900 truncate" title={user.first_name || 'Unknown'}>
                         {user.first_name || 'Unknown'}
                       </div>
                       {user.username && (
-                        <div className="text-sm text-gray-500">@{user.username}</div>
+                        <div className="text-sm text-gray-500 truncate" title={`@${user.username}`}>@{user.username}</div>
                       )}
                     </div>
                   </div>

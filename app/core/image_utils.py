@@ -82,3 +82,4 @@ def strip_color_profile_safe(image_data: bytes) -> bytes:
 
 
 
+
