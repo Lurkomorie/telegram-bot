@@ -64,6 +64,25 @@ export async function fetchUserEnergy(initData) {
 }
 
 /**
+ * Fetch user's language preference
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Language object {language: string}
+ */
+export async function fetchUserLanguage(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/language`, {
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch language');
+  }
+  
+  return response.json();
+}
+
+/**
  * Check user's age verification status
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Age status object {age_verified: bool}

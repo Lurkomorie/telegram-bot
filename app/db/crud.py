@@ -1,11 +1,14 @@
 """
 CRUD operations for database models
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode
+from app.db.models import (
+    User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
+    PersonaTranslation, PersonaHistoryTranslation
+)
 from datetime import datetime, date
 
 
@@ -222,6 +225,128 @@ def create_persona(
     db.commit()
     db.refresh(persona)
     return persona
+
+
+# ========== PERSONA TRANSLATION OPERATIONS ==========
+
+def get_persona_translations(db: Session, persona_id: UUID, language: str = None) -> Dict[str, PersonaTranslation]:
+    """Get translations for a persona
+    
+    Args:
+        persona_id: Persona UUID
+        language: Optional language filter (e.g., 'ru', 'fr')
+    
+    Returns:
+        Dictionary mapping language codes to translation objects
+    """
+    query = db.query(PersonaTranslation).filter(PersonaTranslation.persona_id == persona_id)
+    
+    if language:
+        query = query.filter(PersonaTranslation.language == language)
+    
+    translations = query.all()
+    return {t.language: t for t in translations}
+
+
+def get_persona_history_translations(db: Session, history_id: UUID, language: str = None) -> Dict[str, PersonaHistoryTranslation]:
+    """Get translations for a persona history start
+    
+    Args:
+        history_id: PersonaHistoryStart UUID
+        language: Optional language filter (e.g., 'ru', 'fr')
+    
+    Returns:
+        Dictionary mapping language codes to translation objects
+    """
+    query = db.query(PersonaHistoryTranslation).filter(PersonaHistoryTranslation.history_id == history_id)
+    
+    if language:
+        query = query.filter(PersonaHistoryTranslation.language == language)
+    
+    translations = query.all()
+    return {t.language: t for t in translations}
+
+
+def create_or_update_persona_translation(
+    db: Session,
+    persona_id: UUID,
+    language: str,
+    description: str = None,
+    small_description: str = None,
+    intro: str = None
+) -> PersonaTranslation:
+    """Create or update a persona translation"""
+    translation = db.query(PersonaTranslation).filter(
+        PersonaTranslation.persona_id == persona_id,
+        PersonaTranslation.language == language
+    ).first()
+    
+    if translation:
+        # Update existing
+        if description is not None:
+            translation.description = description
+        if small_description is not None:
+            translation.small_description = small_description
+        if intro is not None:
+            translation.intro = intro
+        translation.updated_at = datetime.utcnow()
+    else:
+        # Create new
+        translation = PersonaTranslation(
+            persona_id=persona_id,
+            language=language,
+            description=description,
+            small_description=small_description,
+            intro=intro
+        )
+        db.add(translation)
+    
+    db.commit()
+    db.refresh(translation)
+    return translation
+
+
+def create_or_update_persona_history_translation(
+    db: Session,
+    history_id: UUID,
+    language: str,
+    name: str = None,
+    small_description: str = None,
+    description: str = None,
+    text: str = None
+) -> PersonaHistoryTranslation:
+    """Create or update a persona history translation"""
+    translation = db.query(PersonaHistoryTranslation).filter(
+        PersonaHistoryTranslation.history_id == history_id,
+        PersonaHistoryTranslation.language == language
+    ).first()
+    
+    if translation:
+        # Update existing
+        if name is not None:
+            translation.name = name
+        if small_description is not None:
+            translation.small_description = small_description
+        if description is not None:
+            translation.description = description
+        if text is not None:
+            translation.text = text
+        translation.updated_at = datetime.utcnow()
+    else:
+        # Create new
+        translation = PersonaHistoryTranslation(
+            history_id=history_id,
+            language=language,
+            name=name,
+            small_description=small_description,
+            description=description,
+            text=text
+        )
+        db.add(translation)
+    
+    db.commit()
+    db.refresh(translation)
+    return translation
 
 
 # ========== CHAT OPERATIONS ==========

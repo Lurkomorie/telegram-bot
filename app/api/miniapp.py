@@ -19,6 +19,20 @@ class ChatCheckRequest(BaseModel):
     history_id: Optional[str] = None
 
 
+def extract_user_id_from_init_data(x_telegram_init_data: Optional[str]) -> Optional[int]:
+    """Extract user ID from Telegram Web App init data"""
+    if not x_telegram_init_data:
+        return None
+    
+    try:
+        import json
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        user_data = json.loads(parsed.get('user', '{}'))
+        return user_data.get('id')
+    except:
+        return None
+
+
 @router.get("/personas")
 async def get_personas(
     x_telegram_init_data: Optional[str] = Header(None)
@@ -29,14 +43,22 @@ async def get_personas(
     Returns persona data with:
     - id, name, description, badges
     - avatar_url (primary image for gallery)
+    - Descriptions are returned in user's language if available
     """
     # Validate Telegram Web App authentication
     # In development, we can skip validation for testing
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
         raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
     
+    # Get user ID and language preference
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    user_language = 'en'
+    if user_id:
+        with get_db() as db:
+            user_language = crud.get_user_language(db, user_id)
+    
     # Get personas from cache (much faster!)
-    from app.core.persona_cache import get_preset_personas, get_random_history
+    from app.core.persona_cache import get_preset_personas, get_random_history, get_persona_field
     personas = get_preset_personas()
     
     result = []
@@ -49,11 +71,15 @@ async def get_personas(
             history_start = get_random_history(persona_id)
             avatar_url = history_start["image_url"] if history_start else None
         
+        # Get translated descriptions
+        description = get_persona_field(persona, 'description', language=user_language) or ""
+        small_description = get_persona_field(persona, 'small_description', language=user_language) or ""
+        
         result.append({
             "id": persona_id,
-            "name": persona["name"],
-            "description": persona["description"] or "",
-            "smallDescription": persona["small_description"] or "",
+            "name": persona["name"],  # Names are not translated
+            "description": description,
+            "smallDescription": small_description,
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
         })
@@ -71,6 +97,7 @@ async def get_persona_histories(
     
     Returns list of history scenarios with:
     - id, description, text (greeting), image_url
+    - Descriptions and text are returned in user's language if available
     """
     # Validate authentication
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
@@ -83,19 +110,33 @@ async def get_persona_histories(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid persona ID format")
     
+    # Get user ID and language preference
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    user_language = 'en'
+    if user_id:
+        with get_db() as db:
+            user_language = crud.get_user_language(db, user_id)
+    
     # Get histories from cache
     from app.core import persona_cache
+    from app.core.persona_cache import get_history_field
     histories = persona_cache.get_persona_histories(persona_id)
     
     # Transform to camelCase for frontend
     result = []
     for h in histories:
+        # Get translated fields
+        name = get_history_field(h, 'name', language=user_language) or h["name"]
+        small_description = get_history_field(h, 'small_description', language=user_language) or h["small_description"]
+        description = get_history_field(h, 'description', language=user_language) or h["description"]
+        text = get_history_field(h, 'text', language=user_language) or h["text"]
+        
         result.append({
             "id": h["id"],
-            "name": h["name"],
-            "smallDescription": h["small_description"],
-            "description": h["description"],
-            "text": h["text"],
+            "name": name,
+            "smallDescription": small_description,
+            "description": description,
+            "text": text,
             "image_url": h["image_url"],
             "wide_menu_image_url": h["wide_menu_image_url"]
         })
@@ -139,6 +180,42 @@ async def get_user_energy(
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
         return {"energy": 100, "max_energy": 100, "is_premium": False}  # Default fallback
+
+
+@router.get("/user/language")
+async def get_user_language(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get user's language preference
+    
+    Returns: {language: str}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        return {"language": "en"}  # Default for testing
+    
+    try:
+        # Parse init data to get user ID and language_code
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        telegram_language_code = user_data.get('language_code', 'en')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            # Get or create user with language from Telegram
+            user = crud.get_or_create_user(db, telegram_id=user_id, language_code=telegram_language_code)
+            # Always prefer Telegram's current language setting
+            language = crud.get_user_language(db, user_id)
+            return {"language": language}
+    
+    except Exception as e:
+        print(f"[LANGUAGE-API] Error: {e}")
+        return {"language": "en"}  # Default fallback
 
 
 @router.get("/user/age-status")
@@ -415,9 +492,13 @@ async def _process_scenario_selection(
                 )
         
         # Send messages to user
+        # Get user's language for bot messages
+        with get_db() as db:
+            user_language = crud.get_user_language(db, user_id)
+        
         # Send hint message FIRST (before story starts)
         from app.settings import get_ui_text
-        hint_text = get_ui_text("hints.restart")
+        hint_text = get_ui_text("hints.restart", language=user_language)
         await bot.send_message(
             chat_id=user_id,
             text=escape_markdown_v2(hint_text),

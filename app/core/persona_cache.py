@@ -40,8 +40,19 @@ def load_cache():
                 "badges": persona.badges or [],
                 "avatar_url": persona.avatar_url,
                 "visibility": persona.visibility,
-                "owner_user_id": persona.owner_user_id
+                "owner_user_id": persona.owner_user_id,
+                "translations": {}  # Will be populated with language-specific content
             }
+            
+            # Load translations for this persona
+            translations = crud.get_persona_translations(db, persona.id)
+            for lang, trans in translations.items():
+                persona_dict["translations"][lang] = {
+                    "description": trans.description,
+                    "small_description": trans.small_description,
+                    "intro": trans.intro
+                }
+            
             preset_list.append(persona_dict)
             
             # Store in by_id lookup
@@ -63,15 +74,34 @@ def load_cache():
                     "text": history.text,
                     "image_url": history.image_url,
                     "wide_menu_image_url": history.wide_menu_image_url,
-                    "image_prompt": history.image_prompt
+                    "image_prompt": history.image_prompt,
+                    "translations": {}  # Will be populated with language-specific content
                 }
+                
+                # Load translations for this history
+                hist_translations = crud.get_persona_history_translations(db, history.id)
+                for lang, trans in hist_translations.items():
+                    history_dict["translations"][lang] = {
+                        "name": trans.name,
+                        "small_description": trans.small_description,
+                        "description": trans.description,
+                        "text": trans.text
+                    }
+                
                 history_list.append(history_dict)
             
             _CACHE["histories"][str(persona.id)] = history_list
         
         _CACHE["presets"] = preset_list
     
+    total_persona_translations = sum(len(p["translations"]) for p in _CACHE["presets"])
+    total_history_translations = sum(
+        len(h["translations"]) 
+        for histories in _CACHE["histories"].values() 
+        for h in histories
+    )
     print(f"[CACHE] ✅ Loaded {len(_CACHE['presets'])} personas with {sum(len(h) for h in _CACHE['histories'].values())} total histories")
+    print(f"[CACHE] 🌐 Loaded {total_persona_translations} persona translations and {total_history_translations} history translations")
 
 
 def get_preset_personas() -> List[Dict[str, Any]]:
@@ -127,4 +157,46 @@ def get_persona_with_history_by_index(persona_key: str, history_index: int) -> t
 def is_cache_loaded() -> bool:
     """Check if cache has been loaded"""
     return len(_CACHE["presets"]) > 0
+
+
+def get_persona_field(persona_dict: Dict[str, Any], field: str, language: str = 'en') -> Any:
+    """Get a persona field with translation support
+    
+    Args:
+        persona_dict: Persona dictionary from cache
+        field: Field name (e.g., 'description', 'small_description', 'intro')
+        language: Language code (e.g., 'en', 'ru', 'fr')
+    
+    Returns:
+        Translated field value if available, otherwise fallback to English
+    """
+    # Try to get translation
+    if language != 'en' and "translations" in persona_dict:
+        trans = persona_dict["translations"].get(language, {})
+        if trans and field in trans and trans[field]:
+            return trans[field]
+    
+    # Fallback to default (English)
+    return persona_dict.get(field)
+
+
+def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 'en') -> Any:
+    """Get a history field with translation support
+    
+    Args:
+        history_dict: History dictionary from cache
+        field: Field name (e.g., 'name', 'description', 'small_description', 'text')
+        language: Language code (e.g., 'en', 'ru', 'fr')
+    
+    Returns:
+        Translated field value if available, otherwise fallback to English
+    """
+    # Try to get translation
+    if language != 'en' and "translations" in history_dict:
+        trans = history_dict["translations"].get(language, {})
+        if trans and field in trans and trans[field]:
+            return trans[field]
+    
+    # Fallback to default (English)
+    return history_dict.get(field)
 

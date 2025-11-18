@@ -1,0 +1,68 @@
+{
+  "app": {
+    "ageVerification": {
+      "title": "Altersüberprüfung erforderlich",
+      "description": "Sie müssen 18 Jahre oder älter sein, um diese App zu verwenden. Indem Sie fortfahren, bestätigen Sie, dass Sie volljährig sind und unseren Nutzungsbedingungen und Datenschutzrichtlinien zustimmen.",
+      "confirmButton": "Ich bin 18 Jahre oder älter",
+      "verifying": "Wird überprüft..."
+    },
+    "header": {
+      "characters": "Charaktere",
+      "settings": "Einstellungen"
+    },
+    "energy": {
+      "regen": "+2 ⭐ jede Stunde"
+    },
+    "errors": {
+      "loadFailed": "Charaktere konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
+      "retryButton": "Wiederholen"
+    }
+  },
+  "gallery": {
+    "loading": "Charaktere werden geladen...",
+    "empty": "Keine Charaktere verfügbar"
+  },
+  "history": {
+    "loading": "Szenarien werden geladen...",
+    "empty": "Keine Szenarien verfügbar. Starte mit Standard-Begrüßung...",
+    "startButton": "Chat starten"
+  },
+  "premium": {
+    "plans": {
+      "2days": {
+        "duration": "2 Tage",
+        "period": "/ 2 Tage"
+      },
+      "month": {
+        "duration": "1 Monat",
+        "period": "/ Monat"
+      },
+      "3months": {
+        "duration": "3 Monate",
+        "period": "/ 3 Monate"
+      },
+      "year": {
+        "duration": "1 Jahr",
+        "period": "/ Jahr"
+      }
+    },
+    "features": {
+      "energy": "Unbegrenzte Energie",
+      "ai": "Unsere fortschrittlichsten KI-Engines",
+      "photos": "Unbegrenzte Fotogenerierung"
+    },
+    "upgradeButton": "Premium erhalten 💎",
+    "processing": "Wird verarbeitet...",
+    "alerts": {
+      "paymentSuccess": "Zahlung erfolgreich! Ihr Premium-Abonnement ist jetzt aktiv.",
+      "paymentCancelled": "Zahlung abgebrochen.",
+      "paymentFailed": "Zahlung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "createFailed": "Zahlung konnte nicht erstellt werden. Bitte versuchen Sie es erneut."
+    }
+  },
+  "nav": {
+    "characters": "Charaktere",
+    "premium": "Premium"
+  }
+}
+

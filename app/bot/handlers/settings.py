@@ -50,15 +50,33 @@ async def cmd_reset(message: types.Message):
 async def cmd_girls(message: types.Message):
     """Handle /girls command - show persona list"""
     from app.bot.keyboards.inline import build_persona_selection_keyboard
+    from app.core.persona_cache import get_preset_personas, get_persona_field
+    from app.settings import settings
     
+    # Get user language
     with get_db() as db:
-        preset_personas = crud.get_preset_personas(db)
-        user_personas = crud.get_user_personas(db, message.from_user.id)
+        user_language = crud.get_user_language(db, message.from_user.id)
     
-    keyboard = build_persona_selection_keyboard(preset_personas, user_personas)
+    # Get personas from cache
+    preset_data = get_preset_personas()
+    user_data = []  # User personas disabled
+    
+    # Build text with persona descriptions
+    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = p.get('name', 'Unknown')
+        desc = get_persona_field(p, 'small_description', language=user_language)
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
+    
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     await message.answer(
-        "💕 <b>Choose your AI companion:</b>",
+        welcome_text,
         reply_markup=keyboard
     )
 

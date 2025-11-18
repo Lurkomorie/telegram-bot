@@ -9,7 +9,8 @@ from app.settings import get_ui_text
 def build_persona_selection_keyboard(
     preset_personas: List[Dict[str, Any]],
     user_personas: List[Dict[str, Any]] = None,
-    miniapp_url: str = None
+    miniapp_url: str = None,
+    language: str = "en"
 ) -> InlineKeyboardMarkup:
     """Build keyboard for persona selection
     
@@ -82,7 +83,7 @@ def build_persona_selection_keyboard(
     if miniapp_url:
         buttons.append([
             InlineKeyboardButton(
-                text=get_ui_text("miniapp.gallery_button"),
+                text=get_ui_text("miniapp.gallery_button", language=language),
                 web_app=WebAppInfo(url=f"{miniapp_url}?page=gallery")
             )
         ])
@@ -90,12 +91,12 @@ def build_persona_selection_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def build_confirm_keyboard(action: str) -> InlineKeyboardMarkup:
+def build_confirm_keyboard(action: str, language: str = "en") -> InlineKeyboardMarkup:
     """Build yes/no confirmation keyboard"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="✅ Yes", callback_data=f"confirm:{action}"),
-            InlineKeyboardButton(text="❌ No", callback_data=f"cancel:{action}")
+            InlineKeyboardButton(text=get_ui_text("confirmation.yes", language=language), callback_data=f"confirm:{action}"),
+            InlineKeyboardButton(text=get_ui_text("confirmation.no", language=language), callback_data=f"cancel:{action}")
         ]
     ])
 
@@ -148,56 +149,60 @@ def build_image_refresh_keyboard(image_job_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def build_energy_upsell_keyboard(miniapp_url: str) -> InlineKeyboardMarkup:
+def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
     """Build keyboard with button to open premium page in Mini App"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("miniapp.premium_button"),
+            text=get_ui_text("miniapp.premium_button", language=language),
             web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
         )]
     ])
 
 
-def build_persona_gallery_keyboard(miniapp_url: str) -> InlineKeyboardMarkup:
+def build_persona_gallery_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
     """Build keyboard with button to open persona gallery in Mini App"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("miniapp.gallery_button"),
+            text=get_ui_text("miniapp.gallery_button", language=language),
             web_app=WebAppInfo(url=f"{miniapp_url}?page=gallery")
         )]
     ])
 
 
-def build_chat_options_keyboard(persona_id: str) -> InlineKeyboardMarkup:
+def build_chat_options_keyboard(persona_id: str, language: str = "en") -> InlineKeyboardMarkup:
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("chat_options.continue_button"), 
+            text=get_ui_text("chat_options.continue_button", language=language), 
             callback_data=f"continue_chat:{persona_id}"
         )],
         [InlineKeyboardButton(
-            text=get_ui_text("chat_options.start_new_button"), 
+            text=get_ui_text("chat_options.start_new_button", language=language), 
             callback_data=f"new_chat_select:{persona_id}"
         )],
         [InlineKeyboardButton(
-            text=get_ui_text("chat_options.back_button"), 
+            text=get_ui_text("chat_options.back_button", language=language), 
             callback_data="show_personas"
         )]
     ])
 
 
-def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: str = None) -> InlineKeyboardMarkup:
+def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: str = None, language: str = "en") -> InlineKeyboardMarkup:
     """Build keyboard for story/history selection in 2x2 grid
     
     Args:
         stories: List of dicts with 'id', 'name', 'small_description', 'description'
         persona_id: Persona ID for back button (optional, unused for now)
+        language: Language code for translations
     """
+    from app.core.persona_cache import get_history_field
+    
     buttons = []
     
     # Helper function to create a story button
     def create_story_button(story):
-        name = story.get('name', 'Story')
+        # Get translated name if available
+        name = get_history_field(story, 'name', language=language) or story.get('name', 'Story')
         # Try to extract emoji from the beginning of the name
         emoji = ""
         if name and len(name) > 0:
@@ -231,7 +236,7 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     
     # Add Back button in second column
     row2.append(InlineKeyboardButton(
-        text=get_ui_text("story.back_button"), 
+        text=get_ui_text("story.back_button", language=language), 
         callback_data="show_personas"
     ))
     
@@ -240,7 +245,7 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def build_age_verification_keyboard(deep_link: str = None) -> InlineKeyboardMarkup:
+def build_age_verification_keyboard(deep_link: str = None, language: str = "en") -> InlineKeyboardMarkup:
     """Build keyboard for age verification confirmation
     
     Args:
@@ -253,7 +258,7 @@ def build_age_verification_keyboard(deep_link: str = None) -> InlineKeyboardMark
     
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("age_verification.confirm_button"),
+            text=get_ui_text("age_verification.confirm_button", language=language),
             callback_data=callback_data
         )]
     ])

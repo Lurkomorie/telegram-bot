@@ -1,0 +1,68 @@
+{
+  "app": {
+    "ageVerification": {
+      "title": "Age Verification Required",
+      "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
+      "confirmButton": "I am 18 years or older",
+      "verifying": "Verifying..."
+    },
+    "header": {
+      "characters": "Characters",
+      "settings": "Settings"
+    },
+    "energy": {
+      "regen": "+2 ⭐ every 1h"
+    },
+    "errors": {
+      "loadFailed": "Failed to load characters. Please try again.",
+      "retryButton": "Retry"
+    }
+  },
+  "gallery": {
+    "loading": "Loading characters...",
+    "empty": "No characters available"
+  },
+  "history": {
+    "loading": "Loading scenarios...",
+    "empty": "No scenarios available. Starting with default greeting...",
+    "startButton": "Start Chat"
+  },
+  "premium": {
+    "plans": {
+      "2days": {
+        "duration": "2 Days",
+        "period": "/ 2 days"
+      },
+      "month": {
+        "duration": "1 Month",
+        "period": "/ month"
+      },
+      "3months": {
+        "duration": "3 Months",
+        "period": "/ 3 months"
+      },
+      "year": {
+        "duration": "1 Year",
+        "period": "/ year"
+      }
+    },
+    "features": {
+      "energy": "Infinite energy",
+      "ai": "Our most advanced AI engines",
+      "photos": "Unlimited photo generation"
+    },
+    "upgradeButton": "Get Premium 💎",
+    "processing": "Processing...",
+    "alerts": {
+      "paymentSuccess": "Payment successful! Your premium subscription is now active.",
+      "paymentCancelled": "Payment cancelled.",
+      "paymentFailed": "Payment failed. Please try again.",
+      "createFailed": "Failed to create payment. Please try again."
+    }
+  },
+  "nav": {
+    "characters": "Characters",
+    "premium": "Premium"
+  }
+}
+
