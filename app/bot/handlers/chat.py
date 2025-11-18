@@ -30,7 +30,8 @@ async def cmd_clear(message: types.Message):
             db,
             telegram_id=user_id,
             username=message.from_user.username,
-            first_name=message.from_user.first_name
+            first_name=message.from_user.first_name,
+            language_code=message.from_user.language_code
         )
         
         # Get active chat
@@ -108,7 +109,8 @@ async def handle_text_message(message: types.Message):
             db,
             telegram_id=user_id,
             username=message.from_user.username,
-            first_name=message.from_user.first_name
+            first_name=message.from_user.first_name,
+            language_code=message.from_user.language_code
         )
         
         # Check if user is premium (premium users get free messages)

@@ -41,13 +41,17 @@ async def cmd_start(message: types.Message):
             telegram_id=message.from_user.id,
             username=message.from_user.username,
             first_name=message.from_user.first_name,
-            acquisition_source=acquisition_source
+            acquisition_source=acquisition_source,
+            language_code=message.from_user.language_code
         )
+        
+        # Get user language for UI texts
+        user_language = user.locale or 'en'
         
         # Check if user has verified their age
         if not user.age_verified:
             # Show age verification message with deep link encoded in callback
-            age_verification_text = get_ui_text("age_verification.message")
+            age_verification_text = get_ui_text("age_verification.message", language=user_language)
             keyboard = build_age_verification_keyboard(deep_link=deep_link_param)
             if deep_link_param:
                 print(f"[START] 🔗 Showing age verification with deep link: {deep_link_param}")
@@ -91,9 +95,10 @@ async def cmd_start(message: types.Message):
                     
                     if existing_chat:
                         keyboard = build_chat_options_keyboard(persona_id)
+                        title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
+                        description = get_ui_text("chat_options.description", language=user_language)
                         await message.answer(
-                            f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
-                            f"Would you like to continue where you left off, or start a fresh conversation?",
+                            f"{title}\n\n{description}",
                             reply_markup=keyboard
                         )
                         return
@@ -128,11 +133,13 @@ async def cmd_start(message: types.Message):
             persona, history = get_persona_with_history_by_index(persona_key, history_index)
             
             if not persona:
-                await message.answer(f"❌ Character '{persona_key}' not found!")
+                error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+                await message.answer(error_msg)
                 return
             
             if not history:
-                await message.answer(f"❌ Story #{history_index} not found for {persona['name']}!")
+                error_msg = get_ui_text("errors.story_not_found", language=user_language)
+                await message.answer(error_msg)
                 return
             
             persona_id = persona["id"]
@@ -150,9 +157,10 @@ async def cmd_start(message: types.Message):
             
             if existing_chat:
                 keyboard = build_chat_options_keyboard(persona_id)
+                title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
+                description = get_ui_text("chat_options.description", language=user_language)
                 await message.answer(
-                    f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
-                    f"Would you like to continue where you left off, or start a fresh conversation?",
+                    f"{title}\n\n{description}",
                     reply_markup=keyboard
                 )
                 return
@@ -188,14 +196,16 @@ async def cmd_start(message: types.Message):
                 )
                 persona_name = persona.name
             else:
-                await message.answer("❌ Persona not found!")
+                error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+                await message.answer(error_msg)
                 return
         
         if existing_chat:
             keyboard = build_chat_options_keyboard(persona_id)
+            title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
+            description = get_ui_text("chat_options.description", language=user_language)
             await message.answer(
-                f"💬 <b>You have an existing conversation with {persona_name}</b>\n\n"
-                f"Would you like to continue where you left off, or start a fresh conversation?",
+                f"{title}\n\n{description}",
                 reply_markup=keyboard
             )
             return
@@ -210,13 +220,17 @@ async def cmd_start(message: types.Message):
     
     # Standard /start flow (user is age verified)
     
+    # Get user language (retrieve again since we may have skipped the first DB block)
+    with get_db() as db:
+        user_language = crud.get_user_language(db, message.from_user.id)
+    
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas
     preset_data = get_preset_personas()
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
-    welcome_text = "Choose your companion:\n\n"
+    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         name = p.get('name', 'Unknown')
@@ -237,14 +251,22 @@ async def cmd_start(message: types.Message):
 
 async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False):
     """Show story selection menu for a persona"""
+    # Get user language
+    from_user = message.from_user if hasattr(message, 'from_user') else message.chat
+    user_id = from_user.id if hasattr(from_user, 'id') else None
+    
+    with get_db() as db:
+        user_language = crud.get_user_language(db, user_id) if user_id else 'en'
+    
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
     persona = get_persona_by_id(persona_id)
     if not persona:
+        error_msg = get_ui_text("errors.persona_not_found", language=user_language)
         if edit:
-            await message.edit_text("❌ Persona not found!")
+            await message.edit_text(error_msg)
         else:
-            await message.answer("❌ Persona not found!")
+            await message.answer(error_msg)
         return
     
     # Get histories from cache (already formatted as dicts)
@@ -252,7 +274,7 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         
     
     # Build text with story descriptions
-    story_text = get_ui_text("story.title") + "\n\n"
+    story_text = get_ui_text("story.title", language=user_language) + "\n\n"
     for s in story_data:
         name = s.get('name', 'Story')
         desc = s.get('small_description', '')
@@ -377,11 +399,16 @@ async def create_new_persona_chat(message: types.Message, persona_id: str):
 
 async def create_new_persona_chat_with_history(message: types.Message, persona_id: str, history_id: str):
     """Helper function to create a new chat with a specific history"""
+    # Get user language
+    with get_db() as db:
+        user_language = crud.get_user_language(db, message.from_user.id)
+    
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
     persona = get_persona_by_id(persona_id)
     if not persona:
-        await message.answer("❌ Persona not found!")
+        error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+        await message.answer(error_msg)
         return
     
     # Get the specific history from cache
@@ -469,7 +496,7 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
             )
     
     # Send hint message FIRST (before story starts)
-    hint_text = get_ui_text("hints.restart")
+    hint_text = get_ui_text("hints.restart", language=user_language)
     await message.answer(
         escape_markdown_v2(hint_text),
         parse_mode="MarkdownV2"
@@ -502,13 +529,17 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
 @router.callback_query(lambda c: c.data == "show_personas")
 async def show_personas_callback(callback: types.CallbackQuery):
     """Show persona selection (callback from other menus)"""
+    # Get user language
+    with get_db() as db:
+        user_language = crud.get_user_language(db, callback.from_user.id)
+    
     # Get personas from cache
     from app.core.persona_cache import get_preset_personas
     preset_data = get_preset_personas()
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
-    welcome_text = get_ui_text("welcome.title") + "\n\n"
+    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         name = p.get('name', 'Unknown')
@@ -531,11 +562,15 @@ async def show_personas_callback(callback: types.CallbackQuery):
 @router.callback_query(lambda c: c.data == "discover_characters")
 async def discover_characters_callback(callback: types.CallbackQuery):
     """Open Mini App gallery to discover all characters"""
+    # Get user language
+    with get_db() as db:
+        user_language = crud.get_user_language(db, callback.from_user.id)
+    
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_gallery_keyboard(miniapp_url)
     
-    title = get_ui_text("welcome.discover_title")
-    description = get_ui_text("welcome.discover_description")
+    title = get_ui_text("welcome.discover_title", language=user_language)
+    description = get_ui_text("welcome.discover_description", language=user_language)
     
     await callback.message.edit_text(
         f"{title}\n\n{description}",
@@ -549,11 +584,16 @@ async def select_persona_callback(callback: types.CallbackQuery):
     """Handle persona selection - show story selection or chat options"""
     persona_id = callback.data.split(":")[1]
     
+    # Get user language
+    with get_db() as db:
+        user_language = crud.get_user_language(db, callback.from_user.id)
+    
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id
     persona = get_persona_by_id(persona_id)
     if not persona:
-        await callback.answer("Persona not found!", show_alert=True)
+        error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+        await callback.answer(error_msg, show_alert=True)
         return
     
     persona_name = persona["name"]
@@ -570,8 +610,8 @@ async def select_persona_callback(callback: types.CallbackQuery):
     # If chat exists, show Continue/Start New options
     if existing_chat:
         keyboard = build_chat_options_keyboard(persona_id)
-        title = get_ui_text("chat_options.title", persona_name=persona_name)
-        description = get_ui_text("chat_options.description")
+        title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
+        description = get_ui_text("chat_options.description", language=user_language)
         await callback.message.edit_text(
             f"{title}\n\n{description}",
             reply_markup=keyboard
@@ -729,6 +769,10 @@ async def handle_web_app_data(message: types.Message):
 @router.callback_query(lambda c: c.data.startswith("select_story:"))
 async def select_story_callback(callback: types.CallbackQuery):
     """Handle story selection and create new chat with selected history"""
+    # Get user language
+    with get_db() as db:
+        user_language = crud.get_user_language(db, callback.from_user.id)
+    
     from app.core.persona_cache import get_persona_by_id
     
     history_id = callback.data.split(":")[1]
@@ -826,7 +870,7 @@ async def select_story_callback(callback: types.CallbackQuery):
         pass
     
     # Send hint message FIRST (before story starts)
-    hint_text = get_ui_text("hints.restart")
+    hint_text = get_ui_text("hints.restart", language=user_language)
     await callback.message.answer(
         escape_markdown_v2(hint_text),
         parse_mode="MarkdownV2"

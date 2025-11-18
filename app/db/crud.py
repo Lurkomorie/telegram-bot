@@ -69,7 +69,14 @@ def apply_acquisition_source_filter(db: Session, query, acquisition_source: Opti
 
 # ========== USER OPERATIONS ==========
 
-def get_or_create_user(db: Session, telegram_id: int, username: str = None, first_name: str = None, acquisition_source: str = None) -> User:
+def get_or_create_user(
+    db: Session, 
+    telegram_id: int, 
+    username: str = None, 
+    first_name: str = None, 
+    acquisition_source: str = None,
+    language_code: str = None
+) -> User:
     """Get existing user or create new one
     
     Args:
@@ -77,17 +84,27 @@ def get_or_create_user(db: Session, telegram_id: int, username: str = None, firs
         username: User's username
         first_name: User's first name
         acquisition_source: Deep-link payload for ads attribution (only set on first visit)
+        language_code: Telegram user language code (e.g., 'en', 'ru', 'fr')
     
     Returns:
         User object
     """
+    # Normalize and validate language code
+    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    normalized_locale = None
+    if language_code:
+        # Extract base language code (e.g., 'en-US' -> 'en')
+        base_lang = language_code.lower().split('-')[0]
+        normalized_locale = base_lang if base_lang in supported_languages else 'en'
+    
     user = db.query(User).filter(User.id == telegram_id).first()
     if not user:
-        # New user - set acquisition source if provided
+        # New user - set acquisition source and locale if provided
         user = User(
             id=telegram_id,
             username=username,
             first_name=first_name,
+            locale=normalized_locale or 'en',
             acquisition_source=acquisition_source if acquisition_source else None,
             acquisition_timestamp=datetime.utcnow() if acquisition_source else None
         )
@@ -95,7 +112,13 @@ def get_or_create_user(db: Session, telegram_id: int, username: str = None, firs
         db.commit()
         db.refresh(user)
     else:
-        # Existing user - only set acquisition source if not already set (first-touch attribution)
+        # Existing user - update locale if provided and different
+        if normalized_locale and user.locale != normalized_locale:
+            user.locale = normalized_locale
+            db.commit()
+            db.refresh(user)
+        
+        # Only set acquisition source if not already set (first-touch attribution)
         if acquisition_source and not user.acquisition_source:
             user.acquisition_source = acquisition_source
             user.acquisition_timestamp = datetime.utcnow()
@@ -131,6 +154,21 @@ def update_user_age_verified(db: Session, telegram_id: int) -> User:
         db.commit()
         db.refresh(user)
     return user
+
+
+def get_user_language(db: Session, telegram_id: int) -> str:
+    """Get user's language preference
+    
+    Args:
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Language code (e.g., 'en', 'ru', 'fr', 'de', 'es'), defaults to 'en'
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user and user.locale:
+        return user.locale
+    return 'en'
 
 
 # ========== PERSONA OPERATIONS ==========
