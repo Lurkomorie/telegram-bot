@@ -128,3 +128,8 @@ def is_cache_loaded() -> bool:
     """Check if cache has been loaded"""
     return len(_CACHE["presets"]) > 0
 
+
+def reload_cache():
+    """Reload the persona cache from database"""
+    load_cache()
+

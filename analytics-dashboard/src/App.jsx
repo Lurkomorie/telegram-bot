@@ -9,6 +9,7 @@ import Images from './components/Images';
 import PremiumStatistics from './components/PremiumStatistics';
 import ReferralStats from './components/ReferralStats';
 import AuthGuard from './components/AuthGuard';
+import Characters from './components/Characters';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
                   <Route path="/users/:clientId" element={<UserTimeline />} />
                   <Route path="/acquisition-sources" element={<AcquisitionSources />} />
                   <Route path="/start-codes" element={<StartCodes />} />
+                  <Route path="/characters" element={<Characters />} />
                   <Route path="/images" element={<Images />} />
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
                 </Routes>

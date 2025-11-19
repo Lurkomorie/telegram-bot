@@ -10,6 +10,7 @@ export default function Sidebar() {
     { path: '/users', label: 'Users', icon: '👥' },
     { path: '/acquisition-sources', label: 'Acquisition Sources', icon: '🎯' },
     { path: '/start-codes', label: 'Start Codes', icon: '🎫' },
+    { path: '/characters', label: 'Characters', icon: '🎭' },
     { path: '/images', label: 'Images', icon: '🖼️' }
   ];
 

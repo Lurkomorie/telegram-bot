@@ -57,6 +57,66 @@ def log_messages_array(
 
 # ========== DEVELOPMENT-ONLY DETAILED LOGGING ==========
 
+def log_dev_context_breakdown(
+    brain_name: str,
+    system_prompt_parts: Optional[dict] = None,
+    history_messages: Optional[list] = None,
+    user_message: Optional[str] = None
+) -> None:
+    """
+    Log detailed breakdown of context components to identify what takes up space
+    
+    Args:
+        brain_name: Name of the brain
+        system_prompt_parts: Dict with keys like 'base_prompt', 'memory_context', 'state_context', etc.
+        history_messages: List of chat history messages
+        user_message: Current user message
+    """
+    if not is_development():
+        return
+    
+    print(f"\n{'='*80}")
+    print(f"[DEV-CONTEXT] 📊 {brain_name} - CONTEXT SIZE BREAKDOWN")
+    print(f"{'='*80}")
+    
+    total_chars = 0
+    
+    # System prompt breakdown
+    if system_prompt_parts:
+        print(f"\n🔧 SYSTEM PROMPT COMPONENTS:")
+        system_total = 0
+        for part_name, part_content in system_prompt_parts.items():
+            part_len = len(part_content) if part_content else 0
+            system_total += part_len
+            total_chars += part_len
+            print(f"  • {part_name}: {part_len:,} chars")
+        print(f"  {'─'*76}")
+        print(f"  SYSTEM TOTAL: {system_total:,} chars")
+    
+    # Chat history breakdown
+    if history_messages:
+        print(f"\n💬 CHAT HISTORY:")
+        print(f"  • Count: {len(history_messages)} messages")
+        history_total = sum(len(msg.get("content", "")) for msg in history_messages)
+        total_chars += history_total
+        print(f"  • Total size: {history_total:,} chars")
+        # Show per-message breakdown
+        for i, msg in enumerate(history_messages, 1):
+            role = msg.get("role", "unknown")
+            content_len = len(msg.get("content", ""))
+            print(f"    [{i}] {role}: {content_len:,} chars")
+    
+    # Current user message
+    if user_message:
+        user_len = len(user_message)
+        total_chars += user_len
+        print(f"\n➡️  CURRENT USER MESSAGE: {user_len:,} chars")
+    
+    print(f"\n{'─'*80}")
+    print(f"📦 TOTAL CONTEXT SIZE: {total_chars:,} chars (~{total_chars // 4} tokens)")
+    print(f"{'='*80}\n")
+
+
 def log_dev_request(
     brain_name: str,
     model: str,
@@ -83,13 +143,13 @@ def log_dev_request(
     for i, msg in enumerate(messages, 1):
         role = msg.get("role", "unknown").upper()
         content = msg.get("content", "")
-        print(f"\n  [{i}] {role} ({len(content)} chars):")
+        print(f"\n  [{i}] {role} ({len(content):,} chars):")
         print(f"  {'-'*76}")
         # Show first 500 chars for system, full for user/assistant
         if role == "SYSTEM":
             if len(content) > 500:
                 print(f"  {content[:500]}")
-                print(f"  ... [{len(content) - 500} more chars]")
+                print(f"  ... [{len(content) - 500:,} more chars]")
             else:
                 print(f"  {content}")
         else:

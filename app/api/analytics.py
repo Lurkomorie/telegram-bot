@@ -853,3 +853,514 @@ async def get_premium_stats(
         raise HTTPException(status_code=500, detail=f"Error fetching premium stats: {str(e)}")
 
 
+# ========== PERSONA MANAGEMENT ENDPOINTS ==========
+
+class CreatePersonaRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    key: Optional[str] = Field(None, max_length=100)
+    prompt: Optional[str] = None
+    image_prompt: Optional[str] = None
+    badges: Optional[str] = None  # Comma-separated string
+    visibility: str = Field(default="public")
+    description: Optional[str] = None
+    small_description: Optional[str] = None
+    emoji: Optional[str] = Field(None, max_length=10)
+    intro: Optional[str] = None
+    avatar_url: Optional[str] = None
+    
+    @validator('visibility')
+    def validate_visibility(cls, v):
+        if v not in ['public', 'private', 'custom']:
+            raise ValueError('Visibility must be one of: public, private, custom')
+        return v
+
+
+class UpdatePersonaRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    key: Optional[str] = Field(None, max_length=100)
+    prompt: Optional[str] = None
+    image_prompt: Optional[str] = None
+    badges: Optional[str] = None  # Comma-separated string
+    visibility: Optional[str] = None
+    description: Optional[str] = None
+    small_description: Optional[str] = None
+    emoji: Optional[str] = Field(None, max_length=10)
+    intro: Optional[str] = None
+    avatar_url: Optional[str] = None
+    
+    @validator('visibility')
+    def validate_visibility(cls, v):
+        if v is not None and v not in ['public', 'private', 'custom']:
+            raise ValueError('Visibility must be one of: public, private, custom')
+        return v
+
+
+@router.get("/personas")
+async def get_personas() -> List[Dict[str, Any]]:
+    """
+    Get all personas (public and private) for management
+    
+    Returns:
+        List of personas with all details
+    """
+    try:
+        with get_db() as db:
+            personas = crud.get_all_personas(db)
+            result = []
+            for persona in personas:
+                result.append({
+                    "id": str(persona.id),
+                    "owner_user_id": persona.owner_user_id,
+                    "key": persona.key,
+                    "name": persona.name,
+                    "prompt": persona.prompt,
+                    "image_prompt": persona.image_prompt,
+                    "badges": persona.badges or [],
+                    "visibility": persona.visibility,
+                    "description": persona.description,
+                    "small_description": persona.small_description,
+                    "emoji": persona.emoji,
+                    "intro": persona.intro,
+                    "avatar_url": persona.avatar_url,
+                    "created_at": persona.created_at.isoformat()
+                })
+            return result
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching personas: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching personas: {str(e)}")
+
+
+@router.get("/personas/{persona_id}")
+async def get_persona(persona_id: str) -> Dict[str, Any]:
+    """
+    Get a single persona by ID with full details
+    
+    Args:
+        persona_id: Persona UUID
+    
+    Returns:
+        Persona data with all fields
+    """
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+        
+        with get_db() as db:
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            if not persona:
+                raise HTTPException(status_code=404, detail=f"Persona not found: {persona_id}")
+            
+            return {
+                "id": str(persona.id),
+                "owner_user_id": persona.owner_user_id,
+                "key": persona.key,
+                "name": persona.name,
+                "prompt": persona.prompt,
+                "image_prompt": persona.image_prompt,
+                "badges": persona.badges or [],
+                "visibility": persona.visibility,
+                "description": persona.description,
+                "small_description": persona.small_description,
+                "emoji": persona.emoji,
+                "intro": persona.intro,
+                "avatar_url": persona.avatar_url,
+                "created_at": persona.created_at.isoformat()
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching persona: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching persona: {str(e)}")
+
+
+@router.post("/personas")
+async def create_persona(request: CreatePersonaRequest) -> Dict[str, Any]:
+    """
+    Create a new persona (always public with owner_user_id = NULL)
+    
+    Args:
+        request: Persona creation data
+    
+    Returns:
+        Created persona data
+    """
+    try:
+        with get_db() as db:
+            # Parse badges from comma-separated string
+            badges = []
+            if request.badges:
+                badges = [b.strip() for b in request.badges.split(',') if b.strip()]
+            
+            persona = crud.create_persona(
+                db,
+                name=request.name,
+                key=request.key,
+                prompt=request.prompt,
+                badges=badges,
+                visibility=request.visibility,
+                description=request.description,
+                intro=request.intro,
+                owner_user_id=None  # Always NULL for admin-created personas
+            )
+            
+            # Update additional fields
+            if request.image_prompt or request.small_description or request.emoji or request.avatar_url:
+                persona = crud.update_persona(
+                    db,
+                    persona.id,
+                    image_prompt=request.image_prompt,
+                    small_description=request.small_description,
+                    emoji=request.emoji,
+                    avatar_url=request.avatar_url
+                )
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "id": str(persona.id),
+                "owner_user_id": persona.owner_user_id,
+                "key": persona.key,
+                "name": persona.name,
+                "prompt": persona.prompt,
+                "image_prompt": persona.image_prompt,
+                "badges": persona.badges or [],
+                "visibility": persona.visibility,
+                "description": persona.description,
+                "small_description": persona.small_description,
+                "emoji": persona.emoji,
+                "intro": persona.intro,
+                "avatar_url": persona.avatar_url,
+                "created_at": persona.created_at.isoformat()
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error creating persona: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error creating persona: {str(e)}")
+
+
+@router.put("/personas/{persona_id}")
+async def update_persona(persona_id: str, request: UpdatePersonaRequest) -> Dict[str, Any]:
+    """
+    Update an existing persona
+    
+    Args:
+        persona_id: Persona UUID
+        request: Update data
+    
+    Returns:
+        Updated persona data
+    """
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+        
+        with get_db() as db:
+            # Parse badges from comma-separated string if provided
+            badges = None
+            if request.badges is not None:
+                badges = [b.strip() for b in request.badges.split(',') if b.strip()]
+            
+            persona = crud.update_persona(
+                db,
+                persona_uuid,
+                name=request.name,
+                key=request.key,
+                prompt=request.prompt,
+                image_prompt=request.image_prompt,
+                badges=badges,
+                visibility=request.visibility,
+                description=request.description,
+                small_description=request.small_description,
+                emoji=request.emoji,
+                intro=request.intro,
+                avatar_url=request.avatar_url
+            )
+            
+            if not persona:
+                raise HTTPException(status_code=404, detail=f"Persona not found: {persona_id}")
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "id": str(persona.id),
+                "owner_user_id": persona.owner_user_id,
+                "key": persona.key,
+                "name": persona.name,
+                "prompt": persona.prompt,
+                "image_prompt": persona.image_prompt,
+                "badges": persona.badges or [],
+                "visibility": persona.visibility,
+                "description": persona.description,
+                "small_description": persona.small_description,
+                "emoji": persona.emoji,
+                "intro": persona.intro,
+                "avatar_url": persona.avatar_url,
+                "created_at": persona.created_at.isoformat()
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error updating persona: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating persona: {str(e)}")
+
+
+@router.delete("/personas/{persona_id}")
+async def delete_persona(persona_id: str) -> Dict[str, Any]:
+    """
+    Delete a persona
+    
+    Args:
+        persona_id: Persona UUID
+    
+    Returns:
+        Success message
+    """
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+        
+        with get_db() as db:
+            success = crud.delete_persona(db, persona_uuid)
+            if not success:
+                raise HTTPException(status_code=404, detail=f"Persona not found: {persona_id}")
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {"message": f"Persona '{persona_id}' deleted successfully"}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error deleting persona: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting persona: {str(e)}")
+
+
+# ========== PERSONA HISTORY ENDPOINTS ==========
+
+class CreatePersonaHistoryRequest(BaseModel):
+    persona_id: str
+    text: str = Field(..., min_length=1)
+    name: Optional[str] = Field(None, max_length=255)
+    small_description: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    wide_menu_image_url: Optional[str] = None
+    image_prompt: Optional[str] = None
+
+
+class UpdatePersonaHistoryRequest(BaseModel):
+    text: Optional[str] = Field(None, min_length=1)
+    name: Optional[str] = Field(None, max_length=255)
+    small_description: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    wide_menu_image_url: Optional[str] = None
+    image_prompt: Optional[str] = None
+
+
+@router.get("/personas/{persona_id}/histories")
+async def get_persona_histories(persona_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all history starts for a persona
+    
+    Args:
+        persona_id: Persona UUID
+    
+    Returns:
+        List of persona histories
+    """
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+        
+        with get_db() as db:
+            histories = crud.get_persona_histories(db, persona_uuid)
+            result = []
+            for history in histories:
+                result.append({
+                    "id": str(history.id),
+                    "persona_id": str(history.persona_id),
+                    "name": history.name,
+                    "small_description": history.small_description,
+                    "description": history.description,
+                    "text": history.text,
+                    "image_url": history.image_url,
+                    "wide_menu_image_url": history.wide_menu_image_url,
+                    "image_prompt": history.image_prompt,
+                    "created_at": history.created_at.isoformat()
+                })
+            return result
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching persona histories: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching persona histories: {str(e)}")
+
+
+@router.post("/persona-histories")
+async def create_persona_history(request: CreatePersonaHistoryRequest) -> Dict[str, Any]:
+    """
+    Create a new persona history start
+    
+    Args:
+        request: History creation data
+    
+    Returns:
+        Created history data
+    """
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(request.persona_id)
+        
+        with get_db() as db:
+            # Verify persona exists
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            if not persona:
+                raise HTTPException(status_code=404, detail=f"Persona not found: {request.persona_id}")
+            
+            history = crud.create_persona_history(
+                db,
+                persona_id=persona_uuid,
+                text=request.text,
+                name=request.name,
+                small_description=request.small_description,
+                description=request.description,
+                image_url=request.image_url,
+                wide_menu_image_url=request.wide_menu_image_url,
+                image_prompt=request.image_prompt
+            )
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "id": str(history.id),
+                "persona_id": str(history.persona_id),
+                "name": history.name,
+                "small_description": history.small_description,
+                "description": history.description,
+                "text": history.text,
+                "image_url": history.image_url,
+                "wide_menu_image_url": history.wide_menu_image_url,
+                "image_prompt": history.image_prompt,
+                "created_at": history.created_at.isoformat()
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error creating persona history: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error creating persona history: {str(e)}")
+
+
+@router.put("/persona-histories/{history_id}")
+async def update_persona_history(history_id: str, request: UpdatePersonaHistoryRequest) -> Dict[str, Any]:
+    """
+    Update an existing persona history start
+    
+    Args:
+        history_id: History UUID
+        request: Update data
+    
+    Returns:
+        Updated history data
+    """
+    try:
+        from uuid import UUID
+        history_uuid = UUID(history_id)
+        
+        with get_db() as db:
+            history = crud.update_persona_history(
+                db,
+                history_uuid,
+                text=request.text,
+                name=request.name,
+                small_description=request.small_description,
+                description=request.description,
+                image_url=request.image_url,
+                wide_menu_image_url=request.wide_menu_image_url,
+                image_prompt=request.image_prompt
+            )
+            
+            if not history:
+                raise HTTPException(status_code=404, detail=f"History not found: {history_id}")
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {
+                "id": str(history.id),
+                "persona_id": str(history.persona_id),
+                "name": history.name,
+                "small_description": history.small_description,
+                "description": history.description,
+                "text": history.text,
+                "image_url": history.image_url,
+                "wide_menu_image_url": history.wide_menu_image_url,
+                "image_prompt": history.image_prompt,
+                "created_at": history.created_at.isoformat()
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid history ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error updating persona history: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating persona history: {str(e)}")
+
+
+@router.delete("/persona-histories/{history_id}")
+async def delete_persona_history(history_id: str) -> Dict[str, Any]:
+    """
+    Delete a persona history start
+    
+    Args:
+        history_id: History UUID
+    
+    Returns:
+        Success message
+    """
+    try:
+        from uuid import UUID
+        history_uuid = UUID(history_id)
+        
+        with get_db() as db:
+            success = crud.delete_persona_history(db, history_uuid)
+            if not success:
+                raise HTTPException(status_code=404, detail=f"History not found: {history_id}")
+            
+            # Reload persona cache
+            from app.core.persona_cache import reload_cache
+            reload_cache()
+            
+            return {"message": f"History '{history_id}' deleted successfully"}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid history ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error deleting persona history: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting persona history: {str(e)}")
+
+
