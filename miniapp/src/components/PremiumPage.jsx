@@ -1,15 +1,15 @@
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
 import { createInvoice } from '../api';
-import './PremiumPage.css';
 import { useTranslation } from '../i18n/TranslationContext';
+import './PremiumPage.css';
 
 /**
  * PremiumPage Component
  * Shows upgrade plans and pricing options
  */
 export default function PremiumPage({ energy, onBack }) {
-  const { t } = useTranslation();
+  const { t, language, changeLanguage, supportedLanguages } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState('year');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -80,6 +80,27 @@ export default function PremiumPage({ energy, onBack }) {
 
   return (
     <div className="premium-page">
+      {/* Language Selection Section */}
+      <div className="language-section">
+        <h3 className="language-title">{t('settings.language')}</h3>
+        <div className="language-grid">
+          {supportedLanguages.map((lang) => (
+            <button
+              key={lang}
+              className={`language-button ${language === lang ? 'active' : ''}`}
+              onClick={() => changeLanguage(lang)}
+            >
+              {t(`settings.languageNames.${lang}`)}
+              {language === lang && (
+                <svg className="checkmark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="plans-section">
         <div className="plans-grid">
           {plans.map((plan, index) => (

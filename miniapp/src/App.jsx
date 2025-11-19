@@ -9,30 +9,6 @@ import PremiumPage from './components/PremiumPage';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
- * LanguageSelector Component
- * Compact dropdown for language selection
- */
-function LanguageSelector() {
-  const { language, changeLanguage, supportedLanguages, t } = useTranslation();
-
-  return (
-    <div className="language-selector">
-      <select
-        value={language}
-        onChange={(e) => changeLanguage(e.target.value)}
-        className="language-dropdown"
-      >
-        {supportedLanguages.map((lang) => (
-          <option key={lang} value={lang}>
-            {t(`settings.languageNames.${lang}`)}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-/**
  * Main App Component
  * Initializes Telegram Web App SDK and manages navigation between pages
  */
@@ -347,7 +323,6 @@ function App() {
             </button>
           )}
           <h1 className="page-title">{getPageTitle()}</h1>
-          {currentPage === 'gallery' && <LanguageSelector />}
           {currentPage !== 'history' && currentPage !== 'gallery' && (
             <div className="energy-display">
               <div className="energy-content">

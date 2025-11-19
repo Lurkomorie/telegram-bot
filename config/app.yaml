@@ -36,3 +36,6 @@ logging:
 
 features:
   allow_groups: false
+
+miniapp:
+  menu_button_name: "App"

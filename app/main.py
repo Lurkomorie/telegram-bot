@@ -73,8 +73,12 @@ async def lifespan(app: FastAPI):
     if settings.ENABLE_BOT and bot:
         try:
             from aiogram.types import MenuButtonWebApp, WebAppInfo
+            from app.settings import get_app_config
+            app_config = get_app_config()
+            miniapp_config = app_config.get('miniapp', {})
+            button_name = miniapp_config.get('menu_button_name', 'App')
             miniapp_url = f"{settings.public_url}/miniapp"
-            menu_button = MenuButtonWebApp(text="App Gallery", web_app=WebAppInfo(url=miniapp_url))
+            menu_button = MenuButtonWebApp(text=button_name, web_app=WebAppInfo(url=miniapp_url))
             await bot.set_chat_menu_button(menu_button=menu_button)
             print(f"✅ Mini App menu button set: {miniapp_url}")
         except Exception as e:
