@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { fetchUserLanguage } from '../api';
+import { fetchUserLanguage, updateUserLanguage } from '../api';
 
 // Import translation files
 import en from '../locales/en.json';
@@ -36,7 +36,16 @@ export function TranslationProvider({ children }) {
 
   async function initializeLanguage() {
     try {
-      // ALWAYS get fresh language from Telegram first (instant, no API call)
+      // Check for manual language override first (user selected from dropdown)
+      const manualOverride = localStorage.getItem('manualLanguageOverride');
+      if (manualOverride && SUPPORTED_LANGUAGES.includes(manualOverride)) {
+        console.log(`✅ Language from manual override: ${manualOverride}`);
+        setLanguage(manualOverride);
+        setIsLoading(false);
+        return; // Use manual selection, skip everything else
+      }
+
+      // Get fresh language from Telegram (instant, no API call)
       const telegramLanguage = WebApp.initDataUnsafe?.user?.language_code;
       const normalizedTelegramLanguage = normalizeLanguage(telegramLanguage);
       
@@ -102,6 +111,35 @@ export function TranslationProvider({ children }) {
   }
 
   /**
+   * Manually change language (user selected from dropdown)
+   * @param {string} newLanguage - Language code (e.g., 'en', 'ru', 'fr')
+   */
+  async function changeLanguage(newLanguage) {
+    if (!SUPPORTED_LANGUAGES.includes(newLanguage)) {
+      console.warn(`Unsupported language: ${newLanguage}`);
+      return;
+    }
+
+    console.log(`🌐 Manual language change: ${language} → ${newLanguage}`);
+    
+    // Set manual override flag
+    localStorage.setItem('manualLanguageOverride', newLanguage);
+    localStorage.setItem('userLanguage', newLanguage);
+    setLanguage(newLanguage);
+
+    // Update backend (important for bot to also use new language)
+    const initData = WebApp.initData;
+    if (initData) {
+      try {
+        await updateUserLanguage(newLanguage, initData);
+        console.log(`✅ Backend updated to: ${newLanguage}`);
+      } catch (err) {
+        console.warn('Failed to update language in backend:', err);
+      }
+    }
+  }
+
+  /**
    * Get translated text by dot-notation key path
    * @param {string} keyPath - Dot-separated path (e.g., 'app.ageVerification.title')
    * @returns {string} Translated text
@@ -134,9 +172,10 @@ export function TranslationProvider({ children }) {
 
   const value = {
     language,
-    setLanguage,
+    changeLanguage,
     t,
     isLoading,
+    supportedLanguages: SUPPORTED_LANGUAGES,
   };
 
   return (

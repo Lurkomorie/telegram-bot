@@ -108,6 +108,7 @@ def get_or_create_user(
             username=username,
             first_name=first_name,
             locale=normalized_locale or 'en',
+            locale_manually_set=False,  # Default to Telegram language
             acquisition_source=acquisition_source if acquisition_source else None,
             acquisition_timestamp=datetime.utcnow() if acquisition_source else None
         )
@@ -115,8 +116,8 @@ def get_or_create_user(
         db.commit()
         db.refresh(user)
     else:
-        # Existing user - update locale if provided and different
-        if normalized_locale and user.locale != normalized_locale:
+        # Existing user - only update locale from Telegram if NOT manually set
+        if normalized_locale and user.locale != normalized_locale and not user.locale_manually_set:
             user.locale = normalized_locale
             db.commit()
             db.refresh(user)

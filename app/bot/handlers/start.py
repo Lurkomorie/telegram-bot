@@ -14,6 +14,33 @@ from app.settings import settings, get_ui_text
 from app.core import analytics_service_tg
 
 
+def get_and_update_user_language(db, telegram_user) -> str:
+    """
+    Get user language and ensure it's updated from Telegram
+    
+    Args:
+        db: Database session
+        telegram_user: Telegram User object (from message.from_user or callback.from_user)
+    
+    Returns:
+        User language code (e.g., 'en', 'ru', 'fr')
+    """
+    if not telegram_user:
+        return 'en'
+    
+    # Update user info including language
+    crud.get_or_create_user(
+        db,
+        telegram_id=telegram_user.id,
+        username=telegram_user.username,
+        first_name=telegram_user.first_name,
+        language_code=telegram_user.language_code
+    )
+    
+    # Get updated language
+    return crud.get_user_language(db, telegram_user.id)
+
+
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     """Handle /start command with optional deep link parameter"""
@@ -222,7 +249,7 @@ async def cmd_start(message: types.Message):
     
     # Get user language (retrieve again since we may have skipped the first DB block)
     with get_db() as db:
-        user_language = crud.get_user_language(db, message.from_user.id)
+        user_language = get_and_update_user_language(db, message.from_user)
     
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas, get_persona_field
@@ -259,7 +286,7 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         user_id = from_user.id if from_user else None
     
     with get_db() as db:
-        user_language = crud.get_user_language(db, user_id) if user_id else 'en'
+        user_language = get_and_update_user_language(db, from_user) if from_user else 'en'
     
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
@@ -412,7 +439,7 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
     """Helper function to create a new chat with a specific history"""
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, message.from_user.id)
+        user_language = get_and_update_user_language(db, message.from_user)
     
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
@@ -548,7 +575,7 @@ async def show_personas_callback(callback: types.CallbackQuery):
     """Show persona selection (callback from other menus)"""
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     # Get personas from cache
     from app.core.persona_cache import get_preset_personas, get_persona_field
@@ -582,7 +609,7 @@ async def discover_characters_callback(callback: types.CallbackQuery):
     """Open Mini App gallery to discover all characters"""
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_gallery_keyboard(miniapp_url, language=user_language)
@@ -604,7 +631,7 @@ async def select_persona_callback(callback: types.CallbackQuery):
     
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id
@@ -647,7 +674,7 @@ async def continue_chat_callback(callback: types.CallbackQuery):
     """Continue existing conversation - send AI message + image via pipeline"""
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     from app.core.multi_brain_pipeline import process_message_pipeline
     from app.core.persona_cache import get_persona_by_id
@@ -730,7 +757,7 @@ async def handle_web_app_data(message: types.Message):
     try:
         # Get user language
         with get_db() as db:
-            user_language = crud.get_user_language(db, message.from_user.id)
+            user_language = get_and_update_user_language(db, message.from_user)
         
         # Parse the data sent from the Mini App
         data = json.loads(message.web_app_data.data)
@@ -806,7 +833,7 @@ async def select_story_callback(callback: types.CallbackQuery):
     """Handle story selection and create new chat with selected history"""
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     from app.core.persona_cache import get_persona_by_id
     
@@ -983,7 +1010,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
         crud.update_user_age_verified(db, callback.from_user.id)
         pending_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)
         # Get user language for UI texts
-        user_language = crud.get_user_language(db, callback.from_user.id)
+        user_language = get_and_update_user_language(db, callback.from_user)
     
     # Delete the age verification message
     try:

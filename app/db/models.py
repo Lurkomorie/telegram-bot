@@ -19,6 +19,7 @@ class User(Base):
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     locale = Column(String(10), default="en")
+    locale_manually_set = Column(Boolean, default=False, nullable=False)  # True if user manually changed language in miniapp
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

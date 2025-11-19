@@ -63,6 +63,16 @@
   "nav": {
     "characters": "Charaktere",
     "premium": "Premium"
+  },
+  "settings": {
+    "language": "Sprache",
+    "languageNames": {
+      "en": "English",
+      "ru": "Русский",
+      "fr": "Français",
+      "de": "Deutsch",
+      "es": "Español"
+    }
   }
 }
 

@@ -290,6 +290,66 @@ async def verify_user_age(
         raise HTTPException(status_code=500, detail=f"Failed to verify age: {str(e)}")
 
 
+class UpdateLanguageRequest(BaseModel):
+    language: str  # 'en', 'ru', 'fr', 'de', 'es'
+
+
+@router.post("/user/update-language")
+async def update_user_language(
+    request: UpdateLanguageRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Manually update user's language preference
+    
+    Returns: {success: bool, language: str}
+    """
+    # Validate language
+    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    if request.language not in supported_languages:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {request.language}")
+    
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            # Force update user's language (manual override from miniapp)
+            from app.db.models import User
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user.locale = request.language
+                user.locale_manually_set = True  # Mark as manually set - takes priority over Telegram language
+                db.commit()
+                db.refresh(user)
+                print(f"[UPDATE-LANGUAGE-API] ✅ User {user_id} language MANUALLY updated: {user.locale}")
+            else:
+                # Create user if doesn't exist
+                user = crud.get_or_create_user(db, telegram_id=user_id, language_code=request.language)
+                user.locale_manually_set = True  # Mark as manually set
+                db.commit()
+                db.refresh(user)
+                print(f"[UPDATE-LANGUAGE-API] ✅ User {user_id} created with language: {request.language}")
+            
+            return {"success": True, "language": request.language}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[UPDATE-LANGUAGE-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update language: {str(e)}")
+
+
 class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None
@@ -429,6 +489,10 @@ async def _process_scenario_selection(
         await redis_queue.clear_batch_messages(chat_id)
         await redis_queue.set_processing_lock(chat_id, False)
         
+        # Get user's language for translations
+        with get_db() as db:
+            user_language = crud.get_user_language(db, user_id)
+        
         # Get specific history from cache (no random selection)
         history_start = None
         if history_uuid:
@@ -442,23 +506,32 @@ async def _process_scenario_selection(
         else:
             print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
         
+        # Get translated texts using persona_cache helpers
+        from app.core.persona_cache import get_history_field, get_persona_field
+        
         history_start_data = None
         description_text = None
         if history_start:
+            # Get translated history text and description
+            translated_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
+            translated_description = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+            
             history_start_data = {
-                "text": history_start["text"],
+                "text": translated_text,
                 "image_url": history_start["image_url"],
                 "image_prompt": history_start.get("image_prompt")
             }
-            description_text = history_start["description"]
+            description_text = translated_description
         
         with get_db() as db:
             
-            # Determine greeting text
+            # Determine greeting text (use translated version)
             if history_start_data:
                 greeting_text = history_start_data['text']
             else:
-                greeting_text = persona_intro or f"Hi! I'm {persona_name}. Let's chat!"
+                # Get translated persona intro
+                translated_intro = get_persona_field(persona, 'intro', language=user_language) or persona_intro
+                greeting_text = translated_intro or f"Hi! I'm {persona_name}. Let's chat!"
             
             # Save description as system message if exists
             if description_text:
@@ -492,10 +565,6 @@ async def _process_scenario_selection(
                 )
         
         # Send messages to user
-        # Get user's language for bot messages
-        with get_db() as db:
-            user_language = crud.get_user_language(db, user_id)
-        
         # Send hint message FIRST (before story starts)
         from app.settings import get_ui_text
         hint_text = get_ui_text("hints.restart", language=user_language)

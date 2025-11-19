@@ -9,6 +9,33 @@ from app.db import crud
 from app.core.constants import ERROR_MESSAGES
 
 
+def get_and_update_user_language(db, telegram_user) -> str:
+    """
+    Get user language and ensure it's updated from Telegram
+    
+    Args:
+        db: Database session
+        telegram_user: Telegram User object (from message.from_user or callback.from_user)
+    
+    Returns:
+        User language code (e.g., 'en', 'ru', 'fr')
+    """
+    if not telegram_user:
+        return 'en'
+    
+    # Update user info including language
+    crud.get_or_create_user(
+        db,
+        telegram_id=telegram_user.id,
+        username=telegram_user.username,
+        first_name=telegram_user.first_name,
+        language_code=telegram_user.language_code
+    )
+    
+    # Get updated language
+    return crud.get_user_language(db, telegram_user.id)
+
+
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     """Handle /help command"""
@@ -55,7 +82,7 @@ async def cmd_girls(message: types.Message):
     
     # Get user language
     with get_db() as db:
-        user_language = crud.get_user_language(db, message.from_user.id)
+        user_language = get_and_update_user_language(db, message.from_user)
     
     # Get personas from cache
     preset_data = get_preset_personas()
