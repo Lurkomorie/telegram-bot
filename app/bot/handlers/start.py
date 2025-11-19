@@ -280,9 +280,11 @@ async def cmd_start(message: types.Message):
 async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False, user_id: int = None):
     """Show story selection menu for a persona"""
     # Get user language
+    # Initialize from_user before conditional to avoid UnboundLocalError
+    from_user = message.from_user if hasattr(message, 'from_user') else None
+    
     if not user_id:
         # Try to get from message (works for direct messages)
-        from_user = message.from_user if hasattr(message, 'from_user') else None
         user_id = from_user.id if from_user else None
     
     with get_db() as db:
