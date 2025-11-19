@@ -1622,7 +1622,7 @@ async def bulk_import_translations(
 
 @router.get("/translations/export")
 async def export_translations(
-    format: str = Query("json", regex="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv)$"),
     lang: Optional[str] = Query(None)
 ) -> Any:
     """
