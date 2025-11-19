@@ -8,7 +8,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import STATE_RESOLVER_MAX_RETRIES
-from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, log_dev_context_breakdown, is_development
 import time
 
 
@@ -114,8 +114,20 @@ async def resolve_state(
                 model=state_model
             )
             
-            # Development-only: Log full request
+            # Development-only: Log context breakdown and full request
             if is_development():
+                # Log detailed breakdown
+                log_dev_context_breakdown(
+                    brain_name="State Resolver",
+                    system_prompt_parts={
+                        "base_prompt": prompt,
+                        "state_context": context,
+                    },
+                    history_messages=None,  # Already included in context
+                    user_message=user_message
+                )
+                
+                # Log full request
                 log_dev_request(
                     brain_name="State Resolver",
                     model=state_model,

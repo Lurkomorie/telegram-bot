@@ -8,7 +8,7 @@ from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
-from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, is_development
+from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, log_dev_context_breakdown, is_development
 import time
 
 
@@ -117,10 +117,11 @@ Note: This memory contains important facts about the user and past interactions.
 
 # CONVERSATION FLOW RULES
 - CRITICAL: Respond DIRECTLY to the user's LAST message above. Read it carefully.
-- DO NOT repeat previous responses. Each message must be unique and contextual.
+- ABSOLUTELY FORBIDDEN: Repeating ANY previous response, even partially. Each response MUST be 100% unique.
+- Check conversation history: If you see similar context, you MUST respond differently.
 - Reference specific details from the user's message (their words, their questions, their actions).
 - Build on the conversation naturally - don't reset or start over.
-- Vary your physical actions and dialogue - never use the exact same phrases twice.
+- Vary your physical actions, expressions, and dialogue completely - never reuse phrases, actions, or sentence structures.
 
 # LANGUAGE CONSISTENCY WARNING
 - If you see mixed languages in conversation history (English + Russian in same message), these are ERRORS from past.
@@ -179,16 +180,30 @@ You are reaching out after a period of silence. Follow these rules:
                 model=dialogue_model
             )
             
-            # Development-only: Log full request
+            # Development-only: Log context breakdown and full request
             if is_development():
+                # Log detailed breakdown of what takes up space
+                log_dev_context_breakdown(
+                    brain_name="Dialogue Specialist",
+                    system_prompt_parts={
+                        "base_prompt": system_prompt,
+                        "memory_context": memory_context,
+                        "state_context": state_context,
+                        "followup_guidance": followup_guidance,
+                    },
+                    history_messages=chat_history[-recent_history_count:],
+                    user_message=user_message
+                )
+                
+                # Log full request
                 log_dev_request(
                     brain_name="Dialogue Specialist",
                     model=dialogue_model,
                     messages=messages,
                     temperature=min(temperature, 1.0),
                     top_p=0.9,
-                    frequency_penalty=0.3,
-                    presence_penalty=0.3,
+                    frequency_penalty=0.8,
+                    presence_penalty=0.8,
                     max_tokens=config["llm"].get("max_tokens", 512)
                 )
             
@@ -199,8 +214,8 @@ You are reaching out after a period of silence. Follow these rules:
                 model=dialogue_model,
                 temperature=min(temperature, 1.0),
                 top_p=0.9,
-                frequency_penalty=0.3,
-                presence_penalty=0.3,
+                frequency_penalty=0.8,  # Increased to prevent repetition
+                presence_penalty=0.8,   # Increased to encourage new tokens
                 max_tokens=config["llm"].get("max_tokens", 512)
             )
             

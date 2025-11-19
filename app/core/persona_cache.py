@@ -199,4 +199,8 @@ def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 
     
     # Fallback to default (English)
     return history_dict.get(field)
+  
+def reload_cache():
+    """Reload the persona cache from database"""
+    load_cache()
 

@@ -50,7 +50,9 @@ class Settings(BaseSettings):
     # Feature flags
     ENABLE_BOT: bool = True  # Set to False to disable bot (useful for local testing of APIs)
     ENABLE_FOLLOWUPS: bool = True  # Set to False to disable auto follow-up messages
-    ENABLE_IMAGES_IN_FOLLOWUP: bool = False  # Set to True to generate images during auto follow-ups
+    ENABLE_IMAGES_IN_FOLLOWUP: bool = False  # Set to True to generate images during 30min auto follow-ups
+    ENABLE_IMAGES_24HOURS: bool = False  # Set to True to generate images during 24h re-engagement follow-ups
+    ENABLE_IMAGES_3DAYS: bool = False  # Set to True to generate images during 3day re-engagement follow-ups
     SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
     FORCE_IMAGES_ALWAYS: bool = False  # Debug flag to force images every message (bypasses AI decision)
     ENABLE_ENERGY_REGEN: bool = True  # Set to False to disable automatic energy regeneration (2-hour cycle)

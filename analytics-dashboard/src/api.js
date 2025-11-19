@@ -211,6 +211,110 @@ export const api = {
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch premium stats');
     return response.json();
+  },
+
+  // ========== PERSONA MANAGEMENT ==========
+
+  async getPersonas() {
+    const response = await fetch(`${API_BASE}/api/analytics/personas`);
+    if (!response.ok) throw new Error('Failed to fetch personas');
+    return response.json();
+  },
+
+  async getPersona(personaId) {
+    const response = await fetch(`${API_BASE}/api/analytics/personas/${personaId}`);
+    if (!response.ok) throw new Error('Failed to fetch persona');
+    return response.json();
+  },
+
+  async createPersona(data) {
+    const response = await fetch(`${API_BASE}/api/analytics/personas`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create persona');
+    }
+    return response.json();
+  },
+
+  async updatePersona(personaId, data) {
+    const response = await fetch(`${API_BASE}/api/analytics/personas/${personaId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update persona');
+    }
+    return response.json();
+  },
+
+  async deletePersona(personaId) {
+    const response = await fetch(`${API_BASE}/api/analytics/personas/${personaId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete persona');
+    }
+    return response.json();
+  },
+
+  // ========== PERSONA HISTORY MANAGEMENT ==========
+
+  async getPersonaHistories(personaId) {
+    const response = await fetch(`${API_BASE}/api/analytics/personas/${personaId}/histories`);
+    if (!response.ok) throw new Error('Failed to fetch persona histories');
+    return response.json();
+  },
+
+  async createPersonaHistory(data) {
+    const response = await fetch(`${API_BASE}/api/analytics/persona-histories`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create persona history');
+    }
+    return response.json();
+  },
+
+  async updatePersonaHistory(historyId, data) {
+    const response = await fetch(`${API_BASE}/api/analytics/persona-histories/${historyId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update persona history');
+    }
+    return response.json();
+  },
+
+  async deletePersonaHistory(historyId) {
+    const response = await fetch(`${API_BASE}/api/analytics/persona-histories/${historyId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete persona history');
+    }
+    return response.json();
   }
 };
 

@@ -1000,12 +1000,20 @@ async def new_chat_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data == "confirm_age_18")
+@router.callback_query(lambda c: c.data and c.data.startswith("confirm_age_18"))
 async def confirm_age_callback(callback: types.CallbackQuery):
     """Handle age verification confirmation"""
     import re
     
-    # Update user's age_verified status and get pending deep link
+    # Extract deep link from callback data if present
+    # Format: "confirm_age_18" or "confirm_age_18:<deep_link>"
+    pending_deep_link = None
+    if ":" in callback.data:
+        parts = callback.data.split(":", 1)
+        if len(parts) == 2:
+            pending_deep_link = parts[1]
+    
+    # Update user's age_verified status
     with get_db() as db:
         crud.update_user_age_verified(db, callback.from_user.id)
         pending_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)

@@ -179,7 +179,7 @@ def get_user_language(db: Session, telegram_id: int) -> str:
 
 def get_persona_by_key(db: Session, key: str) -> Optional[Persona]:
     """Get preset persona by key"""
-    return db.query(Persona).filter(Persona.key == key, Persona.is_preset == True).first()
+    return db.query(Persona).filter(Persona.key == key).first()
 
 
 def get_persona_by_id(db: Session, persona_id: UUID) -> Optional[Persona]:
@@ -348,6 +348,69 @@ def create_or_update_persona_history_translation(
     db.commit()
     db.refresh(translation)
     return translation
+  
+def get_all_personas(db: Session) -> List[Persona]:
+    """Get all personas (public and private) for admin management"""
+    return db.query(Persona).order_by(Persona.created_at.desc()).all()
+
+
+def update_persona(
+    db: Session,
+    persona_id: UUID,
+    name: str = None,
+    key: str = None,
+    prompt: str = None,
+    image_prompt: str = None,
+    badges: list = None,
+    visibility: str = None,
+    description: str = None,
+    small_description: str = None,
+    emoji: str = None,
+    intro: str = None,
+    avatar_url: str = None
+) -> Optional[Persona]:
+    """Update an existing persona"""
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return None
+    
+    if name is not None:
+        persona.name = name
+    if key is not None:
+        persona.key = key
+    if prompt is not None:
+        persona.prompt = prompt
+    if image_prompt is not None:
+        persona.image_prompt = image_prompt
+    if badges is not None:
+        persona.badges = badges
+    if visibility is not None:
+        persona.visibility = visibility
+    if description is not None:
+        persona.description = description
+    if small_description is not None:
+        persona.small_description = small_description
+    if emoji is not None:
+        persona.emoji = emoji
+    if intro is not None:
+        persona.intro = intro
+    if avatar_url is not None:
+        persona.avatar_url = avatar_url
+    
+    db.commit()
+    db.refresh(persona)
+    return persona
+
+
+def delete_persona(db: Session, persona_id: UUID) -> bool:
+    """Delete a persona by ID"""
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return False
+    
+    db.delete(persona)
+    db.commit()
+    return True
 
 
 # ========== CHAT OPERATIONS ==========
@@ -946,6 +1009,87 @@ def get_persona_histories(db: Session, persona_id: UUID):
     return db.query(PersonaHistoryStart).filter(
         PersonaHistoryStart.persona_id == persona_id
     ).all()
+
+
+def create_persona_history(
+    db: Session,
+    persona_id: UUID,
+    text: str,
+    name: str = None,
+    small_description: str = None,
+    description: str = None,
+    image_url: str = None,
+    wide_menu_image_url: str = None,
+    image_prompt: str = None
+):
+    """Create a new persona history start"""
+    from app.db.models import PersonaHistoryStart
+    
+    history = PersonaHistoryStart(
+        persona_id=persona_id,
+        text=text,
+        name=name,
+        small_description=small_description,
+        description=description,
+        image_url=image_url,
+        wide_menu_image_url=wide_menu_image_url,
+        image_prompt=image_prompt
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(history)
+    return history
+
+
+def update_persona_history(
+    db: Session,
+    history_id: UUID,
+    text: str = None,
+    name: str = None,
+    small_description: str = None,
+    description: str = None,
+    image_url: str = None,
+    wide_menu_image_url: str = None,
+    image_prompt: str = None
+):
+    """Update an existing persona history start"""
+    from app.db.models import PersonaHistoryStart
+    
+    history = db.query(PersonaHistoryStart).filter(PersonaHistoryStart.id == history_id).first()
+    if not history:
+        return None
+    
+    if text is not None:
+        history.text = text
+    if name is not None:
+        history.name = name
+    if small_description is not None:
+        history.small_description = small_description
+    if description is not None:
+        history.description = description
+    if image_url is not None:
+        history.image_url = image_url
+    if wide_menu_image_url is not None:
+        history.wide_menu_image_url = wide_menu_image_url
+    if image_prompt is not None:
+        history.image_prompt = image_prompt
+    
+    db.commit()
+    db.refresh(history)
+    return history
+
+
+def delete_persona_history(db: Session, history_id: UUID) -> bool:
+    """Delete a persona history start by ID"""
+    from app.db.models import PersonaHistoryStart
+    
+    history = db.query(PersonaHistoryStart).filter(PersonaHistoryStart.id == history_id).first()
+    if not history:
+        return False
+    
+    db.delete(history)
+    db.commit()
+    return True
 
 
 # ========== USER ENERGY OPERATIONS ==========

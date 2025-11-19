@@ -385,13 +385,19 @@ async def _process_single_batch(
         pipeline_timer.end_stage()
         
         # 6. Determine image generation logic
-        # Combine AI decision with scheduler followup type and settings
-        should_skip_30min_followup = followup_type == "30min"  # Always skip for 30min
-        should_skip_followup_image = is_auto_followup and not settings.ENABLE_IMAGES_IN_FOLLOWUP
-        final_should_generate = should_generate_image_flag and not should_skip_followup_image and not should_skip_30min_followup
+        # Check specific flags for each followup type
+        should_skip_image = False
+        if followup_type == "30min":
+            should_skip_image = not settings.ENABLE_IMAGES_IN_FOLLOWUP
+        elif followup_type == "24h":
+            should_skip_image = not settings.ENABLE_IMAGES_24HOURS
+        elif followup_type == "3day":
+            should_skip_image = not settings.ENABLE_IMAGES_3DAYS
         
-        # For 24h follow-ups with images, delay sending text until image is ready
-        should_wait_for_image = followup_type == "24h" and final_should_generate
+        final_should_generate = should_generate_image_flag and not should_skip_image
+        
+        # For 24h and 3day follow-ups with images, send text as caption
+        should_wait_for_image = followup_type in ["24h", "3day"] and final_should_generate
         
         pipeline_timer.start_stage("Send Response to User")
         
@@ -458,10 +464,15 @@ async def _process_single_batch(
             else:
                 log_always(f"[BATCH] ✅ Batch complete (text sent, image in background)")
         else:
-            if should_skip_30min_followup:
-                skip_reason = "30min scheduler (noImage)"
-            elif should_skip_followup_image:
-                skip_reason = "auto-followup with ENABLE_IMAGES_IN_FOLLOWUP=False"
+            if should_skip_image:
+                if followup_type == "30min":
+                    skip_reason = "30min scheduler (ENABLE_IMAGES_IN_FOLLOWUP=False)"
+                elif followup_type == "24h":
+                    skip_reason = "24h scheduler (ENABLE_IMAGES_24HOURS=False)"
+                elif followup_type == "3day":
+                    skip_reason = "3day scheduler (ENABLE_IMAGES_3DAYS=False)"
+                else:
+                    skip_reason = "auto-followup images disabled"
             else:
                 skip_reason = decision_reason
             log_always(f"[BATCH] ⏭️  Skipping image generation (reason: {skip_reason})")
@@ -587,7 +598,7 @@ async def _background_image_generation(
         # Determine priority based on rules:
         # - Premium users: high
         # - First 2 global messages: high
-        # - 24h scheduler: low
+        # - 24h/3day scheduler: low
         # - Default: medium
         if is_premium:
             queue_priority = "high"
@@ -595,9 +606,9 @@ async def _background_image_generation(
         elif global_message_count <= 2:
             queue_priority = "high"
             priority_reason = f"first 2 messages globally (count: {global_message_count})"
-        elif followup_type == "24h":
+        elif followup_type in ["24h", "3day"]:
             queue_priority = "low"
-            priority_reason = "24h scheduler re-engagement"
+            priority_reason = f"{followup_type} scheduler re-engagement"
         else:
             queue_priority = "medium"
             priority_reason = "regular user message"

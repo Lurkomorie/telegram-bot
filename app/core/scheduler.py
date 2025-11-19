@@ -104,6 +104,61 @@ async def check_inactive_chats_24h():
         print(f"[SCHEDULER] Error checking inactive chats (24h): {e}")
 
 
+async def check_inactive_chats_3day():
+    """Check for chats inactive >3 days and send re-engagement follow-up
+    
+    This allows sending a follow-up 3 days after the last auto-message.
+    We only re-engage if it's been 3 days since the last auto-message
+    and the user still hasn't responded.
+    
+    Rate-limited to process max 4 chats per run to avoid overwhelming
+    the image generation queue. With 10-minute intervals, this means
+    4 low-priority image requests every 10 minutes.
+    """
+    from app.settings import settings
+    
+    print("[SCHEDULER] Checking for inactive chats (3 day re-engagement)...")
+    
+    # Check if test user whitelist is enabled
+    test_user_ids = settings.followup_test_user_ids
+    if test_user_ids:
+        print(f"[SCHEDULER] 🧪 Test mode: Followups restricted to user IDs: {test_user_ids}")
+    
+    try:
+        # Extract chat data while in session context
+        with get_db() as db:
+            # Use the re-engagement function with 3 days = 72 hours = 4320 minutes
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=4320, test_user_ids=test_user_ids)
+            # Extract needed data before session closes
+            chat_data = [
+                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
+                for chat in inactive_chats
+            ]
+        
+        if not chat_data:
+            print(f"[SCHEDULER] No inactive chats found (3 day)")
+            return
+        
+        total_chats = len(chat_data)
+        print(f"[SCHEDULER] Found {total_chats} inactive chats needing re-engagement (3 day)")
+        
+        # Rate limit: Process max 4 chats per run to prevent overwhelming the queue
+        max_per_run = 4
+        chats_to_process = chat_data[:max_per_run]
+        
+        if total_chats > max_per_run:
+            print(f"[SCHEDULER] ⏱️  Rate limiting: Processing {max_per_run} of {total_chats} chats (remaining will be processed in next run)")
+        
+        for data in chats_to_process:
+            try:
+                await send_auto_message(data["chat_id"], data["tg_chat_id"], followup_type="3day")
+            except Exception as e:
+                print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
+                
+    except Exception as e:
+        print(f"[SCHEDULER] Error checking inactive chats (3 day): {e}")
+
+
 async def regenerate_hourly_energy():
     """Regenerate 2 energy every hour for all non-premium users"""
     print("[SCHEDULER] ⚡ Running hourly energy regeneration...")
@@ -199,7 +254,11 @@ def start_scheduler():
         # Processes max 4 chats per run = 4 low-priority image requests every 5 minutes
         scheduler.add_job(check_inactive_chats_24h, 'interval', minutes=5)
         
-        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 5min with max 4 chats/run)")
+        # Check for inactive chats every 10 minutes (3 day threshold)
+        # Processes max 4 chats per run = 4 low-priority image requests every 10 minutes
+        scheduler.add_job(check_inactive_chats_3day, 'interval', minutes=10)
+        
+        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 5min, 3day check every 10min with max 4 chats/run)")
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
