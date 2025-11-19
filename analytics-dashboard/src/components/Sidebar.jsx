@@ -11,7 +11,8 @@ export default function Sidebar() {
     { path: '/acquisition-sources', label: 'Acquisition Sources', icon: '🎯' },
     { path: '/start-codes', label: 'Start Codes', icon: '🎫' },
     { path: '/characters', label: 'Characters', icon: '🎭' },
-    { path: '/images', label: 'Images', icon: '🖼️' }
+    { path: '/images', label: 'Images', icon: '🖼️' },
+    { path: '/translations', label: 'Translations', icon: '🌐' }
   ];
 
   const handleLogout = () => {

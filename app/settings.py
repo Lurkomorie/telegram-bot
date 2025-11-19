@@ -167,6 +167,8 @@ def get_ui_text(key_path: str, language: str = "en", **kwargs) -> str:
     """
     Get UI text by dot-notation key path in specified language and format with kwargs
     
+    Now uses TranslationService for unified translation management.
+    
     Examples:
         get_ui_text("welcome.title", language="en")
         get_ui_text("chat_options.title", language="ru", persona_name="Jane")
@@ -180,44 +182,24 @@ def get_ui_text(key_path: str, language: str = "en", **kwargs) -> str:
     Returns:
         Formatted text string
     """
-    if _ui_texts is None:
-        raise RuntimeError("UI texts not loaded. Call load_configs() first.")
+    from app.core.translation_service import translation_service
     
-    # Normalize language code and set fallback
+    # Normalize language code
     language = language.lower() if language else 'en'
     
-    # Try requested language first, fallback to English if not found
-    texts = _ui_texts.get(language, _ui_texts.get('en'))
-    
-    if not texts:
-        raise RuntimeError(f"No UI texts available for language '{language}' or fallback 'en'")
-    
-    # Navigate through nested dict using dot notation
-    keys = key_path.split('.')
-    value = texts
-    
-    for key in keys:
-        if isinstance(value, dict) and key in value:
-            value = value[key]
-        else:
-            # If key not found in requested language, try English as fallback
-            if language != 'en' and 'en' in _ui_texts:
-                value_fallback = _ui_texts['en']
-                for k in keys:
-                    if isinstance(value_fallback, dict) and k in value_fallback:
-                        value_fallback = value_fallback[k]
-                    else:
-                        raise KeyError(f"UI text key not found: {key_path} (tried {language} and en)")
-                value = value_fallback
-                break
-            else:
-                raise KeyError(f"UI text key not found: {key_path}")
+    # Get translation from service (with fallback to English)
+    text = translation_service.get(key_path, language, fallback=True)
     
     # Format with kwargs if any
-    if kwargs and isinstance(value, str):
-        return value.format(**kwargs)
+    if kwargs:
+        try:
+            return text.format(**kwargs)
+        except (KeyError, ValueError) as e:
+            # If formatting fails, return unformatted text
+            print(f"[UI-TEXT] Warning: Failed to format text '{key_path}': {e}")
+            return text
     
-    return value
+    return text
 
 
 def get_ui_texts() -> dict:

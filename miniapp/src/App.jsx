@@ -37,7 +37,7 @@ function LanguageSelector() {
  * Initializes Telegram Web App SDK and manages navigation between pages
  */
 function App() {
-  const { t, isLoading: isLoadingLanguage } = useTranslation();
+  const { t, isLoading: isLoadingLanguage, onLanguageChange } = useTranslation();
   const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'premium'
   const [personas, setPersonas] = useState([]);
   const [selectedPersona, setSelectedPersona] = useState(null);
@@ -132,6 +132,25 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [currentPage]);
+
+  // Subscribe to language changes and refetch personas
+  useEffect(() => {
+    if (!onLanguageChange) return;
+    
+    const unsubscribe = onLanguageChange((newLanguage) => {
+      console.log(`🔄 Language changed to ${newLanguage}, refetching personas and histories...`);
+      
+      // Refetch personas with new language
+      loadPersonas();
+      
+      // If viewing histories, refetch those too
+      if (currentPage === 'history' && selectedPersona) {
+        handlePersonaClick(selectedPersona);
+      }
+    });
+    
+    return unsubscribe;
+  }, [currentPage, selectedPersona, onLanguageChange]);
 
   async function loadPersonas() {
     try {

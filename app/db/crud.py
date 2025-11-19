@@ -2821,4 +2821,161 @@ def delete_start_code(db: Session, code: str) -> bool:
     return True
 
 
+# ========== TRANSLATION OPERATIONS ==========
+
+def get_translation(db: Session, key: str, lang: str):
+    """Get a single translation by key and language
+    
+    Args:
+        db: Database session
+        key: Translation key (e.g., "airi.name", "welcome.title")
+        lang: Language code (e.g., 'en', 'ru', 'fr', 'de', 'es')
+    
+    Returns:
+        Translation object or None if not found
+    """
+    from app.db.models import Translation
+    return db.query(Translation).filter(
+        Translation.key == key,
+        Translation.lang == lang
+    ).first()
+
+
+def get_translations_by_prefix(db: Session, prefix: str, lang: str) -> List:
+    """Get all translations with keys starting with a prefix
+    
+    Args:
+        db: Database session
+        prefix: Key prefix (e.g., "airi.", "welcome.")
+        lang: Language code
+    
+    Returns:
+        List of Translation objects
+    """
+    from app.db.models import Translation
+    return db.query(Translation).filter(
+        Translation.key.like(f"{prefix}%"),
+        Translation.lang == lang
+    ).all()
+
+
+def get_all_translations(db: Session, lang: Optional[str] = None) -> List:
+    """Get all translations, optionally filtered by language
+    
+    Args:
+        db: Database session
+        lang: Optional language code filter
+    
+    Returns:
+        List of Translation objects
+    """
+    from app.db.models import Translation
+    query = db.query(Translation)
+    
+    if lang:
+        query = query.filter(Translation.lang == lang)
+    
+    return query.all()
+
+
+def create_or_update_translation(
+    db: Session,
+    key: str,
+    lang: str,
+    value: str,
+    category: Optional[str] = None
+):
+    """Create or update a translation
+    
+    Args:
+        db: Database session
+        key: Translation key
+        lang: Language code
+        value: Translated text
+        category: Optional category ('ui', 'persona', 'history')
+    
+    Returns:
+        Translation object
+    """
+    from app.db.models import Translation
+    
+    # Try to find existing translation
+    translation = db.query(Translation).filter(
+        Translation.key == key,
+        Translation.lang == lang
+    ).first()
+    
+    if translation:
+        # Update existing
+        translation.value = value
+        if category is not None:
+            translation.category = category
+        translation.updated_at = datetime.utcnow()
+    else:
+        # Create new
+        translation = Translation(
+            key=key,
+            lang=lang,
+            value=value,
+            category=category
+        )
+        db.add(translation)
+    
+    db.commit()
+    db.refresh(translation)
+    return translation
+
+
+def delete_translation(db: Session, key: str, lang: Optional[str] = None) -> int:
+    """Delete translation(s) by key and optionally language
+    
+    Args:
+        db: Database session
+        key: Translation key
+        lang: Optional language code (if None, deletes all languages for this key)
+    
+    Returns:
+        Number of translations deleted
+    """
+    from app.db.models import Translation
+    
+    query = db.query(Translation).filter(Translation.key == key)
+    
+    if lang:
+        query = query.filter(Translation.lang == lang)
+    
+    count = query.delete(synchronize_session=False)
+    db.commit()
+    
+    return count
+
+
+def bulk_create_translations(db: Session, translations_list: List[Dict[str, str]]) -> int:
+    """Bulk create translations efficiently
+    
+    Args:
+        db: Database session
+        translations_list: List of dicts with keys: 'key', 'lang', 'value', 'category' (optional)
+    
+    Returns:
+        Number of translations created
+    """
+    from app.db.models import Translation
+    
+    translation_objects = []
+    for trans_data in translations_list:
+        translation = Translation(
+            key=trans_data['key'],
+            lang=trans_data['lang'],
+            value=trans_data['value'],
+            category=trans_data.get('category')
+        )
+        translation_objects.append(translation)
+    
+    db.bulk_save_objects(translation_objects)
+    db.commit()
+    
+    return len(translation_objects)
+
+
 

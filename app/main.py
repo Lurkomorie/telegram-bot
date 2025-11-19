@@ -54,7 +54,12 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting application...")
     load_configs()
     
-    # Load persona cache
+    # Load translation service FIRST (before persona cache, as it depends on it)
+    from app.core.translation_service import translation_service
+    translation_service.load()
+    print("✅ Translation service loaded")
+    
+    # Load persona cache (depends on translation_service)
     from app.core.persona_cache import load_cache
     load_cache()
     print("✅ Persona cache loaded")
@@ -191,7 +196,11 @@ async def process_update_async(update: Update):
     try:
         await dp.feed_update(bot, update)
     except Exception as e:
-        print(f"[WEBHOOK] Error processing update: {e}")
+        print(f"[WEBHOOK] Error processing update: {type(e).__name__}: {e}")
+        # Log full traceback in development
+        if settings.ENV == "development" or settings.ENVIRONMENT in ["development", "dev", "local"]:
+            import traceback
+            traceback.print_exc()
         # Don't propagate - already returned 200 to Telegram
 
 

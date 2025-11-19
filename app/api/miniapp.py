@@ -485,9 +485,14 @@ async def _process_scenario_selection(
             print(f"[MINIAPP-SELECT] 🧹 Clearing unprocessed messages for chat {chat_id}")
             crud.clear_unprocessed_messages(db, chat_id)
         
-        # Clear Redis queue and processing lock
-        await redis_queue.clear_batch_messages(chat_id)
-        await redis_queue.set_processing_lock(chat_id, False)
+        # Clear Redis queue and processing lock (with error handling for Redis issues)
+        try:
+            await redis_queue.clear_batch_messages(chat_id)
+            await redis_queue.set_processing_lock(chat_id, False)
+            print(f"[MINIAPP-SELECT] ✅ Redis queue cleared for chat {chat_id}")
+        except Exception as redis_error:
+            print(f"[MINIAPP-SELECT] ⚠️  Redis error (continuing anyway): {redis_error}")
+            # Continue even if Redis fails - the messages can still be sent
         
         # Get user's language for translations
         with get_db() as db:

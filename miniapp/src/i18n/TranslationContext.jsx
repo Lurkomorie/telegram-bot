@@ -29,6 +29,7 @@ const TranslationContext = createContext();
 export function TranslationProvider({ children }) {
   const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [isLoading, setIsLoading] = useState(true);
+  const [languageChangeListeners, setLanguageChangeListeners] = useState([]);
 
   useEffect(() => {
     initializeLanguage();
@@ -137,6 +138,23 @@ export function TranslationProvider({ children }) {
         console.warn('Failed to update language in backend:', err);
       }
     }
+
+    // Notify all listeners that language has changed
+    console.log(`📢 Notifying ${languageChangeListeners.length} language change listeners`);
+    languageChangeListeners.forEach(listener => listener(newLanguage));
+  }
+
+  /**
+   * Subscribe to language changes
+   * @param {Function} callback - Called when language changes
+   * @returns {Function} Unsubscribe function
+   */
+  function onLanguageChange(callback) {
+    setLanguageChangeListeners(prev => [...prev, callback]);
+    // Return unsubscribe function
+    return () => {
+      setLanguageChangeListeners(prev => prev.filter(cb => cb !== callback));
+    };
   }
 
   /**
@@ -173,6 +191,7 @@ export function TranslationProvider({ children }) {
   const value = {
     language,
     changeLanguage,
+    onLanguageChange,
     t,
     isLoading,
     supportedLanguages: SUPPORTED_LANGUAGES,

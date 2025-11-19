@@ -10,6 +10,7 @@ import PremiumStatistics from './components/PremiumStatistics';
 import ReferralStats from './components/ReferralStats';
 import AuthGuard from './components/AuthGuard';
 import Characters from './components/Characters';
+import Translations from './components/Translations';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
                   <Route path="/characters" element={<Characters />} />
                   <Route path="/images" element={<Images />} />
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
+                  <Route path="/translations" element={<Translations />} />
                 </Routes>
               </main>
             </div>

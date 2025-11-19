@@ -28,6 +28,7 @@ def load_cache():
         preset_list = []
         for persona in preset_personas:
             # Extract all data from ORM object
+            # Translations are now handled by translation_service, not stored in persona dict
             persona_dict = {
                 "id": str(persona.id),
                 "name": persona.name,
@@ -41,17 +42,7 @@ def load_cache():
                 "avatar_url": persona.avatar_url,
                 "visibility": persona.visibility,
                 "owner_user_id": persona.owner_user_id,
-                "translations": {}  # Will be populated with language-specific content
             }
-            
-            # Load translations for this persona
-            translations = crud.get_persona_translations(db, persona.id)
-            for lang, trans in translations.items():
-                persona_dict["translations"][lang] = {
-                    "description": trans.description,
-                    "small_description": trans.small_description,
-                    "intro": trans.intro
-                }
             
             preset_list.append(persona_dict)
             
@@ -65,6 +56,7 @@ def load_cache():
             
             history_list = []
             for history in histories:
+                # Translations are now handled by translation_service, not stored in history dict
                 history_dict = {
                     "id": str(history.id),
                     "persona_id": str(history.persona_id),
@@ -75,18 +67,7 @@ def load_cache():
                     "image_url": history.image_url,
                     "wide_menu_image_url": history.wide_menu_image_url,
                     "image_prompt": history.image_prompt,
-                    "translations": {}  # Will be populated with language-specific content
                 }
-                
-                # Load translations for this history
-                hist_translations = crud.get_persona_history_translations(db, history.id)
-                for lang, trans in hist_translations.items():
-                    history_dict["translations"][lang] = {
-                        "name": trans.name,
-                        "small_description": trans.small_description,
-                        "description": trans.description,
-                        "text": trans.text
-                    }
                 
                 history_list.append(history_dict)
             
@@ -94,14 +75,8 @@ def load_cache():
         
         _CACHE["presets"] = preset_list
     
-    total_persona_translations = sum(len(p["translations"]) for p in _CACHE["presets"])
-    total_history_translations = sum(
-        len(h["translations"]) 
-        for histories in _CACHE["histories"].values() 
-        for h in histories
-    )
     print(f"[CACHE] ✅ Loaded {len(_CACHE['presets'])} personas with {sum(len(h) for h in _CACHE['histories'].values())} total histories")
-    print(f"[CACHE] 🌐 Loaded {total_persona_translations} persona translations and {total_history_translations} history translations")
+    print(f"[CACHE] 🌐 Translations are now managed by TranslationService")
 
 
 def get_preset_personas() -> List[Dict[str, Any]]:
@@ -164,20 +139,28 @@ def get_persona_field(persona_dict: Dict[str, Any], field: str, language: str = 
     
     Args:
         persona_dict: Persona dictionary from cache
-        field: Field name (e.g., 'description', 'small_description', 'intro')
+        field: Field name (e.g., 'name', 'description', 'small_description', 'intro')
         language: Language code (e.g., 'en', 'ru', 'fr')
     
     Returns:
-        Translated field value if available, otherwise fallback to English
+        Translated field value if available, otherwise fallback to default
     """
-    # Try to get translation
-    if language != 'en' and "translations" in persona_dict:
-        trans = persona_dict["translations"].get(language, {})
-        if trans and field in trans and trans[field]:
-            return trans[field]
+    from app.core.translation_service import translation_service
     
-    # Fallback to default (English)
-    return persona_dict.get(field)
+    persona_key = persona_dict.get('key')
+    if not persona_key:
+        # If persona doesn't have a key, return the default field value
+        return persona_dict.get(field)
+    
+    # Try to get translation from translation service
+    trans_key = f"{persona_key}.{field}"
+    translated = translation_service.get(trans_key, language, fallback=True)
+    
+    # If translation key was returned unchanged (not found), use default value
+    if translated == trans_key:
+        return persona_dict.get(field)
+    
+    return translated
 
 
 def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 'en') -> Any:
@@ -189,16 +172,43 @@ def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 
         language: Language code (e.g., 'en', 'ru', 'fr')
     
     Returns:
-        Translated field value if available, otherwise fallback to English
+        Translated field value if available, otherwise fallback to default
     """
-    # Try to get translation
-    if language != 'en' and "translations" in history_dict:
-        trans = history_dict["translations"].get(language, {})
-        if trans and field in trans and trans[field]:
-            return trans[field]
+    from app.core.translation_service import translation_service
     
-    # Fallback to default (English)
-    return history_dict.get(field)
+    # Find persona key and history index from the history dict
+    # We need to look up the persona this history belongs to
+    persona_id = history_dict.get('persona_id')
+    if not persona_id:
+        return history_dict.get(field)
+    
+    # Get persona to find its key
+    persona = get_persona_by_id(persona_id)
+    if not persona or not persona.get('key'):
+        return history_dict.get(field)
+    
+    persona_key = persona['key']
+    
+    # Find index of this history in the persona's histories
+    histories = get_persona_histories(persona_id)
+    history_index = None
+    for idx, h in enumerate(histories):
+        if h.get('id') == history_dict.get('id'):
+            history_index = idx
+            break
+    
+    if history_index is None:
+        return history_dict.get(field)
+    
+    # Build translation key: {persona_key}.history.{field}-{index}
+    trans_key = f"{persona_key}.history.{field}-{history_index}"
+    translated = translation_service.get(trans_key, language, fallback=True)
+    
+    # If translation key was returned unchanged (not found), use default value
+    if translated == trans_key:
+        return history_dict.get(field)
+    
+    return translated
   
 def reload_cache():
     """Reload the persona cache from database"""

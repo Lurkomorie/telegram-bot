@@ -329,3 +329,23 @@ class StartCode(Base):
     __table_args__ = (
         Index("ix_start_codes_is_active", "is_active"),
     )
+
+
+class Translation(Base):
+    """Unified translation table for all localizable content"""
+    __tablename__ = "translations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    key = Column(String(255), nullable=False, index=True)  # Dot notation: "airi.name", "welcome.title", "airi.history.title-0"
+    lang = Column(String(10), nullable=False, index=True)  # 'en', 'ru', 'fr', 'de', 'es'
+    value = Column(Text, nullable=False)  # The translated content
+    category = Column(String(50), nullable=True)  # 'ui', 'persona', 'history' for filtering/organization
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint("key", "lang", name="uq_translations_key_lang"),
+        Index("ix_translations_key_lang", "key", "lang"),
+        Index("ix_translations_category", "category"),
+    )

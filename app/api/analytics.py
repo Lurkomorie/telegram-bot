@@ -1364,3 +1364,354 @@ async def delete_persona_history(history_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Error deleting persona history: {str(e)}")
 
 
+# ========== TRANSLATION MANAGEMENT ENDPOINTS ==========
+
+class TranslationRequest(BaseModel):
+    """Request model for creating/updating translations"""
+    key: str = Field(..., description="Translation key (dot notation)")
+    lang: str = Field(..., description="Language code (en, ru, fr, de, es)")
+    value: str = Field(..., description="Translated text")
+    category: Optional[str] = Field(None, description="Category (ui, persona, history)")
+
+
+@router.get("/translations")
+async def get_translations(
+    lang: Optional[str] = Query(None, description="Filter by language"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    key_prefix: Optional[str] = Query(None, description="Filter by key prefix"),
+    search: Optional[str] = Query(None, description="Search in keys or values"),
+    limit: int = Query(100, ge=1, le=50000),
+    offset: int = Query(0, ge=0)
+) -> Dict[str, Any]:
+    """
+    Get all translations with filtering and pagination
+    
+    Returns paginated list of translations with all language versions
+    """
+    try:
+        with get_db() as db:
+            from app.db.models import Translation
+            
+            # Build query
+            query = db.query(Translation)
+            
+            if lang:
+                query = query.filter(Translation.lang == lang)
+            if category:
+                query = query.filter(Translation.category == category)
+            if key_prefix:
+                query = query.filter(Translation.key.like(f"{key_prefix}%"))
+            if search:
+                search_pattern = f"%{search}%"
+                query = query.filter(
+                    (Translation.key.like(search_pattern)) | 
+                    (Translation.value.like(search_pattern))
+                )
+            
+            # Get total count
+            total = query.count()
+            
+            # Get paginated results
+            translations = query.order_by(Translation.key, Translation.lang).offset(offset).limit(limit).all()
+            
+            # Group by key to show all languages together
+            from collections import defaultdict
+            grouped = defaultdict(dict)
+            for trans in translations:
+                if 'key' not in grouped[trans.key]:
+                    grouped[trans.key] = {
+                        'key': trans.key,
+                        'category': trans.category,
+                        'translations': {}
+                    }
+                grouped[trans.key]['translations'][trans.lang] = trans.value
+            
+            return {
+                'translations': list(grouped.values()),
+                'total': total,
+                'limit': limit,
+                'offset': offset
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching translations: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching translations: {str(e)}")
+
+
+@router.get("/translations/{key:path}")
+async def get_translation_by_key(key: str) -> Dict[str, Any]:
+    """
+    Get all language versions of a specific translation key
+    
+    Args:
+        key: Translation key (URL-encoded if contains special characters)
+    
+    Returns:
+        Key with all language versions
+    """
+    try:
+        with get_db() as db:
+            from app.db.models import Translation
+            
+            translations = db.query(Translation).filter(Translation.key == key).all()
+            
+            if not translations:
+                raise HTTPException(status_code=404, detail=f"Translation key not found: {key}")
+            
+            result = {
+                'key': key,
+                'category': translations[0].category,
+                'translations': {}
+            }
+            
+            for trans in translations:
+                result['translations'][trans.lang] = trans.value
+            
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching translation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching translation: {str(e)}")
+
+
+@router.post("/translations")
+async def create_translation(request: TranslationRequest) -> Dict[str, Any]:
+    """
+    Create a new translation
+    
+    Args:
+        request: Translation data
+    
+    Returns:
+        Created translation
+    """
+    try:
+        with get_db() as db:
+            translation = crud.create_or_update_translation(
+                db,
+                key=request.key,
+                lang=request.lang,
+                value=request.value,
+                category=request.category
+            )
+            
+            return {
+                'id': str(translation.id),
+                'key': translation.key,
+                'lang': translation.lang,
+                'value': translation.value,
+                'category': translation.category,
+                'created_at': translation.created_at.isoformat(),
+                'updated_at': translation.updated_at.isoformat()
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error creating translation: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error creating translation: {str(e)}")
+
+
+@router.put("/translations/{key:path}/{lang}")
+async def update_translation(key: str, lang: str, value: str = Query(...)) -> Dict[str, Any]:
+    """
+    Update an existing translation
+    
+    Args:
+        key: Translation key (URL-encoded)
+        lang: Language code
+        value: New translated text (as query param to avoid encoding issues)
+    
+    Returns:
+        Updated translation
+    """
+    try:
+        with get_db() as db:
+            translation = crud.create_or_update_translation(
+                db,
+                key=key,
+                lang=lang,
+                value=value
+            )
+            
+            return {
+                'id': str(translation.id),
+                'key': translation.key,
+                'lang': translation.lang,
+                'value': translation.value,
+                'category': translation.category,
+                'updated_at': translation.updated_at.isoformat()
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error updating translation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating translation: {str(e)}")
+
+
+@router.delete("/translations/{key:path}/{lang}")
+async def delete_translation(key: str, lang: str) -> Dict[str, Any]:
+    """
+    Delete a translation
+    
+    Args:
+        key: Translation key (URL-encoded)
+        lang: Language code
+    
+    Returns:
+        Success message
+    """
+    try:
+        with get_db() as db:
+            count = crud.delete_translation(db, key, lang)
+            
+            if count == 0:
+                raise HTTPException(status_code=404, detail=f"Translation not found: {key} ({lang})")
+            
+            return {"message": f"Translation deleted: {key} ({lang})"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error deleting translation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting translation: {str(e)}")
+
+
+@router.post("/translations/bulk-import")
+async def bulk_import_translations(
+    translations: List[Dict[str, str]]
+) -> Dict[str, Any]:
+    """
+    Bulk import translations from JSON array
+    
+    Args:
+        translations: List of translation objects with keys: key, lang, value, category (optional)
+    
+    Returns:
+        Import statistics
+    """
+    try:
+        with get_db() as db:
+            # Validate and import
+            valid_translations = []
+            errors = []
+            
+            for idx, trans_data in enumerate(translations):
+                # Validate required fields
+                if 'key' not in trans_data or 'lang' not in trans_data or 'value' not in trans_data:
+                    errors.append(f"Row {idx}: Missing required fields (key, lang, value)")
+                    continue
+                
+                valid_translations.append(trans_data)
+            
+            # Bulk create
+            if valid_translations:
+                count = crud.bulk_create_translations(db, valid_translations)
+            else:
+                count = 0
+            
+            return {
+                'imported': count,
+                'errors': errors,
+                'total': len(translations)
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error importing translations: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error importing translations: {str(e)}")
+
+
+@router.get("/translations/export")
+async def export_translations(
+    format: str = Query("json", regex="^(json|csv)$"),
+    lang: Optional[str] = Query(None)
+) -> Any:
+    """
+    Export all translations as JSON or CSV
+    
+    Args:
+        format: Export format (json or csv)
+        lang: Optional language filter
+    
+    Returns:
+        File download response
+    """
+    try:
+        from fastapi.responses import StreamingResponse
+        import io
+        import csv
+        
+        with get_db() as db:
+            translations = crud.get_all_translations(db, lang)
+            
+            if format == "csv":
+                # Export as CSV
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(['key', 'lang', 'value', 'category'])
+                
+                for trans in translations:
+                    writer.writerow([trans.key, trans.lang, trans.value, trans.category or ''])
+                
+                output.seek(0)
+                return StreamingResponse(
+                    iter([output.getvalue()]),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=translations.csv"}
+                )
+            else:
+                # Export as JSON
+                data = [
+                    {
+                        'key': trans.key,
+                        'lang': trans.lang,
+                        'value': trans.value,
+                        'category': trans.category
+                    }
+                    for trans in translations
+                ]
+                
+                import json
+                output = io.StringIO()
+                json.dump(data, output, indent=2, ensure_ascii=False)
+                output.seek(0)
+                
+                return StreamingResponse(
+                    iter([output.getvalue()]),
+                    media_type="application/json",
+                    headers={"Content-Disposition": "attachment; filename=translations.json"}
+                )
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error exporting translations: {e}")
+        raise HTTPException(status_code=500, detail=f"Error exporting translations: {str(e)}")
+
+
+@router.post("/translations/refresh-cache")
+async def refresh_translation_cache() -> Dict[str, Any]:
+    """
+    Refresh the translation cache from database
+    
+    This should be called after bulk updates to translations
+    
+    Returns:
+        Success message with statistics
+    """
+    try:
+        from app.core.translation_service import translation_service
+        
+        translation_service.reload()
+        
+        # Get statistics
+        stats = {}
+        for lang in translation_service.get_supported_languages():
+            count = len(translation_service.get_all(lang))
+            stats[lang] = count
+        
+        return {
+            'message': 'Translation cache refreshed successfully',
+            'statistics': stats
+        }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error refreshing cache: {e}")
+        raise HTTPException(status_code=500, detail=f"Error refreshing cache: {str(e)}")
+
+
