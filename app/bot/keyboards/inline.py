@@ -19,6 +19,8 @@ def build_persona_selection_keyboard(
         user_personas: List of dicts with 'id', 'name', 'key', 'emoji' (optional), 'small_description' (optional)
         miniapp_url: URL for Mini App gallery (optional)
     """
+    from app.core.persona_cache import get_persona_field
+    
     buttons = []
     
     # Add preset personas with two columns layout
@@ -27,7 +29,8 @@ def build_persona_selection_keyboard(
         # First column
         persona = preset_personas[i]
         emoji = persona.get('emoji', '💕')
-        text = f"{emoji} {persona['name']}"
+        name = get_persona_field(persona, 'name', language=language) or persona['name']
+        text = f"{emoji} {name}"
         row.append(InlineKeyboardButton(
             text=text,
             callback_data=f"select_persona:{persona['id']}"
@@ -37,7 +40,8 @@ def build_persona_selection_keyboard(
         if i + 1 < len(preset_personas):
             persona = preset_personas[i + 1]
             emoji = persona.get('emoji', '💕')
-            text = f"{emoji} {persona['name']}"
+            name = get_persona_field(persona, 'name', language=language) or persona['name']
+            text = f"{emoji} {name}"
             row.append(InlineKeyboardButton(
                 text=text,
                 callback_data=f"select_persona:{persona['id']}"
@@ -53,7 +57,8 @@ def build_persona_selection_keyboard(
             # First column
             persona = user_personas[i]
             emoji = persona.get('emoji', '✨')
-            text = f"{emoji} {persona['name']}"
+            name = get_persona_field(persona, 'name', language=language) or persona['name']
+            text = f"{emoji} {name}"
             row.append(InlineKeyboardButton(
                 text=text,
                 callback_data=f"select_persona:{persona['id']}"
@@ -63,7 +68,8 @@ def build_persona_selection_keyboard(
             if i + 1 < len(user_personas):
                 persona = user_personas[i + 1]
                 emoji = persona.get('emoji', '✨')
-                text = f"{emoji} {persona['name']}"
+                name = get_persona_field(persona, 'name', language=language) or persona['name']
+                text = f"{emoji} {name}"
                 row.append(InlineKeyboardButton(
                     text=text,
                     callback_data=f"select_persona:{persona['id']}"

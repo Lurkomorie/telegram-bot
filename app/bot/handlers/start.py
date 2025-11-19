@@ -105,11 +105,11 @@ async def cmd_start(message: types.Message):
                 history_id = start_code["history_id"]
                 
                 # Get persona from cache for name
-                from app.core.persona_cache import get_persona_by_id
+                from app.core.persona_cache import get_persona_by_id, get_persona_field
                 persona = get_persona_by_id(persona_id)
                 
                 if persona:
-                    persona_name = persona["name"]
+                    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
                     
                     # Check if chat already exists
                     with get_db() as db:
@@ -171,7 +171,8 @@ async def cmd_start(message: types.Message):
             
             persona_id = persona["id"]
             history_id = history["id"]
-            persona_name = persona["name"]
+            from app.core.persona_cache import get_persona_field
+            persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
             
             # Check if chat already exists
             with get_db() as db:
@@ -260,8 +261,8 @@ async def cmd_start(message: types.Message):
     welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
-        name = p.get('name', 'Unknown')
-        # Get translated description if available
+        # Get translated name and description
+        name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
             welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
@@ -333,14 +334,18 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
 
 async def create_new_persona_chat(message: types.Message, persona_id: str):
     """Helper function to create a new chat with a persona"""
+    # Get user language
+    with get_db() as db:
+        user_language = get_and_update_user_language(db, message.from_user)
+    
     # Get persona from cache
-    from app.core.persona_cache import get_persona_by_id, get_random_history
+    from app.core.persona_cache import get_persona_by_id, get_random_history, get_persona_field
     persona = get_persona_by_id(persona_id)
     if not persona:
         await message.answer("❌ Persona not found!")
         return
     
-    persona_name = persona["name"]
+    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
     persona_intro = persona["intro"]
     
     # Create new chat (DB call needed)
@@ -463,9 +468,9 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
         # If history not found, log warning and continue without history
         print(f"[MINIAPP-HISTORY] ⚠️  History {history_id} not found, using persona intro")
     
-    persona_name = persona["name"]
-    # Get translated intro
+    # Get translated fields
     from app.core.persona_cache import get_persona_field, get_history_field
+    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
     persona_intro = get_persona_field(persona, 'intro', language=user_language) or persona.get("intro")
     
     # Create new chat (DB call needed)
@@ -588,8 +593,8 @@ async def show_personas_callback(callback: types.CallbackQuery):
     welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
-        name = p.get('name', 'Unknown')
-        # Get translated description if available
+        # Get translated name and description
+        name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
             welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
@@ -636,14 +641,14 @@ async def select_persona_callback(callback: types.CallbackQuery):
         user_language = get_and_update_user_language(db, callback.from_user)
     
     # Get persona from cache
-    from app.core.persona_cache import get_persona_by_id
+    from app.core.persona_cache import get_persona_by_id, get_persona_field
     persona = get_persona_by_id(persona_id)
     if not persona:
         error_msg = get_ui_text("errors.persona_not_found", language=user_language)
         await callback.answer(error_msg, show_alert=True)
         return
     
-    persona_name = persona["name"]
+    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
     
     # Check if chat already exists (DB call needed)
     with get_db() as db:
@@ -775,14 +780,14 @@ async def handle_web_app_data(message: types.Message):
                 return
             
             # Check if persona exists in cache
-            from app.core.persona_cache import get_persona_by_id
+            from app.core.persona_cache import get_persona_by_id, get_persona_field
             persona = get_persona_by_id(persona_id)
             if not persona:
                 error_msg = get_ui_text("errors.persona_not_found", language=user_language)
                 await message.answer(error_msg)
                 return
             
-            persona_name = persona["name"]
+            persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
             
             # Check if chat already exists (DB call needed)
             with get_db() as db:
@@ -1049,11 +1054,11 @@ async def confirm_age_callback(callback: types.CallbackQuery):
                     history_id = start_code["history_id"]
                     
                     # Get persona from cache for name
-                    from app.core.persona_cache import get_persona_by_id
+                    from app.core.persona_cache import get_persona_by_id, get_persona_field
                     persona = get_persona_by_id(persona_id)
                     
                     if persona:
-                        persona_name = persona["name"]
+                        persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
                         
                         # Check if chat already exists
                         with get_db() as db:
@@ -1095,13 +1100,13 @@ async def confirm_age_callback(callback: types.CallbackQuery):
                 print(f"[AGE-VERIFY-ADS] 📢 Processing ad deep link: persona_key={persona_key}, history_index={history_index}")
                 
                 # Get persona and history from cache
-                from app.core.persona_cache import get_persona_with_history_by_index
+                from app.core.persona_cache import get_persona_with_history_by_index, get_persona_field
                 persona, history = get_persona_with_history_by_index(persona_key, history_index)
                 
                 if persona and history:
                     persona_id = persona["id"]
                     history_id = history["id"]
-                    persona_name = persona["name"]
+                    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
                     
                     # Check if chat already exists
                     with get_db() as db:
@@ -1136,11 +1141,11 @@ async def confirm_age_callback(callback: types.CallbackQuery):
             history_id = parts[1] if len(parts) > 1 else None
             
             # Check if persona exists
-            from app.core.persona_cache import get_persona_by_id
+            from app.core.persona_cache import get_persona_by_id, get_persona_field
             persona = get_persona_by_id(persona_id)
             
             if persona:
-                persona_name = persona["name"]
+                persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
                 
                 # Check if chat already exists
                 with get_db() as db:
@@ -1179,8 +1184,8 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
-        name = p.get('name', 'Unknown')
-        # Get translated description if available
+        # Get translated name and description
+        name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
             welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"

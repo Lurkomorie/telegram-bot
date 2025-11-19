@@ -71,13 +71,14 @@ async def get_personas(
             history_start = get_random_history(persona_id)
             avatar_url = history_start["image_url"] if history_start else None
         
-        # Get translated descriptions
+        # Get translated descriptions and name
+        name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
         description = get_persona_field(persona, 'description', language=user_language) or ""
         small_description = get_persona_field(persona, 'small_description', language=user_language) or ""
         
         result.append({
             "id": persona_id,
-            "name": persona["name"],  # Names are not translated
+            "name": name,
             "description": description,
             "smallDescription": small_description,
             "badges": persona["badges"] or [],
@@ -433,8 +434,15 @@ async def _process_scenario_selection(
             print(f"[MINIAPP-SELECT] ❌ Persona {persona_uuid} not found")
             return
         
-        persona_name = persona["name"]
         persona_intro = persona["intro"]
+        
+        # Get user's language for translations
+        with get_db() as db:
+            user_language = crud.get_user_language(db, user_id)
+        
+        # Get translated persona name
+        from app.core.persona_cache import get_persona_field
+        persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
         
         # Clear any previous image's refresh button before deleting chat
         with get_db() as db:
@@ -493,10 +501,6 @@ async def _process_scenario_selection(
         except Exception as redis_error:
             print(f"[MINIAPP-SELECT] ⚠️  Redis error (continuing anyway): {redis_error}")
             # Continue even if Redis fails - the messages can still be sent
-        
-        # Get user's language for translations
-        with get_db() as db:
-            user_language = crud.get_user_language(db, user_id)
         
         # Get specific history from cache (no random selection)
         history_start = None
