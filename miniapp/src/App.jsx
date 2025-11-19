@@ -6,12 +6,38 @@ import BottomNav from './components/BottomNav';
 import HistorySelection from './components/HistorySelection';
 import PersonasGallery from './components/PersonasGallery';
 import PremiumPage from './components/PremiumPage';
+import { useTranslation } from './i18n/TranslationContext';
+
+/**
+ * LanguageSelector Component
+ * Compact dropdown for language selection
+ */
+function LanguageSelector() {
+  const { language, changeLanguage, supportedLanguages, t } = useTranslation();
+
+  return (
+    <div className="language-selector">
+      <select
+        value={language}
+        onChange={(e) => changeLanguage(e.target.value)}
+        className="language-dropdown"
+      >
+        {supportedLanguages.map((lang) => (
+          <option key={lang} value={lang}>
+            {t(`settings.languageNames.${lang}`)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 /**
  * Main App Component
  * Initializes Telegram Web App SDK and manages navigation between pages
  */
 function App() {
+  const { t, isLoading: isLoadingLanguage } = useTranslation();
   const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'premium'
   const [personas, setPersonas] = useState([]);
   const [selectedPersona, setSelectedPersona] = useState(null);
@@ -36,9 +62,11 @@ function App() {
     // Disable vertical swipes to prevent accidental closes
     WebApp.disableVerticalSwipes();
     
-    // Check age verification first before loading any data
-    checkAgeStatus();
-  }, []);
+    // Wait for language to load before checking age status
+    if (!isLoadingLanguage) {
+      checkAgeStatus();
+    }
+  }, [isLoadingLanguage]);
 
   async function checkAgeStatus() {
     try {
@@ -115,8 +143,9 @@ function App() {
       setPersonas(data);
     } catch (err) {
       console.error('Failed to load personas:', err);
-      setError('Failed to load characters. Please try again.');
-      WebApp.showAlert('Failed to load characters. Please try again.');
+      const errorMsg = t('app.errors.loadFailed');
+      setError(errorMsg);
+      WebApp.showAlert(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -198,14 +227,25 @@ function App() {
 
   // Get page title
   const getPageTitle = () => {
-    if (currentPage === 'gallery') return 'Characters';
-    if (currentPage === 'premium') return 'Settings';
+    if (currentPage === 'gallery') return t('app.header.characters');
+    if (currentPage === 'premium') return t('app.header.settings');
     if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
     return '';
   };
 
   // Determine if back button should be shown
   const showBackButton = currentPage === 'premium' || currentPage === 'history';
+
+  // Show loading screen while language is initializing
+  if (isLoadingLanguage) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div className="loading">
+          <div className="spinner"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app ${showBottomNav ? 'app-with-nav' : ''}`}>
@@ -240,7 +280,7 @@ function App() {
               marginBottom: '16px',
               lineHeight: '1.3',
             }}>
-              Age Verification Required
+              {t('app.ageVerification.title')}
             </h2>
             <p style={{ 
               color: '#888888', 
@@ -248,7 +288,7 @@ function App() {
               marginBottom: '24px',
               lineHeight: '1.5',
             }}>
-              You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.
+              {t('app.ageVerification.description')}
             </p>
             <button
               onClick={handleAgeConfirmation}
@@ -272,7 +312,7 @@ function App() {
                 if (!isVerifyingAge) e.target.style.backgroundColor = '#007AFF';
               }}
             >
-              {isVerifyingAge ? 'Verifying...' : 'I am 18 years or older'}
+              {isVerifyingAge ? t('app.ageVerification.verifying') : t('app.ageVerification.confirmButton')}
             </button>
           </div>
         </div>
@@ -288,7 +328,8 @@ function App() {
             </button>
           )}
           <h1 className="page-title">{getPageTitle()}</h1>
-          {currentPage !== 'history' && (
+          {currentPage === 'gallery' && <LanguageSelector />}
+          {currentPage !== 'history' && currentPage !== 'gallery' && (
             <div className="energy-display">
               <div className="energy-content">
                 <span className="energy-icon"></span>
@@ -297,7 +338,7 @@ function App() {
                     {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
                   </span>
                   {!energy.is_premium && (
-                    <span className="energy-regen">+2 ⭐ every 1h</span>
+                    <span className="energy-regen">{t('app.energy.regen')}</span>
                   )}
                 </div>
               </div>
@@ -314,7 +355,7 @@ function App() {
           <div className="error-state">
             <p>{error}</p>
             <button onClick={loadPersonas} className="retry-button">
-              Retry
+              {t('app.errors.retryButton')}
             </button>
           </div>
         ) : currentPage === 'gallery' ? (

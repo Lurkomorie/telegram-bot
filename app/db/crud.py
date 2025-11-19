@@ -1,11 +1,14 @@
 """
 CRUD operations for database models
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from app.db.models import User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode
+from app.db.models import (
+    User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
+    PersonaTranslation, PersonaHistoryTranslation
+)
 from datetime import datetime, date
 
 
@@ -69,7 +72,14 @@ def apply_acquisition_source_filter(db: Session, query, acquisition_source: Opti
 
 # ========== USER OPERATIONS ==========
 
-def get_or_create_user(db: Session, telegram_id: int, username: str = None, first_name: str = None, acquisition_source: str = None) -> User:
+def get_or_create_user(
+    db: Session, 
+    telegram_id: int, 
+    username: str = None, 
+    first_name: str = None, 
+    acquisition_source: str = None,
+    language_code: str = None
+) -> User:
     """Get existing user or create new one
     
     Args:
@@ -77,17 +87,28 @@ def get_or_create_user(db: Session, telegram_id: int, username: str = None, firs
         username: User's username
         first_name: User's first name
         acquisition_source: Deep-link payload for ads attribution (only set on first visit)
+        language_code: Telegram user language code (e.g., 'en', 'ru', 'fr')
     
     Returns:
         User object
     """
+    # Normalize and validate language code
+    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    normalized_locale = None
+    if language_code:
+        # Extract base language code (e.g., 'en-US' -> 'en')
+        base_lang = language_code.lower().split('-')[0]
+        normalized_locale = base_lang if base_lang in supported_languages else 'en'
+    
     user = db.query(User).filter(User.id == telegram_id).first()
     if not user:
-        # New user - set acquisition source if provided
+        # New user - set acquisition source and locale if provided
         user = User(
             id=telegram_id,
             username=username,
             first_name=first_name,
+            locale=normalized_locale or 'en',
+            locale_manually_set=False,  # Default to Telegram language
             acquisition_source=acquisition_source if acquisition_source else None,
             acquisition_timestamp=datetime.utcnow() if acquisition_source else None
         )
@@ -95,7 +116,13 @@ def get_or_create_user(db: Session, telegram_id: int, username: str = None, firs
         db.commit()
         db.refresh(user)
     else:
-        # Existing user - only set acquisition source if not already set (first-touch attribution)
+        # Existing user - only update locale from Telegram if NOT manually set
+        if normalized_locale and user.locale != normalized_locale and not user.locale_manually_set:
+            user.locale = normalized_locale
+            db.commit()
+            db.refresh(user)
+        
+        # Only set acquisition source if not already set (first-touch attribution)
         if acquisition_source and not user.acquisition_source:
             user.acquisition_source = acquisition_source
             user.acquisition_timestamp = datetime.utcnow()
@@ -131,6 +158,21 @@ def update_user_age_verified(db: Session, telegram_id: int) -> User:
         db.commit()
         db.refresh(user)
     return user
+
+
+def get_user_language(db: Session, telegram_id: int) -> str:
+    """Get user's language preference
+    
+    Args:
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Language code (e.g., 'en', 'ru', 'fr', 'de', 'es'), defaults to 'en'
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user and user.locale:
+        return user.locale
+    return 'en'
 
 
 # ========== PERSONA OPERATIONS ==========
@@ -186,6 +228,127 @@ def create_persona(
     return persona
 
 
+# ========== PERSONA TRANSLATION OPERATIONS ==========
+
+def get_persona_translations(db: Session, persona_id: UUID, language: str = None) -> Dict[str, PersonaTranslation]:
+    """Get translations for a persona
+    
+    Args:
+        persona_id: Persona UUID
+        language: Optional language filter (e.g., 'ru', 'fr')
+    
+    Returns:
+        Dictionary mapping language codes to translation objects
+    """
+    query = db.query(PersonaTranslation).filter(PersonaTranslation.persona_id == persona_id)
+    
+    if language:
+        query = query.filter(PersonaTranslation.language == language)
+    
+    translations = query.all()
+    return {t.language: t for t in translations}
+
+
+def get_persona_history_translations(db: Session, history_id: UUID, language: str = None) -> Dict[str, PersonaHistoryTranslation]:
+    """Get translations for a persona history start
+    
+    Args:
+        history_id: PersonaHistoryStart UUID
+        language: Optional language filter (e.g., 'ru', 'fr')
+    
+    Returns:
+        Dictionary mapping language codes to translation objects
+    """
+    query = db.query(PersonaHistoryTranslation).filter(PersonaHistoryTranslation.history_id == history_id)
+    
+    if language:
+        query = query.filter(PersonaHistoryTranslation.language == language)
+    
+    translations = query.all()
+    return {t.language: t for t in translations}
+
+
+def create_or_update_persona_translation(
+    db: Session,
+    persona_id: UUID,
+    language: str,
+    description: str = None,
+    small_description: str = None,
+    intro: str = None
+) -> PersonaTranslation:
+    """Create or update a persona translation"""
+    translation = db.query(PersonaTranslation).filter(
+        PersonaTranslation.persona_id == persona_id,
+        PersonaTranslation.language == language
+    ).first()
+    
+    if translation:
+        # Update existing
+        if description is not None:
+            translation.description = description
+        if small_description is not None:
+            translation.small_description = small_description
+        if intro is not None:
+            translation.intro = intro
+        translation.updated_at = datetime.utcnow()
+    else:
+        # Create new
+        translation = PersonaTranslation(
+            persona_id=persona_id,
+            language=language,
+            description=description,
+            small_description=small_description,
+            intro=intro
+        )
+        db.add(translation)
+    
+    db.commit()
+    db.refresh(translation)
+    return translation
+
+
+def create_or_update_persona_history_translation(
+    db: Session,
+    history_id: UUID,
+    language: str,
+    name: str = None,
+    small_description: str = None,
+    description: str = None,
+    text: str = None
+) -> PersonaHistoryTranslation:
+    """Create or update a persona history translation"""
+    translation = db.query(PersonaHistoryTranslation).filter(
+        PersonaHistoryTranslation.history_id == history_id,
+        PersonaHistoryTranslation.language == language
+    ).first()
+    
+    if translation:
+        # Update existing
+        if name is not None:
+            translation.name = name
+        if small_description is not None:
+            translation.small_description = small_description
+        if description is not None:
+            translation.description = description
+        if text is not None:
+            translation.text = text
+        translation.updated_at = datetime.utcnow()
+    else:
+        # Create new
+        translation = PersonaHistoryTranslation(
+            history_id=history_id,
+            language=language,
+            name=name,
+            small_description=small_description,
+            description=description,
+            text=text
+        )
+        db.add(translation)
+    
+    db.commit()
+    db.refresh(translation)
+    return translation
+  
 def get_all_personas(db: Session) -> List[Persona]:
     """Get all personas (public and private) for admin management"""
     return db.query(Persona).order_by(Persona.created_at.desc()).all()

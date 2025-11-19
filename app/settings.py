@@ -111,7 +111,7 @@ def get_config_path(filename: str) -> Path:
 
 
 def load_configs():
-    """Load and validate app.yaml and ui_texts.yaml at startup"""
+    """Load and validate app.yaml and all language-specific ui_texts files at startup"""
     global _app_config, _ui_texts
     
     # Load app.yaml
@@ -124,12 +124,24 @@ def load_configs():
     
     print(f"✅ Loaded app.yaml config ({len(_app_config)} keys)")
     
-    # Load ui_texts.yaml
-    ui_texts_path = get_config_path("ui_texts.yaml")
-    with open(ui_texts_path, 'r') as f:
-        _ui_texts = yaml.safe_load(f)
+    # Load all language-specific UI text files
+    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    _ui_texts = {}
     
-    print(f"✅ Loaded ui_texts.yaml config ({len(_ui_texts)} keys)")
+    for lang in supported_languages:
+        ui_texts_path = get_config_path(f"ui_texts_{lang}.yaml")
+        try:
+            with open(ui_texts_path, 'r', encoding='utf-8') as f:
+                _ui_texts[lang] = yaml.safe_load(f)
+            print(f"✅ Loaded ui_texts_{lang}.yaml ({len(_ui_texts[lang])} keys)")
+        except FileNotFoundError:
+            print(f"⚠️  Warning: ui_texts_{lang}.yaml not found, skipping")
+        except Exception as e:
+            print(f"⚠️  Warning: Error loading ui_texts_{lang}.yaml: {e}")
+    
+    # Ensure English is loaded (fallback language)
+    if 'en' not in _ui_texts:
+        raise RuntimeError("English UI texts (ui_texts_en.yaml) must be present as fallback language")
 
 
 def _substitute_env_vars(obj):
@@ -151,17 +163,18 @@ def get_app_config() -> dict:
     return _app_config
 
 
-def get_ui_text(key_path: str, **kwargs) -> str:
+def get_ui_text(key_path: str, language: str = "en", **kwargs) -> str:
     """
-    Get UI text by dot-notation key path and format with kwargs
+    Get UI text by dot-notation key path in specified language and format with kwargs
     
     Examples:
-        get_ui_text("welcome.title")
-        get_ui_text("chat_options.title", persona_name="Jane")
-        get_ui_text("energy.insufficient_description", required=5, current=2)
+        get_ui_text("welcome.title", language="en")
+        get_ui_text("chat_options.title", language="ru", persona_name="Jane")
+        get_ui_text("energy.insufficient_description", language="fr", required=5, current=2)
     
     Args:
         key_path: Dot-separated path (e.g., "welcome.title" or "errors.persona_not_found")
+        language: Language code (e.g., 'en', 'ru', 'fr', 'de', 'es'), defaults to 'en'
         **kwargs: Format variables to substitute in the text
     
     Returns:
@@ -170,15 +183,35 @@ def get_ui_text(key_path: str, **kwargs) -> str:
     if _ui_texts is None:
         raise RuntimeError("UI texts not loaded. Call load_configs() first.")
     
+    # Normalize language code and set fallback
+    language = language.lower() if language else 'en'
+    
+    # Try requested language first, fallback to English if not found
+    texts = _ui_texts.get(language, _ui_texts.get('en'))
+    
+    if not texts:
+        raise RuntimeError(f"No UI texts available for language '{language}' or fallback 'en'")
+    
     # Navigate through nested dict using dot notation
     keys = key_path.split('.')
-    value = _ui_texts
+    value = texts
     
     for key in keys:
         if isinstance(value, dict) and key in value:
             value = value[key]
         else:
-            raise KeyError(f"UI text key not found: {key_path}")
+            # If key not found in requested language, try English as fallback
+            if language != 'en' and 'en' in _ui_texts:
+                value_fallback = _ui_texts['en']
+                for k in keys:
+                    if isinstance(value_fallback, dict) and k in value_fallback:
+                        value_fallback = value_fallback[k]
+                    else:
+                        raise KeyError(f"UI text key not found: {key_path} (tried {language} and en)")
+                value = value_fallback
+                break
+            else:
+                raise KeyError(f"UI text key not found: {key_path}")
     
     # Format with kwargs if any
     if kwargs and isinstance(value, str):

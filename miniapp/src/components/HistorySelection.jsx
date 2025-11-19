@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import './HistorySelection.css';
+import { useTranslation } from '../i18n/TranslationContext';
 
 /**
  * HistorySelection Component
  * Shows available greeting scenarios for a selected persona
  */
 export default function HistorySelection({ persona, histories, onHistoryClick, onBack, isLoading }) {
+  const { t } = useTranslation();
+
   if (isLoading) {
     return (
       <div className="history-selection">
         <div className="loading">
           <div className="spinner"></div>
-          <p>Loading scenarios...</p>
+          <p>{t('history.loading')}</p>
         </div>
       </div>
     );
@@ -31,9 +34,9 @@ export default function HistorySelection({ persona, histories, onHistoryClick, o
           ))
         ) : (
           <div className="no-histories">
-            <p>No scenarios available. Starting with default greeting...</p>
+            <p>{t('history.empty')}</p>
             <button className="start-button" onClick={() => onHistoryClick(null)}>
-              Start Chat
+              {t('history.startButton')}
             </button>
           </div>
         )}

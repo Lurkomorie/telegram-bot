@@ -3,7 +3,7 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text, ARRAY
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text, ARRAY, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -19,6 +19,7 @@ class User(Base):
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     locale = Column(String(10), default="en")
+    locale_manually_set = Column(Boolean, default=False, nullable=False)  # True if user manually changed language in miniapp
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -109,6 +110,53 @@ class PersonaHistoryStart(Base):
     
     __table_args__ = (
         Index("ix_persona_history_starts_persona_id", "persona_id"),
+    )
+
+
+class PersonaTranslation(Base):
+    """Translations for persona descriptions"""
+    __tablename__ = "persona_translations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    language = Column(String(10), nullable=False)  # 'en', 'ru', 'fr', 'de', 'es'
+    description = Column(Text, nullable=True)
+    small_description = Column(Text, nullable=True)
+    intro = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    persona = relationship("Persona")
+    
+    __table_args__ = (
+        Index("ix_persona_translations_persona_id", "persona_id"),
+        Index("ix_persona_translations_language", "language"),
+        UniqueConstraint("persona_id", "language", name="uq_persona_translations_persona_language"),
+    )
+
+
+class PersonaHistoryTranslation(Base):
+    """Translations for persona history start descriptions"""
+    __tablename__ = "persona_history_translations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    history_id = Column(UUID(as_uuid=True), ForeignKey("persona_history_starts.id", ondelete="CASCADE"), nullable=False)
+    language = Column(String(10), nullable=False)  # 'en', 'ru', 'fr', 'de', 'es'
+    name = Column(String(255), nullable=True)  # Story name
+    small_description = Column(Text, nullable=True)  # Short story description
+    description = Column(Text, nullable=True)  # Scene-setting description
+    text = Column(Text, nullable=True)  # Greeting message
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    history = relationship("PersonaHistoryStart")
+    
+    __table_args__ = (
+        Index("ix_persona_history_translations_history_id", "history_id"),
+        Index("ix_persona_history_translations_language", "language"),
+        UniqueConstraint("history_id", "language", name="uq_persona_history_translations_history_language"),
     )
 
 

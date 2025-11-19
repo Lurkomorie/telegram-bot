@@ -2,46 +2,48 @@ import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
 import { createInvoice } from '../api';
 import './PremiumPage.css';
+import { useTranslation } from '../i18n/TranslationContext';
 
 /**
  * PremiumPage Component
  * Shows upgrade plans and pricing options
  */
 export default function PremiumPage({ energy, onBack }) {
+  const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState('year');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const plans = [
     {
       id: '2days',
-      duration: '2 Days',
+      duration: t('premium.plans.2days.duration'),
       stars: 250,
-      period: '/ 2 days',
+      period: t('premium.plans.2days.period'),
     },
     {
       id: 'month',
-      duration: '1 Month',
+      duration: t('premium.plans.month.duration'),
       stars: 500,
-      period: '/ month',
+      period: t('premium.plans.month.period'),
     },
     {
       id: '3months',
-      duration: '3 Months',
+      duration: t('premium.plans.3months.duration'),
       stars: 1000,
-      period: '/ 3 months',
+      period: t('premium.plans.3months.period'),
     },
     {
       id: 'year',
-      duration: '1 Year',
+      duration: t('premium.plans.year.duration'),
       stars: 3000,
-      period: '/ year',
+      period: t('premium.plans.year.period'),
     },
   ];
 
   const features = [
-    { icon: '⚡', text: 'Infinite energy' },
-    { icon: '👯', text: 'Our most advanced AI engines' },
-    { icon: '📸', text: 'Unlimited photo generation' },
+    { icon: '⚡', text: t('premium.features.energy') },
+    { icon: '👯', text: t('premium.features.ai') },
+    { icon: '📸', text: t('premium.features.photos') },
   ];
 
   const handleUpgrade = async () => {
@@ -59,19 +61,19 @@ export default function PremiumPage({ energy, onBack }) {
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {
         if (status === 'paid') {
-          WebApp.showAlert('Payment successful! Your premium subscription is now active.');
+          WebApp.showAlert(t('premium.alerts.paymentSuccess'));
           // Reload the page to refresh premium status
           window.location.reload();
         } else if (status === 'cancelled') {
-          WebApp.showAlert('Payment cancelled.');
+          WebApp.showAlert(t('premium.alerts.paymentCancelled'));
         } else if (status === 'failed') {
-          WebApp.showAlert('Payment failed. Please try again.');
+          WebApp.showAlert(t('premium.alerts.paymentFailed'));
         }
         setIsProcessing(false);
       });
     } catch (error) {
       console.error('Failed to create invoice:', error);
-      WebApp.showAlert('Failed to create payment. Please try again.');
+      WebApp.showAlert(t('premium.alerts.createFailed'));
       setIsProcessing(false);
     }
   };
@@ -120,7 +122,7 @@ export default function PremiumPage({ energy, onBack }) {
       </div>
 
       <button className="upgrade-button-sticky" onClick={handleUpgrade} disabled={isProcessing}>
-        {isProcessing ? 'Processing...' : 'Upgrade 💎'}
+        {isProcessing ? t('premium.processing') : t('premium.upgradeButton')}
       </button>
     </div>
   );

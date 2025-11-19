@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './PersonasGallery.css';
+import { useTranslation } from '../i18n/TranslationContext';
 
 /**
  * PersonasGallery Component
@@ -7,11 +8,13 @@ import './PersonasGallery.css';
  * Matches Lucid Dreams app design
  */
 export default function PersonasGallery({ personas, onPersonaClick, isLoading }) {
+  const { t } = useTranslation();
+
   if (isLoading) {
     return (
       <div className="loading">
         <div className="spinner"></div>
-        <p>Loading characters...</p>
+        <p>{t('gallery.loading')}</p>
       </div>
     );
   }
@@ -19,7 +22,7 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading })
   if (!personas || personas.length === 0) {
     return (
       <div className="empty-state">
-        <p>No characters available</p>
+        <p>{t('gallery.empty')}</p>
       </div>
     );
   }

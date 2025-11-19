@@ -9,6 +9,33 @@ from app.db import crud
 from app.core.constants import ERROR_MESSAGES
 
 
+def get_and_update_user_language(db, telegram_user) -> str:
+    """
+    Get user language and ensure it's updated from Telegram
+    
+    Args:
+        db: Database session
+        telegram_user: Telegram User object (from message.from_user or callback.from_user)
+    
+    Returns:
+        User language code (e.g., 'en', 'ru', 'fr')
+    """
+    if not telegram_user:
+        return 'en'
+    
+    # Update user info including language
+    crud.get_or_create_user(
+        db,
+        telegram_id=telegram_user.id,
+        username=telegram_user.username,
+        first_name=telegram_user.first_name,
+        language_code=telegram_user.language_code
+    )
+    
+    # Get updated language
+    return crud.get_user_language(db, telegram_user.id)
+
+
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     """Handle /help command"""
@@ -50,15 +77,33 @@ async def cmd_reset(message: types.Message):
 async def cmd_girls(message: types.Message):
     """Handle /girls command - show persona list"""
     from app.bot.keyboards.inline import build_persona_selection_keyboard
+    from app.core.persona_cache import get_preset_personas, get_persona_field
+    from app.settings import settings
     
+    # Get user language
     with get_db() as db:
-        preset_personas = crud.get_preset_personas(db)
-        user_personas = crud.get_user_personas(db, message.from_user.id)
+        user_language = get_and_update_user_language(db, message.from_user)
     
-    keyboard = build_persona_selection_keyboard(preset_personas, user_personas)
+    # Get personas from cache
+    preset_data = get_preset_personas()
+    user_data = []  # User personas disabled
+    
+    # Build text with persona descriptions
+    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = p.get('name', 'Unknown')
+        desc = get_persona_field(p, 'small_description', language=user_language)
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
+    
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     await message.answer(
-        "💕 <b>Choose your AI companion:</b>",
+        welcome_text,
         reply_markup=keyboard
     )
 

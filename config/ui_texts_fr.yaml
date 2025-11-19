@@ -1,0 +1,96 @@
+# UI Text Configuration - French (fr)
+# All user-facing text strings for buttons, messages, etc.
+
+# Welcome & Start Flow
+welcome:
+  title: "Choisissez votre compagne :"
+  discover_button: "✨ Découvrir tous les personnages"
+  create_button: " Créez votre propre fille" # Currently disabled
+  discover_title: "✨ Découvrir tous les personnages"
+  discover_description: "Parcourez notre collection complète de compagnes IA dans la galerie !"
+  browse_button: "👯 Parcourir les personnages"
+
+# Story Selection
+story:
+  title: "Choisissez votre histoire :"
+  back_button: "🔙 Retour"
+
+# Chat Options (Existing Chat)
+chat_options:
+  title: "💬 Vous avez déjà une conversation avec {persona_name}"
+  description: "Voulez-vous continuer là où vous vous êtes arrêté ou commencer une nouvelle conversation ?"
+  continue_button: "💬 Continuer"
+  start_new_button: "🆕 Nouvelle conversation"
+  back_button: "🔙 Retour"
+
+# Hints & Tips
+hints:
+  restart: "💡 *ASTUCE* : Appuyez sur /start pour redémarrer la conversation à tout moment"
+
+# Error Messages
+errors:
+  persona_not_found: "❌ Personnage introuvable !"
+  story_not_found: "❌ Histoire introuvable !"
+  chat_not_found: "❌ Chat introuvable !"
+  invalid_selection: "❌ Sélection invalide !"
+  processing_failed: "❌ Échec du traitement de votre sélection. Veuillez réessayer."
+  continue_failed: "Impossible de continuer la conversation. Veuillez réessayer."
+  unknown_action: "Action inconnue de Mini App"
+
+# Energy System
+energy:
+  insufficient: "⚡ Vous n'avez plus d'énergie !"
+  insufficient_description: "Vous avez besoin de {required} d'énergie pour envoyer un message, mais vous n'avez que {current}."
+  get_more_button: "⚡ Obtenir plus d'énergie"
+  daily_regeneration: "+20 énergie"
+
+# Image Generation
+image:
+  generating: "🎨 Génération de votre image..."
+  completed: "✨ Voici votre image !"
+  failed: "❌ La génération de l'image a échoué. Veuillez réessayer."
+  refresh_button: "🔄 Actualiser l'image"
+
+# Prompts (for custom prompts or image generation)
+prompts:
+  selfie: "📸 Selfie"
+  flirty: "💋 Pose séduisante"
+  casual: "😊 Portrait décontracté"
+  custom: "✍️ Prompt personnalisé"
+  cancel: "🔙 Annuler"
+
+# Mini App
+miniapp:
+  gallery_button: "👯 Parcourir les personnages"
+  premium_button: "⚡ Obtenir plus d'énergie"
+
+# Confirmation
+confirmation:
+  yes: "✅ Oui"
+  no: "❌ Non"
+
+# System Messages (for admin/debug)
+system:
+  switching_persona: "Passage à {persona_name}..."
+  creating_chat: "Création d'une nouvelle conversation..."
+  loading: "Chargement..."
+  service_unavailable: "🛠 <b>Maintenance temporaire</b>\n\nNous effectuons actuellement une maintenance système pour améliorer votre expérience. Notre service sera de nouveau en ligne sous peu.\n\nMerci de votre patience ! 💙"
+
+# Premium/Subscription
+premium:
+  title: "⭐ Abonnement Premium"
+  benefits: "Énergie illimitée, support prioritaire et plus encore !"
+  subscribe_button: "🌟 Obtenir Premium"
+
+# Settings
+settings:
+  title: "⚙️ Paramètres"
+  language: "🌐 Langue"
+  notifications: "🔔 Notifications"
+  privacy: "🔒 Confidentialité"
+  back_button: "🔙 Retour au chat"
+
+# Age Verification
+age_verification:
+  message: "🔞 Vous devez avoir 18 ans ou plus pour continuer à utiliser ce bot. En continuant, vous acceptez nos Conditions d'utilisation et notre Politique de confidentialité."
+  confirm_button: "🔞 J'ai plus de 18 ans"
