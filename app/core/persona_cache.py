@@ -140,7 +140,7 @@ def get_persona_field(persona_dict: Dict[str, Any], field: str, language: str = 
     Args:
         persona_dict: Persona dictionary from cache
         field: Field name (e.g., 'name', 'description', 'small_description', 'intro')
-        language: Language code (e.g., 'en', 'ru', 'fr')
+        language: Language code (e.g., 'en', 'ru')
     
     Returns:
         Translated field value if available, otherwise fallback to default
@@ -169,7 +169,7 @@ def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 
     Args:
         history_dict: History dictionary from cache
         field: Field name (e.g., 'name', 'description', 'small_description', 'text')
-        language: Language code (e.g., 'en', 'ru', 'fr')
+        language: Language code (e.g., 'en', 'ru')
     
     Returns:
         Translated field value if available, otherwise fallback to default
