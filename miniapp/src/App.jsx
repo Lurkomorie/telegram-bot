@@ -5,7 +5,9 @@ import './App.css';
 import BottomNav from './components/BottomNav';
 import HistorySelection from './components/HistorySelection';
 import PersonasGallery from './components/PersonasGallery';
-import PremiumPage from './components/PremiumPage';
+import SettingsPage from './components/SettingsPage';
+import LanguagePage from './components/LanguagePage';
+import PlansPage from './components/PlansPage';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
@@ -14,7 +16,7 @@ import { useTranslation } from './i18n/TranslationContext';
  */
 function App() {
   const { t, isLoading: isLoadingLanguage, onLanguageChange } = useTranslation();
-  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'premium'
+  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'settings' | 'language' | 'plans'
   const [personas, setPersonas] = useState([]);
   const [selectedPersona, setSelectedPersona] = useState(null);
   const [histories, setHistories] = useState([]);
@@ -60,8 +62,8 @@ function App() {
         // Check URL parameters for routing
         const urlParams = new URLSearchParams(window.location.search);
         const page = urlParams.get('page');
-        if (page === 'premium') {
-          setCurrentPage('premium');
+        if (page === 'premium' || page === 'plans') {
+          setCurrentPage('plans');
         }
         
         // Load initial data
@@ -89,8 +91,8 @@ function App() {
       // Check URL parameters for routing
       const urlParams = new URLSearchParams(window.location.search);
       const page = urlParams.get('page');
-      if (page === 'premium') {
-        setCurrentPage('premium');
+      if (page === 'premium' || page === 'plans') {
+        setCurrentPage('plans');
       }
       
       // Load initial data
@@ -200,7 +202,9 @@ function App() {
   }
 
   function handleBackToPrevious() {
-    if (currentPage === 'premium') {
+    if (currentPage === 'language' || currentPage === 'plans') {
+      setCurrentPage('settings');
+    } else if (currentPage === 'settings') {
       setCurrentPage('gallery');
     } else {
       handleBackToGallery();
@@ -212,24 +216,30 @@ function App() {
       setCurrentPage('gallery');
       setSelectedPersona(null);
       setHistories([]);
-    } else if (page === 'premium') {
-      setCurrentPage('premium');
+    } else if (page === 'settings') {
+      setCurrentPage('settings');
+    } else if (page === 'language') {
+      setCurrentPage('language');
+    } else if (page === 'plans') {
+      setCurrentPage('plans');
     }
   }
 
-  // Determine if bottom nav should be shown (only on gallery)
-  const showBottomNav = currentPage === 'gallery';
+  // Determine if bottom nav should be shown (on gallery, settings, language, and plans)
+  const showBottomNav = currentPage === 'gallery' || currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans';
 
   // Get page title
   const getPageTitle = () => {
     if (currentPage === 'gallery') return t('app.header.characters');
-    if (currentPage === 'premium') return t('app.header.settings');
+    if (currentPage === 'settings') return t('app.header.settings');
+    if (currentPage === 'language') return t('settings.language.title');
+    if (currentPage === 'plans') return t('app.header.settings');
     if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
     return '';
   };
 
   // Determine if back button should be shown
-  const showBackButton = currentPage === 'premium' || currentPage === 'history';
+  const showBackButton = currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans' || currentPage === 'history';
 
   // Show loading screen while language is initializing
   if (isLoadingLanguage) {
@@ -323,7 +333,7 @@ function App() {
             </button>
           )}
           <h1 className="page-title">{getPageTitle()}</h1>
-          {currentPage !== 'history' && currentPage !== 'gallery' && (
+          {currentPage !== 'history' && (
             <div className="energy-display">
               <div className="energy-content">
                 <span className="energy-icon"></span>
@@ -336,7 +346,7 @@ function App() {
                   )}
                 </div>
               </div>
-              <button className="plus-button" onClick={() => handleNavigate('premium')}>
+              <button className="plus-button" onClick={() => handleNavigate('plans')}>
                 +
               </button>
             </div>
@@ -366,11 +376,15 @@ function App() {
             onBack={handleBackToGallery}
             isLoading={isLoadingHistories}
           />
-        ) : currentPage === 'premium' ? (
-          <PremiumPage
+        ) : currentPage === 'settings' ? (
+          <SettingsPage
             energy={energy}
-            onBack={handleBackToPrevious}
+            onNavigate={handleNavigate}
           />
+        ) : currentPage === 'language' ? (
+          <LanguagePage />
+        ) : currentPage === 'plans' ? (
+          <PlansPage />
         ) : null}
       </main>
 

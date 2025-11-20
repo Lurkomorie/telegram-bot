@@ -8,8 +8,16 @@ import './BottomNav.css';
 export default function BottomNav({ currentPage, onNavigate }) {
   const tabs = [
     { id: 'gallery', icon: Heart },
-    { id: 'premium', icon: Settings },
+    { id: 'settings', icon: Settings },
   ];
+
+  // Check if settings tab should be active (including language and plans pages)
+  const isSettingsActive = (tabId) => {
+    if (tabId === 'settings') {
+      return currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans';
+    }
+    return currentPage === tabId;
+  };
 
   return (
     <div className="bottom-nav">
@@ -19,7 +27,7 @@ export default function BottomNav({ currentPage, onNavigate }) {
           return (
             <button
               key={tab.id}
-              className={`nav-tab ${currentPage === tab.id ? 'active' : ''}`}
+              className={`nav-tab ${isSettingsActive(tab.id) ? 'active' : ''}`}
               onClick={() => onNavigate(tab.id)}
             >
               <IconComponent className="nav-icon" size={20} strokeWidth={2} />

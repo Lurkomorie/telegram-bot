@@ -11,7 +11,7 @@
       "settings": "Настройки"
     },
     "energy": {
-      "regen": "+2 ⭐ каждый час"
+      "regen": "+2/h"
     },
     "errors": {
       "loadFailed": "Не удалось загрузить персонажей. Пожалуйста, попробуйте снова.",
@@ -65,14 +65,23 @@
     "premium": "Премиум"
   },
   "settings": {
-    "language": "Язык",
+    "language": {
+      "title": "Язык"
+    },
     "languageNames": {
       "en": "English",
       "ru": "Русский",
       "fr": "Français",
       "de": "Deutsch",
       "es": "Español"
+    },
+    "plan": {
+      "title": "Ваш тариф",
+      "upgradePlans": "Перейти на Премиум"
+    },
+    "currentPlan": {
+      "free": "Бесплатный",
+      "premium": "Премиум"
     }
   }
 }
-

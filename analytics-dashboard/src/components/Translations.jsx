@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const API_BASE = '';  // Same origin
-const LANGUAGES = ['en', 'ru', 'fr', 'de', 'es'];
+const LANGUAGES = ['en', 'ru'];
 const CATEGORIES = ['ui', 'persona', 'history'];
 
 export default function Translations() {
@@ -489,7 +489,7 @@ export default function Translations() {
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <button
                         onClick={() => {
-                          const lang = prompt('Delete for which language? (en/ru/fr/de/es or leave empty for all)');
+                          const lang = prompt('Delete for which language? (en/ru or leave empty for all)');
                           if (lang !== null) {
                             if (lang === '' || LANGUAGES.includes(lang)) {
                               deleteTranslation(trans.key, lang || 'all');
@@ -542,7 +542,7 @@ function CreateTranslationModal({ onClose, onCreate }) {
   const [key, setKey] = useState('');
   const [category, setCategory] = useState('ui');
   const [translations, setTranslations] = useState({
-    en: '', ru: '', fr: '', de: '', es: ''
+    en: '', ru: ''
   });
 
   const handleSubmit = async (e) => {

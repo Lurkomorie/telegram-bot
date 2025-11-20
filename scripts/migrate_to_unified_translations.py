@@ -50,7 +50,7 @@ def migrate_persona_translations():
             print(f"[MIGRATE]   Processing persona: {persona_key} (name: {persona.name})")
             
             # Add name translations for all languages
-            for lang in ['en', 'ru', 'fr', 'de', 'es']:
+            for lang in ['en', 'ru']:
                 # For English, use the persona's base name
                 if lang == 'en':
                     crud.create_or_update_translation(
@@ -191,7 +191,7 @@ def migrate_ui_texts():
     print("\n[MIGRATE] 🎨 Migrating UI texts from YAML files...")
     
     config_dir = Path(__file__).parent.parent / "config"
-    languages = ['en', 'ru', 'fr', 'de', 'es']
+    languages = ['en', 'ru']
     
     translation_count = 0
     with get_db() as db:
@@ -252,7 +252,7 @@ def verify_migration():
         print(f"[VERIFY]   History: {history_count}")
         
         # Count by language
-        for lang in ['en', 'ru', 'fr', 'de', 'es']:
+        for lang in ['en', 'ru']:
             lang_count = db.query(Translation).filter(Translation.lang == lang).count()
             print(f"[VERIFY]   {lang.upper()}: {lang_count}")
         

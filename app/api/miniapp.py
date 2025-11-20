@@ -292,7 +292,7 @@ async def verify_user_age(
 
 
 class UpdateLanguageRequest(BaseModel):
-    language: str  # 'en', 'ru', 'fr', 'de', 'es'
+    language: str  # 'en', 'ru'
 
 
 @router.post("/user/update-language")
@@ -306,7 +306,7 @@ async def update_user_language(
     Returns: {success: bool, language: str}
     """
     # Validate language
-    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    supported_languages = ['en', 'ru']
     if request.language not in supported_languages:
         raise HTTPException(status_code=400, detail=f"Unsupported language: {request.language}")
     

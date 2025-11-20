@@ -125,7 +125,7 @@ def load_configs():
     print(f"✅ Loaded app.yaml config ({len(_app_config)} keys)")
     
     # Load all language-specific UI text files
-    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    supported_languages = ['en', 'ru']
     _ui_texts = {}
     
     for lang in supported_languages:

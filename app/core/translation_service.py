@@ -131,7 +131,7 @@ class TranslationService:
         Returns:
             List of language codes
         """
-        return ['en', 'ru', 'fr', 'de', 'es']
+        return ['en', 'ru']
 
 
 # Global singleton instance

@@ -1369,9 +1369,15 @@ async def delete_persona_history(history_id: str) -> Dict[str, Any]:
 class TranslationRequest(BaseModel):
     """Request model for creating/updating translations"""
     key: str = Field(..., description="Translation key (dot notation)")
-    lang: str = Field(..., description="Language code (en, ru, fr, de, es)")
+    lang: str = Field(..., description="Language code (en, ru)")
     value: str = Field(..., description="Translated text")
     category: Optional[str] = Field(None, description="Category (ui, persona, history)")
+
+    @validator('lang')
+    def validate_lang(cls, v):
+        if v not in ['en', 'ru']:
+            raise ValueError('Language must be en or ru')
+        return v
 
 
 @router.get("/translations")
@@ -1439,43 +1445,6 @@ async def get_translations(
         raise HTTPException(status_code=500, detail=f"Error fetching translations: {str(e)}")
 
 
-@router.get("/translations/{key:path}")
-async def get_translation_by_key(key: str) -> Dict[str, Any]:
-    """
-    Get all language versions of a specific translation key
-    
-    Args:
-        key: Translation key (URL-encoded if contains special characters)
-    
-    Returns:
-        Key with all language versions
-    """
-    try:
-        with get_db() as db:
-            from app.db.models import Translation
-            
-            translations = db.query(Translation).filter(Translation.key == key).all()
-            
-            if not translations:
-                raise HTTPException(status_code=404, detail=f"Translation key not found: {key}")
-            
-            result = {
-                'key': key,
-                'category': translations[0].category,
-                'translations': {}
-            }
-            
-            for trans in translations:
-                result['translations'][trans.lang] = trans.value
-            
-            return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[ANALYTICS-API] Error fetching translation: {e}")
-        raise HTTPException(status_code=500, detail=f"Error fetching translation: {str(e)}")
-
-
 @router.post("/translations")
 async def create_translation(request: TranslationRequest) -> Dict[str, Any]:
     """
@@ -1526,6 +1495,9 @@ async def update_translation(key: str, lang: str, value: str = Query(...)) -> Di
     Returns:
         Updated translation
     """
+    if lang not in ['en', 'ru']:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {lang}")
+
     try:
         with get_db() as db:
             translation = crud.create_or_update_translation(
@@ -1598,6 +1570,11 @@ async def bulk_import_translations(
                 # Validate required fields
                 if 'key' not in trans_data or 'lang' not in trans_data or 'value' not in trans_data:
                     errors.append(f"Row {idx}: Missing required fields (key, lang, value)")
+                    continue
+                
+                # Validate language
+                if trans_data['lang'] not in ['en', 'ru']:
+                    errors.append(f"Row {idx}: Unsupported language '{trans_data['lang']}'")
                     continue
                 
                 valid_translations.append(trans_data)
@@ -1713,5 +1690,42 @@ async def refresh_translation_cache() -> Dict[str, Any]:
     except Exception as e:
         print(f"[ANALYTICS-API] Error refreshing cache: {e}")
         raise HTTPException(status_code=500, detail=f"Error refreshing cache: {str(e)}")
+
+
+@router.get("/translations/{key:path}")
+async def get_translation_by_key(key: str) -> Dict[str, Any]:
+    """
+    Get all language versions of a specific translation key
+    
+    Args:
+        key: Translation key (URL-encoded if contains special characters)
+    
+    Returns:
+        Key with all language versions
+    """
+    try:
+        with get_db() as db:
+            from app.db.models import Translation
+            
+            translations = db.query(Translation).filter(Translation.key == key).all()
+            
+            if not translations:
+                raise HTTPException(status_code=404, detail=f"Translation key not found: {key}")
+            
+            result = {
+                'key': key,
+                'category': translations[0].category,
+                'translations': {}
+            }
+            
+            for trans in translations:
+                result['translations'][trans.lang] = trans.value
+            
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching translation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching translation: {str(e)}")
 
 

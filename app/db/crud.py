@@ -93,7 +93,7 @@ def get_or_create_user(
         User object
     """
     # Normalize and validate language code
-    supported_languages = ['en', 'ru', 'fr', 'de', 'es']
+    supported_languages = ['en', 'ru']
     normalized_locale = None
     if language_code:
         # Extract base language code (e.g., 'en-US' -> 'en')

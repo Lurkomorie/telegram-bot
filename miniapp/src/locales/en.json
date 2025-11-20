@@ -1,33 +1,11 @@
 {
-  "app": {
-    "ageVerification": {
-      "title": "Age Verification Required",
-      "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
-      "confirmButton": "I am 18 years or older",
-      "verifying": "Verifying..."
-    },
-    "header": {
-      "characters": "Characters",
-      "settings": "Settings"
-    },
-    "energy": {
-      "regen": "+2 ⭐ every 1h"
-    },
-    "errors": {
-      "loadFailed": "Failed to load characters. Please try again.",
-      "retryButton": "Retry"
-    }
-  },
-  "gallery": {
-    "loading": "Loading characters...",
-    "empty": "No characters available"
-  },
-  "history": {
-    "loading": "Loading scenarios...",
-    "empty": "No scenarios available. Starting with default greeting...",
-    "startButton": "Start Chat"
-  },
   "premium": {
+    "alerts": {
+      "paymentFailed": "Payment failed. Please try again.",
+      "paymentSuccess": "Payment successful! Your premium subscription is now active.",
+      "paymentCancelled": "Payment cancelled.",
+      "createFailed": "Failed to create payment. Please try again."
+    },
     "plans": {
       "2days": {
         "duration": "2 Days",
@@ -52,27 +30,58 @@
       "photos": "Unlimited photo generation"
     },
     "upgradeButton": "Get Premium 💎",
-    "processing": "Processing...",
-    "alerts": {
-      "paymentSuccess": "Payment successful! Your premium subscription is now active.",
-      "paymentCancelled": "Payment cancelled.",
-      "paymentFailed": "Payment failed. Please try again.",
-      "createFailed": "Failed to create payment. Please try again."
+    "processing": "Processing..."
+  },
+  "app": {
+    "ageVerification": {
+      "title": "Age Verification Required",
+      "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
+      "confirmButton": "I am 18 years or older",
+      "verifying": "Verifying..."
+    },
+    "header": {
+      "characters": "Characters",
+      "settings": "Settings"
+    },
+    "energy": {
+      "regen": "+2/h"
+    },
+    "errors": {
+      "loadFailed": "Failed to load characters. Please try again.",
+      "retryButton": "Retry"
     }
+  },
+  "gallery": {
+    "loading": "Loading characters...",
+    "empty": "No characters available"
+  },
+  "history": {
+    "loading": "Loading scenarios...",
+    "empty": "No scenarios available. Starting with default greeting...",
+    "startButton": "Start Chat"
   },
   "nav": {
     "characters": "Characters",
     "premium": "Premium"
   },
   "settings": {
-    "language": "Language",
+    "language": {
+      "title": "Language"
+    },
     "languageNames": {
       "en": "English",
       "ru": "Русский",
       "fr": "Français",
       "de": "Deutsch",
       "es": "Español"
+    },
+    "plan": {
+      "title": "Your Plan",
+      "upgradePlans": "Upgrade to Premium"
+    },
+    "currentPlan": {
+      "free": "Free",
+      "premium": "Premium"
     }
   }
 }
-

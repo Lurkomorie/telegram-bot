@@ -17,13 +17,59 @@ body {
 .app {
   min-height: 100vh;
   background: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Красивый размытый красный blob на фоне */
+.app::before {
+  content: '';
+  position: fixed;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, rgba(249, 115, 22, 0.15) 40%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+  pointer-events: none;
+  animation: float 20s ease-in-out infinite;
+}
+
+/* Второй blob для более интересного эффекта */
+.app::after {
+  content: '';
+  position: fixed;
+  bottom: -150px;
+  left: -150px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(220, 38, 38, 0.15) 0%, rgba(234, 88, 12, 0.12) 40%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(70px);
+  z-index: 0;
+  pointer-events: none;
+  animation: float 25s ease-in-out infinite reverse;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
 }
 
 .app-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(10, 10, 10, 0.8);
+  background: rgba(10, 10, 10, 0.75);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -150,6 +196,8 @@ body {
 
 .app-main {
   padding-bottom: 24px;
+  position: relative;
+  z-index: 1;
 }
 
 .app-with-nav .app-main {

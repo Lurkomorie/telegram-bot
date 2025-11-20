@@ -2,22 +2,16 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { fetchUserLanguage, updateUserLanguage } from '../api';
 
-// Import translation files
+// Import static translation files (generated from database)
 import en from '../locales/en.json';
 import ru from '../locales/ru.json';
-import fr from '../locales/fr.json';
-import de from '../locales/de.json';
-import es from '../locales/es.json';
 
 const translations = {
   en,
   ru,
-  fr,
-  de,
-  es,
 };
 
-const SUPPORTED_LANGUAGES = ['en', 'ru', 'fr', 'de', 'es'];
+const SUPPORTED_LANGUAGES = ['en', 'ru'];
 const DEFAULT_LANGUAGE = 'en';
 
 const TranslationContext = createContext();
@@ -90,12 +84,16 @@ export function TranslationProvider({ children }) {
       const telegramLanguage = WebApp.initDataUnsafe?.user?.language_code;
       const normalizedTelegramLanguage = normalizeLanguage(telegramLanguage);
       
+      let finalLanguage = DEFAULT_LANGUAGE;
       if (normalizedTelegramLanguage !== DEFAULT_LANGUAGE) {
-        setLanguage(normalizedTelegramLanguage);
+        finalLanguage = normalizedTelegramLanguage;
       } else {
         const cachedLanguage = localStorage.getItem('userLanguage');
-        setLanguage(cachedLanguage && SUPPORTED_LANGUAGES.includes(cachedLanguage) ? cachedLanguage : DEFAULT_LANGUAGE);
+        if (cachedLanguage && SUPPORTED_LANGUAGES.includes(cachedLanguage)) {
+          finalLanguage = cachedLanguage;
+        }
       }
+      setLanguage(finalLanguage);
     } finally {
       setIsLoading(false);
     }

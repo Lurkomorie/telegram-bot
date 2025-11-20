@@ -29,7 +29,7 @@ def seed_persona_name_translations():
             print("❌ No personas with keys found in database")
             return
         
-        languages = ['en', 'ru', 'fr', 'de', 'es']
+        languages = ['en', 'ru']
         total_created = 0
         total_updated = 0
         
