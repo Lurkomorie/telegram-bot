@@ -341,9 +341,6 @@ function App() {
                   <span className="energy-value">
                     {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
                   </span>
-                  {!energy.is_premium && (
-                    <span className="energy-regen">{t('app.energy.regen')}</span>
-                  )}
                 </div>
               </div>
               <button className="plus-button" onClick={() => handleNavigate('plans')}>

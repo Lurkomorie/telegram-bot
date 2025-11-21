@@ -159,15 +159,15 @@ async def check_inactive_chats_3day():
         print(f"[SCHEDULER] Error checking inactive chats (3 day): {e}")
 
 
-async def regenerate_hourly_energy():
-    """Regenerate 2 energy every hour for all non-premium users"""
-    print("[SCHEDULER] ⚡ Running hourly energy regeneration...")
+async def regenerate_daily_energy():
+    """Regenerate 10 energy every day for all non-premium users"""
+    print("[SCHEDULER] ⚡ Running daily energy regeneration...")
     
     try:
         with get_db() as db:
             count = crud.regenerate_all_users_energy(db)
         
-        print(f"[SCHEDULER] ✅ Regenerated 2 energy for {count} users")
+        print(f"[SCHEDULER] ✅ Regenerated 10 energy for {count} users")
     except Exception as e:
         print(f"[SCHEDULER] ❌ Error regenerating energy: {e}")
 
@@ -262,10 +262,10 @@ def start_scheduler():
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Regenerate energy every hour (if enabled)
+    # Regenerate energy every day (if enabled)
     if settings.ENABLE_ENERGY_REGEN:
-        scheduler.add_job(regenerate_hourly_energy, 'interval', hours=1)
-        print("[SCHEDULER] ✅ Energy regeneration enabled (2 energy every hour)")
+        scheduler.add_job(regenerate_daily_energy, 'interval', days=1)
+        print("[SCHEDULER] ✅ Energy regeneration enabled (10 energy every day)")
     else:
         print("[SCHEDULER] ⚠️  Energy regeneration disabled (ENABLE_ENERGY_REGEN=False)")
     

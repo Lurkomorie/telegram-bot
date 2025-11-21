@@ -97,7 +97,7 @@ async def cmd_premium_status(message: types.Message):
             await message.answer(
                 f"🆓 <b>Free Account</b>\n\n"
                 f"⚡ Energy: {energy_info['energy']}/{energy_info['max_energy']}\n"
-                f"🔄 You receive +20 energy daily\n\n"
+                f"🔄 You receive +10 energy daily\n\n"
                 f"💎 Upgrade to Premium for unlimited energy!\n"
                 f"Use /start to access the premium plans."
             )

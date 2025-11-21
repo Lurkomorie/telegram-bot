@@ -1226,7 +1226,7 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
 
 def regenerate_user_energy(db: Session, user_id: int) -> bool:
     """
-    Add 2 energy to user (hourly regeneration for free users)
+    Add 10 energy to user (daily regeneration for free users)
     Only applies to non-premium users
     Returns True if energy was added
     """
@@ -1238,9 +1238,9 @@ def regenerate_user_energy(db: Session, user_id: int) -> bool:
     if check_user_premium(db, user_id):
         return False
     
-    # Add 2 energy, capped at max_energy
+    # Add 10 energy, capped at max_energy
     old_energy = user.energy
-    user.energy = min(user.energy + 2, user.max_energy)
+    user.energy = min(user.energy + 10, user.max_energy)
     db.commit()
     
     return user.energy > old_energy
@@ -1248,7 +1248,7 @@ def regenerate_user_energy(db: Session, user_id: int) -> bool:
 
 def regenerate_all_users_energy(db: Session) -> int:
     """
-    Regenerate 2 energy for all non-premium users (runs every hour)
+    Regenerate 10 energy for all non-premium users (runs every day)
     Returns count of users who received energy
     """
     
@@ -1266,7 +1266,7 @@ def regenerate_all_users_energy(db: Session) -> int:
         
         # Add energy if below max
         if user.energy < user.max_energy:
-            user.energy = min(user.energy + 2, user.max_energy)
+            user.energy = min(user.energy + 10, user.max_energy)
             count += 1
     
     db.commit()

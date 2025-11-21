@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     ENABLE_IMAGES_3DAYS: bool = False  # Set to True to generate images during 3day re-engagement follow-ups
     SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
     FORCE_IMAGES_ALWAYS: bool = False  # Debug flag to force images every message (bypasses AI decision)
-    ENABLE_ENERGY_REGEN: bool = True  # Set to False to disable automatic energy regeneration (2-hour cycle)
+    ENABLE_ENERGY_REGEN: bool = True  # Set to False to disable automatic energy regeneration (daily cycle)
     MAX_CONCURRENT_IMAGES_PER_USER: int = 2  # Maximum number of images a user can generate simultaneously
     
     # Testing/Development
