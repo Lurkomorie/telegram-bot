@@ -28,7 +28,7 @@ def _log_brain_inputs(brain_name: str, **kwargs):
         try:
             if isinstance(value, list):
                 print(f"   (List with {len(value)} items)")
-                if value and isinstance(value[0], d ict) and "role" in value[0]:
+                if value and isinstance(value[0], dict) and "role" in value[0]:
                     # Chat history - log all of it
                     for i, msg in enumerate(value, 1):
                         content = msg.get("content", "")
