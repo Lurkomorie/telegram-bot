@@ -80,8 +80,11 @@ async def cmd_start(message: types.Message):
             # Show age verification message with deep link encoded in callback
             age_verification_text = get_ui_text("age_verification.message", language=user_language)
             keyboard = build_age_verification_keyboard(deep_link=deep_link_param, language=user_language)
+            
             if deep_link_param:
-                print(f"[START] 🔗 Showing age verification with deep link: {deep_link_param}")
+                print(f"[START] 🔗 Saving pending deep link for age verification: {deep_link_param}")
+                crud.save_pending_deep_link(db, message.from_user.id, deep_link_param)
+                
             await message.answer(
                 age_verification_text,
                 reply_markup=keyboard
@@ -1014,16 +1017,19 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     
     # Extract deep link from callback data if present
     # Format: "confirm_age_18" or "confirm_age_18:<deep_link>"
-    pending_deep_link = None
+    callback_deep_link = None
     if ":" in callback.data:
         parts = callback.data.split(":", 1)
         if len(parts) == 2:
-            pending_deep_link = parts[1]
+            callback_deep_link = parts[1]
     
     # Update user's age_verified status
     with get_db() as db:
         crud.update_user_age_verified(db, callback.from_user.id)
-        pending_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)
+        db_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)
+        # Prefer DB value, fallback to callback data
+        pending_deep_link = db_deep_link or callback_deep_link
+        
         # Get user language for UI texts
         user_language = get_and_update_user_language(db, callback.from_user)
     

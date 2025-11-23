@@ -160,6 +160,46 @@ def update_user_age_verified(db: Session, telegram_id: int) -> User:
     return user
 
 
+def save_pending_deep_link(db: Session, telegram_id: int, deep_link: str):
+    """Save deep link to user settings to execute after age verification
+    
+    Args:
+        telegram_id: Telegram user ID
+        deep_link: The deep link parameter
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user:
+        if user.settings is None:
+            user.settings = {}
+        
+        # Create a copy of settings to ensure SQLAlchemy detects the change
+        settings = dict(user.settings)
+        settings["pending_deep_link"] = deep_link
+        user.settings = settings
+        
+        db.commit()
+
+
+def get_and_clear_pending_deep_link(db: Session, telegram_id: int) -> Optional[str]:
+    """Get and clear pending deep link from user settings
+    
+    Args:
+        telegram_id: Telegram user ID
+        
+    Returns:
+        Pending deep link or None
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user and user.settings and "pending_deep_link" in user.settings:
+        settings = dict(user.settings)
+        deep_link = settings.pop("pending_deep_link")
+        user.settings = settings
+        db.commit()
+        return deep_link
+    
+    return None
+
+
 def get_user_language(db: Session, telegram_id: int) -> str:
     """Get user's language preference
     

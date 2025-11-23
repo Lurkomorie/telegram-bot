@@ -3,6 +3,7 @@ Multi-Brain Pipeline Orchestrator
 Coordinates Dialogue Specialist → State Resolver → Image Generation
 """
 import asyncio
+import json
 from datetime import datetime
 from uuid import UUID
 from app.core.brains.state_resolver import resolve_state
@@ -17,6 +18,39 @@ from app.db import crud
 from app.db.models import User
 from app.bot.loader import bot
 from app.core import analytics_service_tg
+
+
+def _log_brain_inputs(brain_name: str, **kwargs):
+    """Helper to log all inputs sent to a brain"""
+    print(f"\n{'='*20} BRAIN INPUT: {brain_name} {'='*20}")
+    for key, value in kwargs.items():
+        print(f"🔹 {key}:")
+        try:
+            if isinstance(value, list):
+                print(f"   (List with {len(value)} items)")
+                if value and isinstance(value[0], d ict) and "role" in value[0]:
+                    # Chat history - log all of it
+                    for i, msg in enumerate(value, 1):
+                        content = msg.get("content", "")
+                        # Indent content for readability
+                        print(f"   {i}. [{msg.get('role')}] {content}")
+                else:
+                    # Try to dump as JSON, fallback to string
+                    try:
+                        print(f"   {json.dumps(value, default=str, indent=2)}")
+                    except:
+                        print(f"   {str(value)}")
+            elif isinstance(value, dict):
+                try:
+                    print(f"   {json.dumps(value, default=str, indent=2)}")
+                except:
+                    print(f"   {str(value)}")
+            else:
+                print(f"   {value}")
+        except Exception as e:
+            print(f"   (Error logging value: {e})")
+            print(f"   {str(value)}")
+    print(f"{'='*60}\n")
 
 
 async def process_message_pipeline(
@@ -118,7 +152,6 @@ async def process_message_pipeline(
             pipeline_timer.end_stage()
             
             # Brief wait to catch any messages that arrived during processing
-            import asyncio
             await asyncio.sleep(0.5)
             log_verbose(f"[PIPELINE] 🔍 Checking for more...")
         
@@ -259,6 +292,15 @@ async def _process_single_batch(
             # Use AI to decide
             from app.core.brains.image_decision_specialist import should_generate_image
             log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation...")
+            
+            _log_brain_inputs(
+                "Brain 4 (Image Decision)",
+                previous_state=previous_state or "",
+                user_message=batched_text,
+                chat_history=chat_history,
+                persona_name=persona_data["name"]
+            )
+            
             should_generate_image_flag, decision_reason = await should_generate_image(
                 previous_state=previous_state or "",
                 user_message=batched_text,
@@ -294,6 +336,16 @@ async def _process_single_batch(
             log_verbose(f"[BATCH]    For message: {batched_text[:50]}...")
             user_message_for_ai = batched_text
         
+        _log_brain_inputs(
+            "Brain 1 (Dialogue)",
+            state=previous_state,
+            chat_history=chat_history,
+            user_message=user_message_for_ai,
+            persona=persona_data,
+            memory=memory,
+            is_auto_followup=is_auto_followup
+        )
+        
         dialogue_response = await generate_dialogue(
             state=previous_state,  # Use previous state for dialogue generation
             chat_history=chat_history,
@@ -311,6 +363,16 @@ async def _process_single_batch(
         # 3. Brain 2: State Resolver (updates state after dialogue)
         log_always(f"[BATCH] 🧠 Brain 2: Resolving state...")
         log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message + dialogue response")
+        
+        _log_brain_inputs(
+            "Brain 2 (State Resolver)",
+            previous_state=previous_state,
+            chat_history=chat_history,
+            user_message=batched_text,
+            persona_name=persona_data["name"],
+            previous_image_prompt=previous_image_prompt
+        )
+
         new_state = await resolve_state(
             previous_state=previous_state,
             chat_history=chat_history,
@@ -547,6 +609,17 @@ async def _background_image_generation(
         
         # Brain 3: Generate image plan
         log_always(f"[IMAGE-BG] 🧠 Brain 3: Generating image plan...")
+        
+        _log_brain_inputs(
+            "Brain 3 (Image Plan)",
+            state=state,
+            dialogue_response=dialogue_response,
+            user_message=batched_text,
+            persona=persona,
+            chat_history=chat_history,
+            previous_image_prompt=previous_image_prompt
+        )
+        
         image_prompt = await generate_image_plan(
             state=state,
             dialogue_response=dialogue_response,
