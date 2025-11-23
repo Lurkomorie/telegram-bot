@@ -486,6 +486,38 @@ async def get_engagement_heatmap(
         raise HTTPException(status_code=500, detail=f"Error fetching engagement heatmap: {str(e)}")
 
 
+@router.get("/daily-user-stats")
+async def get_daily_user_stats_endpoint(
+    date_str: str = Query(..., alias="date", description="Date (YYYY-MM-DD)")
+) -> List[Dict[str, Any]]:
+    """
+    Get daily stats per user (messages, scheduled messages, cost)
+    
+    Args:
+        date: Date to fetch stats for (YYYY-MM-DD)
+        
+    Returns:
+        List of user objects with:
+        - user_id: Telegram user ID
+        - username: Username (if available)
+        - first_name: First name (if available)
+        - is_premium: Premium status
+        - user_messages: Number of messages sent by user
+        - scheduled_messages: Number of scheduled messages received
+        - estimated_cost: Estimated LLM cost in USD
+    """
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        with get_db() as db:
+            stats = crud.get_daily_user_stats(db, target_date)
+            return stats
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching daily user stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching daily user stats: {str(e)}")
+
+
 @router.get("/images")
 async def get_images(page: int = 1, per_page: int = 100) -> Dict[str, Any]:
     """

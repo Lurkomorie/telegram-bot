@@ -1,7 +1,7 @@
 """
 CRUD operations for database models
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -816,7 +816,7 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
     return query.all()
 
 
-def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_user_ids: Optional[List[int]] = None) -> List[Chat]:
+def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_user_ids: Optional[List[int]] = None, required_count: Optional[int] = None) -> List[Chat]:
     """Get chats inactive for long periods (24h+) that need a single re-engagement message
     
     This allows sending ONE follow-up 24h after we already sent a 30min auto-message
@@ -825,6 +825,7 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
     - It's been at least N minutes (typically 24h) since that auto-message
     - The assistant spoke last (user hasn't replied since the auto-message)
     - The chat is active (not archived)
+    - The auto_message_count matches required_count (if specified)
     
     Sends only ONE 24h message. Stops until user replies, which resets the cycle.
     
@@ -832,12 +833,13 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
         db: Database session
         minutes: Number of minutes of inactivity required (default: 1440 = 24 hours)
         test_user_ids: Optional list of user IDs to restrict results to (for testing)
+        required_count: Optional required auto_message_count (1 for 24h check, 2 for 3day check)
     """
     from datetime import timedelta
-    from sqlalchemy import or_
+    from sqlalchemy import or_, cast, Integer
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
-    query = db.query(Chat).filter(
+    filters = [
         Chat.status == "active",  # Only active chats
         Chat.last_assistant_message_at.isnot(None),  # Has assistant messages
         or_(
@@ -853,7 +855,22 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
             Chat.last_user_message_at.is_(None),  # User never replied
             Chat.last_auto_message_at > Chat.last_user_message_at  # Auto message sent after user's last reply
         )
-    )
+    ]
+    
+    # Filter by auto_message_count if required
+    if required_count is not None:
+        if required_count == 1:
+            # For count 1, we also accept missing key or null (legacy behavior)
+            filters.append(
+                or_(
+                    Chat.ext['auto_message_count'].astext.cast(Integer) == 1,
+                    Chat.ext.op('->')('auto_message_count') == None
+                )
+            )
+        else:
+            filters.append(Chat.ext['auto_message_count'].astext.cast(Integer) == required_count)
+            
+    query = db.query(Chat).filter(*filters)
     
     # Filter by test users if whitelist is provided
     if test_user_ids is not None:
@@ -3016,6 +3033,108 @@ def bulk_create_translations(db: Session, translations_list: List[Dict[str, str]
     db.commit()
     
     return len(translation_objects)
+
+
+def get_daily_user_stats(db: Session, target_date: datetime.date) -> List[Dict[str, Any]]:
+    """
+    Get aggregated stats per user for a specific date
+    """
+    from sqlalchemy import func, cast, Float
+    
+    # Date range for the day
+    start_time = datetime.combine(target_date, datetime.min.time())
+    end_time = datetime.combine(target_date, datetime.max.time())
+    
+    # 1. User Messages count
+    user_msgs = db.query(
+        Chat.user_id,
+        func.count(Message.id).label('count')
+    ).join(
+        Chat, Message.chat_id == Chat.id
+    ).filter(
+        Message.role == 'user',
+        Message.created_at >= start_time,
+        Message.created_at <= end_time
+    ).group_by(Chat.user_id).all()
+    
+    user_msg_map = {r.user_id: r.count for r in user_msgs}
+    
+    # 2. Scheduled Messages count
+    sched_msgs = db.query(
+        TgAnalyticsEvent.client_id,
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'auto_followup_message',
+        TgAnalyticsEvent.created_at >= start_time,
+        TgAnalyticsEvent.created_at <= end_time
+    ).group_by(TgAnalyticsEvent.client_id).all()
+    
+    sched_msg_map = {r.client_id: r.count for r in sched_msgs}
+    
+    # 3. Cost from events
+    # Note: JSONB operator ->> returns text, cast to float
+    cost_events = db.query(
+        TgAnalyticsEvent.client_id,
+        func.sum(cast(TgAnalyticsEvent.meta['cost_usd'].astext, Float)).label('cost')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'llm_cost',
+        TgAnalyticsEvent.created_at >= start_time,
+        TgAnalyticsEvent.created_at <= end_time
+    ).group_by(TgAnalyticsEvent.client_id).all()
+    
+    cost_map = {r.client_id: (r.cost or 0.0) for r in cost_events}
+    
+    # 4. Fallback Cost (Estimated from assistant messages if no cost events)
+    # Assume ~$10/1M chars input+output mix? Or simple per char.
+    # Price: Let's assume avg $5/1M tokens => $5/4M chars => 0.00000125 per char
+    
+    fallback_cost_msgs = db.query(
+        Chat.user_id,
+        func.sum(func.length(Message.text)).label('chars')
+    ).join(
+        Chat, Message.chat_id == Chat.id
+    ).filter(
+        Message.role == 'assistant',
+        Message.created_at >= start_time,
+        Message.created_at <= end_time
+    ).group_by(Chat.user_id).all()
+    
+    fallback_cost_map = {}
+    PRICE_PER_CHAR = 0.000002 # Rough estimate ($8/1M tokens approx)
+    for r in fallback_cost_msgs:
+        fallback_cost_map[r.user_id] = (r.chars or 0) * PRICE_PER_CHAR
+        
+    # 5. Get all relevant users (union of keys)
+    all_user_ids = set(user_msg_map.keys()) | set(sched_msg_map.keys()) | set(cost_map.keys()) | set(fallback_cost_map.keys())
+    
+    if not all_user_ids:
+        return []
+
+    # Fetch user details
+    users = db.query(User).filter(User.id.in_(all_user_ids)).all()
+    user_details = {u.id: u for u in users}
+    
+    stats = []
+    for uid in all_user_ids:
+        user = user_details.get(uid)
+        cost = cost_map.get(uid, 0.0)
+        if cost == 0.0:
+            cost = fallback_cost_map.get(uid, 0.0)
+            
+        stats.append({
+            "user_id": uid,
+            "username": user.username if user else None,
+            "first_name": user.first_name if user else None,
+            "is_premium": user.is_premium if user else False,
+            "user_messages": user_msg_map.get(uid, 0),
+            "scheduled_messages": sched_msg_map.get(uid, 0),
+            "estimated_cost": round(cost, 4)
+        })
+        
+    # Sort by cost desc
+    stats.sort(key=lambda x: x["estimated_cost"], reverse=True)
+    
+    return stats
 
 
 

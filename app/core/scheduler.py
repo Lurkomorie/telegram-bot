@@ -33,7 +33,7 @@ async def check_inactive_chats():
             ]
         
         if not chat_data:
-            print(f"[SCHEDULER] No inactive chats found (30min)")
+            print("[SCHEDULER] No inactive chats found (30min)")
             return
         
         print(f"[SCHEDULER] Found {len(chat_data)} inactive chats (30min)")
@@ -73,7 +73,8 @@ async def check_inactive_chats_24h():
         with get_db() as db:
             # Use the special re-engagement function that allows follow-ups
             # even if we already sent an auto-message (as long as it was 24h ago)
-            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440, test_user_ids=test_user_ids)  # 24 hours
+            # We check for required_count=1 (meaning they received the 30min message)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440, test_user_ids=test_user_ids, required_count=1)  # 24 hours
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
@@ -81,7 +82,7 @@ async def check_inactive_chats_24h():
             ]
         
         if not chat_data:
-            print(f"[SCHEDULER] No inactive chats found (24h)")
+            print("[SCHEDULER] No inactive chats found (24h)")
             return
         
         total_chats = len(chat_data)
@@ -128,7 +129,8 @@ async def check_inactive_chats_3day():
         # Extract chat data while in session context
         with get_db() as db:
             # Use the re-engagement function with 3 days = 72 hours = 4320 minutes
-            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=4320, test_user_ids=test_user_ids)
+            # We check for required_count=2 (meaning they received the 24h message)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=4320, test_user_ids=test_user_ids, required_count=2)
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
@@ -136,7 +138,7 @@ async def check_inactive_chats_3day():
             ]
         
         if not chat_data:
-            print(f"[SCHEDULER] No inactive chats found (3 day)")
+            print("[SCHEDULER] No inactive chats found (3 day)")
             return
         
         total_chats = len(chat_data)
@@ -196,6 +198,23 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
         
         # Mark that we're sending an auto-message to prevent repeated sends
         chat_obj.last_auto_message_at = datetime.utcnow()
+        
+        # Update auto_message_count based on type to prevent infinite loops
+        new_count = 1
+        if followup_type == "24h":
+            new_count = 2
+        elif followup_type == "3day":
+            new_count = 3
+            
+        # Initialize ext if None and ensure we update it properly
+        if chat_obj.ext is None:
+            chat_obj.ext = {}
+            
+        # Create a copy to ensure SQLAlchemy tracks the change for JSONB
+        ext_copy = dict(chat_obj.ext)
+        ext_copy['auto_message_count'] = new_count
+        chat_obj.ext = ext_copy
+        
         db.commit()
     
     # Create varied, context-aware follow-up prompts
@@ -219,7 +238,7 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
         context={"followup_type": followup_type}
     )
     
-    print(f"[SCHEDULER] 📥 Auto-follow-up queued, starting pipeline...")
+    print("[SCHEDULER] 📥 Auto-follow-up queued, starting pipeline...")
     
     # Trigger the full multi-brain pipeline
     try:
@@ -228,15 +247,26 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
             user_id=user_id,
             tg_chat_id=tg_chat_id
         )
-        print(f"[SCHEDULER] ✅ Auto-follow-up sent successfully")
+        print("[SCHEDULER] ✅ Auto-follow-up sent successfully")
     except Exception as e:
         print(f"[SCHEDULER] ❌ Failed to send auto-follow-up: {e}")
-        # Clear the auto-message timestamp so we can try again later
-        with get_db() as db:
-            chat_obj = crud.get_chat_by_id(db, chat_id)
-            if chat_obj:
-                chat_obj.last_auto_message_at = None
-                db.commit()
+        
+        # Handle blocked users by archiving the chat
+        error_str = str(e)
+        if "Forbidden: bot was blocked" in error_str or "user is deactivated" in error_str:
+            print(f"[SCHEDULER] 🚫 User {user_id} blocked the bot. Archiving chat {chat_id}.")
+            with get_db() as db:
+                chat_obj = crud.get_chat_by_id(db, chat_id)
+                if chat_obj:
+                    chat_obj.status = "archived"
+                    db.commit()
+        else:
+            # Clear the auto-message timestamp so we can try again later (only if not blocked)
+            with get_db() as db:
+                chat_obj = crud.get_chat_by_id(db, chat_id)
+                if chat_obj:
+                    chat_obj.last_auto_message_at = None
+                    db.commit()
 
 
 def start_scheduler():

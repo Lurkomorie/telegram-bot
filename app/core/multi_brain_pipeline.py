@@ -352,7 +352,8 @@ async def _process_single_batch(
             user_message=user_message_for_ai,
             persona=persona_data,
             memory=memory,  # Pass conversation memory
-            is_auto_followup=is_auto_followup  # Use cheaper model with enhanced prompt for followups
+            is_auto_followup=is_auto_followup,  # Use cheaper model with enhanced prompt for followups
+            user_id=user_id
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")

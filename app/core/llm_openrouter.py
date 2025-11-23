@@ -3,8 +3,28 @@ OpenRouter LLM Client (Non-Streaming)
 """
 import httpx
 import asyncio
-from typing import List, Dict
+from typing import List, Dict, Optional
 from app.settings import settings, get_app_config
+from app.core import analytics_service_tg
+
+# Model pricing (USD per 1M tokens) - (Input, Output)
+MODEL_PRICING = {
+    "openai/gpt-4o": (5.0, 15.0),
+    "openai/gpt-4o-mini": (0.15, 0.6),
+    "openai/gpt-4o-2024-08-06": (2.5, 10.0),
+    "anthropic/claude-3.5-sonnet": (3.0, 15.0),
+    "anthropic/claude-3-haiku": (0.25, 1.25),
+    "google/gemini-flash-1.5": (0.075, 0.3),
+    "google/gemini-pro-1.5": (3.5, 10.5),
+    "meta-llama/llama-3.1-70b-instruct": (0.35, 0.4),
+    "meta-llama/llama-3.1-8b-instruct": (0.05, 0.05),
+    "liquid/lfm-40b": (0.1, 0.1),
+    "gryphe/mythomax-l2-13b": (0.1, 0.1),
+    # User models (updated with exact pricing)
+    "thedrummer/cydonia-24b-v4.1": (0.30, 0.50),
+    "mistralai/ministral-3b": (0.04, 0.04),
+    "moonshotai/kimi-k2:nitro": (0.50, 2.40),
+}
 
 
 async def generate_text(
@@ -15,7 +35,8 @@ async def generate_text(
     top_p: float = None,
     frequency_penalty: float = None,
     presence_penalty: float = None,
-    timeout_sec: int = None
+    timeout_sec: int = None,
+    user_id: Optional[int] = None
 ) -> str:
     """
     Generate text response from OpenRouter (non-streaming)
@@ -29,6 +50,7 @@ async def generate_text(
         frequency_penalty: Frequency penalty parameter
         presence_penalty: Presence penalty parameter
         timeout_sec: Override default timeout
+        user_id: Optional Telegram user ID for cost tracking
     
     Returns:
         Generated text response
@@ -67,7 +89,7 @@ async def generate_text(
     
     # Verbose logging for development
     log_always(f"[LLM] 🤖 Calling {body['model']} (temp={body['temperature']}, max_tokens={body['max_tokens']})")
-    log_verbose(f"[LLM] 📊 Full request details:")
+    log_verbose("[LLM] 📊 Full request details:")
     log_verbose(f"[LLM]    Model: {body['model']}")
     log_verbose(f"[LLM]    Temperature: {body['temperature']}")
     log_verbose(f"[LLM]    Max tokens: {body['max_tokens']}")
@@ -112,6 +134,40 @@ async def generate_text(
                 
                 data = response.json()
                 result = data["choices"][0]["message"]["content"]
+                
+                # Track token usage and cost if user_id is provided
+                if user_id and "usage" in data:
+                    usage = data["usage"]
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    completion_tokens = usage.get("completion_tokens", 0)
+                    
+                    # Calculate cost
+                    used_model = data.get("model", body["model"])
+                    # Try to match model prefix if exact match not found
+                    pricing = MODEL_PRICING.get(used_model)
+                    if not pricing:
+                        # Fallback: try to find by partial match
+                        for key, val in MODEL_PRICING.items():
+                            if key in used_model:
+                                pricing = val
+                                break
+                    
+                    cost_usd = 0.0
+                    if pricing:
+                        input_price, output_price = pricing
+                        cost_usd = (prompt_tokens / 1_000_000 * input_price) + (completion_tokens / 1_000_000 * output_price)
+                    
+                    # Log analytics event
+                    analytics_service_tg.track_event_tg(
+                        client_id=user_id,
+                        event_name="llm_cost",
+                        meta={
+                            "model": used_model,
+                            "prompt_tokens": prompt_tokens,
+                            "completion_tokens": completion_tokens,
+                            "cost_usd": cost_usd
+                        }
+                    )
                 
                 request_duration_ms = (time.time() - request_start) * 1000
                 

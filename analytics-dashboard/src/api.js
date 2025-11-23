@@ -1,6 +1,12 @@
 const API_BASE = '';  // Same origin
 
 export const api = {
+  async getDailyUserStats(date) {
+    const response = await fetch(`${API_BASE}/api/analytics/daily-user-stats?date=${date}`);
+    if (!response.ok) throw new Error('Failed to fetch daily user stats');
+    return response.json();
+  },
+
   async getStats(startDate = null, endDate = null, acquisitionSource = null) {
     let url = `${API_BASE}/api/analytics/stats`;
     const params = new URLSearchParams();

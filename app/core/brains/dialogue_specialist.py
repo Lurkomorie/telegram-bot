@@ -69,7 +69,8 @@ async def generate_dialogue(
     user_message: str,
     persona: Dict[str, str],  # {name, prompt}
     memory: str = None,  # Optional conversation memory
-    is_auto_followup: bool = False  # Use cheaper model for scheduled followups
+    is_auto_followup: bool = False,  # Use cheaper model for scheduled followups
+    user_id: int = None  # Optional user_id for cost tracking
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -216,7 +217,8 @@ You are reaching out after a period of silence. Follow these rules:
                 top_p=0.9,
                 frequency_penalty=0.8,  # Increased to prevent repetition
                 presence_penalty=0.8,   # Increased to encourage new tokens
-                max_tokens=config["llm"].get("max_tokens", 512)
+                max_tokens=config["llm"].get("max_tokens", 512),
+                user_id=user_id
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000

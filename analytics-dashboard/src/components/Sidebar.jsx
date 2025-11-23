@@ -7,6 +7,7 @@ export default function Sidebar() {
   const links = [
     { path: '/statistics', label: 'Statistics', icon: '📊' },
     { path: '/premium-statistics', label: 'Premium Stats', icon: '👑' },
+    { path: '/user-message-stats', label: 'User Messages', icon: '📈' },
     { path: '/users', label: 'Users', icon: '👥' },
     { path: '/acquisition-sources', label: 'Acquisition Sources', icon: '🎯' },
     { path: '/start-codes', label: 'Start Codes', icon: '🎫' },

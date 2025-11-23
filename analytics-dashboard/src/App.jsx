@@ -11,6 +11,7 @@ import ReferralStats from './components/ReferralStats';
 import AuthGuard from './components/AuthGuard';
 import Characters from './components/Characters';
 import Translations from './components/Translations';
+import UserMessageStats from './components/UserMessageStats';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
                   <Route path="/characters" element={<Characters />} />
                   <Route path="/images" element={<Images />} />
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
+                  <Route path="/user-message-stats" element={<UserMessageStats />} />
                   <Route path="/translations" element={<Translations />} />
                 </Routes>
               </main>
