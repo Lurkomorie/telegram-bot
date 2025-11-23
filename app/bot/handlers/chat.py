@@ -195,6 +195,14 @@ async def handle_text_message(message: types.Message):
         # (clearing auto-message timestamp allows scheduler to send another follow-up later if needed)
         crud.update_chat_timestamps(db, chat.id, user_at=datetime.utcnow())
         chat.last_auto_message_at = None
+        
+        # Reset auto_message_count since user replied
+        if chat.ext is None:
+            chat.ext = {}
+        ext_copy = dict(chat.ext)
+        ext_copy['auto_message_count'] = 0
+        chat.ext = ext_copy
+        
         db.commit()
         
         # Deduct energy for non-premium users (1 energy per message)

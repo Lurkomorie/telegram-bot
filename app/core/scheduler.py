@@ -196,6 +196,31 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
             return
         user_id = chat_obj.user_id
         
+        # Safety check: Ensure we aren't spamming on top of assistant messages
+        # Get last 3 messages
+        last_messages = crud.get_chat_messages(db, chat_id, limit=3)
+        if last_messages:
+            # Check if the very last message is from assistant
+            last_msg = last_messages[-1]
+            if last_msg.role == "assistant":
+                # If we have multiple recent assistant messages, this is a strong signal to stop
+                assistant_streak = 0
+                for msg in reversed(last_messages):
+                    if msg.role == "assistant":
+                        assistant_streak += 1
+                    else:
+                        break
+                
+                # If we already sent 2+ assistant messages in a row, DON'T send another auto-message
+                # unless it's a very long time gap (which is handled by the scheduler intervals)
+                # But to be safe against "infinite loop" bugs, let's cap it.
+                if assistant_streak >= 2:
+                    print(f"[SCHEDULER] ⚠️  Skipping auto-message for chat {chat_id}: Last {assistant_streak} messages are from assistant.")
+                    # Update timestamp to prevent immediate retry
+                    chat_obj.last_auto_message_at = datetime.utcnow()
+                    db.commit()
+                    return
+
         # Mark that we're sending an auto-message to prevent repeated sends
         chat_obj.last_auto_message_at = datetime.utcnow()
         

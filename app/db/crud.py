@@ -788,7 +788,7 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
         test_user_ids: Optional list of user IDs to restrict results to (for testing)
     """
     from datetime import timedelta
-    from sqlalchemy import or_, and_
+    from sqlalchemy import or_, and_, cast, Integer
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     query = db.query(Chat).filter(
@@ -806,6 +806,11 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
                 Chat.last_user_message_at.isnot(None),  # User has replied at some point
                 Chat.last_auto_message_at < Chat.last_user_message_at  # Auto-msg was before last user msg
             )
+        ),
+        # EXCLUDE if auto_message_count >= 1 (prevent infinite loop if timestamp check fails)
+        or_(
+            Chat.ext.op('->')('auto_message_count') == None,
+            Chat.ext['auto_message_count'].astext.cast(Integer) == 0
         )
     )
     
