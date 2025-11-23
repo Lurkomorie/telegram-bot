@@ -1,7 +1,7 @@
 llm:
   provider: openrouter
   model: thedrummer/cydonia-24b-v4.1 # Main conversational intelligence
-  followup_model: thedrummer/cydonia-24b-v4.1 # Auto-followup messages (cheaper)
+  followup_model: thedrummer/rocinante-12b # Auto-followup messages (cheaper)
   state_model: mistralai/ministral-3b # Fast model for state resolution
   image_model: moonshotai/kimi-k2:nitro # Image tag generation
   memory_model: mistralai/ministral-3b # Memory extraction - uncensored, cheap, decent quality with good prompt
