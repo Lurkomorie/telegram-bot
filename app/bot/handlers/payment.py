@@ -7,12 +7,24 @@ from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
 
-# Plan mapping: plan_id -> (duration_days, stars_price)
-PREMIUM_PLANS = {
-    "2days": (2, 250),
-    "month": (30, 500),
-    "3months": (90, 1000),
-    "year": (365, 3000),
+# Payment products: token packages and tier subscriptions
+PAYMENT_PRODUCTS = {
+    # Token packages (one-time purchases) - exact pricing from screenshot
+    "tokens_50": {"type": "tokens", "amount": 50, "stars": 35},
+    "tokens_100": {"type": "tokens", "amount": 100, "stars": 70},
+    "tokens_250": {"type": "tokens", "amount": 250, "stars": 175},
+    "tokens_500": {"type": "tokens", "amount": 500, "stars": 350},
+    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": 700},
+    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": 1750},
+    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": 3500},
+    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": 7000},
+    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": 17500},
+    
+    # Tier subscriptions (30 days)
+    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": 500, "daily_tokens": 50},
+    "premium_month": {"type": "tier", "tier": "premium", "duration": 30, "stars": 750, "daily_tokens": 75},
+    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": 1000, "daily_tokens": 100},
+    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": 2000, "daily_tokens": 200},
 }
 
 
@@ -29,48 +41,106 @@ async def pre_checkout_query_handler(pre_checkout_query: types.PreCheckoutQuery)
 @router.message(lambda message: message.successful_payment)
 async def successful_payment_handler(message: types.Message):
     """
-    Handle successful payment - activate premium subscription
+    Handle successful payment - process token package or tier subscription
     """
     payment = message.successful_payment
     user_id = message.from_user.id
     
-    # Extract plan_id from invoice payload
-    plan_id = payment.invoice_payload
+    # Extract product_id from invoice payload
+    product_id = payment.invoice_payload
     
-    print(f"[PAYMENT] ✅ Successful payment from user {user_id}, plan: {plan_id}")
+    print(f"[PAYMENT] ✅ Successful payment from user {user_id}, product: {product_id}")
     print(f"[PAYMENT] Amount: {payment.total_amount} {payment.currency}")
     
-    # Get plan details
-    if plan_id not in PREMIUM_PLANS:
-        await message.answer("❌ Invalid plan. Please contact support.")
+    # Get product details
+    if product_id not in PAYMENT_PRODUCTS:
+        await message.answer("❌ Invalid product. Please contact support.")
         return
     
-    duration_days, _stars_price = PREMIUM_PLANS[plan_id]
+    product = PAYMENT_PRODUCTS[product_id]
+    product_type = product["type"]
     
-    # Activate premium subscription
     with get_db() as db:
-        success = crud.activate_premium(db, user_id, duration_days)
+        if product_type == "tokens":
+            # Token package purchase
+            tokens_amount = product["amount"]
+            success = crud.add_user_energy(db, user_id, tokens_amount)
+            
+            if success:
+                # Create transaction record
+                crud.create_payment_transaction(
+                    db=db,
+                    user_id=user_id,
+                    transaction_type="token_package",
+                    product_id=product_id,
+                    amount_stars=product["stars"],
+                    tokens_received=tokens_amount,
+                    telegram_payment_charge_id=payment.telegram_payment_charge_id
+                )
+                
+                # Get updated balance
+                user = crud.get_or_create_user(db, user_id)
+                
+                await message.answer(
+                    f"🪙 <b>Tokens Purchased!</b>\n\n"
+                    f"✨ +{tokens_amount} tokens added to your account!\n"
+                    f"💰 Current balance: <b>{user.energy} tokens</b>\n\n"
+                    f"Thank you for your purchase! 💎"
+                )
+                
+                print(f"[PAYMENT] ✅ Added {tokens_amount} tokens to user {user_id}")
+            else:
+                await message.answer("❌ Failed to add tokens. Please contact support.")
+                print(f"[PAYMENT] ❌ Failed to add tokens for user {user_id}")
         
-        if success:
-            # Get updated user info
-            user = crud.get_or_create_user(db, user_id)
-            premium_until = user.premium_until.strftime("%Y-%m-%d") if user.premium_until else "Forever"
+        elif product_type == "tier":
+            # Tier subscription purchase
+            tier = product["tier"]
+            duration_days = product["duration"]
+            daily_tokens = product["daily_tokens"]
             
-            await message.answer(
-                f"🎉 <b>Welcome to Premium!</b>\n\n"
-                f"✨ Your premium subscription is now active!\n"
-                f"📅 Valid until: <b>{premium_until}</b>\n\n"
-                f"Premium benefits:\n"
-                f"⚡ Unlimited energy - free image generation\n"
-                f"📸 Generate as many images as you want\n"
-                f"🚀 Enjoy the full experience!\n\n"
-                f"Thank you for your support! 💎"
-            )
+            success = crud.activate_premium(db, user_id, duration_days, tier)
             
-            print(f"[PAYMENT] ✅ Activated premium for user {user_id} for {duration_days} days")
-        else:
-            await message.answer("❌ Failed to activate premium. Please contact support.")
-            print(f"[PAYMENT] ❌ Failed to activate premium for user {user_id}")
+            if success:
+                # Create transaction record
+                crud.create_payment_transaction(
+                    db=db,
+                    user_id=user_id,
+                    transaction_type="tier_subscription",
+                    product_id=product_id,
+                    amount_stars=product["stars"],
+                    tier_granted=tier,
+                    subscription_days=duration_days,
+                    telegram_payment_charge_id=payment.telegram_payment_charge_id
+                )
+                
+                # Get updated user info
+                user = crud.get_or_create_user(db, user_id)
+                premium_until = user.premium_until.strftime("%Y-%m-%d") if user.premium_until else "Forever"
+                
+                tier_names = {
+                    "plus": "Plus",
+                    "premium": "Premium",
+                    "pro": "Pro",
+                    "legendary": "Legendary"
+                }
+                tier_display = tier_names.get(tier, tier.capitalize())
+                
+                await message.answer(
+                    f"🎉 <b>Welcome to {tier_display}!</b>\n\n"
+                    f"✨ Your {tier_display} subscription is now active!\n"
+                    f"📅 Valid until: <b>{premium_until}</b>\n\n"
+                    f"Benefits:\n"
+                    f"🪙 +{daily_tokens} tokens every day\n"
+                    f"🎁 Daily bonus rewards\n"
+                    f"🚀 Enjoy the full experience!\n\n"
+                    f"Thank you for your support! 💎"
+                )
+                
+                print(f"[PAYMENT] ✅ Activated {tier} tier for user {user_id} for {duration_days} days")
+            else:
+                await message.answer("❌ Failed to activate subscription. Please contact support.")
+                print(f"[PAYMENT] ❌ Failed to activate {tier} tier for user {user_id}")
 
 
 @router.message(Command("premium_status"))

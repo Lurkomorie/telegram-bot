@@ -150,13 +150,20 @@ async def get_user_energy(
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    Get current user's energy and premium status
+    Get current user's token balance and premium tier
     
-    Returns: {energy: int, max_energy: int, is_premium: bool}
+    Returns: {
+        tokens: int,
+        premium_tier: str,
+        is_premium: bool,
+        can_claim_daily_bonus: bool,
+        next_bonus_in_seconds: int,
+        daily_bonus_streak: int
+    }
     """
     # Validate and extract user ID from init data
     if not x_telegram_init_data:
-        return {"energy": 100, "max_energy": 100, "is_premium": False}  # Default for testing
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0}
     
     try:
         # Parse init data to get user ID
@@ -171,16 +178,31 @@ async def get_user_energy(
         with get_db() as db:
             # Get or create user
             user = crud.get_or_create_user(db, telegram_id=user_id)
-            is_premium = crud.check_user_premium(db, user_id)
+            
+            # Check and award referral tokens (when user opens miniapp for the first time)
+            if user.referred_by_user_id and not user.referral_tokens_awarded:
+                success = crud.award_referral_tokens(db, user.referred_by_user_id, user_id)
+                if success:
+                    print(f"[REFERRAL] 🎉 Awarded 50 tokens to referrer {user.referred_by_user_id} for user {user_id}")
+                    # Track referral completion
+                    from app.core import analytics_service_tg
+                    analytics_service_tg.track_referral_completed(user.referred_by_user_id, user_id, 50)
+            
+            premium_info = crud.check_user_premium(db, user_id)
+            bonus_info = crud.can_claim_daily_bonus(db, user_id)
+            
             return {
-                "energy": user.energy, 
-                "max_energy": user.max_energy,
-                "is_premium": is_premium
+                "tokens": user.energy,
+                "premium_tier": premium_info["tier"],
+                "is_premium": premium_info["is_premium"],
+                "can_claim_daily_bonus": bonus_info["can_claim"],
+                "next_bonus_in_seconds": bonus_info["next_claim_seconds"],
+                "daily_bonus_streak": user.daily_bonus_streak or 0
             }
     
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
-        return {"energy": 100, "max_energy": 100, "is_premium": False}  # Default fallback
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0}
 
 
 @router.get("/user/language")
@@ -357,7 +379,7 @@ class SelectScenarioRequest(BaseModel):
 
 
 class CreateInvoiceRequest(BaseModel):
-    plan_id: str  # 2days, month, 3months, year
+    product_id: str  # tokens_100, premium_month, etc.
 
 
 @router.post("/select-scenario")
@@ -621,7 +643,7 @@ async def create_invoice(
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    Create a Telegram Stars invoice for premium subscription
+    Create a Telegram Stars invoice for token package or tier subscription
     
     Returns: {invoice_link: str}
     """
@@ -641,41 +663,246 @@ async def create_invoice(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse user data: {e}")
     
-    # Plan mapping
-    PLANS = {
-        "2days": {"duration": "2 Days", "stars": 250, "description": "Premium for 2 days"},
-        "month": {"duration": "1 Month", "stars": 500, "description": "Premium for 1 month"},
-        "3months": {"duration": "3 Months", "stars": 1000, "description": "Premium for 3 months"},
-        "year": {"duration": "1 Year", "stars": 2500, "description": "Premium for 1 year"},
-    }
+    # Get payment products from payment handler
+    from app.bot.handlers.payment import PAYMENT_PRODUCTS
     
-    plan = PLANS.get(request.plan_id)
-    if not plan:
-        raise HTTPException(status_code=400, detail="Invalid plan ID")
+    product = PAYMENT_PRODUCTS.get(request.product_id)
+    if not product:
+        raise HTTPException(status_code=400, detail="Invalid product ID")
+    
+    # Track payment initiation
+    from app.core import analytics_service_tg
+    analytics_service_tg.track_payment_initiated(
+        user_id,
+        request.product_id,
+        product["stars"],
+        product["type"]
+    )
     
     # Import bot and types
     from app.bot.loader import bot
     from aiogram.types import LabeledPrice
     
     try:
+        # Build title and description based on product type
+        if product["type"] == "tokens":
+            title = f"{product['amount']} Tokens"
+            description = f"Purchase {product['amount']} tokens"
+            label = f"{product['amount']} tokens"
+        else:  # tier subscription
+            tier_names = {
+                "plus": "Plus",
+                "premium": "Premium",
+                "pro": "Pro",
+                "legendary": "Legendary"
+            }
+            tier_display = tier_names.get(product["tier"], product["tier"].capitalize())
+            title = f"{tier_display} - {product['duration']} days"
+            description = f"{tier_display} tier subscription (+{product['daily_tokens']} tokens daily)"
+            label = f"{tier_display} {product['duration']} days"
+        
         # Create invoice using Telegram Bot API
         # For Stars payment, provider_token should be empty string
         invoice_link = await bot.create_invoice_link(
-            title=f"Premium - {plan['duration']}",
-            description=plan['description'],
-            payload=request.plan_id,  # This will be sent back in successful_payment
+            title=title,
+            description=description,
+            payload=request.product_id,  # This will be sent back in successful_payment
             provider_token="",  # Empty for Telegram Stars
             currency="XTR",  # XTR = Telegram Stars
-            prices=[LabeledPrice(label=f"Premium {plan['duration']}", amount=plan['stars'])]
+            prices=[LabeledPrice(label=label, amount=product["stars"])]
         )
         
-        print(f"[INVOICE-API] Created invoice for user {user_id}, plan {request.plan_id}: {invoice_link}")
+        print(f"[INVOICE-API] Created invoice for user {user_id}, product {request.product_id}: {invoice_link}")
         
         return {"invoice_link": invoice_link}
     
     except Exception as e:
         print(f"[INVOICE-API] Error creating invoice: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
+
+
+@router.post("/claim-daily-bonus")
+async def claim_daily_bonus(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Claim daily bonus (10 tokens)
+    
+    Returns: {success: bool, tokens: int, message: str}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            result = crud.claim_daily_bonus(db, user_id)
+            
+            if result["success"]:
+                # Track the claim
+                from app.core import analytics_service_tg
+                analytics_service_tg.track_daily_bonus_claimed(user_id, 10)
+            
+            return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[DAILY-BONUS-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to claim bonus: {str(e)}")
+
+
+@router.get("/can-claim-daily-bonus")
+async def can_claim_daily_bonus_endpoint(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Check if user can claim daily bonus
+    
+    Returns: {can_claim: bool, next_claim_seconds: int}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        return {"can_claim": False, "next_claim_seconds": 86400}
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            result = crud.can_claim_daily_bonus(db, user_id)
+            return result
+    
+    except Exception as e:
+        print(f"[CAN-CLAIM-BONUS-API] Error: {e}")
+        return {"can_claim": False, "next_claim_seconds": 86400}
+
+
+class TrackEventRequest(BaseModel):
+    event_name: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@router.post("/track-event")
+async def track_event(
+    request: TrackEventRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Track analytics event from mini app
+    
+    Returns: {success: bool}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        # Track the event
+        from app.core import analytics_service_tg
+        
+        if request.event_name == "miniapp_opened":
+            analytics_service_tg.track_miniapp_opened(user_id)
+        elif request.event_name == "plans_page_viewed":
+            analytics_service_tg.track_plans_page_viewed(user_id)
+        elif request.event_name == "payment_initiated":
+            meta = request.metadata or {}
+            analytics_service_tg.track_payment_initiated(
+                user_id,
+                meta.get("product_id", ""),
+                meta.get("amount_stars", 0),
+                meta.get("transaction_type", "")
+            )
+        else:
+            # Generic event tracking
+            from app.db import crud
+            with get_db() as db:
+                crud.create_analytics_event(
+                    db=db,
+                    client_id=user_id,
+                    event_name=request.event_name,
+                    meta=request.metadata or {}
+                )
+        
+        return {"success": True}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[TRACK-EVENT-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to track event: {str(e)}")
+
+
+@router.get("/user/referrals")
+async def get_user_referrals(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get user's referral statistics
+    
+    Returns: {
+        referrals_count: int,
+        bot_username: str
+    }
+    """
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=401, detail="Telegram init data required")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            # Count users referred by this user who have been awarded tokens (activated)
+            from app.db.models import User
+            referrals_count = db.query(User).filter(
+                User.referred_by_user_id == user_id,
+                User.referral_tokens_awarded == True
+            ).count()
+            
+            # Get bot username from settings
+            bot_username = settings.BOT_NAME
+            
+            return {
+                "referrals_count": referrals_count,
+                "bot_username": bot_username
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[REFERRALS-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get referral stats: {str(e)}")
 
 
 @router.get("/health")

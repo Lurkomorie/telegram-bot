@@ -333,5 +333,62 @@ def track_command(
     )
 
 
+def track_miniapp_opened(client_id: int):
+    """Track mini app opening"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="miniapp_opened"
+    )
+
+
+def track_plans_page_viewed(client_id: int):
+    """Track plans/premium page view"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="plans_page_viewed"
+    )
+
+
+def track_payment_initiated(
+    client_id: int,
+    product_id: str,
+    amount_stars: int,
+    transaction_type: str
+):
+    """Track payment initiation"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="payment_initiated",
+        meta={
+            "product_id": product_id,
+            "amount_stars": amount_stars,
+            "transaction_type": transaction_type
+        }
+    )
+
+
+def track_daily_bonus_claimed(client_id: int, tokens_awarded: int):
+    """Track daily bonus claim"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="daily_bonus_claimed",
+        meta={
+            "tokens_awarded": tokens_awarded
+        }
+    )
+
+
+def track_referral_completed(referrer_id: int, new_user_id: int, tokens_awarded: int):
+    """Track successful referral"""
+    track_event_tg(
+        client_id=referrer_id,
+        event_name="referral_completed",
+        meta={
+            "new_user_id": new_user_id,
+            "tokens_awarded": tokens_awarded
+        }
+    )
+
+
 
 

@@ -215,12 +215,14 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
     keyboard = build_energy_upsell_keyboard(miniapp_url)
     
     sent_msg = await message.answer(
-        f"⚡ <b>You're out of energy!</b>\n\n"
-        f"You have {user_energy['energy']}/{user_energy['max_energy']} energy.\n"
-        f"• Text messages cost <b>1 energy</b> each\n"
-        f"• Image generation costs <b>5 energy</b> per image\n"
-        f"• Energy regenerates at <b>2 per hour</b>\n\n"
-        f"💎 Get unlimited energy with Premium!",
+        f"🪙 <b>You're out of tokens!</b>\n\n"
+        f"You have {user_energy['tokens']} tokens.\n"
+        f"• Text messages cost <b>1 token</b> each\n"
+        f"• Image generation costs <b>5 tokens</b> per image\n\n"
+        f"💎 Get more tokens:\n"
+        f"• Purchase token packages\n"
+        f"• Subscribe to premium tiers for daily tokens\n"
+        f"• Claim your daily 10-token bonus!",
         reply_markup=keyboard
     )
     

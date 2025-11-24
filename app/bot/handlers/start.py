@@ -146,6 +146,26 @@ async def cmd_start(message: types.Message):
             print(f"[START-CODE] ⚠️  Start code not found or inactive: {deep_link_param}")
             # Fall through to normal flow
     
+    # Handle referral codes (format: ref_<user_id>)
+    if deep_link_param and deep_link_param.startswith("ref_"):
+        try:
+            referrer_id = int(deep_link_param.split("_")[1])
+            print(f"[REFERRAL] 🎁 Processing referral from user {referrer_id} to new user {message.from_user.id}")
+            
+            # Don't allow self-referral
+            if referrer_id != message.from_user.id:
+                with get_db() as db:
+                    # Track the referral
+                    success = crud.track_referral(db, referrer_id, message.from_user.id)
+                    if success:
+                        print(f"[REFERRAL] ✅ Referral tracked: {referrer_id} -> {message.from_user.id}")
+                    else:
+                        print(f"[REFERRAL] ⚠️  Referral not tracked (already set or user not found)")
+            else:
+                print(f"[REFERRAL] ⚠️  Self-referral attempted by user {referrer_id}")
+        except (ValueError, IndexError) as e:
+            print(f"[REFERRAL] ❌ Invalid referral code format: {deep_link_param}, error: {e}")
+    
     # Handle telegram_ads_* deep links (e.g., telegram_ads_kiki3)
     if deep_link_param and deep_link_param.startswith("telegram_ads_"):
         import re

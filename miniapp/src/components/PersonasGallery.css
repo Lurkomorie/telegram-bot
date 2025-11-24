@@ -85,7 +85,7 @@
 
 .persona-description {
   font-size: 10px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.85);
   margin: 0;
   line-height: 1.5;
   display: -webkit-box;

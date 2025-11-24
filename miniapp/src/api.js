@@ -45,9 +45,9 @@ export async function fetchPersonaHistories(personaId, initData) {
 }
 
 /**
- * Fetch user energy and premium status
+ * Fetch user token balance and premium tier
  * @param {string} initData - Telegram WebApp initData for authentication
- * @returns {Promise<Object>} Energy object {energy, max_energy, is_premium}
+ * @returns {Promise<Object>} Token object {tokens, premium_tier, is_premium, can_claim_daily_bonus, next_bonus_in_seconds}
  */
 export async function fetchUserEnergy(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/energy`, {
@@ -173,23 +173,108 @@ export async function selectScenario(personaId, historyId, initData) {
 }
 
 /**
- * Create a Telegram Stars invoice for premium subscription
- * @param {string} planId - Plan ID (2days, month, 3months, year)
+ * Create a Telegram Stars invoice for token package or tier subscription
+ * @param {string} productId - Product ID (tokens_100, premium_month, etc.)
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Invoice object {invoice_link}
  */
-export async function createInvoice(planId, initData) {
+export async function createInvoice(productId, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Telegram-Init-Data': initData || '',
     },
-    body: JSON.stringify({ plan_id: planId }),
+    body: JSON.stringify({ product_id: productId }),
   });
   
   if (!response.ok) {
     throw new Error('Failed to create invoice');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Claim daily bonus (10 tokens)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success: bool, tokens: int, message: str}
+ */
+export async function claimDailyBonus(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/claim-daily-bonus`, {
+    method: 'POST',
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to claim daily bonus');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Check if user can claim daily bonus
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {can_claim: bool, next_claim_seconds: int}
+ */
+export async function canClaimDailyBonus(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/can-claim-daily-bonus`, {
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to check bonus eligibility');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Track analytics event
+ * @param {string} eventName - Event name
+ * @param {Object} metadata - Event metadata
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success: bool}
+ */
+export async function trackEvent(eventName, metadata, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/track-event`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify({
+      event_name: eventName,
+      metadata: metadata || {},
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to track event');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Fetch user's referral statistics
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Referral stats object {referrals_count: int, bot_username: string}
+ */
+export async function fetchReferralStats(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/referrals`, {
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch referral stats');
   }
   
   return response.json();

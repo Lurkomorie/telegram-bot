@@ -26,15 +26,22 @@ class User(Base):
     # Settings
     settings = Column(JSONB, default={})
     
-    # Energy system
-    energy = Column(BigInteger, default=100, nullable=False)
-    max_energy = Column(BigInteger, default=100, nullable=False)
+    # Token system (formerly energy)
+    energy = Column(BigInteger, default=100, nullable=False)  # Now represents token balance
     last_energy_upsell_message_id = Column(BigInteger, nullable=True)
     last_energy_upsell_chat_id = Column(BigInteger, nullable=True)
     
-    # Premium subscription
+    # Premium tiers and subscription
     is_premium = Column(Boolean, default=False, nullable=False)
     premium_until = Column(DateTime, nullable=True)
+    premium_tier = Column(String(20), default="free", nullable=False)  # free, plus, premium, pro, legendary
+    last_daily_token_addition = Column(DateTime, nullable=True)  # Last automatic tier-based token addition
+    last_daily_bonus_claim = Column(DateTime, nullable=True)  # Last manual daily bonus claim
+    daily_bonus_streak = Column(BigInteger, default=0, nullable=False)  # Consecutive days of claiming daily bonus
+    
+    # Referral system
+    referred_by_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    referral_tokens_awarded = Column(Boolean, default=False, nullable=False)
     
     # Global message counter (for priority queue logic)
     global_message_count = Column(BigInteger, default=0, nullable=False)
@@ -348,4 +355,39 @@ class Translation(Base):
         UniqueConstraint("key", "lang", name="uq_translations_key_lang"),
         Index("ix_translations_key_lang", "key", "lang"),
         Index("ix_translations_category", "category"),
+    )
+
+
+class PaymentTransaction(Base):
+    """Payment transactions for tracking all token purchases and tier subscriptions"""
+    __tablename__ = "payment_transactions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    transaction_type = Column(
+        String(20),
+        CheckConstraint("transaction_type IN ('token_package', 'tier_subscription')"),
+        nullable=False
+    )
+    product_id = Column(String(50), nullable=False)  # e.g., "tokens_100", "premium_month"
+    amount_stars = Column(BigInteger, nullable=False)  # Stars paid
+    tokens_received = Column(BigInteger, nullable=True)  # For token packages
+    tier_granted = Column(String(20), nullable=True)  # For subscriptions: plus, premium, pro, legendary
+    subscription_days = Column(BigInteger, nullable=True)  # For subscriptions
+    telegram_payment_charge_id = Column(String(255), nullable=True)  # Telegram's payment ID
+    status = Column(
+        String(20),
+        CheckConstraint("status IN ('completed', 'pending', 'failed', 'refunded')"),
+        default="completed",
+        nullable=False
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        Index("ix_payment_transactions_user_id", "user_id"),
+        Index("ix_payment_transactions_created_at", "created_at"),
+        Index("ix_payment_transactions_status", "status"),
     )

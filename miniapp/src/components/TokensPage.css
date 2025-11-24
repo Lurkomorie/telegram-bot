@@ -1,0 +1,126 @@
+.tokens-page {
+  min-height: 100vh;
+  padding: 20px;
+  padding-bottom: 100px;
+  background: #0a0a0a;
+}
+
+.packages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.token-package-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.token-package-item:active {
+  transform: scale(0.98);
+}
+
+.token-package-item.selected {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-red);
+}
+
+.package-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.package-radio {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.token-package-item.selected .package-radio {
+  border-color: var(--color-red);
+}
+
+.radio-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--color-red);
+  border-radius: 50%;
+}
+
+.package-amount-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coin-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.amount-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.package-right {
+  text-align: right;
+}
+
+.package-price-rubles {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.package-price-stars {
+  font-size: 11px;
+  color: #fbbf24;
+  margin-top: 2px;
+}
+
+.purchase-button-tokens {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--gradient-primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 0;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.purchase-button-tokens:active {
+  transform: scale(0.98);
+}
+
+.purchase-button-tokens:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

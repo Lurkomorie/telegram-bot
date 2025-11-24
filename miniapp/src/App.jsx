@@ -1,13 +1,21 @@
 import WebApp from '@twa-dev/sdk';
-import { useEffect, useState } from 'react';
-import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, checkAgeVerification, verifyAge } from './api';
+import { useCallback, useEffect, useState } from 'react';
+import { checkAgeVerification, claimDailyBonus, fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, trackEvent, verifyAge } from './api';
 import './App.css';
+import clockIcon from './assets/clock.svg';
+import giftIcon from './assets/gift.png';
+import lightningIcon from './assets/lightning.png';
+import premiumIcon from './assets/premium.png';
 import BottomNav from './components/BottomNav';
+import CheckoutPage from './components/CheckoutPage';
 import HistorySelection from './components/HistorySelection';
-import PersonasGallery from './components/PersonasGallery';
-import SettingsPage from './components/SettingsPage';
 import LanguagePage from './components/LanguagePage';
+import PersonasGallery from './components/PersonasGallery';
 import PlansPage from './components/PlansPage';
+import PremiumPage from './components/PremiumPage';
+import ReferralsPage from './components/ReferralsPage';
+import SettingsPage from './components/SettingsPage';
+import TokensPage from './components/TokensPage';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
@@ -16,17 +24,24 @@ import { useTranslation } from './i18n/TranslationContext';
  */
 function App() {
   const { t, isLoading: isLoadingLanguage, onLanguageChange } = useTranslation();
-  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'settings' | 'language' | 'plans'
+  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'settings' | 'language' | 'plans' | 'premium' | 'checkout' | 'tokens' | 'referrals'
+  const [userName, setUserName] = useState('User');
+  const [userId, setUserId] = useState(null);
+  const [userPhotoUrl, setUserPhotoUrl] = useState(null);
+  const [subscriptionText, setSubscriptionText] = useState('');
+  const [dailyBonusDay, setDailyBonusDay] = useState(1);
+  const [showBonusAnimation, setShowBonusAnimation] = useState(false);
+  const [isClaimingBonus, setIsClaimingBonus] = useState(false);
   const [personas, setPersonas] = useState([]);
   const [selectedPersona, setSelectedPersona] = useState(null);
+  const [selectedTier, setSelectedTier] = useState(null);
   const [histories, setHistories] = useState([]);
-  const [energy, setEnergy] = useState({ energy: 100, max_energy: 100, is_premium: false });
+  const [tokens, setTokens] = useState({ tokens: 100, premium_tier: 'free', is_premium: false, can_claim_daily_bonus: false, next_bonus_in_seconds: 0, daily_bonus_streak: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistories, setIsLoadingHistories] = useState(false);
   const [error, setError] = useState(null);
   const [showAgeVerification, setShowAgeVerification] = useState(false);
   const [isVerifyingAge, setIsVerifyingAge] = useState(false);
-  const [ageCheckComplete, setAgeCheckComplete] = useState(false);
 
   useEffect(() => {
     // Initialize Telegram Web App
@@ -39,6 +54,33 @@ function App() {
     
     // Disable vertical swipes to prevent accidental closes
     WebApp.disableVerticalSwipes();
+    
+    // Get user info from Telegram
+    const telegramUser = WebApp.initDataUnsafe?.user;
+    if (telegramUser) {
+      setUserName(telegramUser.first_name || 'User');
+      setUserId(telegramUser.id);
+      
+      // Get user photo if available
+      if (telegramUser.photo_url) {
+        setUserPhotoUrl(telegramUser.photo_url);
+      }
+    }
+    
+    // Set random subscription text
+    const subscriptionTexts = ['Крутые фичи', 'Рекомендуем купить', 'Попробуйте'];
+    const randomText = subscriptionTexts[Math.floor(Math.random() * subscriptionTexts.length)];
+    setSubscriptionText(randomText);
+    
+    // Track mini app opened
+    try {
+      const initData = WebApp.initData;
+      trackEvent('miniapp_opened', {}, initData).catch(err => {
+        console.error('Failed to track miniapp opened:', err);
+      });
+    } catch (err) {
+      console.error('Error tracking miniapp opened:', err);
+    }
     
     // Wait for language to load before checking age status
     if (!isLoadingLanguage) {
@@ -57,8 +99,6 @@ function App() {
         setIsLoading(false);
       } else {
         // User is verified - proceed to load app
-        setAgeCheckComplete(true);
-        
         // Check URL parameters for routing
         const urlParams = new URLSearchParams(window.location.search);
         const page = urlParams.get('page');
@@ -86,7 +126,6 @@ function App() {
       
       // Age verified successfully
       setShowAgeVerification(false);
-      setAgeCheckComplete(true);
       
       // Check URL parameters for routing
       const urlParams = new URLSearchParams(window.location.search);
@@ -152,10 +191,14 @@ function App() {
     try {
       const initData = WebApp.initData;
       const data = await fetchUserEnergy(initData);
-      setEnergy(data);
+      setTokens(data);
+      // Update daily bonus day from streak
+      if (data.daily_bonus_streak) {
+        setDailyBonusDay(data.daily_bonus_streak + 1); // Next day to claim
+      }
     } catch (err) {
-      console.error('Failed to load energy:', err);
-      // Don't show error for energy, just use default
+      console.error('Failed to load tokens:', err);
+      // Don't show error for tokens, just use default
     }
   }
 
@@ -195,21 +238,25 @@ function App() {
     }
   }
 
-  function handleBackToGallery() {
+  const handleBackToGallery = useCallback(() => {
     setCurrentPage('gallery');
     setSelectedPersona(null);
     setHistories([]);
-  }
+  }, []);
 
-  function handleBackToPrevious() {
-    if (currentPage === 'language' || currentPage === 'plans') {
+  const handleBackToPrevious = useCallback(() => {
+    if (currentPage === 'checkout') {
+      setCurrentPage('premium');
+    } else if (currentPage === 'language' || currentPage === 'plans' || currentPage === 'premium' || currentPage === 'tokens') {
       setCurrentPage('settings');
+    } else if (currentPage === 'referrals') {
+      setCurrentPage('gallery');
     } else if (currentPage === 'settings') {
       setCurrentPage('gallery');
     } else {
       handleBackToGallery();
     }
-  }
+  }, [currentPage, handleBackToGallery]);
 
   function handleNavigate(page) {
     if (page === 'gallery' && currentPage !== 'gallery') {
@@ -222,11 +269,80 @@ function App() {
       setCurrentPage('language');
     } else if (page === 'plans') {
       setCurrentPage('plans');
+    } else if (page === 'premium') {
+      setCurrentPage('premium');
+    } else if (page === 'checkout') {
+      setCurrentPage('checkout');
+    } else if (page === 'tokens') {
+      setCurrentPage('tokens');
+    } else if (page === 'referrals') {
+      setCurrentPage('referrals');
     }
   }
 
-  // Determine if bottom nav should be shown (on gallery, settings, language, and plans)
-  const showBottomNav = currentPage === 'gallery' || currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans';
+  function handleNavigateToCheckout(tier) {
+    setSelectedTier(tier);
+    setCurrentPage('checkout');
+  }
+
+  function formatTimeUntilBonus(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}ч ${minutes}м`;
+  }
+
+  async function handleClaimDailyBonus() {
+    if (isClaimingBonus) return;
+    
+    // Check if can claim
+    if (!tokens.can_claim_daily_bonus) {
+      const hours = Math.floor(tokens.next_bonus_in_seconds / 3600);
+      const minutes = Math.floor((tokens.next_bonus_in_seconds % 3600) / 60);
+      WebApp.showAlert(`Бонус уже получен! Следующий через ${hours}ч ${minutes}м`);
+      return;
+    }
+    
+    setIsClaimingBonus(true);
+    
+    try {
+      const initData = WebApp.initData;
+      const result = await claimDailyBonus(initData);
+      
+      if (result.success) {
+        // Show animation
+        setShowBonusAnimation(true);
+        
+        // Update tokens after a short delay (for animation)
+        setTimeout(() => {
+          setTokens(prev => ({
+            ...prev,
+            tokens: result.tokens,
+            can_claim_daily_bonus: false,
+            next_bonus_in_seconds: 86400,
+            daily_bonus_streak: result.streak || prev.daily_bonus_streak + 1
+          }));
+          
+          // Update daily bonus day
+          setDailyBonusDay((result.streak || 0) + 1);
+          
+          // Hide animation
+          setTimeout(() => {
+            setShowBonusAnimation(false);
+          }, 1000);
+        }, 800);
+      } else {
+        WebApp.showAlert(result.message || 'Не удалось получить бонус');
+      }
+    } catch (error) {
+      console.error('Failed to claim daily bonus:', error);
+      WebApp.showAlert('Ошибка при получении бонуса. Попробуйте снова.');
+    } finally {
+      setIsClaimingBonus(false);
+    }
+  }
+
+  // Determine if bottom nav should be shown (only on gallery page)
+  const showBottomNav = currentPage === 'gallery';
 
   // Get page title
   const getPageTitle = () => {
@@ -234,12 +350,34 @@ function App() {
     if (currentPage === 'settings') return t('app.header.settings');
     if (currentPage === 'language') return t('settings.language.title');
     if (currentPage === 'plans') return t('app.header.settings');
+    if (currentPage === 'premium') return 'Премиум';
+    if (currentPage === 'checkout') return 'Покупка';
+    if (currentPage === 'tokens') return 'Энергия';
+    if (currentPage === 'referrals') return 'Рефералы';
     if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
     return '';
   };
 
   // Determine if back button should be shown
-  const showBackButton = currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans' || currentPage === 'history';
+  const showBackButton = currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans' || currentPage === 'premium' || currentPage === 'checkout' || currentPage === 'tokens' || currentPage === 'referrals' || currentPage === 'history';
+
+  // Handle Telegram BackButton
+  useEffect(() => {
+    const backHandler = () => {
+      handleBackToPrevious();
+    };
+    
+    if (showBackButton) {
+      WebApp.BackButton.show();
+      WebApp.BackButton.onClick(backHandler);
+    } else {
+      WebApp.BackButton.hide();
+    }
+    
+    return () => {
+      WebApp.BackButton.offClick(backHandler);
+    };
+  }, [showBackButton, handleBackToPrevious]);
 
   // Show loading screen while language is initializing
   if (isLoadingLanguage) {
@@ -323,33 +461,90 @@ function App() {
         </div>
       )}
 
-      <header className="app-header">
-        <div className="header-content">
-          {showBackButton && (
-            <button className="back-button" onClick={handleBackToPrevious}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
-          )}
-          <h1 className="page-title">{getPageTitle()}</h1>
-          {currentPage !== 'history' && (
-            <div className="energy-display">
-              <div className="energy-content">
-                <span className="energy-icon"></span>
-                <div className="energy-info">
-                  <span className="energy-value">
-                    {energy.is_premium ? '∞' : `${energy.energy}/${energy.max_energy}`}
+      {currentPage === 'gallery' ? (
+        <header className="app-header gallery-header">
+          <div className="gallery-header-content">
+            <div className="user-profile-section">
+              <div className={`user-avatar ${!userPhotoUrl ? 'skeleton-wave' : ''}`}>
+                {userPhotoUrl && <img src={userPhotoUrl} alt={userName} className="avatar-image" />}
+              </div>
+              <div className="user-info-column">
+                <div className="user-name">{userName}</div>
+                <div className="user-energy-display">
+                  <img src={lightningIcon} alt="energy" className="energy-icon-small" />
+                  <span className={`energy-value-small ${showBonusAnimation ? 'energy-boost' : ''}`}>
+                    {tokens.tokens.toLocaleString()}
                   </span>
+                  <button className="plus-button-small" onClick={() => handleNavigate('tokens')}>
+                    +
+                  </button>
                 </div>
               </div>
-              <button className="plus-button" onClick={() => handleNavigate('plans')}>
-                +
-              </button>
+            </div>
+            <button className="referral-bonus-button" onClick={() => handleNavigate('referrals')}>
+              <span className="bonus-icon">🎁</span>
+              <span className="bonus-text">Бонус за друга</span>
+            </button>
+          </div>
+          <div className="action-buttons">
+            <button 
+              className={`action-button gift-button ${isClaimingBonus ? 'claiming' : ''} ${!tokens.can_claim_daily_bonus ? 'claimed' : ''}`}
+              onClick={handleClaimDailyBonus}
+              disabled={isClaimingBonus}
+            >
+              <div className="button-content">
+                <img 
+                  src={tokens.can_claim_daily_bonus ? giftIcon : clockIcon} 
+                  alt={tokens.can_claim_daily_bonus ? 'gift' : 'clock'} 
+                  className="gift-button-icon" 
+                />
+                <span className="button-label">Подарок</span>
+                <span className="gift-button-day">День {dailyBonusDay}</span>
+              </div>
+              {tokens.can_claim_daily_bonus ? (
+                <div className="button-subtitle gift-button-action">Нажмите чтобы забрать</div>
+              ) : (
+                <div className="button-subtitle">{formatTimeUntilBonus(tokens.next_bonus_in_seconds)}</div>
+              )}
+            </button>
+            <button className="action-button subscription-button" onClick={() => handleNavigate('premium')}>
+              <div className="button-content">
+                <img src={premiumIcon} alt="premium" className="button-icon-large" />
+                <span className="button-label">Подписка</span>
+              </div>
+              <div className="button-subtitle">{subscriptionText}</div>
+            </button>
+          </div>
+          {showBonusAnimation && (
+            <div className="bonus-animation">
+              <span className="bonus-amount">+10</span>
             </div>
           )}
-        </div>
-      </header>
+        </header>
+      ) : (
+        <header className="app-header">
+          <div className="header-content">
+            <h1 className="page-title">{getPageTitle()}</h1>
+            {currentPage !== 'history' && currentPage !== 'referrals' && currentPage !== 'checkout' && (
+              <div className="energy-display">
+                <div className="energy-content">
+                  <span className="energy-icon">
+                    <img src={lightningIcon} alt="energy" />
+                  </span>
+                  <div className="energy-info">
+                    <span className="energy-value">
+                      {tokens.tokens.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                <button className="plus-button" onClick={() => handleNavigate('tokens')}>
+                  +
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+      )}
       
       <main className="app-main">
         {error ? (
@@ -375,13 +570,21 @@ function App() {
           />
         ) : currentPage === 'settings' ? (
           <SettingsPage
-            energy={energy}
+            tokens={tokens}
             onNavigate={handleNavigate}
           />
         ) : currentPage === 'language' ? (
           <LanguagePage />
         ) : currentPage === 'plans' ? (
           <PlansPage />
+        ) : currentPage === 'premium' ? (
+          <PremiumPage onNavigateToCheckout={handleNavigateToCheckout} />
+        ) : currentPage === 'checkout' ? (
+          <CheckoutPage tier={selectedTier} onBack={handleBackToPrevious} />
+        ) : currentPage === 'tokens' ? (
+          <TokensPage tokens={tokens} />
+        ) : currentPage === 'referrals' ? (
+          <ReferralsPage userId={userId} />
         ) : null}
       </main>
 

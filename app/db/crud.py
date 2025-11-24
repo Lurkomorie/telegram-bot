@@ -1157,17 +1157,17 @@ def delete_persona_history(db: Session, history_id: UUID) -> bool:
 # ========== USER ENERGY OPERATIONS ==========
 
 def get_user_energy(db: Session, user_id: int) -> dict:
-    """Get user's current energy"""
+    """Get user's current token balance"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return {"energy": 0, "max_energy": 0}
-    return {"energy": user.energy, "max_energy": user.max_energy}
+        return {"tokens": 0, "premium_tier": "free"}
+    return {"tokens": user.energy, "premium_tier": user.premium_tier}
 
 
 def deduct_user_energy(db: Session, user_id: int, amount: int = 5) -> bool:
     """
-    Deduct energy from user
-    Returns True if successful, False if insufficient energy
+    Deduct tokens from user (all users including premium tiers consume tokens)
+    Returns True if successful, False if insufficient tokens
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -1234,35 +1234,39 @@ def get_and_clear_energy_upsell_message(db: Session, user_id: int) -> tuple:
 
 # ========== PREMIUM SUBSCRIPTION OPERATIONS ==========
 
-def check_user_premium(db: Session, user_id: int) -> bool:
+def check_user_premium(db: Session, user_id: int) -> dict:
     """
-    Check if user has active premium subscription
-    Returns True if user is premium and subscription hasn't expired
+    Check if user has active premium subscription and return tier information
+    Returns: {"is_premium": bool, "tier": str}
     """
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return False
+        return {"is_premium": False, "tier": "free"}
     
     # Check if premium and not expired
     if user.is_premium:
-        if user.premium_until is None:
-            return True  # Lifetime premium
-        if user.premium_until > datetime.utcnow():
-            return True  # Active subscription
+        if user.premium_until is None or user.premium_until > datetime.utcnow():
+            # Active subscription - ensure tier is set
+            if user.premium_tier == "free":
+                user.premium_tier = "premium"  # Default tier
+                db.commit()
+            return {"is_premium": True, "tier": user.premium_tier}
         else:
-            # Expired - clear premium status
+            # Expired - downgrade to free
             user.is_premium = False
+            user.premium_tier = "free"
             db.commit()
-            return False
+            return {"is_premium": False, "tier": "free"}
     
-    return False
+    return {"is_premium": False, "tier": user.premium_tier}
 
 
-def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
+def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = "premium") -> bool:
     """
-    Activate premium subscription for user
+    Activate premium subscription for user with specific tier
     duration_days: number of days to add to subscription
+    tier: premium tier (plus, premium, pro, legendary)
     Returns True if successful
     """
     from datetime import timedelta
@@ -1271,8 +1275,9 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
     if not user:
         return False
     
-    # Set premium status
+    # Set premium status and tier
     user.is_premium = True
+    user.premium_tier = tier
     
     # Calculate expiry date
     if user.premium_until and user.premium_until > datetime.utcnow():
@@ -1308,31 +1313,217 @@ def regenerate_user_energy(db: Session, user_id: int) -> bool:
     return user.energy > old_energy
 
 
-def regenerate_all_users_energy(db: Session) -> int:
+def add_daily_tokens_by_tier(db: Session) -> int:
     """
-    Regenerate 10 energy for all non-premium users (runs every day)
-    Returns count of users who received energy
+    Add daily tokens to premium tier users based on their subscription level
+    Runs every day via scheduler
+    Returns count of users who received tokens
     """
+    from datetime import timedelta
     
-    # Get all non-premium users
+    # Tier token amounts
+    TIER_DAILY_TOKENS = {
+        "plus": 50,
+        "premium": 75,
+        "pro": 100,
+        "legendary": 200
+    }
+    
+    # Get all premium tier users whose subscription hasn't expired
     users = db.query(User).filter(
-        (User.is_premium == False) | 
-        ((User.is_premium == True) & (User.premium_until < datetime.utcnow()))
+        User.premium_tier.in_(["plus", "premium", "pro", "legendary"]),
+        (User.premium_until.is_(None)) | (User.premium_until > datetime.utcnow())
     ).all()
     
     count = 0
+    now = datetime.utcnow()
+    
     for user in users:
-        # Update expired premium status
-        if user.is_premium and user.premium_until and user.premium_until < datetime.utcnow():
-            user.is_premium = False
+        # Check if 24 hours have passed since last addition
+        if user.last_daily_token_addition:
+            time_since_last = now - user.last_daily_token_addition
+            if time_since_last < timedelta(hours=24):
+                continue  # Skip if less than 24 hours
         
-        # Add energy if below max
-        if user.energy < user.max_energy:
-            user.energy = min(user.energy + 10, user.max_energy)
+        # Add tokens based on tier
+        tokens_to_add = TIER_DAILY_TOKENS.get(user.premium_tier, 0)
+        if tokens_to_add > 0:
+            user.energy += tokens_to_add
+            user.last_daily_token_addition = now
             count += 1
     
     db.commit()
     return count
+
+
+# ========== DAILY BONUS OPERATIONS ==========
+
+def can_claim_daily_bonus(db: Session, user_id: int) -> dict:
+    """
+    Check if user can claim daily bonus
+    Returns: {can_claim: bool, next_claim_seconds: int}
+    """
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"can_claim": False, "next_claim_seconds": 0}
+    
+    # If never claimed, can claim now
+    if not user.last_daily_bonus_claim:
+        return {"can_claim": True, "next_claim_seconds": 0}
+    
+    # Check if 24 hours have passed
+    now = datetime.utcnow()
+    time_since_last = now - user.last_daily_bonus_claim
+    
+    if time_since_last >= timedelta(hours=24):
+        return {"can_claim": True, "next_claim_seconds": 0}
+    else:
+        # Calculate seconds until next claim
+        time_until_next = timedelta(hours=24) - time_since_last
+        return {"can_claim": False, "next_claim_seconds": int(time_until_next.total_seconds())}
+
+
+def claim_daily_bonus(db: Session, user_id: int) -> dict:
+    """
+    Claim daily bonus (10 tokens)
+    Returns: {success: bool, tokens: int, message: str, streak: int}
+    """
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"success": False, "tokens": 0, "message": "User not found", "streak": 0}
+    
+    # Check if can claim
+    if user.last_daily_bonus_claim:
+        time_since_last = datetime.utcnow() - user.last_daily_bonus_claim
+        if time_since_last < timedelta(hours=24):
+            time_until_next = timedelta(hours=24) - time_since_last
+            hours = int(time_until_next.total_seconds() // 3600)
+            minutes = int((time_until_next.total_seconds() % 3600) // 60)
+            return {
+                "success": False,
+                "tokens": user.energy,
+                "message": f"Already claimed today. Next bonus in {hours}h {minutes}m",
+                "streak": user.daily_bonus_streak or 0
+            }
+        
+        # Check if streak should be reset (more than 48 hours)
+        if time_since_last > timedelta(hours=48):
+            user.daily_bonus_streak = 0
+    
+    # Award 10 tokens and increment streak
+    user.energy += 10
+    user.last_daily_bonus_claim = datetime.utcnow()
+    user.daily_bonus_streak = (user.daily_bonus_streak or 0) + 1
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "success": True,
+        "tokens": user.energy,
+        "message": f"Claimed 10 tokens! Day {user.daily_bonus_streak} streak!",
+        "streak": user.daily_bonus_streak
+    }
+
+
+# ========== REFERRAL OPERATIONS ==========
+
+def track_referral(db: Session, referrer_id: int, new_user_id: int) -> bool:
+    """
+    Track that a new user was referred by an existing user
+    Returns True if successfully tracked
+    """
+    new_user = db.query(User).filter(User.id == new_user_id).first()
+    if not new_user:
+        return False
+    
+    # Only set referrer if not already set
+    if not new_user.referred_by_user_id:
+        new_user.referred_by_user_id = referrer_id
+        db.commit()
+        return True
+    
+    return False
+
+
+def award_referral_tokens(db: Session, referrer_id: int, new_user_id: int) -> bool:
+    """
+    Award 50 tokens to referrer when their referred user completes onboarding
+    Returns True if tokens were awarded
+    """
+    # Check that new user was referred by this referrer
+    new_user = db.query(User).filter(User.id == new_user_id).first()
+    if not new_user or new_user.referred_by_user_id != referrer_id:
+        return False
+    
+    # Check if tokens already awarded
+    if new_user.referral_tokens_awarded:
+        return False
+    
+    # Award tokens to referrer
+    referrer = db.query(User).filter(User.id == referrer_id).first()
+    if not referrer:
+        return False
+    
+    referrer.energy += 50
+    new_user.referral_tokens_awarded = True
+    
+    db.commit()
+    return True
+
+
+# ========== PAYMENT TRANSACTION OPERATIONS ==========
+
+def create_payment_transaction(
+    db: Session,
+    user_id: int,
+    transaction_type: str,
+    product_id: str,
+    amount_stars: int,
+    tokens_received: int = None,
+    tier_granted: str = None,
+    subscription_days: int = None,
+    telegram_payment_charge_id: str = None,
+    status: str = "completed"
+) -> 'PaymentTransaction':
+    """
+    Create a payment transaction record
+    """
+    from app.db.models import PaymentTransaction
+    
+    transaction = PaymentTransaction(
+        user_id=user_id,
+        transaction_type=transaction_type,
+        product_id=product_id,
+        amount_stars=amount_stars,
+        tokens_received=tokens_received,
+        tier_granted=tier_granted,
+        subscription_days=subscription_days,
+        telegram_payment_charge_id=telegram_payment_charge_id,
+        status=status
+    )
+    
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    
+    return transaction
+
+
+def get_user_transactions(db: Session, user_id: int, limit: int = 50) -> list:
+    """
+    Get user's payment transaction history
+    """
+    from app.db.models import PaymentTransaction
+    
+    transactions = db.query(PaymentTransaction).filter(
+        PaymentTransaction.user_id == user_id
+    ).order_by(PaymentTransaction.created_at.desc()).limit(limit).all()
+    
+    return transactions
 
 
 # ========== ANALYTICS OPERATIONS ==========
