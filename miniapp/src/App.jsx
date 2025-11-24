@@ -1,13 +1,13 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect, useState } from 'react';
-import { fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, checkAgeVerification, verifyAge } from './api';
+import { checkAgeVerification, fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, verifyAge } from './api';
 import './App.css';
 import BottomNav from './components/BottomNav';
 import HistorySelection from './components/HistorySelection';
-import PersonasGallery from './components/PersonasGallery';
-import SettingsPage from './components/SettingsPage';
 import LanguagePage from './components/LanguagePage';
+import PersonasGallery from './components/PersonasGallery';
 import PlansPage from './components/PlansPage';
+import SettingsPage from './components/SettingsPage';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
@@ -225,8 +225,8 @@ function App() {
     }
   }
 
-  // Determine if bottom nav should be shown (on gallery, settings, language, and plans)
-  const showBottomNav = currentPage === 'gallery' || currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans';
+  // Determine if bottom nav should be shown (on gallery, settings, and language)
+  const showBottomNav = currentPage === 'gallery' || currentPage === 'settings' || currentPage === 'language';
 
   // Get page title
   const getPageTitle = () => {
