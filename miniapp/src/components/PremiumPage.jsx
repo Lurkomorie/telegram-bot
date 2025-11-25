@@ -1,6 +1,7 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect } from 'react';
 import { trackEvent } from '../api';
+import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
 
 /**
@@ -8,6 +9,8 @@ import './PremiumPage.css';
  * Shows premium tier subscriptions
  */
 export default function PremiumPage({ onNavigateToCheckout }) {
+  const { t } = useTranslation();
+  
   // Track page view
   useEffect(() => {
     const initData = WebApp.initData;
@@ -16,7 +19,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
     });
   }, []);
 
-  // Premium tiers based on screenshots
+  // Premium tiers with translation keys
   const tiers = [
     {
       id: 'plus_month',
@@ -24,19 +27,19 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '❄️',
       daily: 25,
       stars: 325,
-      features: [
-        'Бесплатные 25 токенов каждый день',
-        'Улучшенная модель ИИ',
-        'Дешёвая генерация фотографий',
-        'Скачивание фотографий',
-        'Свои обои в чате',
-        'Генерация голосовых сообщений',
-        'Создание фотографий по описанию',
-        'Нет никаких ограничений',
-        'Дешевле создание персонажа в мастерской',
-        'Увеличен лимит до 4,000 символов в описании персонажа',
-        'Отправка голосовых сообщений до 30 секунд',
-        'Создание групповых чатов'
+      featureKeys: [
+        'premium.plus.feature1',
+        'premium.plus.feature2',
+        'premium.plus.feature3',
+        'premium.plus.feature4',
+        'premium.plus.feature5',
+        'premium.plus.feature6',
+        'premium.plus.feature7',
+        'premium.plus.feature8',
+        'premium.plus.feature9',
+        'premium.plus.feature10',
+        'premium.plus.feature11',
+        'premium.plus.feature12'
       ]
     },
     {
@@ -45,10 +48,10 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '🔥',
       daily: 75,
       stars: 625,
-      features: [
-        'Всё что в Plus, а так же',
-        'Бесплатные 75 токенов каждый день',
-        'Отправка голосовых сообщений до 90 секунд'
+      featureKeys: [
+        'premium.pro.feature1',
+        'premium.pro.feature2',
+        'premium.pro.feature3'
       ]
     },
     {
@@ -57,12 +60,12 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '🏆',
       daily: 100,
       stars: 775,
-      features: [
-        'Всё что в Premium, а так же',
-        'Бесплатные 100 токенов каждый день',
-        'Отправка голосовых сообщений до 120 секунд',
-        'Генерация анимаций из фотографии',
-        'Генерация видео сообщений'
+      featureKeys: [
+        'premium.legendary.feature1',
+        'premium.legendary.feature2',
+        'premium.legendary.feature3',
+        'premium.legendary.feature4',
+        'premium.legendary.feature5'
       ]
     }
   ];
@@ -82,19 +85,19 @@ export default function PremiumPage({ onNavigateToCheckout }) {
             </div>
             <div className="premium-card-price">
               <div className="price-amount">{tier.stars} ₽</div>
-              <div className="price-period">/ месяц</div>
+              <div className="price-period">{t('premium.perMonth')}</div>
             </div>
           </div>
 
           <div className="premium-card-body">
-            <h3 className="benefits-title">Преимущества</h3>
+            <h3 className="benefits-title">{t('premium.benefits')}</h3>
             <div className="benefits-list">
-              {tier.features.map((feature, index) => (
+              {tier.featureKeys.map((featureKey, index) => (
                 <div key={index} className="benefit-item">
                   <svg className="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="20 6 9 17 4 12"></polyline>
                   </svg>
-                  <span className="benefit-text">{feature}</span>
+                  <span className="benefit-text">{t(featureKey)}</span>
                 </div>
               ))}
             </div>
@@ -104,7 +107,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
             className="premium-card-button" 
             onClick={() => handleTierClick(tier)}
           >
-            Получить {tier.name}
+            {t('premium.getButton', { name: tier.name })}
           </button>
         </div>
       ))}

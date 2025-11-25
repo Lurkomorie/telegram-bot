@@ -38,7 +38,7 @@ export default function SettingsPage({ tokens, onNavigate }) {
           </div>
         </div>
         <button className="upgrade-plans-button" onClick={() => onNavigate('premium')}>
-          Премиум подписки
+          {t('settings.premiumSubscriptions')}
         </button>
       </div>
 
@@ -46,14 +46,14 @@ export default function SettingsPage({ tokens, onNavigate }) {
       <div className="settings-section">
         <button className="settings-action-button friends-button" onClick={() => onNavigate('referrals')}>
           <img src={giftIcon} alt="gift" className="button-icon" />
-          <span className="button-text">Друзья</span>
+          <span className="button-text">{t('settings.friends')}</span>
           <svg className="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
         <button className="settings-action-button tokens-button" onClick={() => onNavigate('tokens')}>
           <img src={lightningIcon} alt="energy" className="button-icon" />
-          <span className="button-text">Купить энергию</span>
+          <span className="button-text">{t('settings.buyEnergy')}</span>
           <svg className="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 18l6-6-6-6"/>
           </svg>

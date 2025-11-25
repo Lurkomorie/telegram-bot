@@ -1,6 +1,7 @@
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
 import { createInvoice } from '../api';
+import { useTranslation } from '../i18n/TranslationContext';
 import './CheckoutPage.css';
 
 /**
@@ -8,6 +9,7 @@ import './CheckoutPage.css';
  * Shows payment options and confirms purchase
  */
 export default function CheckoutPage({ tier, onBack }) {
+  const { t } = useTranslation();
   const [selectedPeriod, setSelectedPeriod] = useState('month'); // 'month' | '3months' | '6months'
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -50,18 +52,18 @@ export default function CheckoutPage({ tier, onBack }) {
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {
         if (status === 'paid') {
-          WebApp.showAlert('✅ Подписка успешно оформлена! Спасибо за покупку!');
+          WebApp.showAlert(t('checkout.subscriptionSuccess'));
           window.location.reload();
         } else if (status === 'cancelled') {
-          WebApp.showAlert('Оплата отменена');
+          WebApp.showAlert(t('checkout.paymentCancelled'));
         } else if (status === 'failed') {
-          WebApp.showAlert('Ошибка оплаты. Попробуйте снова.');
+          WebApp.showAlert(t('checkout.paymentFailed'));
         }
         setIsProcessing(false);
       });
     } catch (error) {
       console.error('Failed to create invoice:', error);
-      WebApp.showAlert('Не удалось создать счёт. Попробуйте снова.');
+      WebApp.showAlert(t('checkout.invoiceFailed'));
       setIsProcessing(false);
     }
   };
@@ -69,29 +71,29 @@ export default function CheckoutPage({ tier, onBack }) {
   return (
     <div className="checkout-page">
       <div className="checkout-section">
-        <h2 className="section-title">СПОСОБ ОПЛАТЫ</h2>
+        <h2 className="section-title">{t('checkout.paymentMethod')}</h2>
         <div className="payment-option selected">
           <div className="radio-button selected"></div>
-          <span className="option-text">Звёздами</span>
+          <span className="option-text">{t('checkout.payWithStars')}</span>
         </div>
       </div>
 
       <div className="checkout-section">
-        <h2 className="section-title">ПЕРИОД</h2>
+        <h2 className="section-title">{t('checkout.period')}</h2>
         <div className="period-options">
           <div
             className={`payment-option ${selectedPeriod === 'month' ? 'selected' : ''}`}
             onClick={() => setSelectedPeriod('month')}
           >
             <div className={`radio-button ${selectedPeriod === 'month' ? 'selected' : ''}`}></div>
-            <span className="option-text">Месяц</span>
+            <span className="option-text">{t('checkout.periodMonth')}</span>
           </div>
           <div
             className={`payment-option ${selectedPeriod === '3months' ? 'selected' : ''}`}
             onClick={() => setSelectedPeriod('3months')}
           >
             <div className={`radio-button ${selectedPeriod === '3months' ? 'selected' : ''}`}></div>
-            <span className="option-text">3 месяца</span>
+            <span className="option-text">{t('checkout.period3Months')}</span>
             <span className="discount-badge">-5%</span>
           </div>
           <div
@@ -99,7 +101,7 @@ export default function CheckoutPage({ tier, onBack }) {
             onClick={() => setSelectedPeriod('6months')}
           >
             <div className={`radio-button ${selectedPeriod === '6months' ? 'selected' : ''}`}></div>
-            <span className="option-text">6 месяцев</span>
+            <span className="option-text">{t('checkout.period6Months')}</span>
             <span className="discount-badge">-10%</span>
           </div>
         </div>
@@ -107,15 +109,15 @@ export default function CheckoutPage({ tier, onBack }) {
 
       <div className="checkout-footer">
         <div className="total-section">
-          <span className="total-label">К оплате</span>
-          <span className="total-amount">{priceInfo.price.toLocaleString()} звёзд</span>
+          <span className="total-label">{t('checkout.totalLabel')}</span>
+          <span className="total-amount">{priceInfo.price.toLocaleString()} {t('checkout.stars')}</span>
         </div>
         <button 
           className="pay-button"
           onClick={handlePurchase}
           disabled={isProcessing}
         >
-          {isProcessing ? 'Обработка...' : 'Оплатить'}
+          {isProcessing ? t('checkout.processing') : t('checkout.payButton')}
         </button>
       </div>
     </div>

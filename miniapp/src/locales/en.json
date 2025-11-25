@@ -1,4 +1,18 @@
 {
+  "referrals": {
+    "note": "Your friend must use your link and open the app to earn tokens",
+    "opening": "Opening...",
+    "inviteButton": "Invite a friend",
+    "linkCopiedTitle": "Link copied!",
+    "linkCopiedMessage": "Referral link copied to clipboard",
+    "copyFailed": "Failed to copy link",
+    "title": "Turn friends into tokens!",
+    "earn": "Earn",
+    "tokensAmount": "50 tokens",
+    "perFriend": "per friend",
+    "statsTitle": "Referrals",
+    "friendsInvited": "Friends invited"
+  },
   "premium": {
     "alerts": {
       "paymentFailed": "Payment failed. Please try again.",
@@ -30,7 +44,36 @@
       "photos": "Unlimited photo generation"
     },
     "upgradeButton": "Get Premium 💎",
-    "processing": "Processing..."
+    "processing": "Processing...",
+    "benefits": "Benefits",
+    "perMonth": "/ month",
+    "getButton": "Get {name}",
+    "plus": {
+      "feature1": "Free 25 tokens every day",
+      "feature2": "Enhanced AI model",
+      "feature3": "Cheap photo generation",
+      "feature4": "Photo downloads",
+      "feature5": "Custom chat wallpapers",
+      "feature6": "Voice message generation",
+      "feature7": "Create photos from text",
+      "feature8": "No limitations",
+      "feature9": "Cheaper character creation in workshop",
+      "feature10": "Increased limit to 4,000 characters in character description",
+      "feature11": "Send voice messages up to 30 seconds",
+      "feature12": "Create group chats"
+    },
+    "pro": {
+      "feature1": "Everything in Plus, plus",
+      "feature2": "Free 75 tokens every day",
+      "feature3": "Send voice messages up to 90 seconds"
+    },
+    "legendary": {
+      "feature1": "Everything in Premium, plus",
+      "feature2": "Free 100 tokens every day",
+      "feature3": "Send voice messages up to 120 seconds",
+      "feature4": "Generate animations from photos",
+      "feature5": "Generate video messages"
+    }
   },
   "app": {
     "ageVerification": {
@@ -41,7 +84,11 @@
     },
     "header": {
       "characters": "Characters",
-      "settings": "Settings"
+      "settings": "Settings",
+      "premium": "Premium",
+      "energy": "Energy",
+      "referrals": "Referrals",
+      "checkoutTitle": "Purchase {icon} {name}"
     },
     "energy": {
       "regen": "+2/h"
@@ -49,6 +96,25 @@
     "errors": {
       "loadFailed": "Failed to load characters. Please try again.",
       "retryButton": "Retry"
+    },
+    "dailyBonus": {
+      "referralBonus": "Friend Bonus",
+      "gift": "Gift",
+      "day": "Day {day}",
+      "clickToClaim": "Click to claim",
+      "subscription": "Subscription",
+      "alreadyClaimed": "Bonus already claimed! Next in {hours}h {minutes}m",
+      "claimFailed": "Failed to claim bonus",
+      "claimError": "Error claiming bonus. Please try again."
+    },
+    "subscriptionTexts": {
+      "coolFeatures": "Cool Features",
+      "recommendBuy": "We Recommend",
+      "tryIt": "Try It"
+    },
+    "time": {
+      "hours": "h",
+      "minutes": "m"
     }
   },
   "gallery": {
@@ -82,6 +148,34 @@
     "currentPlan": {
       "free": "Free",
       "premium": "Premium"
-    }
+    },
+    "premiumSubscriptions": "Premium Subscriptions",
+    "friends": "Friends",
+    "buyEnergy": "Buy Energy"
+  },
+  "checkout": {
+    "paymentMethod": "PAYMENT METHOD",
+    "payWithStars": "Stars",
+    "period": "PERIOD",
+    "periodMonth": "Month",
+    "period3Months": "3 months",
+    "period6Months": "6 months",
+    "totalLabel": "Total",
+    "stars": "stars",
+    "processing": "Processing...",
+    "payButton": "Pay",
+    "subscriptionSuccess": "✅ Subscription successful! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again."
+  },
+  "tokens": {
+    "tokensAdded": "✅ Tokens successfully added! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again.",
+    "stars": "stars",
+    "processing": "Processing...",
+    "buyButton": "Buy Energy"
   }
 }

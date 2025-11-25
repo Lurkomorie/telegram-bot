@@ -1,6 +1,7 @@
 import WebApp from '@twa-dev/sdk';
 import { useState, useEffect } from 'react';
 import { fetchReferralStats } from '../api';
+import { useTranslation } from '../i18n/TranslationContext';
 import './ReferralsPage.css';
 
 /**
@@ -8,6 +9,7 @@ import './ReferralsPage.css';
  * Shows referral system - invite friends and earn tokens
  */
 export default function ReferralsPage({ userId }) {
+  const { t } = useTranslation();
   const [referralsCount, setReferralsCount] = useState(0);
   const [isSharing, setIsSharing] = useState(false);
   const [botUsername, setBotUsername] = useState('');
@@ -44,8 +46,8 @@ export default function ReferralsPage({ userId }) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(referralLink);
         WebApp.showPopup({
-          title: 'Ссылка скопирована!',
-          message: 'Реферальная ссылка скопирована в буфер обмена',
+          title: t('referrals.linkCopiedTitle'),
+          message: t('referrals.linkCopiedMessage'),
           buttons: [{ type: 'ok' }]
         });
       } else {
@@ -60,14 +62,14 @@ export default function ReferralsPage({ userId }) {
         document.body.removeChild(textArea);
         
         WebApp.showPopup({
-          title: 'Ссылка скопирована!',
-          message: 'Реферальная ссылка скопирована в буфер обмена',
+          title: t('referrals.linkCopiedTitle'),
+          message: t('referrals.linkCopiedMessage'),
           buttons: [{ type: 'ok' }]
         });
       }
     } catch (err) {
       console.error('Failed to copy link:', err);
-      WebApp.showAlert('Не удалось скопировать ссылку');
+      WebApp.showAlert(t('referrals.copyFailed'));
     } finally {
       setTimeout(() => setIsSharing(false), 500);
     }
@@ -77,29 +79,29 @@ export default function ReferralsPage({ userId }) {
     <div className="referrals-page">
       <div className="referrals-hero">
         <div className="hero-icon">👥</div>
-        <h1 className="hero-title">Превращай друзей в токены!</h1>
+        <h1 className="hero-title">{t('referrals.title')}</h1>
       </div>
 
       <div className="earnings-card">
-        <div className="earnings-label">Зарабатывай</div>
-        <div className="earnings-amount">50 токенов</div>
-        <div className="earnings-description">с каждого друга</div>
+        <div className="earnings-label">{t('referrals.earn')}</div>
+        <div className="earnings-amount">{t('referrals.tokensAmount')}</div>
+        <div className="earnings-description">{t('referrals.perFriend')}</div>
       </div>
 
       <div className="referrals-stats">
-        <h3 className="stats-title">Рефералы</h3>
+        <h3 className="stats-title">{t('referrals.statsTitle')}</h3>
         <div className="stats-item">
           <div className="stats-icon">👫</div>
-          <span className="stats-label">Друзей приглашено</span>
+          <span className="stats-label">{t('referrals.friendsInvited')}</span>
           <span className="stats-count">{referralsCount}</span>
         </div>
         <div className="stats-note">
-          Друг должен перейти по вашей ссылке и зайти в приложение чтобы получить токены
+          {t('referrals.note')}
         </div>
       </div>
 
       <button className="invite-button" onClick={handleInviteFriend} disabled={isSharing}>
-        {isSharing ? 'Открытие...' : 'Пригласить друга'}
+        {isSharing ? t('referrals.opening') : t('referrals.inviteButton')}
       </button>
     </div>
   );

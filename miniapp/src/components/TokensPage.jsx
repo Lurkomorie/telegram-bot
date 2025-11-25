@@ -1,6 +1,7 @@
 import WebApp from '@twa-dev/sdk';
 import { useState, useEffect } from 'react';
 import { createInvoice, trackEvent } from '../api';
+import { useTranslation } from '../i18n/TranslationContext';
 import './TokensPage.css';
 import lightningIcon from '../assets/lightning.png';
 
@@ -9,6 +10,7 @@ import lightningIcon from '../assets/lightning.png';
  * Shows token packages for purchase
  */
 export default function TokensPage({ tokens }) {
+  const { t } = useTranslation();
   const [selectedPackage, setSelectedPackage] = useState('tokens_250');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -47,18 +49,18 @@ export default function TokensPage({ tokens }) {
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {
         if (status === 'paid') {
-          WebApp.showAlert('✅ Токены успешно добавлены! Спасибо за покупку!');
+          WebApp.showAlert(t('tokens.tokensAdded'));
           window.location.reload();
         } else if (status === 'cancelled') {
-          WebApp.showAlert('Оплата отменена');
+          WebApp.showAlert(t('tokens.paymentCancelled'));
         } else if (status === 'failed') {
-          WebApp.showAlert('Ошибка оплаты. Попробуйте снова.');
+          WebApp.showAlert(t('tokens.paymentFailed'));
         }
         setIsProcessing(false);
       });
     } catch (error) {
       console.error('Failed to create invoice:', error);
-      WebApp.showAlert('Не удалось создать счёт. Попробуйте снова.');
+      WebApp.showAlert(t('tokens.invoiceFailed'));
       setIsProcessing(false);
     }
   };
@@ -83,14 +85,14 @@ export default function TokensPage({ tokens }) {
             </div>
             <div className="package-right">
               <div className="package-price-rubles">{pkg.rubles.toLocaleString()} ₽</div>
-              <div className="package-price-stars">/ {pkg.stars.toLocaleString()} звёзд</div>
+              <div className="package-price-stars">/ {pkg.stars.toLocaleString()} {t('tokens.stars')}</div>
             </div>
           </div>
         ))}
       </div>
 
       <button className="purchase-button-tokens" onClick={handlePurchase} disabled={isProcessing}>
-        {isProcessing ? 'Обработка...' : 'Купить энергию'}
+        {isProcessing ? t('tokens.processing') : t('tokens.buyButton')}
       </button>
     </div>
   );

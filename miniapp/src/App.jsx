@@ -67,10 +67,10 @@ function App() {
       }
     }
     
-    // Set random subscription text
-    const subscriptionTexts = ['Крутые фичи', 'Рекомендуем купить', 'Попробуйте'];
-    const randomText = subscriptionTexts[Math.floor(Math.random() * subscriptionTexts.length)];
-    setSubscriptionText(randomText);
+    // Set random subscription text (will be translated)
+    const subscriptionTextKeys = ['coolFeatures', 'recommendBuy', 'tryIt'];
+    const randomKey = subscriptionTextKeys[Math.floor(Math.random() * subscriptionTextKeys.length)];
+    setSubscriptionText(randomKey);
     
     // Track mini app opened
     try {
@@ -288,7 +288,7 @@ function App() {
   function formatTimeUntilBonus(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours}ч ${minutes}м`;
+    return `${hours}${t('app.time.hours')} ${minutes}${t('app.time.minutes')}`;
   }
 
   async function handleClaimDailyBonus() {
@@ -298,7 +298,7 @@ function App() {
     if (!tokens.can_claim_daily_bonus) {
       const hours = Math.floor(tokens.next_bonus_in_seconds / 3600);
       const minutes = Math.floor((tokens.next_bonus_in_seconds % 3600) / 60);
-      WebApp.showAlert(`Бонус уже получен! Следующий через ${hours}ч ${minutes}м`);
+      WebApp.showAlert(t('app.dailyBonus.alreadyClaimed', { hours, minutes }));
       return;
     }
     
@@ -331,11 +331,11 @@ function App() {
           }, 1000);
         }, 800);
       } else {
-        WebApp.showAlert(result.message || 'Не удалось получить бонус');
+        WebApp.showAlert(result.message || t('app.dailyBonus.claimFailed'));
       }
     } catch (error) {
       console.error('Failed to claim daily bonus:', error);
-      WebApp.showAlert('Ошибка при получении бонуса. Попробуйте снова.');
+      WebApp.showAlert(t('app.dailyBonus.claimError'));
     } finally {
       setIsClaimingBonus(false);
     }
@@ -350,10 +350,10 @@ function App() {
     if (currentPage === 'settings') return t('app.header.settings');
     if (currentPage === 'language') return t('settings.language.title');
     if (currentPage === 'plans') return t('app.header.settings');
-    if (currentPage === 'premium') return 'Премиум';
-    if (currentPage === 'checkout' && selectedTier) return `Покупка ${selectedTier.icon} ${selectedTier.name}`;
-    if (currentPage === 'tokens') return 'Энергия';
-    if (currentPage === 'referrals') return 'Рефералы';
+    if (currentPage === 'premium') return t('app.header.premium');
+    if (currentPage === 'checkout' && selectedTier) return t('app.header.checkoutTitle', { icon: selectedTier.icon, name: selectedTier.name });
+    if (currentPage === 'tokens') return t('app.header.energy');
+    if (currentPage === 'referrals') return t('app.header.referrals');
     if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
     return '';
   };
@@ -483,7 +483,7 @@ function App() {
             </div>
             <button className="referral-bonus-button" onClick={() => handleNavigate('referrals')}>
               <span className="bonus-icon">🎁</span>
-              <span className="bonus-text">Бонус за друга</span>
+              <span className="bonus-text">{t('app.dailyBonus.referralBonus')}</span>
             </button>
           </div>
           <div className="action-buttons">
@@ -498,11 +498,11 @@ function App() {
                   alt={tokens.can_claim_daily_bonus ? 'gift' : 'clock'} 
                   className="gift-button-icon" 
                 />
-                <span className="button-label">Подарок</span>
-                <span className="gift-button-day">День {dailyBonusDay}</span>
+                <span className="button-label">{t('app.dailyBonus.gift')}</span>
+                <span className="gift-button-day">{t('app.dailyBonus.day', { day: dailyBonusDay })}</span>
               </div>
               {tokens.can_claim_daily_bonus ? (
-                <div className="button-subtitle gift-button-action">Нажмите чтобы забрать</div>
+                <div className="button-subtitle gift-button-action">{t('app.dailyBonus.clickToClaim')}</div>
               ) : (
                 <div className="button-subtitle">{formatTimeUntilBonus(tokens.next_bonus_in_seconds)}</div>
               )}
@@ -510,9 +510,9 @@ function App() {
             <button className="action-button subscription-button" onClick={() => handleNavigate('premium')}>
               <div className="button-content">
                 <img src={premiumIcon} alt="premium" className="button-icon-large" />
-                <span className="button-label">Подписка</span>
+                <span className="button-label">{t('app.dailyBonus.subscription')}</span>
               </div>
-              <div className="button-subtitle">{subscriptionText}</div>
+              <div className="button-subtitle">{t(`app.subscriptionTexts.${subscriptionText}`)}</div>
             </button>
           </div>
           {showBonusAnimation && (
