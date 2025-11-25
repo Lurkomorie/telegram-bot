@@ -581,7 +581,7 @@ async def _background_image_generation(
         
         # Check if user is premium (premium users get free images)
         with get_db() as db:
-            is_premium = crud.check_user_premium(db, user_id)
+            is_premium = crud.check_user_premium(db, user_id)["is_premium"]
             # Get user's global message count for priority determination
             user = db.query(User).filter(User.id == user_id).first()
             global_message_count = user.global_message_count if user else 999

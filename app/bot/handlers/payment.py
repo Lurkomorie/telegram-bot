@@ -158,7 +158,7 @@ async def cmd_premium_status(message: types.Message):
     user_id = message.from_user.id
     
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         user = crud.get_or_create_user(db, user_id)
         
         if is_premium:

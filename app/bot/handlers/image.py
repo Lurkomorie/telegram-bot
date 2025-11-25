@@ -62,7 +62,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     
     # Check if user is premium (premium users get free images)
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
     # Check energy for non-premium users
     if not is_premium:
@@ -261,7 +261,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
     
     # Check if user is premium for priority determination
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
         global_message_count = user.global_message_count if user else 999
@@ -369,7 +369,7 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     
     # Check if user is premium
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
     # Check energy for non-premium users (refresh costs 3 energy)
     if not is_premium:

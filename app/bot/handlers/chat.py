@@ -114,7 +114,7 @@ async def handle_text_message(message: types.Message):
         )
         
         # Check if user is premium (premium users get free messages)
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
         # Check energy for non-premium users (1 energy per message)
         if not is_premium:
