@@ -6,59 +6,29 @@
   flex-direction: column;
 }
 
-.checkout-header {
-  margin-bottom: 32px;
-}
-
-.checkout-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
-}
-
-.checkout-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 8px 16px;
-}
-
-.tier-icon {
-  font-size: 20px;
-}
-
-.tier-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 .checkout-section {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .section-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+  letter-spacing: 0.5px;
 }
 
 .payment-option {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .payment-option:active {
@@ -71,8 +41,8 @@
 }
 
 .radio-button {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   position: relative;
@@ -90,23 +60,23 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   background: var(--color-red);
   border-radius: 50%;
 }
 
 .option-text {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-primary);
   flex: 1;
 }
 
 .discount-badge {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #4ade80;
-  padding: 4px 8px;
+  padding: 3px 6px;
   background: rgba(74, 222, 128, 0.1);
   border-radius: 6px;
 }
@@ -114,7 +84,7 @@
 .period-options {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .checkout-footer {
@@ -130,29 +100,29 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding: 0 4px;
 }
 
 .total-label {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-secondary);
 }
 
 .total-amount {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .pay-button {
   width: 100%;
-  padding: 16px;
+  padding: 14px;
   background: var(--gradient-primary);
   color: var(--text-primary);
   border: none;
   border-radius: 12px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;

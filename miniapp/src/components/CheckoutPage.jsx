@@ -68,16 +68,8 @@ export default function CheckoutPage({ tier, onBack }) {
 
   return (
     <div className="checkout-page">
-      <div className="checkout-header">
-        <h1 className="checkout-title">Покупка</h1>
-        <div className="checkout-badge">
-          <span className="tier-icon">{tier.icon}</span>
-          <span className="tier-name">{tier.name}</span>
-        </div>
-      </div>
-
       <div className="checkout-section">
-        <h2 className="section-title">Способ оплаты</h2>
+        <h2 className="section-title">СПОСОБ ОПЛАТЫ</h2>
         <div className="payment-option selected">
           <div className="radio-button selected"></div>
           <span className="option-text">Звёздами</span>
@@ -85,7 +77,7 @@ export default function CheckoutPage({ tier, onBack }) {
       </div>
 
       <div className="checkout-section">
-        <h2 className="section-title">Период</h2>
+        <h2 className="section-title">ПЕРИОД</h2>
         <div className="period-options">
           <div
             className={`payment-option ${selectedPeriod === 'month' ? 'selected' : ''}`}

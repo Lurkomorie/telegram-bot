@@ -890,8 +890,10 @@ async def get_user_referrals(
                 User.referral_tokens_awarded == True
             ).count()
             
-            # Get bot username from settings
-            bot_username = settings.BOT_NAME
+            # Get bot username from bot instance
+            from app.bot.loader import bot
+            bot_user = await bot.get_me()
+            bot_username = bot_user.username or "bot"
             
             return {
                 "referrals_count": referrals_count,

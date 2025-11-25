@@ -351,7 +351,7 @@ function App() {
     if (currentPage === 'language') return t('settings.language.title');
     if (currentPage === 'plans') return t('app.header.settings');
     if (currentPage === 'premium') return 'Премиум';
-    if (currentPage === 'checkout') return 'Покупка';
+    if (currentPage === 'checkout' && selectedTier) return `Покупка ${selectedTier.icon} ${selectedTier.name}`;
     if (currentPage === 'tokens') return 'Энергия';
     if (currentPage === 'referrals') return 'Рефералы';
     if (currentPage === 'history' && selectedPersona) return selectedPersona.name;

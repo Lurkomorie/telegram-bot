@@ -1,3 +1,4 @@
+import giftIcon from '../assets/gift.png';
 import lightningIcon from '../assets/lightning.png';
 import premiumIcon from '../assets/premium.png';
 import { useTranslation } from '../i18n/TranslationContext';
@@ -41,8 +42,15 @@ export default function SettingsPage({ tokens, onNavigate }) {
         </button>
       </div>
 
-      {/* Tokens Button */}
+      {/* Energy & Friends Section */}
       <div className="settings-section">
+        <button className="settings-action-button friends-button" onClick={() => onNavigate('referrals')}>
+          <img src={giftIcon} alt="gift" className="button-icon" />
+          <span className="button-text">Друзья</span>
+          <svg className="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
         <button className="settings-action-button tokens-button" onClick={() => onNavigate('tokens')}>
           <img src={lightningIcon} alt="energy" className="button-icon" />
           <span className="button-text">Купить энергию</span>
