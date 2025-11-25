@@ -25,3 +25,4 @@ def downgrade():
     op.drop_column('users', 'daily_bonus_streak')
 
 
+
