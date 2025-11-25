@@ -559,6 +559,8 @@ function App() {
             personas={personas}
             onPersonaClick={handlePersonaClick}
             isLoading={isLoading}
+            energy={energy}
+            onRefresh={loadPersonas}
           />
         ) : currentPage === 'history' ? (
           <HistorySelection

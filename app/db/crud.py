@@ -443,11 +443,16 @@ def update_persona(
 
 
 def delete_persona(db: Session, persona_id: UUID) -> bool:
-    """Delete a persona by ID"""
+    """Delete a persona by ID (with cascade deletion of related records)"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return False
     
+    # Delete related image jobs first to avoid foreign key constraint
+    from app.db.models import ImageJob
+    db.query(ImageJob).filter(ImageJob.persona_id == persona_id).delete()
+    
+    # Delete the persona
     db.delete(persona)
     db.commit()
     return True

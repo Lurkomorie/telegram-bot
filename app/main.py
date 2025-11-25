@@ -8,7 +8,9 @@ from fastapi.responses import FileResponse
 from aiogram.types import Update
 from contextlib import asynccontextmanager
 import json
+import asyncio
 from pathlib import Path
+from uuid import UUID
 
 print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
@@ -235,6 +237,61 @@ if settings.ENABLE_BOT:
             return {"ok": True}
 else:
     print("⚠️  Webhook endpoint disabled (ENABLE_BOT=False)")
+
+
+async def _update_persona_avatar_from_telegram(persona_id: UUID, file_id: str):
+    """
+    Get photo from Telegram and upload to Cloudflare, then update persona's avatar_url
+    Called immediately after image is sent to Telegram
+    """
+    try:
+        from app.bot.loader import bot
+        from app.db.base import get_db
+        from app.db import crud
+        from app.core.cloudflare_upload_tg import upload_to_cloudflare_tg
+        import random
+        
+        # Get file from Telegram
+        print(f"[CHARACTER-AVATAR] 📥 Getting file from Telegram...")
+        file = await bot.get_file(file_id)
+        file_path = file.file_path
+        
+        # Download file
+        file_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{file_path}"
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(file_url)
+            image_data = response.content
+        
+        print(f"[CHARACTER-AVATAR] ✅ Downloaded {len(image_data)} bytes from Telegram")
+        
+        # Upload to Cloudflare
+        filename = f"character_{persona_id}_{random.randint(1000, 9999)}.png"
+        print(f"[CHARACTER-AVATAR] 🖼️  Uploading to Cloudflare...")
+        result = await upload_to_cloudflare_tg(image_data, filename)
+        
+        if result.success:
+            cloudflare_url = result.image_url
+            print(f"[CHARACTER-AVATAR] ✅ Uploaded to Cloudflare: {cloudflare_url}")
+            
+            # Update persona's avatar_url
+            with get_db() as db:
+                updated_persona = crud.update_persona(
+                    db,
+                    persona_id,
+                    avatar_url=cloudflare_url
+                )
+                if updated_persona:
+                    print(f"[CHARACTER-AVATAR] ✅ Updated persona {persona_id} avatar_url")
+                else:
+                    print(f"[CHARACTER-AVATAR] ⚠️  Persona {persona_id} not found")
+        else:
+            print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare upload failed: {result.error}")
+    
+    except Exception as e:
+        print(f"[CHARACTER-AVATAR] ❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @app.post("/image/callback")
@@ -512,6 +569,15 @@ async def image_callback(request: Request):
                         flag_modified(chat, "ext")
                         db.commit()
                         print(f"[IMAGE-CALLBACK] 💾 Stored message ID {sent_message.message_id} as last image")
+                
+                # If this is a character creation image (no chat), update avatar immediately
+                if not job_chat_id and job_persona_id:
+                    # Download from Telegram and upload to Cloudflare immediately
+                    asyncio.create_task(_update_persona_avatar_from_telegram(
+                        persona_id=job_persona_id,
+                        file_id=file_id
+                    ))
+                    print(f"[CHARACTER-AVATAR] 🚀 Started avatar update task for persona {job_persona_id}")
             
             # Stop upload_photo action now that image is sent
             from app.core.action_registry import stop_and_remove_action
@@ -521,25 +587,27 @@ async def image_callback(request: Request):
             
             # Track image generation for analytics (with Cloudflare upload in background)
             # Use job details extracted earlier from the db session
-            with get_db() as db:
-                chat_details = crud.get_chat_by_id(db, job_chat_id) if job_chat_id else None
-                persona_details = crud.get_persona_by_id(db, job_persona_id) if job_persona_id else None
-                
-                # Use image_data if available, otherwise use image_url
-                image_source = image_data if image_data else image_url
-                
-                # Use is_auto_followup extracted earlier
-                analytics_service_tg.track_image_generated(
-                    client_id=job_user_id,
-                    image_url_or_bytes=image_source,
-                    persona_id=job_persona_id,
-                    persona_name=persona_details.name if persona_details else None,
-                    prompt=job_prompt,
-                    negative_prompt=job_negative_prompt,
-                    chat_id=job_chat_id,
-                    job_id=job_id_str,
-                    is_auto_followup=is_auto_followup
-                )
+            # NOTE: For character creation images, analytics tracking is skipped to avoid duplicate Cloudflare uploads
+            if job_chat_id:  # Only track analytics for chat images, not character creation
+                with get_db() as db:
+                    chat_details = crud.get_chat_by_id(db, job_chat_id) if job_chat_id else None
+                    persona_details = crud.get_persona_by_id(db, job_persona_id) if job_persona_id else None
+                    
+                    # Use image_data if available, otherwise use image_url
+                    image_source = image_data if image_data else image_url
+                    
+                    # Use is_auto_followup extracted earlier
+                    analytics_service_tg.track_image_generated(
+                        client_id=job_user_id,
+                        image_url_or_bytes=image_source,
+                        persona_id=job_persona_id,
+                        persona_name=persona_details.name if persona_details else None,
+                        prompt=job_prompt,
+                        negative_prompt=job_negative_prompt,
+                        chat_id=job_chat_id,
+                        job_id=job_id_str,
+                        is_auto_followup=is_auto_followup
+                    )
         
         except Exception as e:
             print(f"[IMAGE-CALLBACK] ❌ Error sending photo: {e}")
