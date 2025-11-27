@@ -175,6 +175,30 @@ export async function selectScenario(personaId, historyId, initData) {
 /**
  * Create a Telegram Stars invoice for token package or tier subscription
  * @param {string} productId - Product ID (tokens_100, premium_month, etc.)
+ * Generate 3 AI story scenarios for a character
+ * @param {Object} characterData - Character attributes (name, hair_color, etc.)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, stories: Array}
+ */
+export async function generateStories(characterData, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/generate-stories`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify(characterData),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to generate stories' }));
+    throw new Error(error.message || error.error || 'Failed to generate stories');
+  }
+  
+  return response.json();
+}
+
+/**
  * Create a custom character
  * @param {Object} selections - Character attributes
  * @param {string} initData - Telegram WebApp initData for authentication

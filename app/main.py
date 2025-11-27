@@ -239,42 +239,48 @@ else:
     print("⚠️  Webhook endpoint disabled (ENABLE_BOT=False)")
 
 
-async def _update_persona_avatar_from_telegram(persona_id: UUID, file_id: str):
+async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: bytes, file_id: str):
     """
-    Get photo from Telegram and upload to Cloudflare, then update persona's avatar_url
-    Called immediately after image is sent to Telegram
+    Upload image to Cloudflare, with fallback to Telegram CDN if upload fails
+    More reliable - works even if Cloudflare has connectivity issues
     """
     try:
         from app.bot.loader import bot
         from app.db.base import get_db
         from app.db import crud
-        from app.core.cloudflare_upload_tg import upload_to_cloudflare_tg
+        from app.core.cloudflare_upload import upload_to_cloudflare_tg
         import random
         
-        # Get file from Telegram
-        print(f"[CHARACTER-AVATAR] 📥 Getting file from Telegram...")
-        file = await bot.get_file(file_id)
-        file_path = file.file_path
+        cloudflare_url = None
         
-        # Download file
-        file_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{file_path}"
-        import httpx
-        async with httpx.AsyncClient() as client:
-            response = await client.get(file_url)
-            image_data = response.content
-        
-        print(f"[CHARACTER-AVATAR] ✅ Downloaded {len(image_data)} bytes from Telegram")
-        
-        # Upload to Cloudflare
-        filename = f"character_{persona_id}_{random.randint(1000, 9999)}.png"
-        print(f"[CHARACTER-AVATAR] 🖼️  Uploading to Cloudflare...")
-        result = await upload_to_cloudflare_tg(image_data, filename)
-        
-        if result.success:
-            cloudflare_url = result.image_url
-            print(f"[CHARACTER-AVATAR] ✅ Uploaded to Cloudflare: {cloudflare_url}")
+        # Try Cloudflare upload first (preferred)
+        try:
+            print(f"[CHARACTER-AVATAR] 🖼️  Uploading {len(image_data)} bytes to Cloudflare...")
+            filename = f"character_{persona_id}_{random.randint(1000, 9999)}.png"
+            result = await upload_to_cloudflare_tg(image_data, filename)
             
-            # Update persona's avatar_url
+            if result.success:
+                cloudflare_url = result.image_url
+                print(f"[CHARACTER-AVATAR] ✅ Uploaded to Cloudflare: {cloudflare_url}")
+            else:
+                print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare upload failed: {result.error}, falling back to Telegram CDN")
+        except Exception as cf_error:
+            print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare error: {cf_error}, falling back to Telegram CDN")
+        
+        # Fallback to Telegram CDN URL if Cloudflare failed
+        if not cloudflare_url:
+            try:
+                # Get file path from Telegram
+                file = await bot.get_file(file_id)
+                telegram_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{file.file_path}"
+                cloudflare_url = telegram_url
+                print(f"[CHARACTER-AVATAR] 🔄 Using Telegram CDN as fallback: {telegram_url[:80]}...")
+            except Exception as tg_error:
+                print(f"[CHARACTER-AVATAR] ❌ Failed to get Telegram URL: {tg_error}")
+                return
+        
+        # Update persona's avatar_url
+        if cloudflare_url:
             with get_db() as db:
                 updated_persona = crud.update_persona(
                     db,
@@ -282,14 +288,12 @@ async def _update_persona_avatar_from_telegram(persona_id: UUID, file_id: str):
                     avatar_url=cloudflare_url
                 )
                 if updated_persona:
-                    print(f"[CHARACTER-AVATAR] ✅ Updated persona {persona_id} avatar_url")
+                    print(f"[CHARACTER-AVATAR] ✅ Updated persona {persona_id} avatar_url in database")
                 else:
-                    print(f"[CHARACTER-AVATAR] ⚠️  Persona {persona_id} not found")
-        else:
-            print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare upload failed: {result.error}")
+                    print(f"[CHARACTER-AVATAR] ⚠️  Persona {persona_id} not found in database")
     
     except Exception as e:
-        print(f"[CHARACTER-AVATAR] ❌ Error: {e}")
+        print(f"[CHARACTER-AVATAR] ❌ Error updating avatar: {e}")
         import traceback
         traceback.print_exc()
 
@@ -572,12 +576,17 @@ async def image_callback(request: Request):
                 
                 # If this is a character creation image (no chat), update avatar immediately
                 if not job_chat_id and job_persona_id:
-                    # Download from Telegram and upload to Cloudflare immediately
-                    asyncio.create_task(_update_persona_avatar_from_telegram(
-                        persona_id=job_persona_id,
-                        file_id=file_id
-                    ))
-                    print(f"[CHARACTER-AVATAR] 🚀 Started avatar update task for persona {job_persona_id}")
+                    # Get Telegram CDN URL for the avatar
+                    telegram_cdn_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{sent_message.photo[-1].file_unique_id}"
+                    
+                    # Try Cloudflare upload, but fallback to Telegram file_id if it fails
+                    if image_data:
+                        asyncio.create_task(_update_persona_avatar_with_fallback(
+                            persona_id=job_persona_id,
+                            image_data=image_data,
+                            file_id=file_id
+                        ))
+                        print(f"[CHARACTER-AVATAR] 🚀 Started avatar upload task for persona {job_persona_id}")
             
             # Stop upload_photo action now that image is sent
             from app.core.action_registry import stop_and_remove_action

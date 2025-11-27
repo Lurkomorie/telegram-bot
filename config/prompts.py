@@ -242,8 +242,11 @@ INTENSITY GUARDRAIL:
 - You may ONLY use 'explicit NSFW' if nudity or sexual acts are actually happening in the LAST ASSISTANT MESSAGE or clearly in the current scene state, not just requested by the user.
 
 **IMPORTANT**
-CHARACTER DNA NOTE: The woman's ethnicity, hair color, eye color, and body type are ALREADY included automatically. 
-DO NOT describe them in your tags.
+CHARACTER DNA NOTE: The woman's physical attributes (ethnicity, hair, eyes, body) and her STYLE PREFERENCES are ALREADY included automatically in her character DNA.
+- DO NOT describe hair color, eye color, or body type in your tags
+- DO NOT override her style preferences (if she loves dresses, don't default to jeans)
+- Your tags should focus on: SCENE, POSE, CURRENT CLOTHING STATE, and EXPRESSION
+- The character DNA already includes her signature style - respect it and build upon it
 </CRITICAL_INSTRUCTIONS>
 
 <IMAGE_GENERATION_RULES>

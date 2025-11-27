@@ -4,13 +4,16 @@
  */
 
 export const HAIR_COLORS = [
-  { value: "black", label: "Black", emoji: "⚫" },
-  { value: "brown", label: "Brown", emoji: "🟤" },
+  { value: "brown", label: "Brunette", emoji: "🟤" },
   { value: "blonde", label: "Blonde", emoji: "🟡" },
-  { value: "red", label: "Red", emoji: "🔴" },
-  { value: "white", label: "White", emoji: "⚪" },
+  { value: "black", label: "Black", emoji: "⚫" },
+  { value: "red", label: "Redhead", emoji: "🔴" },
   { value: "pink", label: "Pink", emoji: "🩷" },
+  { value: "white", label: "White", emoji: "⚪" },
   { value: "blue", label: "Blue", emoji: "🔵" },
+  { value: "green", label: "Green", emoji: "🟢" },
+  { value: "purple", label: "Purple", emoji: "🟣" },
+  { value: "multicolor", label: "Multicolor", emoji: "🌈" },
 ];
 
 export const HAIR_STYLES = [

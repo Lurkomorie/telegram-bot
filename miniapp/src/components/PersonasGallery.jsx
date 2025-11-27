@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import WebApp from '@twa-dev/sdk';
 import './PersonasGallery.css';
 import { useTranslation } from '../i18n/TranslationContext';
@@ -10,10 +10,13 @@ import { deleteCharacter } from '../api';
  * Displays a 2-column grid of AI persona cards with images, names, and descriptions
  * Includes "Create Character" card and custom character management
  */
-export default function PersonasGallery({ personas, onPersonaClick, isLoading, energy, onRefresh }) {
+export default function PersonasGallery({ personas, onPersonaClick, isLoading, tokens, onRefresh }) {
   const { t } = useTranslation();
   const [showCreation, setShowCreation] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const pollingIntervalRef = useRef(null);
+  const pollCountRef = useRef(0);
+  const onRefreshRef = useRef(onRefresh);
 
   const handleDelete = async (personaId, personaName, e) => {
     e.stopPropagation(); // Prevent card click
@@ -50,6 +53,73 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, e
     }
   };
 
+  // Keep onRefreshRef up to date
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  // Poll for avatar updates on custom characters without avatars
+  useEffect(() => {
+    // Check if there are any custom characters without avatars
+    const customCharsWithoutAvatar = personas?.filter(
+      p => p.is_custom && !p.avatar_url
+    ) || [];
+
+    // If no characters need avatars, stop any existing polling
+    if (customCharsWithoutAvatar.length === 0) {
+      if (pollingIntervalRef.current) {
+        console.log('[GALLERY] ✅ All avatars loaded, stopping polling');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        pollCountRef.current = 0;
+      }
+      return;
+    }
+
+    // If already polling, don't start a new interval
+    if (pollingIntervalRef.current) {
+      return;
+    }
+
+    // Start polling for avatar updates
+    console.log(`[GALLERY] 🔄 Found ${customCharsWithoutAvatar.length} custom characters without avatars, starting polling...`);
+    pollCountRef.current = 0;
+    const maxPolls = 40; // 40 polls * 3 seconds = 2 minutes maximum
+    
+    // Do first poll immediately (don't wait 3 seconds)
+    if (onRefreshRef.current) {
+      console.log('[GALLERY] 🔄 Initial poll for avatar updates...');
+      onRefreshRef.current();
+    }
+    
+    pollingIntervalRef.current = setInterval(() => {
+      pollCountRef.current++;
+      console.log(`[GALLERY] 🔄 Polling for avatar updates... (${pollCountRef.current}/${maxPolls})`);
+      
+      if (pollCountRef.current >= maxPolls) {
+        console.log('[GALLERY] ⏰ Max polling duration reached (2 minutes), stopping...');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        pollCountRef.current = 0;
+        return;
+      }
+      
+      if (onRefreshRef.current) {
+        onRefreshRef.current();
+      }
+    }, 3000);
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log('[GALLERY] 🧹 Component unmounting, cleaning up polling');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        pollCountRef.current = 0;
+      }
+    };
+  }, [personas]); // Only depend on personas, not onRefresh
+
   if (isLoading) {
     return (
       <div className="loading">
@@ -74,7 +144,7 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, e
             <div className="persona-info">
               <h3 className="persona-name">Create Your Girlfriend</h3>
               <p className="persona-description">
-                {energy?.is_premium ? '25 ⚡' : '50 ⚡'}
+                {tokens?.is_premium ? '25 ⚡' : '50 ⚡'}
               </p>
             </div>
           </div>
@@ -97,7 +167,7 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, e
         <CharacterCreation
           onClose={() => setShowCreation(false)}
           onCreated={handleCreated}
-          energy={energy}
+          tokens={tokens}
         />
       )}
     </>
@@ -110,6 +180,7 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, e
  */
 function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
   const [imageError, setImageError] = useState(false);
+  const isGeneratingAvatar = persona.is_custom && !persona.avatar_url;
 
   return (
     <div className="persona-card" onClick={onClick}>
@@ -121,7 +192,13 @@ function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
           disabled={isDeleting}
           title="Delete character"
         >
-          {isDeleting ? '⏳' : '🗑️'}
+          {isDeleting ? (
+            <span style={{ fontSize: '12px' }}>⏳</span>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          )}
         </button>
       )}
 
@@ -133,8 +210,15 @@ function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
           onError={() => setImageError(true)}
         />
       ) : (
-        <div className="persona-image-placeholder">
-          <span className="placeholder-icon">👤</span>
+        <div className={`persona-image-placeholder ${isGeneratingAvatar ? 'generating' : ''}`}>
+          {isGeneratingAvatar ? (
+            <>
+              <span className="spinner-small"></span>
+              <span className="generating-text">Generating...</span>
+            </>
+          ) : (
+            <span className="placeholder-icon">👤</span>
+          )}
         </div>
       )}
       

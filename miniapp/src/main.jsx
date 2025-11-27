@@ -4,11 +4,14 @@ import '@fontsource-variable/montserrat'
 import './index.css'
 import App from './App.jsx'
 import { TranslationProvider } from './i18n/TranslationContext'
+import ErrorBoundary from './ErrorBoundary'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <TranslationProvider>
-      <App />
-    </TranslationProvider>
+    <ErrorBoundary>
+      <TranslationProvider>
+        <App />
+      </TranslationProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )

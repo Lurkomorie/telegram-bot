@@ -117,6 +117,9 @@ async def get_persona_histories(
     """
     Get all history starts for a specific persona
     
+    For custom characters: Generates 3 AI stories on first access if none exist
+    For preset personas: Returns existing histories from cache
+    
     Returns list of history scenarios with:
     - id, description, text (greeting), image_url
     - Descriptions and text are returned in user's language if available
@@ -128,7 +131,7 @@ async def get_persona_histories(
     # Validate persona_id format
     try:
         from uuid import UUID
-        UUID(persona_id)
+        persona_uuid = UUID(persona_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid persona ID format")
     
@@ -139,12 +142,78 @@ async def get_persona_histories(
         with get_db() as db:
             user_language = crud.get_user_language(db, user_id)
     
-    # Get histories from cache
+    # Try to get histories from cache (for preset personas)
     from app.core import persona_cache
     from app.core.persona_cache import get_history_field
     histories = persona_cache.get_persona_histories(persona_id)
     
-    # Transform to camelCase for frontend
+    # If no cached histories, check if this is a custom character
+    if not histories:
+        with get_db() as db:
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            
+            # If custom character, check if histories exist in database
+            if persona and persona.visibility == "custom":
+                db_histories = crud.get_persona_histories(db, persona_uuid)
+                
+                # If no histories exist, generate them with AI
+                if not db_histories:
+                    print(f"[GET-HISTORIES] Custom character {persona.name} has no stories, generating with AI...")
+                    
+                    try:
+                        from app.core.story_generator import generate_character_stories
+                        from app.core.character_builder import build_character_dna
+                        
+                        # Parse character attributes from image_prompt (DNA)
+                        # For simplicity, use defaults if not available
+                        stories = await generate_character_stories(
+                            name=persona.name,
+                            personality_description=persona.prompt,
+                            hair_color="brown",  # Default, actual values in DNA
+                            hair_style="long_wavy",
+                            eye_color="brown",
+                            body_type="athletic",
+                            user_id=user_id
+                        )
+                        
+                        # Save generated stories to database
+                        for story in stories:
+                            history = crud.create_persona_history(
+                                db,
+                                persona_id=persona_uuid,
+                                name=story["name"],
+                                small_description=story["small_description"],
+                                description=story["description"],
+                                text=story["text"],
+                                image_url=None,  # Can be generated later
+                                image_prompt=persona.image_prompt  # Use character DNA
+                            )
+                            print(f"[GET-HISTORIES] Created story: {story['name']}")
+                        
+                        # Fetch the newly created histories
+                        db_histories = crud.get_persona_histories(db, persona_uuid)
+                        print(f"[GET-HISTORIES] Generated {len(db_histories)} stories for {persona.name}")
+                    
+                    except Exception as e:
+                        print(f"[GET-HISTORIES] Error generating stories: {e}")
+                        # Return empty list if generation fails
+                        return []
+                
+                # Convert DB histories to response format
+                result = []
+                for h in db_histories:
+                    result.append({
+                        "id": str(h.id),
+                        "name": h.name or "Story",
+                        "smallDescription": h.small_description or "",
+                        "description": h.description or "",
+                        "text": h.text,
+                        "image_url": h.image_url,
+                        "wide_menu_image_url": h.wide_menu_image_url
+                    })
+                return result
+    
+    # Transform cached histories to camelCase for frontend
     result = []
     for h in histories:
         # Get translated fields
@@ -585,16 +654,43 @@ async def _process_scenario_selection(
             print(f"[MINIAPP-SELECT] ⚠️  Redis error (continuing anyway): {redis_error}")
             # Continue even if Redis fails - the messages can still be sent
         
-        # Get specific history from cache (no random selection)
+        # Get specific history from cache (preset personas) or database (custom characters)
         history_start = None
+        is_custom_character_story = False
+        
         if history_uuid:
+            # Try cache first (for preset personas)
             histories = get_cached_histories(str(persona_uuid))
             for h in histories:
                 if h["id"] == str(history_uuid):
                     history_start = h
+                    print(f"[MINIAPP-SELECT] Found preset persona story from cache: {h.get('name', 'Unknown')}")
                     break
+            
+            # If not in cache, check database (for custom characters)
             if not history_start:
-                print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found, using persona intro")
+                with get_db() as db:
+                    from app.db.models import PersonaHistoryStart
+                    db_history = db.query(PersonaHistoryStart).filter(
+                        PersonaHistoryStart.id == history_uuid
+                    ).first()
+                    
+                    if db_history:
+                        is_custom_character_story = True
+                        # Convert to dict format matching cache
+                        history_start = {
+                            "id": str(db_history.id),
+                            "name": db_history.name,
+                            "small_description": db_history.small_description,
+                            "description": db_history.description,
+                            "text": db_history.text,
+                            "image_url": db_history.image_url,
+                            "wide_menu_image_url": db_history.wide_menu_image_url,
+                            "image_prompt": db_history.image_prompt
+                        }
+                        print(f"[MINIAPP-SELECT] Found custom character story from DB: {db_history.name}")
+                    else:
+                        print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found in cache or database")
         else:
             print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
         
@@ -604,13 +700,21 @@ async def _process_scenario_selection(
         history_start_data = None
         description_text = None
         if history_start:
-            # Get translated history text and description
-            translated_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
-            translated_description = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+            # Handle preset vs custom character stories differently
+            if is_custom_character_story:
+                # Custom character - use direct values (no translations)
+                translated_text = history_start["text"]
+                translated_description = history_start.get("description", "")
+                print(f"[MINIAPP-SELECT] Using custom character story text directly (no translation)")
+            else:
+                # Preset persona - get translated text
+                translated_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
+                translated_description = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+                print(f"[MINIAPP-SELECT] Using translated preset persona story for language: {user_language}")
             
             history_start_data = {
                 "text": translated_text,
-                "image_url": history_start["image_url"],
+                "image_url": history_start.get("image_url"),
                 "image_prompt": history_start.get("image_prompt")
             }
             description_text = translated_description
@@ -968,6 +1072,20 @@ async def get_user_referrals(
             return {
                 "referrals_count": referrals_count,
                 "bot_username": bot_username
+            }
+    except Exception as e:
+        logger.error(f"Error getting user referrals: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch referral data")
+
+class GenerateStoriesRequest(BaseModel):
+    name: str
+    hair_color: str
+    hair_style: str
+    eye_color: str
+    body_type: str
+    extra_prompt: str
+
+
 class CreateCharacterRequest(BaseModel):
     name: str
     hair_color: str
@@ -977,6 +1095,59 @@ class CreateCharacterRequest(BaseModel):
     breast_size: str
     butt_size: str
     extra_prompt: str
+
+
+@router.post("/generate-stories")
+async def generate_stories(
+    request: GenerateStoriesRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Generate 3 AI story scenarios for a custom character (free, no token cost)
+    
+    Returns: {success: bool, stories: List[Dict], error: str}
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Extract user_id
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    try:
+        from app.core.story_generator import generate_character_stories
+        
+        print(f"[GENERATE-STORIES] Generating stories for {request.name} (user {user_id})")
+        
+        # Generate stories using AI
+        stories = await generate_character_stories(
+            name=request.name,
+            personality_description=request.extra_prompt,
+            hair_color=request.hair_color,
+            hair_style=request.hair_style,
+            eye_color=request.eye_color,
+            body_type=request.body_type,
+            user_id=user_id
+        )
+        
+        print(f"[GENERATE-STORIES] Generated {len(stories)} stories")
+        
+        return {
+            "success": True,
+            "stories": stories
+        }
+    
+    except Exception as e:
+        print(f"[GENERATE-STORIES] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": "generation_failed",
+            "message": "Failed to generate stories. Please try again or enter your own."
+        }
 
 
 @router.post("/create-character")
@@ -1067,14 +1238,15 @@ async def create_character(
             
             print(f"[CREATE-CHARACTER] Deducted {token_cost} tokens from user {user_id}")
             
-            # Build character DNA and dialogue prompt
+            # Build character DNA with extra_prompt for visual detail extraction
             character_dna = build_character_dna(
                 request.hair_color,
                 request.hair_style,
                 request.eye_color,
                 request.body_type,
                 request.breast_size,
-                request.butt_size
+                request.butt_size,
+                request.extra_prompt  # Pass user's description for visual parsing
             )
             
             dialogue_prompt = build_dialogue_prompt(request.name, request.extra_prompt)
@@ -1105,31 +1277,53 @@ async def create_character(
             
             print(f"[CREATE-CHARACTER] Created persona {persona.id} for user {user_id}")
             
-            # Generate initial image
+            # Generate initial portrait image (MUST BE CLOTHED)
             from app.core.pipeline_adapter import BASE_QUALITY_PROMPT, BASE_NEGATIVE_PROMPT
             from app.core.img_runpod import submit_image_job
             import asyncio
             import random
+            
+            # Build first image prompt with clothing and portrait composition
+            # CRITICAL: Add explicit clothing to prevent nude generations
+            first_image_composition = (
+                "portrait shot, medium close-up, shoulders and upper body visible, "
+                "looking at camera, friendly smile, warm expression, "
+                "dressed, wearing cute casual top, "
+                "soft natural lighting, clean background, "
+                "professional photography"
+            )
+            
+            # Assemble full prompt: composition + character DNA + quality
+            first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
+            
+            # Enhanced negative prompt with anti-nudity tags
+            anti_nudity_negative = (
+                "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
+                "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
+                "(undressed:1.3), nsfw, explicit"
+            )
+            first_image_negative = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}"
             
             # Create image job in database
             job = crud.create_image_job(
                 db,
                 user_id=user_id,
                 persona_id=persona.id,
-                prompt=f"{character_dna}, {BASE_QUALITY_PROMPT}",
-                negative_prompt=BASE_NEGATIVE_PROMPT,
+                prompt=first_image_prompt,
+                negative_prompt=first_image_negative,
                 chat_id=None  # No chat yet
             )
             job_id = job.id
             
             print(f"[CREATE-CHARACTER] Created image job {job_id}")
+            print(f"[CREATE-CHARACTER] First image prompt: {first_image_prompt[:200]}...")
             
             # Submit to Runpod
             try:
                 await submit_image_job(
                     job_id=job_id,
-                    prompt=f"{character_dna}, {BASE_QUALITY_PROMPT}",
-                    negative_prompt=BASE_NEGATIVE_PROMPT,
+                    prompt=first_image_prompt,
+                    negative_prompt=first_image_negative,
                     seed=random.randint(0, 2147483647),
                     queue_priority="medium"
                 )

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import WebApp from '@twa-dev/sdk';
 import { createCharacter } from '../api';
 import {
@@ -13,10 +14,18 @@ import './CharacterCreation.css';
 
 /**
  * CharacterCreation Component
- * Full-page modal for creating custom girlfriend characters
- * Features intuitive UI, live validation, and great UX
+ * Visual card-based wizard inspired by candy.ai
+ * Step 1: Hair Color (visual color cards)
+ * Step 2: Hair Style
+ * Step 3: Eye Color (visual eye cards)
+ * Step 4: Body Type
+ * Step 5: Breast + Butt Size (combined)
+ * Step 6: Name + Description
  */
-function CharacterCreation({ onClose, onCreated, energy }) {
+function CharacterCreation({ onClose, onCreated, tokens }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [slideDirection, setSlideDirection] = useState('forward');
+  
   const [selections, setSelections] = useState({
     name: '',
     hair_color: 'brown',
@@ -30,18 +39,13 @@ function CharacterCreation({ onClose, onCreated, energy }) {
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
-  const [charCount, setCharCount] = useState(0);
 
-  // Determine token cost and max description based on premium status
-  const isPremium = energy.is_premium;
+  const isPremium = tokens.is_premium;
   const tokenCost = isPremium ? 25 : 50;
   const maxDescriptionLength = isPremium ? 4000 : 500;
+  
+  const totalPages = 6;
 
-  useEffect(() => {
-    setCharCount(selections.extra_prompt.length);
-  }, [selections.extra_prompt]);
-
-  // Disable body scrolling when modal is open
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -49,37 +53,46 @@ function CharacterCreation({ onClose, onCreated, energy }) {
     };
   }, []);
 
-  const handleChange = (field, value) => {
+  const handleSelection = (field, value) => {
     setSelections((prev) => ({
       ...prev,
       [field]: value,
     }));
     setError(null);
+
+    // Auto-advance after selection on all pages except final page
+    if (currentPage < 6) {
+      setTimeout(() => {
+        advanceToNextPage();
+      }, 300);
+    }
   };
 
-  const validateForm = () => {
-    if (!selections.name.trim()) {
-      return 'Please enter a name for your girlfriend';
+  const advanceToNextPage = () => {
+    setSlideDirection('forward');
+    setCurrentPage((prev) => prev + 1);
+  };
+
+  const goToPreviousPage = () => {
+    setSlideDirection('backward');
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    } else {
+      onClose();
     }
-    if (selections.name.length > 100) {
-      return 'Name must be 100 characters or less';
-    }
-    if (!selections.extra_prompt.trim()) {
-      return 'Please describe your girlfriend';
-    }
-    if (selections.extra_prompt.length > maxDescriptionLength) {
-      return `Description must be ${maxDescriptionLength} characters or less`;
-    }
-    if (energy.energy < tokenCost) {
-      return `Insufficient tokens. Need ${tokenCost}, have ${energy.energy}`;
-    }
-    return null;
   };
 
   const handleCreate = async () => {
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+    if (!selections.name.trim()) {
+      setError('Please enter a name');
+      return;
+    }
+    if (!selections.extra_prompt.trim()) {
+      setError('Please describe your girlfriend');
+      return;
+    }
+    if (tokens.tokens < tokenCost) {
+      setError(`Insufficient tokens. Need ${tokenCost}, have ${tokens.tokens}`);
       return;
     }
 
@@ -90,10 +103,7 @@ function CharacterCreation({ onClose, onCreated, energy }) {
       const result = await createCharacter(selections, WebApp.initData);
       
       if (result.success) {
-        // Show success message
         WebApp.showAlert(`${selections.name} created successfully! 💕\nGenerating portrait...`);
-        
-        // Call parent to refresh and close
         onCreated();
       } else {
         setError(result.message || 'Failed to create character');
@@ -106,125 +116,292 @@ function CharacterCreation({ onClose, onCreated, energy }) {
     }
   };
 
-  const getAttributeLabel = (field) => {
-    const labels = {
-      hair_color: 'Hair Color',
-      hair_style: 'Hair Style',
-      eye_color: 'Eye Color',
-      body_type: 'Body Type',
-      breast_size: 'Breast Size',
-      butt_size: 'Butt Size',
+  const getPageTitle = () => {
+    const titles = {
+      1: 'Hair Color',
+      2: 'Hair Style',
+      3: 'Eye Color',
+      4: 'Body Type',
+      5: 'Proportions',
+      6: 'Final Details'
     };
-    return labels[field];
+    return titles[currentPage];
   };
 
-  const getOptions = (field) => {
-    const optionsMap = {
-      hair_color: HAIR_COLORS,
-      hair_style: HAIR_STYLES,
-      eye_color: EYE_COLORS,
-      body_type: BODY_TYPES,
-      breast_size: BREAST_SIZES,
-      butt_size: BUTT_SIZES,
-    };
-    return optionsMap[field];
+  // Get character image URL for each attribute
+  const getCharacterImage = (type, value) => {
+    // Placeholder for now - you'll need to add actual images to public folder
+    // Format: /characters/{type}-{value}.jpg
+    return `/characters/${type}-${value}.jpg`;
   };
 
-  return (
+  const getHairColorGradient = (colorKey) => {
+    const gradients = {
+      black: 'linear-gradient(135deg, #2a2a2a 0%, #000000 100%)',
+      brown: 'linear-gradient(135deg, #8B4513 0%, #5C3317 100%)',
+      blonde: 'linear-gradient(135deg, #FFD700 0%, #DAA520 100%)',
+      red: 'linear-gradient(135deg, #DC143C 0%, #B22222 100%)',
+      white: 'linear-gradient(135deg, #FFFFFF 0%, #D3D3D3 100%)',
+      pink: 'linear-gradient(135deg, #FFB6C1 0%, #FF1493 100%)',
+      blue: 'linear-gradient(135deg, #1E90FF 0%, #0047AB 100%)',
+      green: 'linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)',
+      purple: 'linear-gradient(135deg, #9370DB 0%, #663399 100%)',
+      multicolor: 'linear-gradient(135deg, #FF0080 0%, #FF8C00 25%, #FFD700 50%, #00FF00 75%, #0080FF 100%)',
+    };
+    return gradients[colorKey] || gradients.brown;
+  };
+
+  const getEyeColorGradient = (colorKey) => {
+    const gradients = {
+      brown: 'radial-gradient(circle, #8B4513 0%, #654321 60%, #000000 100%)',
+      blue: 'radial-gradient(circle, #87CEEB 0%, #4169E1 60%, #000080 100%)',
+      green: 'radial-gradient(circle, #90EE90 0%, #228B22 60%, #006400 100%)',
+      hazel: 'radial-gradient(circle, #DAA520 0%, #8B7355 60%, #654321 100%)',
+      gray: 'radial-gradient(circle, #C0C0C0 0%, #808080 60%, #404040 100%)',
+    };
+    return gradients[colorKey] || gradients.brown;
+  };
+
+  return createPortal(
     <div className="character-creation-overlay">
       <div className="character-creation-modal">
         {/* Header */}
         <div className="creation-header">
-          <button className="back-button" onClick={onClose} disabled={isCreating}>
+          <button className="back-button" onClick={goToPreviousPage} disabled={isCreating}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <h2>Create Your Girlfriend</h2>
+          <div className="header-center">
+            <div className="step-indicator">
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`step-dot ${i + 1 === currentPage ? 'active' : ''} ${i + 1 < currentPage ? 'completed' : ''}`}
+                />
+              ))}
+            </div>
+          </div>
           <div className="token-cost">
             <span className="cost-amount">{tokenCost}</span>
             <span className="cost-icon">⚡</span>
           </div>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="creation-content">
-          {/* Name Input */}
-          <div className="form-section">
-            <label className="form-label">
-              <span className="label-text">Name</span>
-              <span className="label-required">*</span>
-            </label>
-            <input
-              type="text"
-              className="name-input"
-              placeholder="e.g., Emma, Sophie, Luna..."
-              value={selections.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              maxLength={100}
-              disabled={isCreating}
-            />
-            <div className="input-hint">
-              {selections.name.length}/100 characters
-            </div>
-          </div>
-
-          {/* Physical Attributes */}
-          <div className="form-section">
-            <div className="section-title">Physical Attributes</div>
-            <div className="attributes-grid">
-              {['hair_color', 'hair_style', 'eye_color', 'body_type', 'breast_size', 'butt_size'].map(
-                (field) => (
-                  <div key={field} className="attribute-select">
-                    <label className="select-label">{getAttributeLabel(field)}</label>
-                    <select
-                      className="custom-select"
-                      value={selections[field]}
-                      onChange={(e) => handleChange(field, e.target.value)}
+        {/* Sliding Content */}
+        <div className="creation-content-wrapper">
+          <div className={`wizard-container slide-${slideDirection}`} key={currentPage}>
+            
+            {/* Page 1: Hair Color - 5 column compact grid */}
+            {currentPage === 1 && (
+              <div className="wizard-page">
+                <h3 className="page-title">{getPageTitle()}</h3>
+                <div className="image-cards-grid-5col">
+                  {HAIR_COLORS.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`image-card ${selections.hair_color === option.value ? 'selected' : ''}`}
+                      onClick={() => handleSelection('hair_color', option.value)}
                       disabled={isCreating}
                     >
-                      {getOptions(field).map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.emoji ? `${option.emoji} ${option.label}` : option.label}
-                          {option.description ? ` - ${option.description}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
+                      <div 
+                        className="card-image"
+                        style={{ background: getHairColorGradient(option.value) }}
+                      />
+                      <div className="card-label-overlay">{option.label}</div>
+                      {selections.hair_color === option.value && (
+                        <div className="check-mark">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Personality & Relationship */}
-          <div className="form-section">
-            <label className="form-label">
-              <span className="label-text">Personality & Relationship</span>
-              <span className="label-required">*</span>
-              {isPremium && <span className="premium-badge">Premium</span>}
-            </label>
-            <div className="textarea-hint">
-              Describe your girlfriend's personality, your relationship, background, interests, etc.
-            </div>
-            <textarea
-              className="description-textarea"
-              placeholder="Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years. You're playful and supportive, always making me smile. You work as a graphic designer and enjoy cozy evenings together..."
-              value={selections.extra_prompt}
-              onChange={(e) => handleChange('extra_prompt', e.target.value)}
-              maxLength={maxDescriptionLength}
-              rows={8}
-              disabled={isCreating}
-            />
-            <div className="input-hint">
-              <span className={charCount > maxDescriptionLength * 0.9 ? 'warning' : ''}>
-                {charCount}/{maxDescriptionLength} characters
-              </span>
-              {!isPremium && (
-                <span className="upgrade-hint">
-                  Premium: {4000} characters
-                </span>
-              )}
-            </div>
+            {/* Page 2: Hair Style - 3 column grid */}
+            {currentPage === 2 && (
+              <div className="wizard-page">
+                <h3 className="page-title">{getPageTitle()}</h3>
+                <div className="image-cards-grid-3col">
+                  {HAIR_STYLES.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`image-card ${selections.hair_style === option.value ? 'selected' : ''}`}
+                      onClick={() => handleSelection('hair_style', option.value)}
+                      disabled={isCreating}
+                    >
+                      <div 
+                        className="card-image placeholder-gradient"
+                        style={{ 
+                          background: `linear-gradient(135deg, ${getHairColorGradient(selections.hair_color).split(',')[0]}, #1a1a1a)` 
+                        }}
+                      >
+                        <span className="placeholder-emoji">{option.emoji}</span>
+                      </div>
+                      <div className="card-label-overlay">{option.label}</div>
+                      {selections.hair_style === option.value && (
+                        <div className="check-mark">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Page 3: Eye Color - 5 column grid for consistency */}
+            {currentPage === 3 && (
+              <div className="wizard-page">
+                <h3 className="page-title">{getPageTitle()}</h3>
+                <div className="image-cards-grid-5col">
+                  {EYE_COLORS.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`image-card eye-card ${selections.eye_color === option.value ? 'selected' : ''}`}
+                      onClick={() => handleSelection('eye_color', option.value)}
+                      disabled={isCreating}
+                    >
+                      <div 
+                        className="card-image eye-image"
+                        style={{ background: getEyeColorGradient(option.value) }}
+                      >
+                        <div className="eye-shine" />
+                      </div>
+                      <div className="card-label-overlay">{option.label}</div>
+                      {selections.eye_color === option.value && (
+                        <div className="check-mark">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Page 4: Body Type - 2x2 grid for 4 options */}
+            {currentPage === 4 && (
+              <div className="wizard-page">
+                <h3 className="page-title">{getPageTitle()}</h3>
+                <div className="image-cards-grid-2col">
+                  {BODY_TYPES.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`image-card body-card ${selections.body_type === option.value ? 'selected' : ''}`}
+                      onClick={() => handleSelection('body_type', option.value)}
+                      disabled={isCreating}
+                    >
+                      <div className="card-image body-preview">
+                        <div className="body-silhouette" data-type={option.value}>
+                          <div className="silhouette-shape"></div>
+                        </div>
+                      </div>
+                      <div className="card-label-overlay">
+                        <div className="label-main">{option.label}</div>
+                        <div className="label-sub">{option.description}</div>
+                      </div>
+                      {selections.body_type === option.value && (
+                        <div className="check-mark">✓</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Page 5: Breast + Butt Size (Combined) */}
+            {currentPage === 5 && (
+              <div className="wizard-page">
+                <h3 className="page-title">{getPageTitle()}</h3>
+                <div className="proportions-section">
+                  <div className="size-group-modern">
+                    <div className="size-label">Breast Size</div>
+                    <div className="size-selector">
+                      {BREAST_SIZES.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`size-option ${selections.breast_size === option.value ? 'selected' : ''}`}
+                          onClick={() => setSelections({ ...selections, breast_size: option.value })}
+                          disabled={isCreating}
+                        >
+                          <span className="size-label-text">{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="size-group-modern">
+                    <div className="size-label">Butt Size</div>
+                    <div className="size-selector">
+                      {BUTT_SIZES.map((option) => (
+                        <button
+                          key={option.value}
+                          className={`size-option ${selections.butt_size === option.value ? 'selected' : ''}`}
+                          onClick={() => setSelections({ ...selections, butt_size: option.value })}
+                          disabled={isCreating}
+                        >
+                          <span className="size-label-text">{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  className="next-button-large"
+                  onClick={advanceToNextPage}
+                  disabled={isCreating}
+                >
+                  NEXT →
+                </button>
+              </div>
+            )}
+
+            {/* Page 6: Name + Description */}
+            {currentPage === 6 && (
+              <div className="wizard-page final-page">
+                <div className="final-inputs">
+                  <div className="input-group">
+                    <input
+                      type="text"
+                      className="name-input-final"
+                      placeholder="Enter her name..."
+                      value={selections.name}
+                      onChange={(e) => setSelections({ ...selections, name: e.target.value })}
+                      maxLength={100}
+                      disabled={isCreating}
+                      autoFocus
+                    />
+                    <div className="input-hint center">
+                      {selections.name.length}/100
+                    </div>
+                  </div>
+
+                  <div className="input-group flex-grow">
+                    <label className="input-label-centered">
+                      Personality & Relationship
+                      {isPremium && <span className="premium-badge-inline">Premium</span>}
+                    </label>
+                    <div className="textarea-hint">
+                      Describe her personality, your relationship, background...
+                    </div>
+                    <textarea
+                      className="description-textarea-final"
+                      placeholder="Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years..."
+                      value={selections.extra_prompt}
+                      onChange={(e) => setSelections({ ...selections, extra_prompt: e.target.value })}
+                      maxLength={maxDescriptionLength}
+                      disabled={isCreating}
+                    />
+                    <div className="input-hint center">
+                      <span className={selections.extra_prompt.length > maxDescriptionLength * 0.9 ? 'warning' : ''}>
+                        {selections.extra_prompt.length}/{maxDescriptionLength}
+                      </span>
+                      {!isPremium && (
+                        <span className="upgrade-hint">Premium: 4000</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error Display */}
@@ -236,30 +413,32 @@ function CharacterCreation({ onClose, onCreated, energy }) {
           )}
         </div>
 
-        {/* Footer with Create Button */}
-        <div className="creation-footer">
-          <button
-            className="create-button"
-            onClick={handleCreate}
-            disabled={isCreating}
-          >
-            {isCreating ? (
-              <>
-                <span className="spinner"></span>
-                Creating...
-              </>
-            ) : (
-              <>
-                <span>Create Girlfriend</span>
-                <span className="button-cost">{tokenCost} ⚡</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* Footer - Only on Final Page */}
+        {currentPage === 6 && (
+          <div className="creation-footer">
+            <button
+              className="create-button"
+              onClick={handleCreate}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <span className="spinner"></span>
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <span>Create Girlfriend</span>
+                  <span className="button-cost">{tokenCost} ⚡</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 export default CharacterCreation;
-
