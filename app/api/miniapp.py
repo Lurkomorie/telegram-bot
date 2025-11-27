@@ -62,6 +62,26 @@ async def get_personas(
     personas = get_preset_personas()
     
     result = []
+    
+    # Add user's custom characters FIRST (at the top)
+    if user_id:
+        with get_db() as db:
+            user_personas = crud.get_user_personas(db, user_id)
+            # Sort by created_at descending (newest first)
+            user_personas.sort(key=lambda p: p.created_at, reverse=True)
+            for up in user_personas:
+                result.append({
+                    "id": str(up.id),
+                    "name": up.name,
+                    "description": up.description or "",
+                    "smallDescription": up.small_description or "Your custom character",
+                    "badges": [],
+                    "avatar_url": up.avatar_url,
+                    "is_custom": True,
+                    "owner_user_id": user_id,
+                })
+    
+    # Then add public personas
     for persona in personas:
         persona_id = persona["id"]
         
@@ -83,6 +103,7 @@ async def get_personas(
             "smallDescription": small_description,
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
+            "is_custom": False,
         })
     
     return result
@@ -96,6 +117,9 @@ async def get_persona_histories(
     """
     Get all history starts for a specific persona
     
+    For custom characters: Generates 3 AI stories on first access if none exist
+    For preset personas: Returns existing histories from cache
+    
     Returns list of history scenarios with:
     - id, description, text (greeting), image_url
     - Descriptions and text are returned in user's language if available
@@ -107,7 +131,7 @@ async def get_persona_histories(
     # Validate persona_id format
     try:
         from uuid import UUID
-        UUID(persona_id)
+        persona_uuid = UUID(persona_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid persona ID format")
     
@@ -118,12 +142,78 @@ async def get_persona_histories(
         with get_db() as db:
             user_language = crud.get_user_language(db, user_id)
     
-    # Get histories from cache
+    # Try to get histories from cache (for preset personas)
     from app.core import persona_cache
     from app.core.persona_cache import get_history_field
     histories = persona_cache.get_persona_histories(persona_id)
     
-    # Transform to camelCase for frontend
+    # If no cached histories, check if this is a custom character
+    if not histories:
+        with get_db() as db:
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            
+            # If custom character, check if histories exist in database
+            if persona and persona.visibility == "custom":
+                db_histories = crud.get_persona_histories(db, persona_uuid)
+                
+                # If no histories exist, generate them with AI
+                if not db_histories:
+                    print(f"[GET-HISTORIES] Custom character {persona.name} has no stories, generating with AI...")
+                    
+                    try:
+                        from app.core.story_generator import generate_character_stories
+                        from app.core.character_builder import build_character_dna
+                        
+                        # Parse character attributes from image_prompt (DNA)
+                        # For simplicity, use defaults if not available
+                        stories = await generate_character_stories(
+                            name=persona.name,
+                            personality_description=persona.prompt,
+                            hair_color="brown",  # Default, actual values in DNA
+                            hair_style="long_wavy",
+                            eye_color="brown",
+                            body_type="athletic",
+                            user_id=user_id
+                        )
+                        
+                        # Save generated stories to database
+                        for story in stories:
+                            history = crud.create_persona_history(
+                                db,
+                                persona_id=persona_uuid,
+                                name=story["name"],
+                                small_description=story["small_description"],
+                                description=story["description"],
+                                text=story["text"],
+                                image_url=None,  # Can be generated later
+                                image_prompt=persona.image_prompt  # Use character DNA
+                            )
+                            print(f"[GET-HISTORIES] Created story: {story['name']}")
+                        
+                        # Fetch the newly created histories
+                        db_histories = crud.get_persona_histories(db, persona_uuid)
+                        print(f"[GET-HISTORIES] Generated {len(db_histories)} stories for {persona.name}")
+                    
+                    except Exception as e:
+                        print(f"[GET-HISTORIES] Error generating stories: {e}")
+                        # Return empty list if generation fails
+                        return []
+                
+                # Convert DB histories to response format
+                result = []
+                for h in db_histories:
+                    result.append({
+                        "id": str(h.id),
+                        "name": h.name or "Story",
+                        "smallDescription": h.small_description or "",
+                        "description": h.description or "",
+                        "text": h.text,
+                        "image_url": h.image_url,
+                        "wide_menu_image_url": h.wide_menu_image_url
+                    })
+                return result
+    
+    # Transform cached histories to camelCase for frontend
     result = []
     for h in histories:
         # Get translated fields
@@ -420,9 +510,25 @@ async def select_scenario(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid UUID format")
     
-    # Get persona from cache
-    from app.core.persona_cache import get_persona_by_id
-    persona = get_persona_by_id(str(persona_uuid))
+    # Get persona from cache OR database (for custom characters)
+    from app.core.persona_cache import get_persona_by_id as get_cached_persona
+    persona = get_cached_persona(str(persona_uuid))
+    
+    # If not in cache, check database for custom character
+    if not persona:
+        with get_db() as db:
+            db_persona = crud.get_persona_by_id(db, persona_uuid)
+            if db_persona:
+                # Convert to dict format matching cache
+                persona = {
+                    "id": str(db_persona.id),
+                    "name": db_persona.name,
+                    "intro": db_persona.intro or f"Hey! I'm {db_persona.name} 💕",
+                    "prompt": db_persona.prompt,
+                    "image_prompt": db_persona.image_prompt,
+                }
+                print(f"[MINIAPP-SELECT] Found custom character: {persona['name']}")
+    
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
     
@@ -451,7 +557,24 @@ async def _process_scenario_selection(
     from app.core.persona_cache import get_persona_by_id, get_persona_histories as get_cached_histories
     
     try:
+        # Get persona from cache OR database (for custom characters)
         persona = get_persona_by_id(str(persona_uuid))
+        
+        # If not in cache, check database for custom character
+        if not persona:
+            with get_db() as db:
+                db_persona = crud.get_persona_by_id(db, persona_uuid)
+                if db_persona:
+                    # Convert to dict format matching cache
+                    persona = {
+                        "id": str(db_persona.id),
+                        "name": db_persona.name,
+                        "intro": db_persona.intro or f"Hey! I'm {db_persona.name} 💕",
+                        "prompt": db_persona.prompt,
+                        "image_prompt": db_persona.image_prompt,
+                    }
+                    print(f"[MINIAPP-SELECT] Found custom character: {persona['name']}")
+        
         if not persona:
             print(f"[MINIAPP-SELECT] ❌ Persona {persona_uuid} not found")
             return
@@ -462,9 +585,16 @@ async def _process_scenario_selection(
         with get_db() as db:
             user_language = crud.get_user_language(db, user_id)
         
-        # Get translated persona name
+        # Get persona name (custom characters don't have translations)
         from app.core.persona_cache import get_persona_field
-        persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
+        persona_name = persona["name"]  # Use name directly for custom characters
+        # Try to get translated name only if it's a cached persona
+        try:
+            translated_name = get_persona_field(persona, 'name', language=user_language)
+            if translated_name:
+                persona_name = translated_name
+        except:
+            pass  # Custom character, no translation available
         
         # Clear any previous image's refresh button before deleting chat
         with get_db() as db:
@@ -524,16 +654,43 @@ async def _process_scenario_selection(
             print(f"[MINIAPP-SELECT] ⚠️  Redis error (continuing anyway): {redis_error}")
             # Continue even if Redis fails - the messages can still be sent
         
-        # Get specific history from cache (no random selection)
+        # Get specific history from cache (preset personas) or database (custom characters)
         history_start = None
+        is_custom_character_story = False
+        
         if history_uuid:
+            # Try cache first (for preset personas)
             histories = get_cached_histories(str(persona_uuid))
             for h in histories:
                 if h["id"] == str(history_uuid):
                     history_start = h
+                    print(f"[MINIAPP-SELECT] Found preset persona story from cache: {h.get('name', 'Unknown')}")
                     break
+            
+            # If not in cache, check database (for custom characters)
             if not history_start:
-                print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found, using persona intro")
+                with get_db() as db:
+                    from app.db.models import PersonaHistoryStart
+                    db_history = db.query(PersonaHistoryStart).filter(
+                        PersonaHistoryStart.id == history_uuid
+                    ).first()
+                    
+                    if db_history:
+                        is_custom_character_story = True
+                        # Convert to dict format matching cache
+                        history_start = {
+                            "id": str(db_history.id),
+                            "name": db_history.name,
+                            "small_description": db_history.small_description,
+                            "description": db_history.description,
+                            "text": db_history.text,
+                            "image_url": db_history.image_url,
+                            "wide_menu_image_url": db_history.wide_menu_image_url,
+                            "image_prompt": db_history.image_prompt
+                        }
+                        print(f"[MINIAPP-SELECT] Found custom character story from DB: {db_history.name}")
+                    else:
+                        print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found in cache or database")
         else:
             print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
         
@@ -543,13 +700,21 @@ async def _process_scenario_selection(
         history_start_data = None
         description_text = None
         if history_start:
-            # Get translated history text and description
-            translated_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
-            translated_description = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+            # Handle preset vs custom character stories differently
+            if is_custom_character_story:
+                # Custom character - use direct values (no translations)
+                translated_text = history_start["text"]
+                translated_description = history_start.get("description", "")
+                print(f"[MINIAPP-SELECT] Using custom character story text directly (no translation)")
+            else:
+                # Preset persona - get translated text
+                translated_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
+                translated_description = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+                print(f"[MINIAPP-SELECT] Using translated preset persona story for language: {user_language}")
             
             history_start_data = {
                 "text": translated_text,
-                "image_url": history_start["image_url"],
+                "image_url": history_start.get("image_url"),
                 "image_prompt": history_start.get("image_prompt")
             }
             description_text = translated_description
@@ -560,9 +725,18 @@ async def _process_scenario_selection(
             if history_start_data:
                 greeting_text = history_start_data['text']
             else:
-                # Get translated persona intro
-                translated_intro = get_persona_field(persona, 'intro', language=user_language) or persona_intro
-                greeting_text = translated_intro or f"Hi! I'm {persona_name}. Let's chat!"
+                # Get translated persona intro (only for cached personas)
+                greeting_text = persona_intro
+                try:
+                    translated_intro = get_persona_field(persona, 'intro', language=user_language)
+                    if translated_intro:
+                        greeting_text = translated_intro
+                except:
+                    pass  # Custom character, no translation
+                
+                # Fallback if no intro exists
+                if not greeting_text:
+                    greeting_text = f"Hi! I'm {persona_name}. Let's chat!"
             
             # Save description as system message if exists
             if description_text:
@@ -898,6 +1072,328 @@ async def get_user_referrals(
             return {
                 "referrals_count": referrals_count,
                 "bot_username": bot_username
+            }
+    except Exception as e:
+        logger.error(f"Error getting user referrals: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch referral data")
+
+class GenerateStoriesRequest(BaseModel):
+    name: str
+    hair_color: str
+    hair_style: str
+    eye_color: str
+    body_type: str
+    extra_prompt: str
+
+
+class CreateCharacterRequest(BaseModel):
+    name: str
+    hair_color: str
+    hair_style: str
+    eye_color: str
+    body_type: str
+    breast_size: str
+    butt_size: str
+    extra_prompt: str
+
+
+@router.post("/generate-stories")
+async def generate_stories(
+    request: GenerateStoriesRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Generate 3 AI story scenarios for a custom character (free, no token cost)
+    
+    Returns: {success: bool, stories: List[Dict], error: str}
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Extract user_id
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    try:
+        from app.core.story_generator import generate_character_stories
+        
+        print(f"[GENERATE-STORIES] Generating stories for {request.name} (user {user_id})")
+        
+        # Generate stories using AI
+        stories = await generate_character_stories(
+            name=request.name,
+            personality_description=request.extra_prompt,
+            hair_color=request.hair_color,
+            hair_style=request.hair_style,
+            eye_color=request.eye_color,
+            body_type=request.body_type,
+            user_id=user_id
+        )
+        
+        print(f"[GENERATE-STORIES] Generated {len(stories)} stories")
+        
+        return {
+            "success": True,
+            "stories": stories
+        }
+    
+    except Exception as e:
+        print(f"[GENERATE-STORIES] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": "generation_failed",
+            "message": "Failed to generate stories. Please try again or enter your own."
+        }
+
+
+@router.post("/create-character")
+async def create_character(
+    request: CreateCharacterRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Create a custom character (costs 50 tokens for regular users, 25 for premium)
+    
+    Returns: {success: bool, persona_id: str, message: str, error: str}
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Extract user_id
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    # Import character builder
+    from app.core.character_builder import (
+        build_character_dna,
+        build_dialogue_prompt,
+        validate_attributes
+    )
+    
+    try:
+        with get_db() as db:
+            # Check premium status to determine cost
+            is_premium = crud.check_user_premium(db, user_id)
+            token_cost = 25 if is_premium else 50
+            max_description_length = 4000 if is_premium else 500
+            
+            # Validate name length
+            if not request.name or len(request.name) > 100:
+                return {
+                    "success": False,
+                    "error": "invalid_name",
+                    "message": "Name must be between 1 and 100 characters"
+                }
+            
+            # Validate extra_prompt length
+            if not request.extra_prompt or len(request.extra_prompt) > max_description_length:
+                return {
+                    "success": False,
+                    "error": "invalid_description",
+                    "message": f"Description must be between 1 and {max_description_length} characters"
+                }
+            
+            # Validate attribute choices
+            is_valid, error_field = validate_attributes(
+                request.hair_color,
+                request.hair_style,
+                request.eye_color,
+                request.body_type,
+                request.breast_size,
+                request.butt_size
+            )
+            
+            if not is_valid:
+                return {
+                    "success": False,
+                    "error": "invalid_attribute",
+                    "field": error_field,
+                    "message": f"Invalid value for {error_field}"
+                }
+            
+            # Check token balance
+            if not crud.check_user_energy(db, user_id, required=token_cost):
+                user_energy = crud.get_user_energy(db, user_id)
+                return {
+                    "success": False,
+                    "error": "insufficient_tokens",
+                    "required": token_cost,
+                    "current": user_energy["energy"],
+                    "message": f"Insufficient tokens. Need {token_cost}, have {user_energy['energy']}"
+                }
+            
+            # Deduct tokens
+            if not crud.deduct_user_energy(db, user_id, amount=token_cost):
+                return {
+                    "success": False,
+                    "error": "deduction_failed",
+                    "message": "Failed to deduct tokens"
+                }
+            
+            print(f"[CREATE-CHARACTER] Deducted {token_cost} tokens from user {user_id}")
+            
+            # Build character DNA with extra_prompt for visual detail extraction
+            character_dna = build_character_dna(
+                request.hair_color,
+                request.hair_style,
+                request.eye_color,
+                request.body_type,
+                request.breast_size,
+                request.butt_size,
+                request.extra_prompt  # Pass user's description for visual parsing
+            )
+            
+            dialogue_prompt = build_dialogue_prompt(request.name, request.extra_prompt)
+            
+            print(f"[CREATE-CHARACTER] Built DNA ({len(character_dna)} chars) and dialogue prompt ({len(dialogue_prompt)} chars)")
+            
+            # Create persona in database
+            persona = crud.create_persona(
+                db,
+                name=request.name,
+                prompt=dialogue_prompt,
+                badges=[],
+                visibility="custom",
+                description=request.extra_prompt[:200],  # First 200 chars for preview
+                intro=f"Hey! I'm {request.name} 💕",
+                owner_user_id=user_id,
+                key=None
+            )
+            
+            # Update with additional fields (image_prompt, small_description, emoji)
+            persona = crud.update_persona(
+                db,
+                persona.id,
+                image_prompt=character_dna,
+                small_description="Your custom character",
+                emoji="💝"
+            )
+            
+            print(f"[CREATE-CHARACTER] Created persona {persona.id} for user {user_id}")
+            
+            # Generate initial portrait image (MUST BE CLOTHED)
+            from app.core.pipeline_adapter import BASE_QUALITY_PROMPT, BASE_NEGATIVE_PROMPT
+            from app.core.img_runpod import submit_image_job
+            import asyncio
+            import random
+            
+            # Build first image prompt with clothing and portrait composition
+            # CRITICAL: Add explicit clothing to prevent nude generations
+            first_image_composition = (
+                "portrait shot, medium close-up, shoulders and upper body visible, "
+                "looking at camera, friendly smile, warm expression, "
+                "dressed, wearing cute casual top, "
+                "soft natural lighting, clean background, "
+                "professional photography"
+            )
+            
+            # Assemble full prompt: composition + character DNA + quality
+            first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
+            
+            # Enhanced negative prompt with anti-nudity tags
+            anti_nudity_negative = (
+                "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
+                "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
+                "(undressed:1.3), nsfw, explicit"
+            )
+            first_image_negative = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}"
+            
+            # Create image job in database
+            job = crud.create_image_job(
+                db,
+                user_id=user_id,
+                persona_id=persona.id,
+                prompt=first_image_prompt,
+                negative_prompt=first_image_negative,
+                chat_id=None  # No chat yet
+            )
+            job_id = job.id
+            
+            print(f"[CREATE-CHARACTER] Created image job {job_id}")
+            print(f"[CREATE-CHARACTER] First image prompt: {first_image_prompt[:200]}...")
+            
+            # Submit to Runpod
+            try:
+                await submit_image_job(
+                    job_id=job_id,
+                    prompt=first_image_prompt,
+                    negative_prompt=first_image_negative,
+                    seed=random.randint(0, 2147483647),
+                    queue_priority="medium"
+                )
+                print(f"[CREATE-CHARACTER] Submitted image job to Runpod")
+            except Exception as img_error:
+                print(f"[CREATE-CHARACTER] Warning: Image generation failed: {img_error}")
+                # Continue anyway - character is created, image can be generated later
+            
+            return {
+                "success": True,
+                "persona_id": str(persona.id),
+                "message": f"{request.name} created successfully! Portrait is being generated.",
+                "tokens_spent": token_cost
+            }
+    
+    except Exception as e:
+        print(f"[CREATE-CHARACTER] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "error": "server_error",
+            "message": "An unexpected error occurred. Please try again."
+        }
+
+
+@router.delete("/characters/{persona_id}")
+async def delete_character(
+    persona_id: str,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Delete a custom character (only owner can delete)
+    
+    Returns: {success: bool, message: str}
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Extract user_id
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    
+    try:
+        with get_db() as db:
+            # Get persona
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            if not persona:
+                raise HTTPException(status_code=404, detail="Character not found")
+            
+            # Verify ownership
+            if persona.owner_user_id != user_id:
+                raise HTTPException(status_code=403, detail="You can only delete your own characters")
+            
+            # Delete persona (cascade will delete chats, messages, image_jobs)
+            crud.delete_persona(db, persona_uuid)
+            
+            print(f"[DELETE-CHARACTER] Deleted persona {persona_id} for user {user_id}")
+            
+            return {
+                "success": True,
+                "message": f"{persona.name} deleted successfully"
             }
     
     except HTTPException:

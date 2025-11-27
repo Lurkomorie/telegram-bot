@@ -175,6 +175,78 @@ export async function selectScenario(personaId, historyId, initData) {
 /**
  * Create a Telegram Stars invoice for token package or tier subscription
  * @param {string} productId - Product ID (tokens_100, premium_month, etc.)
+ * Generate 3 AI story scenarios for a character
+ * @param {Object} characterData - Character attributes (name, hair_color, etc.)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, stories: Array}
+ */
+export async function generateStories(characterData, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/generate-stories`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify(characterData),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to generate stories' }));
+    throw new Error(error.message || error.error || 'Failed to generate stories');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Create a custom character
+ * @param {Object} selections - Character attributes
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, persona_id, message}
+ */
+export async function createCharacter(selections, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/create-character`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify(selections),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to create character' }));
+    throw new Error(error.message || error.error || 'Failed to create character');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Delete a custom character
+ * @param {string} personaId - Persona ID to delete
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, message}
+ */
+export async function deleteCharacter(personaId, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/characters/${personaId}`, {
+    method: 'DELETE',
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to delete character' }));
+    throw new Error(error.message || 'Failed to delete character');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Create a Telegram Stars invoice for premium subscription
+ * @param {string} planId - Plan ID (2days, month, 3months, year)
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Invoice object {invoice_link}
  */

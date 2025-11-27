@@ -122,7 +122,7 @@
     "empty": "No characters available"
   },
   "history": {
-    "loading": "Loading scenarios...",
+    "loading": "Generating scenarios...",
     "empty": "No scenarios available. Starting with default greeting...",
     "startButton": "Start Chat"
   },

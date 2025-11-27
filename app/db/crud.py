@@ -443,11 +443,29 @@ def update_persona(
 
 
 def delete_persona(db: Session, persona_id: UUID) -> bool:
-    """Delete a persona by ID"""
+    """Delete a persona by ID (with cascade deletion of related records)"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return False
     
+    # Delete in correct order to avoid foreign key constraints:
+    # 1. Image jobs (references persona and chat)
+    # 2. History starts (references persona)
+    # 3. Chats (references persona)
+    # 4. Persona
+    
+    from app.db.models import ImageJob, Chat, PersonaHistoryStart
+    
+    # Delete all image jobs for this persona
+    db.query(ImageJob).filter(ImageJob.persona_id == persona_id).delete()
+    
+    # Delete all history starts for this persona
+    db.query(PersonaHistoryStart).filter(PersonaHistoryStart.persona_id == persona_id).delete()
+    
+    # Delete all chats for this persona (cascade will delete messages)
+    db.query(Chat).filter(Chat.persona_id == persona_id).delete()
+    
+    # Now safe to delete the persona
     db.delete(persona)
     db.commit()
     return True

@@ -169,9 +169,11 @@ function App() {
     return unsubscribe;
   }, [currentPage, selectedPersona, onLanguageChange]);
 
-  async function loadPersonas() {
+  async function loadPersonas(silent = false) {
     try {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
       setError(null);
       
       const initData = WebApp.initData;
@@ -179,11 +181,15 @@ function App() {
       setPersonas(data);
     } catch (err) {
       console.error('Failed to load personas:', err);
-      const errorMsg = t('app.errors.loadFailed');
-      setError(errorMsg);
-      WebApp.showAlert(errorMsg);
+      if (!silent) {
+        const errorMsg = t('app.errors.loadFailed');
+        setError(errorMsg);
+        WebApp.showAlert(errorMsg);
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -559,6 +565,8 @@ function App() {
             personas={personas}
             onPersonaClick={handlePersonaClick}
             isLoading={isLoading}
+            tokens={tokens}
+            onRefresh={() => loadPersonas(true)}
           />
         ) : currentPage === 'history' ? (
           <HistorySelection
