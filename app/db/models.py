@@ -84,6 +84,10 @@ class Persona(Base):
     intro = Column(Text, nullable=True)  # Introduction message
     avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
     
+    # Ordering and menu visibility
+    order = Column(BigInteger, nullable=True, default=999)  # Sort order (lower appears first)
+    main_menu = Column(Boolean, nullable=True, default=True)  # Show in chat main menu
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -95,6 +99,7 @@ class Persona(Base):
         Index("ix_personas_owner_user_id", "owner_user_id"),
         Index("ix_personas_key", "key"),
         Index("ix_personas_visibility", "visibility"),
+        Index("ix_personas_order", "order"),
     )
 
 

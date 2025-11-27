@@ -42,6 +42,8 @@ def load_cache():
                 "avatar_url": persona.avatar_url,
                 "visibility": persona.visibility,
                 "owner_user_id": persona.owner_user_id,
+                "order": persona.order if persona.order is not None else 999,
+                "main_menu": persona.main_menu if persona.main_menu is not None else True,
             }
             
             preset_list.append(persona_dict)
@@ -73,6 +75,8 @@ def load_cache():
             
             _CACHE["histories"][str(persona.id)] = history_list
         
+        # Sort preset personas by order field (lower numbers appear first)
+        preset_list.sort(key=lambda p: p.get("order", 999))
         _CACHE["presets"] = preset_list
     
     print(f"[CACHE] ✅ Loaded {len(_CACHE['presets'])} personas with {sum(len(h) for h in _CACHE['histories'].values())} total histories")

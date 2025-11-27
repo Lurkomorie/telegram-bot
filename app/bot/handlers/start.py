@@ -278,6 +278,8 @@ async def cmd_start(message: types.Message):
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
@@ -610,6 +612,8 @@ async def show_personas_callback(callback: types.CallbackQuery):
     # Get personas from cache
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
@@ -1204,6 +1208,8 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     # No pending deep link or it failed - show standard persona selection
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions

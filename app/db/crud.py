@@ -227,9 +227,23 @@ def get_persona_by_id(db: Session, persona_id: UUID) -> Optional[Persona]:
     return db.query(Persona).filter(Persona.id == persona_id).first()
 
 
-def get_preset_personas(db: Session) -> List[Persona]:
-    """Get all public personas"""
-    return db.query(Persona).filter(Persona.visibility == 'public').all()
+def get_preset_personas(db: Session, main_menu_only: bool = False) -> List[Persona]:
+    """Get all public personas, optionally filtered by main_menu
+    
+    Args:
+        db: Database session
+        main_menu_only: If True, only return personas with main_menu=True
+    
+    Returns:
+        List of personas ordered by 'order' field ascending
+    """
+    query = db.query(Persona).filter(Persona.visibility == 'public')
+    
+    if main_menu_only:
+        query = query.filter(Persona.main_menu == True)
+    
+    # Order by 'order' field (lower numbers appear first), with NULL values last
+    return query.order_by(Persona.order.asc().nullslast()).all()
 
 
 def get_user_personas(db: Session, user_id: int) -> List[Persona]:
@@ -249,7 +263,9 @@ def create_persona(
     description: str = None,
     intro: str = None,
     owner_user_id: int = None,
-    key: str = None
+    key: str = None,
+    order: int = 999,
+    main_menu: bool = True
 ) -> Persona:
     """Create a new persona"""
     persona = Persona(
@@ -260,7 +276,9 @@ def create_persona(
         description=description,
         intro=intro,
         owner_user_id=owner_user_id,
-        key=key
+        key=key,
+        order=order,
+        main_menu=main_menu
     )
     db.add(persona)
     db.commit()
@@ -407,7 +425,9 @@ def update_persona(
     small_description: str = None,
     emoji: str = None,
     intro: str = None,
-    avatar_url: str = None
+    avatar_url: str = None,
+    order: int = None,
+    main_menu: bool = None
 ) -> Optional[Persona]:
     """Update an existing persona"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
@@ -436,6 +456,10 @@ def update_persona(
         persona.intro = intro
     if avatar_url is not None:
         persona.avatar_url = avatar_url
+    if order is not None:
+        persona.order = order
+    if main_menu is not None:
+        persona.main_menu = main_menu
     
     db.commit()
     db.refresh(persona)

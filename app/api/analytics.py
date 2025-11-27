@@ -899,6 +899,8 @@ class CreatePersonaRequest(BaseModel):
     emoji: Optional[str] = Field(None, max_length=10)
     intro: Optional[str] = None
     avatar_url: Optional[str] = None
+    order: Optional[int] = Field(default=999)
+    main_menu: Optional[bool] = Field(default=True)
     
     @validator('visibility')
     def validate_visibility(cls, v):
@@ -919,6 +921,8 @@ class UpdatePersonaRequest(BaseModel):
     emoji: Optional[str] = Field(None, max_length=10)
     intro: Optional[str] = None
     avatar_url: Optional[str] = None
+    order: Optional[int] = None
+    main_menu: Optional[bool] = None
     
     @validator('visibility')
     def validate_visibility(cls, v):
@@ -954,6 +958,8 @@ async def get_personas() -> List[Dict[str, Any]]:
                     "emoji": persona.emoji,
                     "intro": persona.intro,
                     "avatar_url": persona.avatar_url,
+                    "order": persona.order,
+                    "main_menu": persona.main_menu,
                     "created_at": persona.created_at.isoformat()
                 })
             return result
@@ -996,6 +1002,8 @@ async def get_persona(persona_id: str) -> Dict[str, Any]:
                 "emoji": persona.emoji,
                 "intro": persona.intro,
                 "avatar_url": persona.avatar_url,
+                "order": persona.order,
+                "main_menu": persona.main_menu,
                 "created_at": persona.created_at.isoformat()
             }
     except ValueError:
@@ -1034,7 +1042,9 @@ async def create_persona(request: CreatePersonaRequest) -> Dict[str, Any]:
                 visibility=request.visibility,
                 description=request.description,
                 intro=request.intro,
-                owner_user_id=None  # Always NULL for admin-created personas
+                owner_user_id=None,  # Always NULL for admin-created personas
+                order=request.order if request.order is not None else 999,
+                main_menu=request.main_menu if request.main_menu is not None else True
             )
             
             # Update additional fields
@@ -1066,6 +1076,8 @@ async def create_persona(request: CreatePersonaRequest) -> Dict[str, Any]:
                 "emoji": persona.emoji,
                 "intro": persona.intro,
                 "avatar_url": persona.avatar_url,
+                "order": persona.order,
+                "main_menu": persona.main_menu,
                 "created_at": persona.created_at.isoformat()
             }
     except Exception as e:
@@ -1110,7 +1122,9 @@ async def update_persona(persona_id: str, request: UpdatePersonaRequest) -> Dict
                 small_description=request.small_description,
                 emoji=request.emoji,
                 intro=request.intro,
-                avatar_url=request.avatar_url
+                avatar_url=request.avatar_url,
+                order=request.order,
+                main_menu=request.main_menu
             )
             
             if not persona:
@@ -1134,6 +1148,8 @@ async def update_persona(persona_id: str, request: UpdatePersonaRequest) -> Dict
                 "emoji": persona.emoji,
                 "intro": persona.intro,
                 "avatar_url": persona.avatar_url,
+                "order": persona.order,
+                "main_menu": persona.main_menu,
                 "created_at": persona.created_at.isoformat()
             }
     except ValueError:
