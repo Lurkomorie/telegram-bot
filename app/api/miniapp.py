@@ -468,6 +468,7 @@ async def update_user_language(
 class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None
+    location: Optional[str] = None  # For custom character location selection
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -538,7 +539,8 @@ async def select_scenario(
     asyncio.create_task(_process_scenario_selection(
         user_id=user_id,
         persona_uuid=persona_uuid,
-        history_uuid=history_uuid
+        history_uuid=history_uuid,
+        location=request.location
     ))
     
     return {
@@ -550,7 +552,8 @@ async def select_scenario(
 async def _process_scenario_selection(
     user_id: int,
     persona_uuid,
-    history_uuid: Optional
+    history_uuid: Optional,
+    location: Optional[str] = None
 ):
     """Background task to process scenario selection"""
     from app.bot.loader import bot
@@ -694,7 +697,59 @@ async def _process_scenario_selection(
                     else:
                         print(f"[MINIAPP-SELECT] ⚠️  History {history_uuid} not found in cache or database")
         else:
-            print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
+            # No history selected - check if location provided
+            if location:
+                # Generate location-specific greeting for custom character
+                print(f"[MINIAPP-SELECT] 📍 Generating location-specific greeting for: {location}")
+                
+                # Location-specific greeting templates
+                location_greetings = {
+                    "home": {
+                        "en": f"You arrive at {persona_name}'s cozy home. She opens the door with a warm smile, inviting you inside.",
+                        "ru": f"Вы приходите в уютный дом {persona_name}. Она открывает дверь с теплой улыбкой, приглашая вас внутрь."
+                    },
+                    "office": {
+                        "en": f"You step into {persona_name}'s modern office. She looks up from her desk with a professional smile.",
+                        "ru": f"Вы входите в современный офис {persona_name}. Она поднимает взгляд от стола с профессиональной улыбкой."
+                    },
+                    "school": {
+                        "en": f"You meet {persona_name} in the school hallway. She approaches you with an enthusiastic wave.",
+                        "ru": f"Вы встречаете {persona_name} в школьном коридоре. Она подходит к вам с восторженным приветствием."
+                    },
+                    "cafe": {
+                        "en": f"You walk into a cozy cafe and spot {persona_name} sitting at a corner table, sipping her drink.",
+                        "ru": f"Вы заходите в уютное кафе и замечаете {persona_name}, сидящую за столиком в углу и потягивающую напиток."
+                    },
+                    "gym": {
+                        "en": f"You enter the gym and see {persona_name} working out, her athletic form glistening with effort.",
+                        "ru": f"Вы заходите в спортзал и видите {persona_name}, занимающуюся тренировкой, её атлетичная фигура блестит от усилий."
+                    },
+                    "park": {
+                        "en": f"You stroll through a beautiful park and find {persona_name} enjoying the fresh air and sunshine.",
+                        "ru": f"Вы прогуливаетесь по красивому парку и находите {persona_name}, наслаждающуюся свежим воздухом и солнцем."
+                    }
+                }
+                
+                # Get location-specific greeting in user's language
+                if location in location_greetings:
+                    greeting_templates = location_greetings[location]
+                    location_greeting = greeting_templates.get(user_language, greeting_templates["en"])
+                    
+                    # Create a pseudo-history for location scenario
+                    history_start = {
+                        "id": None,
+                        "name": f"{location.capitalize()} Scenario",
+                        "text": location_greeting,
+                        "description": f"A scenario set in a {location}",
+                        "image_url": None,
+                        "image_prompt": persona.get("image_prompt")
+                    }
+                    
+                    print(f"[MINIAPP-SELECT] ✅ Generated location greeting: {location_greeting[:100]}...")
+                else:
+                    print(f"[MINIAPP-SELECT] ⚠️  Unknown location: {location}, using default intro")
+            else:
+                print(f"[MINIAPP-SELECT] ℹ️  No history selected, using persona intro")
         
         # Get translated texts using persona_cache helpers
         from app.core.persona_cache import get_history_field, get_persona_field
@@ -819,8 +874,8 @@ async def _process_scenario_selection(
                 
                 first_image_composition = (
                     f"{location_context}"
-                    "portrait shot, medium close-up, shoulders visible, "
-                    "looking at camera, warm expression, "
+                    "portrait shot, head and shoulders framing, (face clearly visible:1.3), "
+                    "(upper body:1.2), looking at camera, warm expression, "
                     "dressed, wearing appropriate outfit, "
                     "soft natural lighting, "
                     "professional photography"
@@ -830,13 +885,18 @@ async def _process_scenario_selection(
                 character_dna = persona.get("image_prompt", "")
                 first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
                 
-                # Enhanced negative prompt with anti-nudity tags
+                # Enhanced negative prompt with anti-nudity tags and face visibility requirements
                 anti_nudity_negative = (
                     "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
                     "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
                     "(nsfw:1.3), (explicit:1.3)"
                 )
-                full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}"
+                face_visibility_negative = (
+                    "cropped face, face out of frame, no face visible, face cropped off, "
+                    "(body only:1.4), (no head:1.4), headless body, torso only, "
+                    "face cut off, partial face, incomplete face"
+                )
+                full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}, {face_visibility_negative}"
                 
                 crud.create_initial_image_job(
                     db,
@@ -1389,8 +1449,8 @@ async def create_character(
             # Build first image prompt - standing in white room with lingerie
             first_image_composition = (
                 "standing in white room, wearing white lingerie, "
-                "close upper body shot, shoulders and chest visible, "
-                "looking at camera, confident expression, "
+                "portrait shot, head and shoulders framing, face clearly visible, "
+                "(upper body:1.2), (face focus:1.3), looking at camera, confident expression, "
                 "soft studio lighting, clean white background, "
                 "professional photography"
             )
@@ -1398,8 +1458,13 @@ async def create_character(
             # Assemble full prompt: composition + character DNA + quality
             first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
             
-            # Enhanced negative prompt
-            first_image_negative = BASE_NEGATIVE_PROMPT
+            # Enhanced negative prompt - prevent body-only images
+            first_image_negative = (
+                BASE_NEGATIVE_PROMPT + 
+                ", cropped face, face out of frame, no face visible, face cropped off, "
+                "(body only:1.4), (no head:1.4), headless body, torso only, "
+                "face cut off, partial face, incomplete face"
+            )
             
             # Create image job in database with special flag to NOT send to chat
             job = crud.create_image_job(

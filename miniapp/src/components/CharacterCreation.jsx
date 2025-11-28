@@ -76,6 +76,10 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const currentPageRef = useRef(currentPage);
   const onCloseRef = useRef(onClose);
   
+  // Refs for inputs to scroll into view
+  const nameInputRef = useRef(null);
+  const descriptionTextareaRef = useRef(null);
+  
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
@@ -90,6 +94,18 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
       [field]: value,
     }));
     setError(null);
+  };
+
+  // Handle input focus to scroll into view
+  const handleInputFocus = (inputRef) => {
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }, 300); // Delay to allow keyboard to appear
   };
 
   const advanceToNextPage = () => {
@@ -241,13 +257,13 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         
         {/* Header with back button and title */}
         <div className="character-creation-header">
-          {currentPage > 1 && (
+          {/* {currentPage > 1 && (
             <button className="back-button-new" onClick={goToPreviousPage} disabled={isCreating}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
-          )}
+          )} */}
           <h3 className="page-title">{getPageTitle()}</h3>
           <div className="progress-circle">
             <svg width="40" height="40" viewBox="0 0 40 40">
@@ -454,23 +470,23 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
             {currentPage === 6 && (
               <div className="wizard-page final-page">
                 <div className="final-inputs">
-                  <div className="input-group">
+                  <div className="input-group" ref={nameInputRef}>
                     <input
                       type="text"
                       className="name-input-final"
                       placeholder={t('characterCreation.final.namePlaceholder')}
                       value={selections.name}
                       onChange={(e) => setSelections({ ...selections, name: e.target.value.slice(0, maxNameLength) })}
+                      onFocus={() => handleInputFocus(nameInputRef)}
                       maxLength={maxNameLength}
                       disabled={isCreating}
-                      autoFocus
                     />
                     <div className="input-hint right">
                       {selections.name.length}/{maxNameLength}
                     </div>
                   </div>
 
-                  <div className="input-group flex-grow">
+                  <div className="input-group flex-grow" ref={descriptionTextareaRef}>
                     <label className="input-label-centered">
                       {t('characterCreation.final.personalityLabel')}
                       {isPremium && <span className="premium-badge-inline">{t('characterCreation.final.premiumBadge')}</span>}
@@ -483,6 +499,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
                       placeholder={t('characterCreation.final.descriptionPlaceholder')}
                       value={selections.extra_prompt}
                       onChange={(e) => setSelections({ ...selections, extra_prompt: e.target.value.slice(0, maxDescriptionLength) })}
+                      onFocus={() => handleInputFocus(descriptionTextareaRef)}
                       maxLength={maxDescriptionLength}
                       disabled={isCreating}
                     />

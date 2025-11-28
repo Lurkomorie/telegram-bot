@@ -149,9 +149,10 @@ export async function verifyAge(initData) {
  * @param {string} personaId - Persona ID
  * @param {string|null} historyId - History ID (optional)
  * @param {string} initData - Telegram WebApp initData for authentication
+ * @param {string|null} location - Location key for custom characters (optional)
  * @returns {Promise<Object>} Result object {success, message}
  */
-export async function selectScenario(personaId, historyId, initData) {
+export async function selectScenario(personaId, historyId, initData, location = null) {
   const response = await fetch(`${API_BASE}/api/miniapp/select-scenario`, {
     method: 'POST',
     headers: {
@@ -161,6 +162,7 @@ export async function selectScenario(personaId, historyId, initData) {
     body: JSON.stringify({
       persona_id: personaId,
       history_id: historyId,
+      location: location,
     }),
   });
   

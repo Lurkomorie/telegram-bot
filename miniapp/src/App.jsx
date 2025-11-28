@@ -233,10 +233,13 @@ function App() {
     // Fire the API call in the background
     try {
       const initData = WebApp.initData;
+      // Extract location if present (for custom character location selection)
+      const location = history?.location || null;
       selectScenario(
         selectedPersona.id,
         history ? history.id : null,
-        initData
+        initData,
+        location
       ).catch(err => {
         console.error('Failed to select scenario:', err);
       });

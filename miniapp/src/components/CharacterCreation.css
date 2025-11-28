@@ -225,8 +225,8 @@
 /* ========== HAIR STYLE - SQUARED, NO BORDERS, ICONS ========== */
 .hair-style-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
   width: 100%;
   max-width: 100%;
 }
@@ -731,6 +731,7 @@
   
   .hair-style-grid {
     gap: 18px;
+    grid-template-columns: repeat(3, 1fr);
   }
   
   .eye-color-grid {
