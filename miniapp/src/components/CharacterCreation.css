@@ -618,7 +618,9 @@
 
 .create-button {
   width: 100%;
-  padding: 18px 24px;
+  height: 60px;
+  max-height: 60px;
+  padding: 0 24px;
   background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
   border: none;
   border-radius: 50px;
