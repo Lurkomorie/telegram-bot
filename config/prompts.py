@@ -341,6 +341,27 @@ terminateDialog: true or false.
 
 terminateReason: empty string unless terminateDialog=true, then brief reason.
 
+CLOTHING INFERENCE RULES (CRITICAL):
+- If previous state has aiClothing defined (not empty), preserve it unless conversation explicitly changes it
+- If aiClothing is undefined/empty AND no clothing is mentioned in conversation:
+  → You MUST infer appropriate, context-appropriate clothing based on:
+    1. Location (e.g., "beach" → "blue bikini", "office" → "white blouse, black pencil skirt", "gym" → "sports bra, yoga pants")
+    2. Relationship stage (e.g., "stranger" → modest/casual, "lover" → potentially more intimate but still clothed)
+    3. Time of day from moodNotes (e.g., evening at home → "comfortable pajamas", daytime → day clothes)
+    4. Character personality/occupation if known from context
+  → DEFAULT to modest, everyday clothing (e.g., "casual t-shirt, jeans" or "comfortable dress")
+  → NEVER use empty string or vague terms like "casual outfit"
+  → NEVER default to "naked" or "completely naked" unless explicitly stated in conversation
+  → Be specific with colors and items (e.g., "light blue t-shirt, denim jeans" not just "casual clothes")
+
+Examples of appropriate inference:
+- Location "cafe", no clothing mentioned → "casual sundress, sandals" or "jeans, comfortable top"
+- Location "bedroom", morning, no clothing mentioned → "pajamas, comfortable sleepwear"
+- Location "office", no clothing mentioned → "professional blouse, skirt" or "business casual outfit"
+- Location "home", evening, no clothing mentioned → "comfortable loungewear, soft t-shirt and shorts"
+- Location "beach", no clothing mentioned → "beach cover-up, swimsuit" or "bikini, beach wrap"
+- Location "gym", no clothing mentioned → "sports bra, yoga pants" or "athletic wear"
+
 CRITICAL CONSISTENCY RULES - READ CAREFULLY
 
 1. **PRESERVE PREVIOUS STATE BY DEFAULT**
@@ -351,8 +372,9 @@ CRITICAL CONSISTENCY RULES - READ CAREFULLY
 2. **ONLY UPDATE WHEN EXPLICITLY MENTIONED**
    - location: Change ONLY if conversation explicitly mentions going somewhere new ("let's go to...", "we're at...", "move to...")
    - aiClothing: Change ONLY if conversation explicitly mentions clothing change ("I put on...", "wearing...", "changing into...", "takes off...")
+     → EXCEPTION: If aiClothing is currently empty/undefined, you MUST infer appropriate clothing (see CLOTHING INFERENCE RULES above)
    - userClothing: Change ONLY if conversation explicitly mentions user's clothing
-   - DO NOT infer or assume changes based on context
+   - DO NOT infer or assume changes based on context (except for empty aiClothing - see above)
 
 3. **FORBIDDEN: DO NOT HALLUCINATE**
    - DO NOT change location just because you think it "makes sense"

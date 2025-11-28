@@ -560,6 +560,9 @@ async def _process_scenario_selection(
     from app.core.telegram_utils import escape_markdown_v2
     from app.core import redis_queue
     from app.core.persona_cache import get_persona_by_id, get_persona_histories as get_cached_histories
+    from app.core.img_runpod import dispatch_image_generation
+    from app.core.actions import send_action_repeatedly
+    import random
     
     try:
         # Get persona from cache OR database (for custom characters)
@@ -825,6 +828,7 @@ async def _process_scenario_selection(
                         print(f"[MINIAPP-SELECT] 🎨 Custom character detected - will generate image")
             
             # Create initial ImageJob for continuity
+            job_id = None
             if history_start_data and history_start_data.get("image_prompt"):
                 # For preset personas with existing images, use them
                 if not should_generate_image and history_start_data.get("image_url"):
@@ -838,47 +842,46 @@ async def _process_scenario_selection(
                         result_url=history_start_data.get("image_url")
                     )
                 else:
-                    # Generate new image for custom characters
-                    print("[MINIAPP-SELECT] 🎨 Generating new image for custom character story")
-                    # Will be generated async by image generation system
-                    crud.create_initial_image_job(
+                    # Generate new image for custom characters - create a queued job
+                    print("[MINIAPP-SELECT] 🎨 Creating image job for custom character story")
+                    seed = random.randint(1, 2147483647)
+                    from app.core.pipeline_adapter import BASE_NEGATIVE_PROMPT
+                    
+                    # Build negative prompt with anti-nudity tags
+                    anti_nudity_negative = (
+                        "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
+                        "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
+                        "(nsfw:1.3), (explicit:1.3)"
+                    )
+                    face_visibility_negative = (
+                        "cropped face, face out of frame, no face visible, face cropped off, "
+                        "(body only:1.4), (no head:1.4), headless body, torso only, "
+                        "face cut off, partial face, incomplete face"
+                    )
+                    full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}, {face_visibility_negative}"
+                    
+                    job = crud.create_image_job(
                         db,
                         user_id=user_id,
-                        persona_id=str(persona_uuid),
-                        chat_id=chat_id,
+                        persona_id=persona_uuid,
                         prompt=history_start_data["image_prompt"],
-                        result_url=None  # Will be generated
+                        negative_prompt=full_negative_prompt,
+                        chat_id=chat_id,
+                        ext={"seed": seed, "source": "history_start"}
                     )
+                    job_id = job.id
+                    print(f"[MINIAPP-SELECT] 📋 Created image job {job_id}")
             elif should_generate_image and persona.get("image_prompt"):
                 # Custom character without specific history, generate with character DNA
-                print("[MINIAPP-SELECT] 🎨 Generating image for custom character with DNA")
+                print("[MINIAPP-SELECT] 🎨 Creating image job for custom character with DNA")
                 from app.core.pipeline_adapter import BASE_QUALITY_PROMPT, BASE_NEGATIVE_PROMPT
                 
-                # Build basic portrait composition
-                location_context = ""
-                if history_start:
-                    # Try to extract location from history name/description
-                    history_name_lower = history_start.get("name", "").lower()
-                    if "home" in history_name_lower:
-                        location_context = "cozy home interior, living room, "
-                    elif "office" in history_name_lower:
-                        location_context = "modern office, professional setting, "
-                    elif "school" in history_name_lower:
-                        location_context = "school classroom, educational environment, "
-                    elif "cafe" in history_name_lower or "coffee" in history_name_lower:
-                        location_context = "cozy cafe interior, coffee shop ambiance, "
-                    elif "gym" in history_name_lower:
-                        location_context = "fitness gym, athletic setting, "
-                    elif "park" in history_name_lower:
-                        location_context = "beautiful park, outdoor setting, natural lighting, "
-                
+                # Simple portrait composition - let the AI and state resolver handle the rest
                 first_image_composition = (
-                    f"{location_context}"
                     "portrait shot, head and shoulders framing, (face clearly visible:1.3), "
-                    "(upper body:1.2), looking at camera, warm expression, "
-                    "dressed, wearing appropriate outfit, "
-                    "soft natural lighting, "
-                    "professional photography"
+                    "(upper body:1.2), looking at camera, warm friendly expression, "
+                    "dressed in appropriate outfit, "
+                    "natural lighting, professional photography"
                 )
                 
                 # Assemble full prompt: composition + character DNA + quality
@@ -898,14 +901,18 @@ async def _process_scenario_selection(
                 )
                 full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}, {face_visibility_negative}"
                 
-                crud.create_initial_image_job(
+                seed = random.randint(1, 2147483647)
+                job = crud.create_image_job(
                     db,
                     user_id=user_id,
-                    persona_id=str(persona_uuid),
-                    chat_id=chat_id,
+                    persona_id=persona_uuid,
                     prompt=first_image_prompt,
-                    result_url=None  # Will be generated
+                    negative_prompt=full_negative_prompt,
+                    chat_id=chat_id,
+                    ext={"seed": seed, "source": "history_start_dna"}
                 )
+                job_id = job.id
+                print(f"[MINIAPP-SELECT] 📋 Created image job {job_id}")
         
         # Send messages to user
         # Send hint message FIRST (before story starts)
@@ -942,6 +949,66 @@ async def _process_scenario_selection(
                 text=escaped_greeting,
                 parse_mode="MarkdownV2"
             )
+        
+        # Dispatch image generation for custom characters immediately
+        if job_id:
+            print(f"[MINIAPP-SELECT] 🚀 Dispatching image generation for job {job_id}")
+            
+            # Increment user image count
+            await redis_queue.increment_user_image_count(user_id)
+            print(f"[MINIAPP-SELECT] 📊 Incremented user image count")
+            
+            # Check if user is premium for priority
+            with get_db() as db:
+                is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+                from app.db.models import User
+                user = db.query(User).filter(User.id == user_id).first()
+                global_message_count = user.global_message_count if user else 999
+            
+            # Determine priority
+            if is_premium:
+                queue_priority = "high"
+                priority_reason = "premium user"
+            elif global_message_count <= 2:
+                queue_priority = "high"
+                priority_reason = f"first 2 messages globally (count: {global_message_count})"
+            else:
+                queue_priority = "medium"
+                priority_reason = "regular user message"
+            
+            print(f"[MINIAPP-SELECT] 📊 Queue priority: {queue_priority} ({priority_reason})")
+            
+            # Get job details
+            with get_db() as db:
+                job = crud.get_image_job(db, job_id)
+                if not job:
+                    print(f"[MINIAPP-SELECT] ⚠️ Job {job_id} not found!")
+                    await redis_queue.decrement_user_image_count(user_id)
+                    return
+                positive_prompt = job.prompt
+                negative_prompt = job.negative_prompt
+            
+            # Show upload_photo status and dispatch to Runpod
+            try:
+                async with send_action_repeatedly(bot, user_id, "upload_photo"):
+                    success = await dispatch_image_generation(
+                        job_id=job_id,
+                        prompt=positive_prompt,
+                        negative_prompt=negative_prompt,
+                        tg_chat_id=user_id,
+                        queue_priority=queue_priority
+                    )
+                    
+                    if success:
+                        print(f"[MINIAPP-SELECT] ✅ Image generation dispatched successfully")
+                    else:
+                        print(f"[MINIAPP-SELECT] ⚠️ Image generation dispatch failed")
+                        # Decrement counter on failure
+                        await redis_queue.decrement_user_image_count(user_id)
+            except Exception as e:
+                print(f"[MINIAPP-SELECT] ❌ Error dispatching image: {e}")
+                # Decrement counter on error
+                await redis_queue.decrement_user_image_count(user_id)
         
         print(f"[MINIAPP-SELECT] ✅ Created chat and sent greeting for persona {persona_name}")
     
