@@ -179,13 +179,6 @@ function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
 
   return (
     <div className="persona-card" onClick={onClick}>
-      {/* "Yours" Tag for Custom Characters */}
-      {persona.is_custom && (
-        <div className="custom-tag">
-          {t('gallery.customTag')}
-        </div>
-      )}
-
       {persona.avatar_url && !imageError ? (
         <img
           src={persona.avatar_url}
