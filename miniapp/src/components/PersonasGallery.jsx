@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
 import WebApp from '@twa-dev/sdk';
-import './PersonasGallery.css';
+import { useEffect, useRef, useState } from 'react';
+import { deleteCharacter } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import CharacterCreation from './CharacterCreation';
-import { deleteCharacter } from '../api';
+import './PersonasGallery.css';
 
 /**
  * PersonasGallery Component

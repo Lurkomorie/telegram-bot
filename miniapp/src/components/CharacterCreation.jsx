@@ -1,5 +1,5 @@
 import WebApp from '@twa-dev/sdk';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createCharacter } from '../api';
 import {
@@ -71,6 +71,18 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const maxNameLength = 20;
   
   const totalPages = 6;
+  
+  // Use ref to track current page for back button handler
+  const currentPageRef = useRef(currentPage);
+  const onCloseRef = useRef(onClose);
+  
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+  
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   const handleSelection = (field, value) => {
     setSelections((prev) => ({
@@ -87,13 +99,14 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
 
   const goToPreviousPage = useCallback(() => {
     setSlideDirection('backward');
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+    if (currentPageRef.current > 1) {
+      setCurrentPage(currentPageRef.current - 1);
     } else {
-      onClose();
+      onCloseRef.current();
     }
-  }, [currentPage, onClose]);
+  }, []);
 
+  // Handle body overflow and Telegram BackButton
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     
@@ -103,9 +116,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
     
     return () => {
       document.body.style.overflow = '';
-      // Hide back button and remove listener when component unmounts
-      WebApp.BackButton.hide();
       WebApp.BackButton.offClick(goToPreviousPage);
+      WebApp.BackButton.hide();
     };
   }, [goToPreviousPage]);
 
@@ -229,11 +241,13 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         
         {/* Header with back button and title */}
         <div className="character-creation-header">
-          <button className="back-button-new" onClick={goToPreviousPage} disabled={isCreating}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-          </button>
+          {currentPage > 1 && (
+            <button className="back-button-new" onClick={goToPreviousPage} disabled={isCreating}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
           <h3 className="page-title">{getPageTitle()}</h3>
           <div className="progress-circle">
             <svg width="40" height="40" viewBox="0 0 40 40">
@@ -502,8 +516,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
             >
               {isCreating ? (
                 <>
-                  <span className="spinner"></span>
-                  {t('characterCreation.final.creating')}
+                  <span>{t('characterCreation.final.creating')}</span>
                 </>
               ) : (
                 <>

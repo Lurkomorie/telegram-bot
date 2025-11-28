@@ -136,6 +136,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-height: 30px; /* 2 lines minimum: 10px * 1.5 line-height * 2 lines */
 }
 
 /* Loading state */
@@ -278,6 +279,7 @@
   line-height: 1.4;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   padding: 0 8px;
+  min-height: 36px; /* 2 lines minimum: 13px * 1.4 line-height * 2 lines ≈ 36px */
 }
 
 .create-card-footer {
