@@ -37,7 +37,7 @@ EYE_COLORS: Dict[str, str] = {
 BODY_TYPES: Dict[str, str] = {
     "slim": "(slim body:1.2), (petite frame:1.1)",
     "athletic": "(athletic body:1.2), (toned physique:1.1), (fit:1.1)",
-    "curvy": "(curvy body:1.3), (hourglass figure:1.2), (wide hips:1.1)",
+    "curvy": "(curvy body:1.3), (wide hips:1.1)",
     "voluptuous": "(voluptuous body:1.3), (full figure:1.2), (thick thighs:1.2), (soft curves:1.1)",
 }
 

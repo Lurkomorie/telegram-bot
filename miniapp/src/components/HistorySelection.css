@@ -237,6 +237,14 @@
 /* Custom Character View */
 .custom-character-view {
   padding: 20px;
+  position: relative;
+}
+
+.character-menu-topright {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 
 .character-header {

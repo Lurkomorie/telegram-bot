@@ -158,9 +158,10 @@ export function TranslationProvider({ children }) {
   /**
    * Get translated text by dot-notation key path
    * @param {string} keyPath - Dot-separated path (e.g., 'app.ageVerification.title')
+   * @param {Object} params - Optional parameters for string interpolation (e.g., { day: 5 })
    * @returns {string} Translated text
    */
-  function t(keyPath) {
+  function t(keyPath, params = {}) {
     const keys = keyPath.split('.');
     let value = translations[language];
 
@@ -181,6 +182,13 @@ export function TranslationProvider({ children }) {
         }
         break;
       }
+    }
+
+    // Handle string interpolation
+    if (typeof value === 'string' && Object.keys(params).length > 0) {
+      return value.replace(/\{(\w+)\}/g, (match, key) => {
+        return params.hasOwnProperty(key) ? params[key] : match;
+      });
     }
 
     return value;

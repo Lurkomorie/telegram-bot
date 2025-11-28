@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import WebApp from '@twa-dev/sdk';
-import './HistorySelection.css';
-import { useTranslation } from '../i18n/TranslationContext';
+import { useState } from 'react';
 import { deleteCharacter } from '../api';
+import { useTranslation } from '../i18n/TranslationContext';
+import './HistorySelection.css';
 
 /**
  * HistorySelection Component
@@ -10,7 +10,7 @@ import { deleteCharacter } from '../api';
  * For custom characters: shows locations grid and custom story option
  * For preset characters: shows existing histories
  */
-export default function HistorySelection({ persona, histories, onHistoryClick, onBack, isLoading, onNavigateToCustomStory, onCharacterDeleted }) {
+export default function HistorySelection({ persona, histories, onHistoryClick, isLoading, onNavigateToCustomStory, onCharacterDeleted }) {
   const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -69,42 +69,26 @@ export default function HistorySelection({ persona, histories, onHistoryClick, o
     
     return (
       <div className="history-selection custom-character-view">
-        {/* Character Header */}
-        <div className="character-header">
-          <div className="character-avatar">
-            {persona.avatar_url ? (
-              <img src={persona.avatar_url} alt={persona.name} />
-            ) : (
-              <div className="avatar-placeholder">
-                <span>👤</span>
-              </div>
-            )}
-          </div>
-          <div className="character-header-info">
-            <h2 className="character-name">{persona.name}</h2>
-          </div>
-          
-          {/* Three-dots Menu */}
-          <div className="character-menu">
-            <button 
-              className="menu-button"
-              onClick={() => setShowMenu(!showMenu)}
-              disabled={isDeleting}
-            >
-              <span>⋮</span>
-            </button>
-            {showMenu && (
-              <div className="menu-dropdown">
-                <button 
-                  className="menu-item delete-item"
-                  onClick={handleDeleteClick}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? '⏳' : t('characterPage.deleteMenu')}
-                </button>
-              </div>
-            )}
-          </div>
+        {/* Three-dots Menu (top-right corner) */}
+        <div className="character-menu-topright">
+          <button 
+            className="menu-button"
+            onClick={() => setShowMenu(!showMenu)}
+            disabled={isDeleting}
+          >
+            <span>⋮</span>
+          </button>
+          {showMenu && (
+            <div className="menu-dropdown">
+              <button 
+                className="menu-item delete-item"
+                onClick={handleDeleteClick}
+                disabled={isDeleting}
+              >
+                {isDeleting ? '⏳' : t('characterPage.deleteMenu')}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Location Selection */}

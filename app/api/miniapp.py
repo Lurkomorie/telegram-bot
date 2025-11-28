@@ -156,49 +156,6 @@ async def get_persona_histories(
             if persona and persona.visibility == "custom":
                 db_histories = crud.get_persona_histories(db, persona_uuid)
                 
-                # If no histories exist, generate them with AI
-                if not db_histories:
-                    print(f"[GET-HISTORIES] Custom character {persona.name} has no stories, generating with AI...")
-                    
-                    try:
-                        from app.core.story_generator import generate_character_stories
-                        from app.core.character_builder import build_character_dna
-                        
-                        # Parse character attributes from image_prompt (DNA)
-                        # For simplicity, use defaults if not available
-                        stories = await generate_character_stories(
-                            name=persona.name,
-                            personality_description=persona.prompt,
-                            hair_color="brown",  # Default, actual values in DNA
-                            hair_style="long_wavy",
-                            eye_color="brown",
-                            body_type="athletic",
-                            user_id=user_id
-                        )
-                        
-                        # Save generated stories to database
-                        for story in stories:
-                            history = crud.create_persona_history(
-                                db,
-                                persona_id=persona_uuid,
-                                name=story["name"],
-                                small_description=story["small_description"],
-                                description=story["description"],
-                                text=story["text"],
-                                image_url=None,  # Can be generated later
-                                image_prompt=persona.image_prompt  # Use character DNA
-                            )
-                            print(f"[GET-HISTORIES] Created story: {story['name']}")
-                        
-                        # Fetch the newly created histories
-                        db_histories = crud.get_persona_histories(db, persona_uuid)
-                        print(f"[GET-HISTORIES] Generated {len(db_histories)} stories for {persona.name}")
-                    
-                    except Exception as e:
-                        print(f"[GET-HISTORIES] Error generating stories: {e}")
-                        # Return empty list if generation fails
-                        return []
-                
                 # Convert DB histories to response format
                 result = []
                 for h in db_histories:
