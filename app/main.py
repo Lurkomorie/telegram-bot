@@ -239,10 +239,15 @@ else:
     print("⚠️  Webhook endpoint disabled (ENABLE_BOT=False)")
 
 
-async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: bytes, file_id: str):
+async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: bytes, file_id: str = None):
     """
     Upload image to Cloudflare, with fallback to Telegram CDN if upload fails
     More reliable - works even if Cloudflare has connectivity issues
+    
+    Args:
+        persona_id: UUID of the persona to update
+        image_data: Image binary data
+        file_id: Telegram file_id (optional, for fallback to Telegram CDN)
     """
     try:
         from app.bot.loader import bot
@@ -267,8 +272,8 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
         except Exception as cf_error:
             print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare error: {cf_error}, falling back to Telegram CDN")
         
-        # Fallback to Telegram CDN URL if Cloudflare failed
-        if not cloudflare_url:
+        # Fallback to Telegram CDN URL if Cloudflare failed and we have a file_id
+        if not cloudflare_url and file_id:
             try:
                 # Get file path from Telegram
                 file = await bot.get_file(file_id)
@@ -436,6 +441,7 @@ async def image_callback(request: Request):
             job_ext_data = job.ext if job.ext else {}
             pending_caption = job_ext_data.get("pending_caption")
             is_auto_followup = job_ext_data.get("is_auto_followup", False)
+            skip_chat_send = job_ext_data.get("skip_chat_send", False)  # Check if we should skip sending
             job_user_id = job.user_id
             job_persona_id = job.persona_id
             job_prompt = job.prompt
@@ -443,7 +449,28 @@ async def image_callback(request: Request):
             job_chat_id = job.chat_id
             
             # Get chat info for sending photo
-            if job.chat_id:
+            if skip_chat_send:
+                # Skip sending to chat (for character creation images)
+                tg_chat_id = None
+                print(f"[IMAGE-CALLBACK] ⏭️  Skipping chat send (skip_chat_send=True)")
+                
+                # Update avatar if this is for a persona
+                if job_persona_id and (image_url or image_data):
+                    print(f"[CHARACTER-AVATAR] 🎨 Character creation image received, updating avatar for persona {job_persona_id}")
+                    
+                    # If we have image_data, upload to Cloudflare
+                    if image_data:
+                        asyncio.create_task(_update_persona_avatar_with_fallback(
+                            persona_id=job_persona_id,
+                            image_data=image_data,
+                            file_id=None  # We don't have file_id yet since not sent to Telegram
+                        ))
+                        print(f"[CHARACTER-AVATAR] 🚀 Started avatar upload task (from image_data)")
+                    elif image_url:
+                        # Use image_url directly
+                        crud.update_persona(db, job_persona_id, avatar_url=image_url)
+                        print(f"[CHARACTER-AVATAR] ✅ Updated persona avatar with URL: {image_url[:80]}...")
+            elif job.chat_id:
                 # Get existing chat
                 from app.db.models import Chat
                 chat = db.query(Chat).filter(Chat.id == job.chat_id).first()

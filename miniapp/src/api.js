@@ -245,6 +245,30 @@ export async function deleteCharacter(personaId, initData) {
 }
 
 /**
+ * Create a custom story for a character
+ * @param {Object} storyData - Story data {persona_id, story_description}
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {success, history_id, message}
+ */
+export async function createCustomStory(storyData, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/create-custom-story`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+    },
+    body: JSON.stringify(storyData),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to create story' }));
+    throw new Error(error.message || error.error || 'Failed to create story');
+  }
+  
+  return response.json();
+}
+
+/**
  * Create a Telegram Stars invoice for premium subscription
  * @param {string} planId - Plan ID (2days, month, 3months, year)
  * @param {string} initData - Telegram WebApp initData for authentication

@@ -17,12 +17,12 @@ export const HAIR_COLORS = [
 ];
 
 export const HAIR_STYLES = [
-  { value: "long_straight", label: "Long Straight", emoji: "👩" },
-  { value: "long_wavy", label: "Long Wavy", emoji: "👩‍🦱" },
-  { value: "short", label: "Short", emoji: "👩‍🦰" },
-  { value: "ponytail", label: "Ponytail", emoji: "👱‍♀️" },
-  { value: "braided", label: "Braided", emoji: "👩‍🦳" },
-  { value: "curly", label: "Curly", emoji: "👩‍🦱" },
+  { value: "long_straight", label: "Long Straight", icon: "/assets/long-straight.png" },
+  { value: "long_wavy", label: "Long Wavy", icon: "/assets/long-wavy.png" },
+  { value: "short", label: "Short", icon: "/assets/short.png" },
+  { value: "ponytail", label: "Ponytail", icon: "/assets/ponytail.png" },
+  { value: "braided", label: "Braided", icon: "/assets/braided.png" },
+  { value: "curly", label: "Curly", icon: "/assets/curly.png" },
 ];
 
 export const EYE_COLORS = [
@@ -34,10 +34,10 @@ export const EYE_COLORS = [
 ];
 
 export const BODY_TYPES = [
-  { value: "slim", label: "Slim", description: "Petite frame" },
-  { value: "athletic", label: "Athletic", description: "Toned physique" },
-  { value: "curvy", label: "Curvy", description: "Hourglass figure" },
-  { value: "voluptuous", label: "Voluptuous", description: "Full figure" },
+  { value: "slim", label: "Slim", image: "/assets/body-slim.png" },
+  { value: "athletic", label: "Athletic", image: "/assets/body-athletic.png" },
+  { value: "curvy", label: "Curvy", image: "/assets/body-curvy.png" },
+  { value: "voluptuous", label: "Voluptuous", image: "/assets/body-voluptuous.png" },
 ];
 
 export const BREAST_SIZES = [

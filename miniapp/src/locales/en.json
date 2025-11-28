@@ -13,6 +13,38 @@
     "statsTitle": "Referrals",
     "friendsInvited": "Friends invited"
   },
+  "gallery": {
+    "customTag": "Yours",
+    "createCharacter": {
+      "title": "Your character",
+      "subtitle": "Will become anyone you want",
+      "free": "Create free"
+    },
+    "loading": "Loading characters...",
+    "empty": "No characters available",
+    "arrivingSoon": "Arriving soon",
+    "deleteConfirm": "Delete {name}? This cannot be undone.",
+    "deleteSuccess": "{name} deleted successfully"
+  },
+  "characterPage": {
+    "selectLocation": "Choose where to start",
+    "locations": {
+      "home": "Home",
+      "office": "Office",
+      "school": "School",
+      "cafe": "Cafe",
+      "gym": "Gym",
+      "park": "Park"
+    },
+    "createCustomButton": "Create custom",
+    "deleteMenu": "Delete",
+    "deleteConfirm": {
+      "title": "Delete {name}?",
+      "message": "This will permanently delete this character. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    }
+  },
   "premium": {
     "alerts": {
       "paymentFailed": "Payment failed. Please try again.",
@@ -117,12 +149,8 @@
       "minutes": "m"
     }
   },
-  "gallery": {
-    "loading": "Loading characters...",
-    "empty": "No characters available"
-  },
   "history": {
-    "loading": "Generating scenarios...",
+    "loading": "Loading scenarios...",
     "empty": "No scenarios available. Starting with default greeting...",
     "startButton": "Start Chat"
   },
@@ -177,5 +205,77 @@
     "stars": "stars",
     "processing": "Processing...",
     "buyButton": "Buy Energy"
+  },
+  "customStory": {
+    "title": "Create your story with {name}",
+    "startButton": "Start story",
+    "placeholder": "Describe the scenario you want to experience with {name}. Where are you? What's happening? What's the mood? Be creative! (e.g., 'We're hiking in the mountains when we find a hidden waterfall...')"
+  },
+  "characterCreation": {
+    "hairColor": {
+      "black": "Black",
+      "brown": "Brunette",
+      "blonde": "Blonde",
+      "red": "Redhead",
+      "white": "White",
+      "pink": "Pink",
+      "blue": "Blue",
+      "green": "Green",
+      "purple": "Purple",
+      "multicolor": "Multicolor",
+      "title": "Hair Color"
+    },
+    "hairStyle": {
+      "title": "Hair Style",
+      "longStraight": "Long Straight",
+      "longWavy": "Long Wavy",
+      "short": "Short",
+      "ponytail": "Ponytail",
+      "braided": "Braided",
+      "curly": "Curly"
+    },
+    "eyeColor": {
+      "title": "Eye Color",
+      "brown": "Brown",
+      "blue": "Blue",
+      "green": "Green",
+      "hazel": "Hazel",
+      "gray": "Gray"
+    },
+    "bodyType": {
+      "title": "Body Type",
+      "slim": "Slim",
+      "athletic": "Athletic",
+      "curvy": "Curvy",
+      "voluptuous": "Voluptuous"
+    },
+    "proportions": {
+      "title": "Proportions",
+      "breastSize": "Breast Size",
+      "buttSize": "Butt Size",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "nextButton": "NEXT"
+    },
+    "final": {
+      "title": "Final Details",
+      "namePlaceholder": "Enter her name...",
+      "nameCounter": "{current}/20",
+      "personalityLabel": "Personality & Relationship",
+      "premiumBadge": "Premium",
+      "descriptionHint": "Describe her personality, your relationship, background...",
+      "descriptionPlaceholder": "Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years...",
+      "descriptionCounter": "{current}/{max}",
+      "createButton": "Create Girlfriend",
+      "creating": "Creating..."
+    },
+    "errors": {
+      "nameRequired": "Please enter a name",
+      "descriptionRequired": "Please describe your girlfriend",
+      "insufficientTokens": "Insufficient tokens. Need {cost}, have {have}",
+      "creationFailed": "Failed to create character. Please try again."
+    },
+    "success": "{name} created successfully! 💕\nGenerating portrait..."
   }
 }

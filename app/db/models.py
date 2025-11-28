@@ -54,6 +54,9 @@ class User(Base):
     # Age verification
     age_verified = Column(Boolean, default=False, nullable=False)  # Whether user confirmed 18+
     
+    # Character creation tracking
+    char_created = Column(Boolean, default=False, nullable=False)  # Whether user has created their first character (first is free)
+    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")
@@ -92,8 +95,8 @@ class Persona(Base):
     
     # Relationships
     owner = relationship("User", back_populates="personas")
-    chats = relationship("Chat", back_populates="persona")
-    history_starts = relationship("PersonaHistoryStart", back_populates="persona")
+    chats = relationship("Chat", back_populates="persona", cascade="all, delete-orphan")
+    history_starts = relationship("PersonaHistoryStart", back_populates="persona", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index("ix_personas_owner_user_id", "owner_user_id"),
@@ -108,7 +111,7 @@ class PersonaHistoryStart(Base):
     __tablename__ = "persona_history_starts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
+    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=True)  # Story name (e.g., "The Dairy Queen")
     small_description = Column(Text, nullable=True)  # Short story description for menu
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)

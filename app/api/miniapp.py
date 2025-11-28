@@ -248,12 +248,13 @@ async def get_user_energy(
         is_premium: bool,
         can_claim_daily_bonus: bool,
         next_bonus_in_seconds: int,
-        daily_bonus_streak: int
+        daily_bonus_streak: int,
+        char_created: bool
     }
     """
     # Validate and extract user ID from init data
     if not x_telegram_init_data:
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
     
     try:
         # Parse init data to get user ID
@@ -287,12 +288,13 @@ async def get_user_energy(
                 "is_premium": premium_info["is_premium"],
                 "can_claim_daily_bonus": bonus_info["can_claim"],
                 "next_bonus_in_seconds": bonus_info["next_claim_seconds"],
-                "daily_bonus_streak": user.daily_bonus_streak or 0
+                "daily_bonus_streak": user.daily_bonus_streak or 0,
+                "char_created": user.char_created or False
             }
     
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
 
 
 @router.get("/user/language")
@@ -757,16 +759,92 @@ async def _process_scenario_selection(
                 is_processed=True
             )
             
-            # Create initial ImageJob for continuity if history has image_prompt
+            # Generate image for custom character stories
+            should_generate_image = False
+            if persona.get("image_prompt"):  # Custom character
+                # Check if this is a custom character by checking if it has owner_user_id
+                with get_db() as db:
+                    db_persona = crud.get_persona_by_id(db, persona_uuid)
+                    if db_persona and db_persona.owner_user_id is not None:
+                        should_generate_image = True
+                        print(f"[MINIAPP-SELECT] 🎨 Custom character detected - will generate image")
+            
+            # Create initial ImageJob for continuity
             if history_start_data and history_start_data.get("image_prompt"):
-                print("[MINIAPP-SELECT] 🎨 Creating initial image job for visual continuity")
+                # For preset personas with existing images, use them
+                if not should_generate_image and history_start_data.get("image_url"):
+                    print("[MINIAPP-SELECT] 🎨 Using preset persona image for visual continuity")
+                    crud.create_initial_image_job(
+                        db,
+                        user_id=user_id,
+                        persona_id=str(persona_uuid),
+                        chat_id=chat_id,
+                        prompt=history_start_data["image_prompt"],
+                        result_url=history_start_data.get("image_url")
+                    )
+                else:
+                    # Generate new image for custom characters
+                    print("[MINIAPP-SELECT] 🎨 Generating new image for custom character story")
+                    # Will be generated async by image generation system
+                    crud.create_initial_image_job(
+                        db,
+                        user_id=user_id,
+                        persona_id=str(persona_uuid),
+                        chat_id=chat_id,
+                        prompt=history_start_data["image_prompt"],
+                        result_url=None  # Will be generated
+                    )
+            elif should_generate_image and persona.get("image_prompt"):
+                # Custom character without specific history, generate with character DNA
+                print("[MINIAPP-SELECT] 🎨 Generating image for custom character with DNA")
+                from app.core.pipeline_adapter import BASE_QUALITY_PROMPT, BASE_NEGATIVE_PROMPT
+                
+                # Build basic portrait composition
+                location_context = ""
+                if history_start:
+                    # Try to extract location from history name/description
+                    history_name_lower = history_start.get("name", "").lower()
+                    if "home" in history_name_lower:
+                        location_context = "cozy home interior, living room, "
+                    elif "office" in history_name_lower:
+                        location_context = "modern office, professional setting, "
+                    elif "school" in history_name_lower:
+                        location_context = "school classroom, educational environment, "
+                    elif "cafe" in history_name_lower or "coffee" in history_name_lower:
+                        location_context = "cozy cafe interior, coffee shop ambiance, "
+                    elif "gym" in history_name_lower:
+                        location_context = "fitness gym, athletic setting, "
+                    elif "park" in history_name_lower:
+                        location_context = "beautiful park, outdoor setting, natural lighting, "
+                
+                first_image_composition = (
+                    f"{location_context}"
+                    "portrait shot, medium close-up, shoulders visible, "
+                    "looking at camera, warm expression, "
+                    "dressed, wearing appropriate outfit, "
+                    "soft natural lighting, "
+                    "professional photography"
+                )
+                
+                # Assemble full prompt: composition + character DNA + quality
+                character_dna = persona.get("image_prompt", "")
+                first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
+                
+                # Enhanced negative prompt with anti-nudity tags
+                anti_nudity_negative = (
+                    "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
+                    "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
+                    "(nsfw:1.3), (explicit:1.3)"
+                )
+                full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}"
+                
                 crud.create_initial_image_job(
                     db,
                     user_id=user_id,
                     persona_id=str(persona_uuid),
                     chat_id=chat_id,
-                    prompt=history_start_data["image_prompt"],
-                    result_url=history_start_data.get("image_url")
+                    prompt=first_image_prompt,
+                    result_url=None  # Will be generated
                 )
         
         # Send messages to user
@@ -1074,7 +1152,7 @@ async def get_user_referrals(
                 "bot_username": bot_username
             }
     except Exception as e:
-        logger.error(f"Error getting user referrals: {str(e)}")
+        print(f"[REFERRALS-API] Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch referral data")
 
 class GenerateStoriesRequest(BaseModel):
@@ -1092,6 +1170,14 @@ class CreateCharacterRequest(BaseModel):
     hair_style: str
     eye_color: str
     body_type: str
+    breast_size: str
+    butt_size: str
+    extra_prompt: str
+
+
+class CreateCustomStoryRequest(BaseModel):
+    persona_id: str
+    story_description: str
     breast_size: str
     butt_size: str
     extra_prompt: str
@@ -1178,10 +1264,21 @@ async def create_character(
     
     try:
         with get_db() as db:
+            # Get user to check if first character creation
+            user = crud.get_user(db, user_id)
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Check if this is the first character creation (free!)
+            is_first_character = not user.char_created
+            
             # Check premium status to determine cost
-            is_premium = crud.check_user_premium(db, user_id)
-            token_cost = 25 if is_premium else 50
+            premium_info = crud.check_user_premium(db, user_id)
+            is_premium = premium_info["is_premium"]
+            token_cost = 0 if is_first_character else (25 if is_premium else 50)
             max_description_length = 4000 if is_premium else 500
+            
+            print(f"[CREATE-CHARACTER] User {user_id}: first_char={is_first_character}, cost={token_cost}")
             
             # Validate name length
             if not request.name or len(request.name) > 100:
@@ -1217,26 +1314,33 @@ async def create_character(
                     "message": f"Invalid value for {error_field}"
                 }
             
-            # Check token balance
-            if not crud.check_user_energy(db, user_id, required=token_cost):
-                user_energy = crud.get_user_energy(db, user_id)
-                return {
-                    "success": False,
-                    "error": "insufficient_tokens",
-                    "required": token_cost,
-                    "current": user_energy["energy"],
-                    "message": f"Insufficient tokens. Need {token_cost}, have {user_energy['energy']}"
-                }
-            
-            # Deduct tokens
-            if not crud.deduct_user_energy(db, user_id, amount=token_cost):
-                return {
-                    "success": False,
-                    "error": "deduction_failed",
-                    "message": "Failed to deduct tokens"
-                }
-            
-            print(f"[CREATE-CHARACTER] Deducted {token_cost} tokens from user {user_id}")
+            # Only check and deduct tokens if not first character
+            if not is_first_character:
+                # Check token balance
+                if not crud.check_user_energy(db, user_id, required=token_cost):
+                    user_energy = crud.get_user_energy(db, user_id)
+                    return {
+                        "success": False,
+                        "error": "insufficient_tokens",
+                        "required": token_cost,
+                        "current": user_energy["energy"],
+                        "message": f"Insufficient tokens. Need {token_cost}, have {user_energy['energy']}"
+                    }
+                
+                # Deduct tokens
+                if not crud.deduct_user_energy(db, user_id, amount=token_cost):
+                    return {
+                        "success": False,
+                        "error": "deduction_failed",
+                        "message": "Failed to deduct tokens"
+                    }
+                
+                print(f"[CREATE-CHARACTER] Deducted {token_cost} tokens from user {user_id}")
+            else:
+                print(f"[CREATE-CHARACTER] First character creation - FREE for user {user_id}")
+                # Mark that user has created their first character
+                user.char_created = True
+                db.commit()
             
             # Build character DNA with extra_prompt for visual detail extraction
             character_dna = build_character_dna(
@@ -1277,34 +1381,27 @@ async def create_character(
             
             print(f"[CREATE-CHARACTER] Created persona {persona.id} for user {user_id}")
             
-            # Generate initial portrait image (MUST BE CLOTHED)
+            # Generate initial portrait image (high priority, NOT sent to chat)
             from app.core.pipeline_adapter import BASE_QUALITY_PROMPT, BASE_NEGATIVE_PROMPT
             from app.core.img_runpod import submit_image_job
-            import asyncio
             import random
             
-            # Build first image prompt with clothing and portrait composition
-            # CRITICAL: Add explicit clothing to prevent nude generations
+            # Build first image prompt - standing in white room with lingerie
             first_image_composition = (
-                "portrait shot, medium close-up, shoulders and upper body visible, "
-                "looking at camera, friendly smile, warm expression, "
-                "dressed, wearing cute casual top, "
-                "soft natural lighting, clean background, "
+                "standing in white room, wearing white lingerie, "
+                "close upper body shot, shoulders and chest visible, "
+                "looking at camera, confident expression, "
+                "soft studio lighting, clean white background, "
                 "professional photography"
             )
             
             # Assemble full prompt: composition + character DNA + quality
             first_image_prompt = f"{first_image_composition}, {character_dna}, {BASE_QUALITY_PROMPT}"
             
-            # Enhanced negative prompt with anti-nudity tags
-            anti_nudity_negative = (
-                "(naked:1.4), (nude:1.4), (nudity:1.4), (bare breasts:1.5), "
-                "(exposed breasts:1.5), (nipples:1.5), (topless:1.4), "
-                "(undressed:1.3), nsfw, explicit"
-            )
-            first_image_negative = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}"
+            # Enhanced negative prompt
+            first_image_negative = BASE_NEGATIVE_PROMPT
             
-            # Create image job in database
+            # Create image job in database with special flag to NOT send to chat
             job = crud.create_image_job(
                 db,
                 user_id=user_id,
@@ -1313,21 +1410,31 @@ async def create_character(
                 negative_prompt=first_image_negative,
                 chat_id=None  # No chat yet
             )
+            
+            # Add special flag to ext to indicate this is a character creation image
+            # that should NOT be sent to the user's chat
+            from sqlalchemy.orm.attributes import flag_modified
+            if not job.ext:
+                job.ext = {}
+            job.ext["skip_chat_send"] = True
+            flag_modified(job, "ext")
+            db.commit()
+            
             job_id = job.id
             
-            print(f"[CREATE-CHARACTER] Created image job {job_id}")
+            print(f"[CREATE-CHARACTER] Created image job {job_id} (skip_chat_send=True)")
             print(f"[CREATE-CHARACTER] First image prompt: {first_image_prompt[:200]}...")
             
-            # Submit to Runpod
+            # Submit to Runpod with HIGH priority
             try:
                 await submit_image_job(
                     job_id=job_id,
                     prompt=first_image_prompt,
                     negative_prompt=first_image_negative,
                     seed=random.randint(0, 2147483647),
-                    queue_priority="medium"
+                    queue_priority="high"  # Changed from medium to high
                 )
-                print(f"[CREATE-CHARACTER] Submitted image job to Runpod")
+                print(f"[CREATE-CHARACTER] Submitted HIGH priority image job to Runpod")
             except Exception as img_error:
                 print(f"[CREATE-CHARACTER] Warning: Image generation failed: {img_error}")
                 # Continue anyway - character is created, image can be generated later
@@ -1401,6 +1508,95 @@ async def delete_character(
     except Exception as e:
         print(f"[REFERRALS-API] Error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get referral stats: {str(e)}")
+
+
+@router.post("/create-custom-story")
+async def create_custom_story(
+    request: CreateCustomStoryRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Create a custom story for a custom character
+    
+    Args:
+        persona_id: ID of the custom character
+        story_description: User's custom story description (min 5 chars)
+    
+    Returns: {success: bool, history_id: str, message: str}
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Extract user_id
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    # Validate story description
+    if not request.story_description or len(request.story_description) < 5:
+        return {
+            "success": False,
+            "error": "story_too_short",
+            "message": "Story description must be at least 5 characters"
+        }
+    
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(request.persona_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    
+    try:
+        with get_db() as db:
+            # Get persona and verify ownership
+            persona = crud.get_persona_by_id(db, persona_uuid)
+            if not persona:
+                return {
+                    "success": False,
+                    "error": "persona_not_found",
+                    "message": "Character not found"
+                }
+            
+            if persona.owner_user_id != user_id:
+                return {
+                    "success": False,
+                    "error": "not_owner",
+                    "message": "You can only create stories for your own characters"
+                }
+            
+            # Create persona history start
+            from app.db.models import PersonaHistoryStart
+            from uuid import uuid4
+            
+            history = PersonaHistoryStart(
+                id=uuid4(),
+                persona_id=persona_uuid,
+                name="Custom Story",
+                description=request.story_description[:200],  # First 200 chars
+                text=f"*{persona.name} enters the scene...*\n\n{request.story_description[:500]}",
+                small_description="Your custom story"
+            )
+            
+            db.add(history)
+            db.commit()
+            db.refresh(history)
+            
+            print(f"[CREATE-CUSTOM-STORY] Created story {history.id} for persona {persona_uuid} by user {user_id}")
+            
+            return {
+                "success": True,
+                "history_id": str(history.id),
+                "message": "Custom story created successfully"
+            }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[CREATE-CUSTOM-STORY] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create custom story: {str(e)}")
 
 
 @router.get("/health")

@@ -16,6 +16,7 @@ import PremiumPage from './components/PremiumPage';
 import ReferralsPage from './components/ReferralsPage';
 import SettingsPage from './components/SettingsPage';
 import TokensPage from './components/TokensPage';
+import CustomStoryCreation from './components/CustomStoryCreation';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
@@ -24,7 +25,7 @@ import { useTranslation } from './i18n/TranslationContext';
  */
 function App() {
   const { t, isLoading: isLoadingLanguage, onLanguageChange } = useTranslation();
-  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'settings' | 'language' | 'plans' | 'premium' | 'checkout' | 'tokens' | 'referrals'
+  const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'custom-story' | 'settings' | 'language' | 'plans' | 'premium' | 'checkout' | 'tokens' | 'referrals'
   const [userName, setUserName] = useState('User');
   const [userId, setUserId] = useState(null);
   const [userPhotoUrl, setUserPhotoUrl] = useState(null);
@@ -253,6 +254,8 @@ function App() {
   const handleBackToPrevious = useCallback(() => {
     if (currentPage === 'checkout') {
       setCurrentPage('premium');
+    } else if (currentPage === 'custom-story') {
+      setCurrentPage('history');
     } else if (currentPage === 'language' || currentPage === 'plans' || currentPage === 'premium' || currentPage === 'tokens') {
       setCurrentPage('settings');
     } else if (currentPage === 'referrals') {
@@ -365,7 +368,7 @@ function App() {
   };
 
   // Determine if back button should be shown
-  const showBackButton = currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans' || currentPage === 'premium' || currentPage === 'checkout' || currentPage === 'tokens' || currentPage === 'referrals' || currentPage === 'history';
+  const showBackButton = currentPage === 'settings' || currentPage === 'language' || currentPage === 'plans' || currentPage === 'premium' || currentPage === 'checkout' || currentPage === 'tokens' || currentPage === 'referrals' || currentPage === 'history' || currentPage === 'custom-story';
 
   // Handle Telegram BackButton
   useEffect(() => {
@@ -567,6 +570,7 @@ function App() {
             isLoading={isLoading}
             tokens={tokens}
             onRefresh={() => loadPersonas(true)}
+            onNavigateToTokens={() => setCurrentPage('tokens')}
           />
         ) : currentPage === 'history' ? (
           <HistorySelection
@@ -575,6 +579,18 @@ function App() {
             onHistoryClick={handleHistoryClick}
             onBack={handleBackToGallery}
             isLoading={isLoadingHistories}
+            onNavigateToCustomStory={() => setCurrentPage('custom-story')}
+            onCharacterDeleted={() => {
+              setCurrentPage('gallery');
+              setSelectedPersona(null);
+              loadPersonas(true);
+            }}
+          />
+        ) : currentPage === 'custom-story' ? (
+          <CustomStoryCreation
+            persona={selectedPersona}
+            onBack={() => setCurrentPage('history')}
+            onStoryCreated={handleHistoryClick}
           />
         ) : currentPage === 'settings' ? (
           <SettingsPage

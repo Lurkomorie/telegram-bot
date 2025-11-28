@@ -481,13 +481,13 @@ def delete_persona(db: Session, persona_id: UUID) -> bool:
     from app.db.models import ImageJob, Chat, PersonaHistoryStart
     
     # Delete all image jobs for this persona
-    db.query(ImageJob).filter(ImageJob.persona_id == persona_id).delete()
+    db.query(ImageJob).filter(ImageJob.persona_id == persona_id).delete(synchronize_session='fetch')
     
     # Delete all history starts for this persona
-    db.query(PersonaHistoryStart).filter(PersonaHistoryStart.persona_id == persona_id).delete()
+    db.query(PersonaHistoryStart).filter(PersonaHistoryStart.persona_id == persona_id).delete(synchronize_session='fetch')
     
     # Delete all chats for this persona (cascade will delete messages)
-    db.query(Chat).filter(Chat.persona_id == persona_id).delete()
+    db.query(Chat).filter(Chat.persona_id == persona_id).delete(synchronize_session='fetch')
     
     # Now safe to delete the persona
     db.delete(persona)

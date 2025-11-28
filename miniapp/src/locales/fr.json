@@ -1,0 +1,117 @@
+{
+  "gallery": {
+    "customTag": "Vôtre",
+    "loading": "Chargement des personnages...",
+    "empty": "Aucun personnage disponible",
+    "createCharacter": {
+      "title": "Votre personnage",
+      "subtitle": "Deviendra qui vous voulez",
+      "free": "Créer gratuitement"
+    }
+  },
+  "app": {
+    "ageVerification": {
+      "title": "Vérification d'âge requise",
+      "description": "Vous devez avoir 18 ans ou plus pour utiliser cette application. En continuant, vous confirmez que vous avez l'âge légal et acceptez nos Conditions d'utilisation et notre Politique de confidentialité.",
+      "confirmButton": "J'ai 18 ans ou plus",
+      "verifying": "Vérification..."
+    },
+    "header": {
+      "characters": "Personnages",
+      "settings": "Paramètres"
+    },
+    "energy": {
+      "regen": "+2/h"
+    },
+    "errors": {
+      "loadFailed": "Échec du chargement des personnages. Veuillez réessayer.",
+      "retryButton": "Réessayer"
+    }
+  },
+  "history": {
+    "loading": "Chargement des scénarios...",
+    "empty": "Aucun scénario disponible. Démarrage avec le message d'accueil par défaut...",
+    "startButton": "Démarrer le chat"
+  },
+  "premium": {
+    "plans": {
+      "2days": {
+        "duration": "2 jours",
+        "period": "/ 2 jours"
+      },
+      "month": {
+        "duration": "1 mois",
+        "period": "/ mois"
+      },
+      "3months": {
+        "duration": "3 mois",
+        "period": "/ 3 mois"
+      },
+      "year": {
+        "duration": "1 an",
+        "period": "/ an"
+      }
+    },
+    "features": {
+      "energy": "Énergie infinie",
+      "ai": "Nos moteurs d'IA les plus avancés",
+      "photos": "Génération de photos illimitée"
+    },
+    "upgradeButton": "Obtenir Premium 💎",
+    "processing": "Traitement...",
+    "alerts": {
+      "paymentSuccess": "Paiement réussi ! Votre abonnement premium est maintenant actif.",
+      "paymentCancelled": "Paiement annulé.",
+      "paymentFailed": "Le paiement a échoué. Veuillez réessayer.",
+      "createFailed": "Échec de la création du paiement. Veuillez réessayer."
+    }
+  },
+  "nav": {
+    "characters": "Personnages",
+    "premium": "Premium"
+  },
+  "settings": {
+    "language": {
+      "title": "Langue"
+    },
+    "languageNames": {
+      "en": "English",
+      "ru": "Русский",
+      "fr": "Français",
+      "de": "Deutsch",
+      "es": "Español"
+    },
+    "plan": {
+      "title": "Votre forfait",
+      "upgradePlans": "Passer à Premium"
+    },
+    "currentPlan": {
+      "free": "Gratuit",
+      "premium": "Premium"
+    }
+  },
+  "characterPage": {
+    "selectLocation": "Choisissez où commencer",
+    "locations": {
+      "home": "Maison",
+      "office": "Bureau",
+      "school": "École",
+      "cafe": "Café",
+      "gym": "Salle de sport",
+      "park": "Parc"
+    },
+    "createCustomButton": "Créer une histoire personnalisée",
+    "deleteMenu": "Supprimer",
+    "deleteConfirm": {
+      "title": "Supprimer {name} ?",
+      "message": "Cela supprimera définitivement ce personnage. Cette action ne peut pas être annulée.",
+      "cancel": "Annuler",
+      "confirm": "Supprimer"
+    }
+  },
+  "customStory": {
+    "title": "Créez votre histoire avec {name}",
+    "startButton": "Commencer l'histoire",
+    "placeholder": "Décrivez le scénario que vous souhaitez vivre avec {name}. Où êtes-vous ? Que se passe-t-il ? Quelle est l'ambiance ? Soyez créatif ! (par exemple, 'Nous faisons de la randonnée en montagne quand nous trouvons une cascade cachée...')"
+  }
+}

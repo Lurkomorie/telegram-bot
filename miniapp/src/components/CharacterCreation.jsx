@@ -1,28 +1,52 @@
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import WebApp from '@twa-dev/sdk';
+import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createCharacter } from '../api';
 import {
-  HAIR_COLORS,
-  HAIR_STYLES,
-  EYE_COLORS,
   BODY_TYPES,
   BREAST_SIZES,
   BUTT_SIZES,
+  EYE_COLORS,
+  HAIR_COLORS,
+  HAIR_STYLES,
 } from '../constants';
+import { useTranslation } from '../i18n/TranslationContext';
 import './CharacterCreation.css';
+
+// Import images directly
+import bodyAthleticImg from '../assets/body-athletic.png';
+import bodyCurvyImg from '../assets/body-curvy.png';
+import bodySlimImg from '../assets/body-slim.png';
+import bodyVoluptuousImg from '../assets/body-voluptuous.png';
+import braidedImg from '../assets/braided.png';
+import curlyImg from '../assets/curly.png';
+import lightningImg from '../assets/lightning.png';
+import longStraightImg from '../assets/long-straight.png';
+import longWavyImg from '../assets/long-wavy.png';
+import ponytailImg from '../assets/ponytail.png';
+import shortImg from '../assets/short.png';
+
+const HAIR_STYLE_IMAGES = {
+  'long_straight': longStraightImg,
+  'long_wavy': longWavyImg,
+  'short': shortImg,
+  'ponytail': ponytailImg,
+  'braided': braidedImg,
+  'curly': curlyImg,
+};
+
+const BODY_TYPE_IMAGES = {
+  'slim': bodySlimImg,
+  'athletic': bodyAthleticImg,
+  'curvy': bodyCurvyImg,
+  'voluptuous': bodyVoluptuousImg,
+};
 
 /**
  * CharacterCreation Component
- * Visual card-based wizard inspired by candy.ai
- * Step 1: Hair Color (visual color cards)
- * Step 2: Hair Style
- * Step 3: Eye Color (visual eye cards)
- * Step 4: Body Type
- * Step 5: Breast + Butt Size (combined)
- * Step 6: Name + Description
  */
-function CharacterCreation({ onClose, onCreated, tokens }) {
+function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [slideDirection, setSlideDirection] = useState('forward');
   
@@ -42,16 +66,26 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
 
   const isPremium = tokens.is_premium;
   const tokenCost = isPremium ? 25 : 50;
-  const maxDescriptionLength = isPremium ? 4000 : 500;
+  const hasFreeCreation = !tokens?.char_created;
+  const maxDescriptionLength = isPremium ? 4000 : 300;
+  const maxNameLength = 20;
   
   const totalPages = 6;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
+    
+    // Show Telegram native back button
+    WebApp.BackButton.show();
+    WebApp.BackButton.onClick(goToPreviousPage);
+    
     return () => {
       document.body.style.overflow = '';
+      // Hide back button and remove listener when component unmounts
+      WebApp.BackButton.hide();
+      WebApp.BackButton.offClick(goToPreviousPage);
     };
-  }, []);
+  }, [goToPreviousPage]);
 
   const handleSelection = (field, value) => {
     setSelections((prev) => ({
@@ -59,13 +93,6 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
       [field]: value,
     }));
     setError(null);
-
-    // Auto-advance after selection on all pages except final page
-    if (currentPage < 6) {
-      setTimeout(() => {
-        advanceToNextPage();
-      }, 300);
-    }
   };
 
   const advanceToNextPage = () => {
@@ -73,26 +100,30 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
     setCurrentPage((prev) => prev + 1);
   };
 
-  const goToPreviousPage = () => {
+  const goToPreviousPage = useCallback(() => {
     setSlideDirection('backward');
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     } else {
       onClose();
     }
-  };
+  }, [currentPage, onClose]);
 
   const handleCreate = async () => {
     if (!selections.name.trim()) {
-      setError('Please enter a name');
+      setError(t('characterCreation.errors.nameRequired'));
       return;
     }
     if (!selections.extra_prompt.trim()) {
-      setError('Please describe your girlfriend');
+      setError(t('characterCreation.errors.descriptionRequired'));
       return;
     }
-    if (tokens.tokens < tokenCost) {
-      setError(`Insufficient tokens. Need ${tokenCost}, have ${tokens.tokens}`);
+    if (!hasFreeCreation && tokens.tokens < tokenCost) {
+      // Redirect to energy buy page immediately
+      onClose(); // Close character creation modal
+      if (onNavigateToTokens) {
+        onNavigateToTokens();
+      }
       return;
     }
 
@@ -103,14 +134,24 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
       const result = await createCharacter(selections, WebApp.initData);
       
       if (result.success) {
-        WebApp.showAlert(`${selections.name} created successfully! 💕\nGenerating portrait...`);
+        const msg = t('characterCreation.success').replace('{name}', selections.name);
+        WebApp.showAlert(msg);
         onCreated();
       } else {
-        setError(result.message || 'Failed to create character');
+        // Handle specific error cases
+        if (result.error === 'insufficient_tokens') {
+          // Redirect to energy buy page immediately
+          onClose();
+          if (onNavigateToTokens) {
+            onNavigateToTokens();
+          }
+        } else {
+          setError(result.message || t('characterCreation.errors.creationFailed'));
+        }
       }
     } catch (err) {
       console.error('Create character error:', err);
-      setError(err.message || 'Failed to create character. Please try again.');
+      setError(err.message || t('characterCreation.errors.creationFailed'));
     } finally {
       setIsCreating(false);
     }
@@ -118,73 +159,122 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
 
   const getPageTitle = () => {
     const titles = {
-      1: 'Hair Color',
-      2: 'Hair Style',
-      3: 'Eye Color',
-      4: 'Body Type',
-      5: 'Proportions',
-      6: 'Final Details'
+      1: t('characterCreation.hairColor.title'),
+      2: t('characterCreation.hairStyle.title'),
+      3: t('characterCreation.eyeColor.title'),
+      4: t('characterCreation.bodyType.title'),
+      5: t('characterCreation.proportions.title'),
+      6: t('characterCreation.final.title')
     };
     return titles[currentPage];
   };
 
-  // Get character image URL for each attribute
-  const getCharacterImage = (type, value) => {
-    // Placeholder for now - you'll need to add actual images to public folder
-    // Format: /characters/{type}-{value}.jpg
-    return `/characters/${type}-${value}.jpg`;
+  const getHairColorBright = (colorKey) => {
+    const colors = {
+      black: '#3a3a3a',
+      brown: '#8B5A3C',
+      blonde: '#FFE4B5',
+      red: '#E74C3C',
+      white: '#F5F5F5',
+      pink: '#FF69B4',
+      blue: '#5DADE2',
+      green: '#52D273',
+      purple: '#AF7AC5',
+      multicolor: 'linear-gradient(135deg, #FF1493 0%, #FFD700 25%, #00FF7F 50%, #1E90FF 75%, #9370DB 100%)',
+    };
+    return colors[colorKey] || colors.brown;
   };
 
-  const getHairColorGradient = (colorKey) => {
-    const gradients = {
-      black: 'linear-gradient(135deg, #2a2a2a 0%, #000000 100%)',
-      brown: 'linear-gradient(135deg, #8B4513 0%, #5C3317 100%)',
-      blonde: 'linear-gradient(135deg, #FFD700 0%, #DAA520 100%)',
-      red: 'linear-gradient(135deg, #DC143C 0%, #B22222 100%)',
-      white: 'linear-gradient(135deg, #FFFFFF 0%, #D3D3D3 100%)',
-      pink: 'linear-gradient(135deg, #FFB6C1 0%, #FF1493 100%)',
-      blue: 'linear-gradient(135deg, #1E90FF 0%, #0047AB 100%)',
-      green: 'linear-gradient(135deg, #3CB371 0%, #2E8B57 100%)',
-      purple: 'linear-gradient(135deg, #9370DB 0%, #663399 100%)',
-      multicolor: 'linear-gradient(135deg, #FF0080 0%, #FF8C00 25%, #FFD700 50%, #00FF00 75%, #0080FF 100%)',
+  const getHairColorBorderActive = (colorKey) => {
+    const borders = {
+      black: '#1a1a1a',
+      brown: '#5C3317',
+      blonde: '#DAA520',
+      red: '#C0392B',
+      white: '#DCDCDC',
+      pink: '#FF1493',
+      blue: '#3498DB',
+      green: '#27AE60',
+      purple: '#8E44AD',
+      multicolor: '#ffffff',
     };
-    return gradients[colorKey] || gradients.brown;
+    return borders[colorKey] || borders.brown;
   };
 
-  const getEyeColorGradient = (colorKey) => {
-    const gradients = {
-      brown: 'radial-gradient(circle, #8B4513 0%, #654321 60%, #000000 100%)',
-      blue: 'radial-gradient(circle, #87CEEB 0%, #4169E1 60%, #000080 100%)',
-      green: 'radial-gradient(circle, #90EE90 0%, #228B22 60%, #006400 100%)',
-      hazel: 'radial-gradient(circle, #DAA520 0%, #8B7355 60%, #654321 100%)',
-      gray: 'radial-gradient(circle, #C0C0C0 0%, #808080 60%, #404040 100%)',
+  const getEyeColorSimple = (colorKey) => {
+    const colors = {
+      brown: '#8B4513',
+      blue: '#4169E1',
+      green: '#228B22',
+      hazel: '#DAA520',
+      gray: '#808080',
     };
-    return gradients[colorKey] || gradients.brown;
+    return colors[colorKey] || colors.brown;
+  };
+
+  const getEyeColorBorderActive = (colorKey) => {
+    const borders = {
+      brown: '#654321',
+      blue: '#1E3A8A',
+      green: '#15803D',
+      hazel: '#B8860B',
+      gray: '#4B5563',
+    };
+    return borders[colorKey] || borders.brown;
   };
 
   return createPortal(
     <div className="character-creation-overlay">
       <div className="character-creation-modal">
-        {/* Header */}
-        <div className="creation-header">
-          <button className="back-button" onClick={goToPreviousPage} disabled={isCreating}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        
+        {/* Header with back button and title */}
+        <div className="character-creation-header">
+          <button className="back-button-new" onClick={goToPreviousPage} disabled={isCreating}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <div className="header-center">
-            <div className="step-indicator">
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`step-dot ${i + 1 === currentPage ? 'active' : ''} ${i + 1 < currentPage ? 'completed' : ''}`}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="token-cost">
-            <span className="cost-amount">{tokenCost}</span>
-            <span className="cost-icon">⚡</span>
+          <h3 className="page-title">{getPageTitle()}</h3>
+          <div className="progress-circle">
+            <svg width="40" height="40" viewBox="0 0 40 40">
+              <defs>
+                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#EF4444" />
+                  <stop offset="50%" stopColor="#F97316" />
+                  <stop offset="100%" stopColor="#FB923C" />
+                </linearGradient>
+              </defs>
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.1)"
+                strokeWidth="2.5"
+              />
+              <circle
+                cx="20"
+                cy="20"
+                r="16"
+                fill="none"
+                stroke="url(#gradient)"
+                strokeWidth="2.5"
+                strokeDasharray={`${(currentPage / totalPages) * 100.5} 100.5`}
+                strokeLinecap="round"
+                transform="rotate(-90 20 20)"
+              />
+              <text
+                x="20"
+                y="20"
+                textAnchor="middle"
+                dy="0.35em"
+                fontSize="11"
+                fill="#ffffff"
+                fontWeight="700"
+              >
+                {currentPage}/{totalPages}
+              </text>
+            </svg>
           </div>
         </div>
 
@@ -192,114 +282,111 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
         <div className="creation-content-wrapper">
           <div className={`wizard-container slide-${slideDirection}`} key={currentPage}>
             
-            {/* Page 1: Hair Color - 5 column compact grid */}
+            {/* Page 1: Hair Color */}
             {currentPage === 1 && (
               <div className="wizard-page">
-                <h3 className="page-title">{getPageTitle()}</h3>
-                <div className="image-cards-grid-5col">
-                  {HAIR_COLORS.map((option) => (
-                    <button
-                      key={option.value}
-                      className={`image-card ${selections.hair_color === option.value ? 'selected' : ''}`}
-                      onClick={() => handleSelection('hair_color', option.value)}
-                      disabled={isCreating}
-                    >
-                      <div 
-                        className="card-image"
-                        style={{ background: getHairColorGradient(option.value) }}
-                      />
-                      <div className="card-label-overlay">{option.label}</div>
-                      {selections.hair_color === option.value && (
-                        <div className="check-mark">✓</div>
-                      )}
-                    </button>
-                  ))}
+                <div className="hair-color-grid">
+                  {HAIR_COLORS.map((option) => {
+                    const isSelected = selections.hair_color === option.value;
+                    const bgColor = getHairColorBright(option.value);
+                    const borderColor = getHairColorBorderActive(option.value);
+                    const isMulticolor = option.value === 'multicolor';
+                    
+                    return (
+                      <div key={option.value} className="hair-color-item">
+                        <button
+                          className={`hair-color-box ${isSelected ? 'selected' : ''} ${isMulticolor ? 'multicolor' : ''}`}
+                          onClick={() => handleSelection('hair_color', option.value)}
+                          disabled={isCreating}
+                          style={{
+                            background: bgColor,
+                            borderColor: isMulticolor ? '#ffffff' : (isSelected ? borderColor : undefined),
+                          }}
+                        />
+                        <span className="hair-color-label">
+                          {t(`characterCreation.hairColor.${option.value}`)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Page 2: Hair Style - 3 column grid */}
+            {/* Page 2: Hair Style */}
             {currentPage === 2 && (
               <div className="wizard-page">
-                <h3 className="page-title">{getPageTitle()}</h3>
-                <div className="image-cards-grid-3col">
+                <div className="hair-style-grid">
                   {HAIR_STYLES.map((option) => (
                     <button
                       key={option.value}
-                      className={`image-card ${selections.hair_style === option.value ? 'selected' : ''}`}
+                      className={`hair-style-box ${selections.hair_style === option.value ? 'selected' : ''}`}
                       onClick={() => handleSelection('hair_style', option.value)}
                       disabled={isCreating}
                     >
-                      <div 
-                        className="card-image placeholder-gradient"
-                        style={{ 
-                          background: `linear-gradient(135deg, ${getHairColorGradient(selections.hair_color).split(',')[0]}, #1a1a1a)` 
-                        }}
-                      >
-                        <span className="placeholder-emoji">{option.emoji}</span>
-                      </div>
-                      <div className="card-label-overlay">{option.label}</div>
-                      {selections.hair_style === option.value && (
-                        <div className="check-mark">✓</div>
-                      )}
+                      <img 
+                        src={HAIR_STYLE_IMAGES[option.value]}
+                        alt={option.label}
+                        className="hair-style-icon"
+                      />
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Page 3: Eye Color - 5 column grid for consistency */}
+            {/* Page 3: Eye Color */}
             {currentPage === 3 && (
               <div className="wizard-page">
-                <h3 className="page-title">{getPageTitle()}</h3>
-                <div className="image-cards-grid-5col">
-                  {EYE_COLORS.map((option) => (
-                    <button
-                      key={option.value}
-                      className={`image-card eye-card ${selections.eye_color === option.value ? 'selected' : ''}`}
-                      onClick={() => handleSelection('eye_color', option.value)}
-                      disabled={isCreating}
-                    >
+                <div className="eye-color-grid">
+                  {EYE_COLORS.map((option) => {
+                    const isSelected = selections.eye_color === option.value;
+                    const bgColor = getEyeColorSimple(option.value);
+                    const borderColor = getEyeColorBorderActive(option.value);
+                    
+                    return (
                       <div 
-                        className="card-image eye-image"
-                        style={{ background: getEyeColorGradient(option.value) }}
+                        key={option.value}
+                        className="eye-color-item"
                       >
-                        <div className="eye-shine" />
+                        <button
+                          className={`eye-color-circle ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSelection('eye_color', option.value)}
+                          disabled={isCreating}
+                          style={{ 
+                            background: bgColor,
+                            borderColor: isSelected ? borderColor : undefined,
+                          }}
+                        />
+                        <span className="eye-color-label">
+                          {t(`characterCreation.eyeColor.${option.value}`)}
+                        </span>
                       </div>
-                      <div className="card-label-overlay">{option.label}</div>
-                      {selections.eye_color === option.value && (
-                        <div className="check-mark">✓</div>
-                      )}
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Page 4: Body Type - 2x2 grid for 4 options */}
+            {/* Page 4: Body Type */}
             {currentPage === 4 && (
               <div className="wizard-page">
-                <h3 className="page-title">{getPageTitle()}</h3>
-                <div className="image-cards-grid-2col">
+                <div className="body-type-grid">
                   {BODY_TYPES.map((option) => (
                     <button
                       key={option.value}
-                      className={`image-card body-card ${selections.body_type === option.value ? 'selected' : ''}`}
+                      className={`body-type-box ${selections.body_type === option.value ? 'selected' : ''}`}
                       onClick={() => handleSelection('body_type', option.value)}
                       disabled={isCreating}
                     >
-                      <div className="card-image body-preview">
-                        <div className="body-silhouette" data-type={option.value}>
-                          <div className="silhouette-shape"></div>
-                        </div>
-                      </div>
-                      <div className="card-label-overlay">
-                        <div className="label-main">{option.label}</div>
-                        <div className="label-sub">{option.description}</div>
-                      </div>
-                      {selections.body_type === option.value && (
-                        <div className="check-mark">✓</div>
-                      )}
+                      <img 
+                        src={BODY_TYPE_IMAGES[option.value]}
+                        alt={option.label}
+                        className="body-type-image"
+                      />
+                      <span className="body-type-label">
+                        {t(`characterCreation.bodyType.${option.value}`)}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -309,48 +396,43 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
             {/* Page 5: Breast + Butt Size (Combined) */}
             {currentPage === 5 && (
               <div className="wizard-page">
-                <h3 className="page-title">{getPageTitle()}</h3>
                 <div className="proportions-section">
-                  <div className="size-group-modern">
-                    <div className="size-label">Breast Size</div>
-                    <div className="size-selector">
+                  <div className="size-group-new">
+                    <div className="size-label-new">{t('characterCreation.proportions.breastSize')}</div>
+                    <div className="size-selector-new">
                       {BREAST_SIZES.map((option) => (
                         <button
                           key={option.value}
-                          className={`size-option ${selections.breast_size === option.value ? 'selected' : ''}`}
+                          className={`size-option-new ${selections.breast_size === option.value ? 'selected' : ''}`}
                           onClick={() => setSelections({ ...selections, breast_size: option.value })}
                           disabled={isCreating}
                         >
-                          <span className="size-label-text">{option.label}</span>
+                          <span className="size-label-text">
+                            {t(`characterCreation.proportions.${option.value}`)}
+                          </span>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  <div className="size-group-modern">
-                    <div className="size-label">Butt Size</div>
-                    <div className="size-selector">
+                  <div className="size-group-new">
+                    <div className="size-label-new">{t('characterCreation.proportions.buttSize')}</div>
+                    <div className="size-selector-new">
                       {BUTT_SIZES.map((option) => (
                         <button
                           key={option.value}
-                          className={`size-option ${selections.butt_size === option.value ? 'selected' : ''}`}
+                          className={`size-option-new ${selections.butt_size === option.value ? 'selected' : ''}`}
                           onClick={() => setSelections({ ...selections, butt_size: option.value })}
                           disabled={isCreating}
                         >
-                          <span className="size-label-text">{option.label}</span>
+                          <span className="size-label-text">
+                            {t(`characterCreation.proportions.${option.value}`)}
+                          </span>
                         </button>
                       ))}
                     </div>
                   </div>
                 </div>
-
-                <button
-                  className="next-button-large"
-                  onClick={advanceToNextPage}
-                  disabled={isCreating}
-                >
-                  NEXT →
-                </button>
               </div>
             )}
 
@@ -362,41 +444,38 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
                     <input
                       type="text"
                       className="name-input-final"
-                      placeholder="Enter her name..."
+                      placeholder={t('characterCreation.final.namePlaceholder')}
                       value={selections.name}
-                      onChange={(e) => setSelections({ ...selections, name: e.target.value })}
-                      maxLength={100}
+                      onChange={(e) => setSelections({ ...selections, name: e.target.value.slice(0, maxNameLength) })}
+                      maxLength={maxNameLength}
                       disabled={isCreating}
                       autoFocus
                     />
-                    <div className="input-hint center">
-                      {selections.name.length}/100
+                    <div className="input-hint right">
+                      {selections.name.length}/{maxNameLength}
                     </div>
                   </div>
 
                   <div className="input-group flex-grow">
                     <label className="input-label-centered">
-                      Personality & Relationship
-                      {isPremium && <span className="premium-badge-inline">Premium</span>}
+                      {t('characterCreation.final.personalityLabel')}
+                      {isPremium && <span className="premium-badge-inline">{t('characterCreation.final.premiumBadge')}</span>}
                     </label>
                     <div className="textarea-hint">
-                      Describe her personality, your relationship, background...
+                      {t('characterCreation.final.descriptionHint')}
                     </div>
                     <textarea
                       className="description-textarea-final"
-                      placeholder="Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years..."
+                      placeholder={t('characterCreation.final.descriptionPlaceholder')}
                       value={selections.extra_prompt}
-                      onChange={(e) => setSelections({ ...selections, extra_prompt: e.target.value })}
+                      onChange={(e) => setSelections({ ...selections, extra_prompt: e.target.value.slice(0, maxDescriptionLength) })}
                       maxLength={maxDescriptionLength}
                       disabled={isCreating}
                     />
-                    <div className="input-hint center">
+                    <div className="input-hint right">
                       <span className={selections.extra_prompt.length > maxDescriptionLength * 0.9 ? 'warning' : ''}>
                         {selections.extra_prompt.length}/{maxDescriptionLength}
                       </span>
-                      {!isPremium && (
-                        <span className="upgrade-hint">Premium: 4000</span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -424,16 +503,33 @@ function CharacterCreation({ onClose, onCreated, tokens }) {
               {isCreating ? (
                 <>
                   <span className="spinner"></span>
-                  Creating...
+                  {t('characterCreation.final.creating')}
                 </>
               ) : (
                 <>
-                  <span>Create Girlfriend</span>
-                  <span className="button-cost">{tokenCost} ⚡</span>
+                  <span>{t('characterCreation.final.createButton')}</span>
+                  {!hasFreeCreation && (
+                    <span className="button-cost">
+                      <img src={lightningImg} alt="tokens" className="button-cost-icon" />
+                      {tokenCost}
+                    </span>
+                  )}
                 </>
               )}
             </button>
           </div>
+        )}
+
+        {/* Next button for all pages except last */}
+        {currentPage < 6 && (
+          <button
+            className="next-button-bottom"
+            onClick={advanceToNextPage}
+            disabled={isCreating}
+          >
+            {t('characterCreation.proportions.nextButton')}
+            <span>→</span>
+          </button>
         )}
       </div>
     </div>,

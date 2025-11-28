@@ -10,19 +10,19 @@ import { deleteCharacter } from '../api';
  * Displays a 2-column grid of AI persona cards with images, names, and descriptions
  * Includes "Create Character" card and custom character management
  */
-export default function PersonasGallery({ personas, onPersonaClick, isLoading, tokens, onRefresh }) {
+export default function PersonasGallery({ personas, onPersonaClick, isLoading, tokens, onRefresh, onNavigateToTokens }) {
   const { t } = useTranslation();
   const [showCreation, setShowCreation] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const pollingIntervalRef = useRef(null);
-  const pollCountRef = useRef(0);
   const onRefreshRef = useRef(onRefresh);
+  const personasRef = useRef(personas);
 
   const handleDelete = async (personaId, personaName, e) => {
     e.stopPropagation(); // Prevent card click
     
     // Show confirmation
-    const confirmed = window.confirm(`Delete ${personaName}? This cannot be undone.`);
+    const confirmMsg = t('gallery.deleteConfirm').replace('{name}', personaName);
+    const confirmed = window.confirm(confirmMsg);
     if (!confirmed) return;
 
     setDeletingId(personaId);
@@ -31,7 +31,8 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
       await deleteCharacter(personaId, WebApp.initData);
       
       // Show success message
-      WebApp.showAlert(`${personaName} deleted successfully`);
+      const successMsg = t('gallery.deleteSuccess').replace('{name}', personaName);
+      WebApp.showAlert(successMsg);
       
       // Refresh personas list
       if (onRefresh) {
@@ -47,78 +48,59 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
 
   const handleCreated = () => {
     setShowCreation(false);
-    // Refresh personas list
+    
+    // Store the timestamp when character was created
+    const createdAt = Date.now();
+    const createdPersonaCheckRef = { stopped: false };
+    
+    // Function to check if we should continue polling
+    const shouldContinuePolling = () => {
+      if (createdPersonaCheckRef.stopped) return false;
+      
+      // Check if any custom character still needs avatar (use ref to get latest personas)
+      const currentPersonas = personasRef.current;
+      const customCharsWithoutAvatar = currentPersonas?.filter(
+        p => p.is_custom && !p.avatar_url
+      ) || [];
+      
+      if (customCharsWithoutAvatar.length === 0) {
+        console.log('[GALLERY] ✅ Avatar loaded, stopping scheduled refreshes');
+        createdPersonaCheckRef.stopped = true;
+        return false;
+      }
+      
+      // Stop after 2 minutes
+      if (Date.now() - createdAt > 120000) {
+        console.log('[GALLERY] ⏰ 2 minutes elapsed, stopping scheduled refreshes');
+        createdPersonaCheckRef.stopped = true;
+        return false;
+      }
+      
+      return true;
+    };
+    
+    // Refresh immediately
     if (onRefresh) {
       onRefresh();
     }
+    
+    // Schedule smart refreshes: 10s, 20s, 30s, 45s, 60s, 90s, 120s (7 calls max)
+    const delays = [10000, 20000, 30000, 45000, 60000, 90000, 120000];
+    delays.forEach(delay => {
+      setTimeout(() => {
+        if (shouldContinuePolling() && onRefreshRef.current) {
+          console.log(`[GALLERY] 🔄 Scheduled refresh at ${delay/1000}s`);
+          onRefreshRef.current();
+        }
+      }, delay);
+    });
   };
 
-  // Keep onRefreshRef up to date
+  // Keep refs up to date
   useEffect(() => {
     onRefreshRef.current = onRefresh;
-  }, [onRefresh]);
-
-  // Poll for avatar updates on custom characters without avatars
-  useEffect(() => {
-    // Check if there are any custom characters without avatars
-    const customCharsWithoutAvatar = personas?.filter(
-      p => p.is_custom && !p.avatar_url
-    ) || [];
-
-    // If no characters need avatars, stop any existing polling
-    if (customCharsWithoutAvatar.length === 0) {
-      if (pollingIntervalRef.current) {
-        console.log('[GALLERY] ✅ All avatars loaded, stopping polling');
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        pollCountRef.current = 0;
-      }
-      return;
-    }
-
-    // If already polling, don't start a new interval
-    if (pollingIntervalRef.current) {
-      return;
-    }
-
-    // Start polling for avatar updates
-    console.log(`[GALLERY] 🔄 Found ${customCharsWithoutAvatar.length} custom characters without avatars, starting polling...`);
-    pollCountRef.current = 0;
-    const maxPolls = 40; // 40 polls * 3 seconds = 2 minutes maximum
-    
-    // Do first poll immediately (don't wait 3 seconds)
-    if (onRefreshRef.current) {
-      console.log('[GALLERY] 🔄 Initial poll for avatar updates...');
-      onRefreshRef.current();
-    }
-    
-    pollingIntervalRef.current = setInterval(() => {
-      pollCountRef.current++;
-      console.log(`[GALLERY] 🔄 Polling for avatar updates... (${pollCountRef.current}/${maxPolls})`);
-      
-      if (pollCountRef.current >= maxPolls) {
-        console.log('[GALLERY] ⏰ Max polling duration reached (2 minutes), stopping...');
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        pollCountRef.current = 0;
-        return;
-      }
-      
-      if (onRefreshRef.current) {
-        onRefreshRef.current();
-      }
-    }, 3000);
-
-    // Cleanup on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        console.log('[GALLERY] 🧹 Component unmounting, cleaning up polling');
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-        pollCountRef.current = 0;
-      }
-    };
-  }, [personas]); // Only depend on personas, not onRefresh
+    personasRef.current = personas;
+  }, [onRefresh, personas]);
 
   if (isLoading) {
     return (
@@ -133,24 +115,35 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
     <>
       <div className="personas-gallery">
         <div className="personas-grid">
-          {/* Create Character Card */}
+          {/* First two personas */}
+          {personas && personas.slice(0, 2).map((persona) => (
+            <PersonaCard
+              key={persona.id}
+              persona={persona}
+              onClick={() => onPersonaClick(persona)}
+              onDelete={persona.is_custom ? handleDelete : null}
+              isDeleting={deletingId === persona.id}
+            />
+          ))}
+
+          {/* Create Character Card - Always 3rd */}
           <div 
             className="persona-card create-card" 
             onClick={() => setShowCreation(true)}
           >
-            <div className="create-icon-wrapper">
-              <span className="create-icon">➕</span>
+            <div className="create-card-content">
+              <h3 className="create-card-title">{t('gallery.createCharacter.title')}</h3>
+              <p className="create-card-subtitle">{t('gallery.createCharacter.subtitle')}</p>
             </div>
-            <div className="persona-info">
-              <h3 className="persona-name">Create Your Girlfriend</h3>
-              <p className="persona-description">
-                {tokens?.is_premium ? '25 ⚡' : '50 ⚡'}
-              </p>
-            </div>
+            {!tokens?.char_created && (
+              <div className="create-card-footer">
+                <span className="create-card-free-text">{t('gallery.createCharacter.free')}</span>
+              </div>
+            )}
           </div>
 
-          {/* Existing Personas */}
-          {personas && personas.map((persona) => (
+          {/* Remaining Personas */}
+          {personas && personas.slice(2).map((persona) => (
             <PersonaCard
               key={persona.id}
               persona={persona}
@@ -168,6 +161,7 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
           onClose={() => setShowCreation(false)}
           onCreated={handleCreated}
           tokens={tokens}
+          onNavigateToTokens={onNavigateToTokens}
         />
       )}
     </>
@@ -179,27 +173,17 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
  * Individual persona card with image, name, and description
  */
 function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
+  const { t } = useTranslation();
   const [imageError, setImageError] = useState(false);
   const isGeneratingAvatar = persona.is_custom && !persona.avatar_url;
 
   return (
     <div className="persona-card" onClick={onClick}>
-      {/* Delete Button for Custom Characters */}
-      {onDelete && (
-        <button
-          className="delete-button"
-          onClick={(e) => onDelete(persona.id, persona.name, e)}
-          disabled={isDeleting}
-          title="Delete character"
-        >
-          {isDeleting ? (
-            <span style={{ fontSize: '12px' }}>⏳</span>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          )}
-        </button>
+      {/* "Yours" Tag for Custom Characters */}
+      {persona.is_custom && (
+        <div className="custom-tag">
+          {t('gallery.customTag')}
+        </div>
       )}
 
       {persona.avatar_url && !imageError ? (
@@ -214,7 +198,7 @@ function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
           {isGeneratingAvatar ? (
             <>
               <span className="spinner-small"></span>
-              <span className="generating-text">Generating...</span>
+              <span className="generating-text">{t('gallery.arrivingSoon')}</span>
             </>
           ) : (
             <span className="placeholder-icon">👤</span>
@@ -224,7 +208,7 @@ function PersonaCard({ persona, onClick, onDelete, isDeleting }) {
       
       <div className="persona-info">
         <h3 className="persona-name">{persona.name}</h3>
-        {persona.smallDescription && (
+        {persona.smallDescription && !persona.is_custom && (
           <p className="persona-description">{persona.smallDescription}</p>
         )}
       </div>
