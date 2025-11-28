@@ -12,54 +12,15 @@ from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_
 import time
 
 
-def _create_initial_state(persona_name: str, location: str = None, greeting_text: str = None) -> str:
-    """Create initial conversation state as string
-    
-    Args:
-        persona_name: Name of the AI character
-        location: Optional location extracted from history context
-        greeting_text: Optional greeting text to infer context from
-    """
-    # Try to extract location from greeting text if not provided
-    if not location and greeting_text:
-        greeting_lower = greeting_text.lower()
-        if "home" in greeting_lower or "house" in greeting_lower or "apartment" in greeting_lower:
-            location = "home interior, living room"
-        elif "office" in greeting_lower or "workplace" in greeting_lower or "desk" in greeting_lower:
-            location = "modern office"
-        elif "cafe" in greeting_lower or "coffee" in greeting_lower or "restaurant" in greeting_lower:
-            location = "cozy cafe"
-        elif "gym" in greeting_lower or "workout" in greeting_lower or "fitness" in greeting_lower:
-            location = "fitness gym"
-        elif "park" in greeting_lower or "garden" in greeting_lower or "outdoor" in greeting_lower:
-            location = "park"
-        elif "beach" in greeting_lower or "ocean" in greeting_lower or "seaside" in greeting_lower:
-            location = "beach"
-        elif "school" in greeting_lower or "classroom" in greeting_lower or "university" in greeting_lower:
-            location = "school"
-    
-    # Default location if none found
-    if not location:
-        location = "comfortable setting"
-    
-    # Infer appropriate clothing based on location
-    clothing = "casual outfit, comfortable clothes"  # default
-    if "office" in location.lower():
-        clothing = "professional office attire"
-    elif "gym" in location.lower():
-        clothing = "workout clothes, athletic wear"
-    elif "beach" in location.lower():
-        clothing = "beach outfit, swimwear"
-    elif "cafe" in location.lower():
-        clothing = "casual outfit, comfortable clothes"
-    elif "home" in location.lower():
-        clothing = "comfortable home clothes, casual attire"
-    elif "park" in location.lower():
-        clothing = "casual outdoor outfit"
-    elif "school" in location.lower():
-        clothing = "casual student outfit"
-    
-    return f'relationshipStage="stranger" | emotions="curious, friendly" | moodNotes="Just starting conversation" | location="{location}" | description="Having a casual conversation, getting to know each other" | aiClothing="{clothing}" | userClothing="unknown" | terminateDialog=false | terminateReason=""'
+def _create_initial_state(persona_name: str) -> str:
+    """Create initial conversation state as string"""
+    return f"""Relationship: stranger, just starting conversation with {persona_name}
+Emotions: curious, friendly
+Location: online chat room
+Scene: Having a casual conversation online
+AI Clothing: casual outfit, comfortable clothes
+User Clothing: unknown
+Mood: Just starting conversation"""
 
 
 def _build_state_context(
@@ -239,27 +200,9 @@ async def resolve_state(
                     return previous_state
                 else:
                     print("[STATE-RESOLVER] 🔄 Using fallback (initial state)")
-                    # Try to extract context from chat history for better initial state
-                    location_hint = None
-                    greeting_hint = None
-                    if chat_history:
-                        # Get the first assistant message (greeting) if available
-                        for msg in chat_history:
-                            if msg.get("role") == "assistant":
-                                greeting_hint = msg.get("content", "")
-                                break
-                    return _create_initial_state(persona_name, location_hint, greeting_hint)
+                    return _create_initial_state(persona_name)
             await asyncio.sleep(1)  # Brief delay before retry
         
     # Should never reach here due to fallback
-    # Try to extract context from chat history for better initial state
-    location_hint = None
-    greeting_hint = None
-    if chat_history:
-        # Get the first assistant message (greeting) if available
-        for msg in chat_history:
-            if msg.get("role") == "assistant":
-                greeting_hint = msg.get("content", "")
-                break
-    return previous_state if previous_state else _create_initial_state(persona_name, location_hint, greeting_hint)
+    return previous_state if previous_state else _create_initial_state(persona_name)
 

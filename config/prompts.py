@@ -334,14 +334,6 @@ location: specific place, e.g., "beach at sunset", "bedroom", "shower cabin". Ne
 description: 1–2 sentences, present tense, what is happening now.
 
 aiClothing: always specify precise item(s) with color if any clothing exists; examples: "red lace lingerie", "white blouse, black jeans", "blue bikini", "completely naked". Never vague terms like "casual outfit".
-**CRITICAL CLOTHING RULE**: If aiClothing is empty/"" and the scene/location/context does NOT explicitly indicate nudity (shower, bed, intimate act, etc.), you MUST infer and specify appropriate clothing based on the location and context. For example:
-  - If location is "office" and clothing is undefined → infer "professional blouse, pencil skirt" or similar work attire
-  - If location is "cafe" and clothing is undefined → infer "casual dress" or "jeans and top"
-  - If location is "gym" and clothing is undefined → infer "workout clothes, sports bra, leggings"
-  - If location is "home" and clothing is undefined → infer "comfortable loungewear" or "casual clothes"
-  - If location is "park" and clothing is undefined → infer "sundress" or "casual outfit"
-  - ONLY use "completely naked" or "nude" if the context explicitly indicates nakedness (shower, bathtub, bed after intimate scene, etc.)
-  - When in doubt, ALWAYS specify clothing rather than leaving it empty or defaulting to naked.
 
 userClothing: "unknown", "unchanged", or a specific, color-precise outfit as above.
 
@@ -374,11 +366,6 @@ CRITICAL CONSISTENCY RULES - READ CAREFULLY
    - moodNotes: Update if conversation indicates time/lighting/atmosphere changes
    - relationshipStage: Update if clear progression in intimacy/relationship
 
-5. **INITIAL STATE CLOTHING INFERENCE** (APPLIES ONLY WHEN NO PREVIOUS STATE EXISTS)
-   - When creating the FIRST state for a conversation (no previous state), if aiClothing is not mentioned in the conversation history, you MUST infer appropriate clothing based on location
-   - This prevents characters from starting naked by default
-   - Use the CRITICAL CLOTHING RULE above to infer appropriate clothing for the context
-
 Normalization Rules
 
 Colors: prefer common names (black, white, red, navy, beige, etc.).
@@ -397,7 +384,7 @@ If a value is unknown and cannot be reliably inferred, set it to "".
 
 If termination is required by context (scene must end), set terminateDialog=true and provide a short terminateReason, else keep false/"".
 
-REMEMBER: When in doubt, preserve the previous state. Consistency > creativity. And ALWAYS specify clothing unless the context explicitly indicates nudity.
+REMEMBER: When in doubt, preserve the previous state. Consistency > creativity.
 """
 
 MEMORY_EXTRACTOR_GPT = """

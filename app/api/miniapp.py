@@ -824,9 +824,6 @@ async def _process_scenario_selection(
                         should_generate_image = True
                         print(f"[MINIAPP-SELECT] 🎨 Custom character detected - will generate image")
             
-            # Variable to store job info for immediate generation
-            pending_image_generation = None
-            
             # Create initial ImageJob for continuity
             if history_start_data and history_start_data.get("image_prompt"):
                 # For preset personas with existing images, use them
@@ -841,23 +838,17 @@ async def _process_scenario_selection(
                         result_url=history_start_data.get("image_url")
                     )
                 else:
-                    # Generate new image for custom characters - will trigger immediate generation
+                    # Generate new image for custom characters
                     print("[MINIAPP-SELECT] 🎨 Generating new image for custom character story")
-                    # Use the history image prompt directly (it has appropriate clothing context)
-                    image_job = crud.create_image_job(
+                    # Will be generated async by image generation system
+                    crud.create_initial_image_job(
                         db,
                         user_id=user_id,
-                        persona_id=persona_uuid,
-                        prompt=history_start_data["image_prompt"],
-                        negative_prompt="",
+                        persona_id=str(persona_uuid),
                         chat_id=chat_id,
-                        ext={"source": "history_start_generation"}
+                        prompt=history_start_data["image_prompt"],
+                        result_url=None  # Will be generated
                     )
-                    pending_image_generation = {
-                        "job_id": image_job.id,
-                        "prompt": history_start_data["image_prompt"],
-                        "negative_prompt": ""
-                    }
             elif should_generate_image and persona.get("image_prompt"):
                 # Custom character without specific history, generate with character DNA
                 print("[MINIAPP-SELECT] 🎨 Generating image for custom character with DNA")
@@ -907,20 +898,14 @@ async def _process_scenario_selection(
                 )
                 full_negative_prompt = f"{BASE_NEGATIVE_PROMPT}, {anti_nudity_negative}, {face_visibility_negative}"
                 
-                image_job = crud.create_image_job(
+                crud.create_initial_image_job(
                     db,
                     user_id=user_id,
-                    persona_id=persona_uuid,
-                    prompt=first_image_prompt,
-                    negative_prompt=full_negative_prompt,
+                    persona_id=str(persona_uuid),
                     chat_id=chat_id,
-                    ext={"source": "history_start_generation"}
+                    prompt=first_image_prompt,
+                    result_url=None  # Will be generated
                 )
-                pending_image_generation = {
-                    "job_id": image_job.id,
-                    "prompt": first_image_prompt,
-                    "negative_prompt": full_negative_prompt
-                }
         
         # Send messages to user
         # Send hint message FIRST (before story starts)
@@ -957,47 +942,6 @@ async def _process_scenario_selection(
                 text=escaped_greeting,
                 parse_mode="MarkdownV2"
             )
-        
-        # If there's a pending image generation for custom character history, trigger it now
-        if pending_image_generation:
-            print(f"[MINIAPP-SELECT] 🚀 Triggering immediate image generation for history start")
-            from app.core.img_runpod import dispatch_image_generation
-            from app.core.actions import send_action_repeatedly
-            
-            # Start showing "sending photo" action
-            async with send_action_repeatedly(bot, user_id, "upload_photo"):
-                try:
-                    # Submit image job with high priority (first image in custom character history)
-                    result = await dispatch_image_generation(
-                        job_id=pending_image_generation["job_id"],
-                        prompt=pending_image_generation["prompt"],
-                        negative_prompt=pending_image_generation["negative_prompt"],
-                        tg_chat_id=user_id,
-                        queue_priority="high"  # First image in history should be high priority
-                    )
-                    
-                    if result:
-                        print(f"[MINIAPP-SELECT] ✅ Image generation job submitted successfully")
-                    else:
-                        print(f"[MINIAPP-SELECT] ⚠️ Image generation job submission failed")
-                        # Clean up failed job
-                        with get_db() as db:
-                            crud.update_image_job_status(
-                                db,
-                                pending_image_generation["job_id"],
-                                status="failed",
-                                error="Dispatch failed"
-                            )
-                except Exception as e:
-                    print(f"[MINIAPP-SELECT] ❌ Error triggering image generation: {e}")
-                    # Clean up failed job
-                    with get_db() as db:
-                        crud.update_image_job_status(
-                            db,
-                            pending_image_generation["job_id"],
-                            status="failed",
-                            error=str(e)
-                        )
         
         print(f"[MINIAPP-SELECT] ✅ Created chat and sent greeting for persona {persona_name}")
     
