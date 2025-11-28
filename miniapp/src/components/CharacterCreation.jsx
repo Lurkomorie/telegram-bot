@@ -49,6 +49,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [slideDirection, setSlideDirection] = useState('forward');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   const [selections, setSelections] = useState({
     name: '',
@@ -63,6 +64,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
+  const [textareaFocused, setTextareaFocused] = useState(false);
 
   const isPremium = tokens.is_premium;
   const tokenCost = isPremium ? 25 : 50;
@@ -75,10 +77,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   // Use ref to track current page for back button handler
   const currentPageRef = useRef(currentPage);
   const onCloseRef = useRef(onClose);
-  
-  // Refs for inputs to scroll into view
-  const nameInputRef = useRef(null);
-  const descriptionTextareaRef = useRef(null);
+  const initialHeightRef = useRef(window.innerHeight);
   
   useEffect(() => {
     currentPageRef.current = currentPage;
@@ -88,24 +87,32 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
     onCloseRef.current = onClose;
   }, [onClose]);
 
+  // Detect keyboard open/close by monitoring window height changes
+  useEffect(() => {
+    initialHeightRef.current = window.innerHeight;
+    
+    const handleResize = () => {
+      const currentHeight = window.innerHeight;
+      const heightDiff = initialHeightRef.current - currentHeight;
+      
+      // Keyboard is open if height decreased by more than 150px
+      if (heightDiff > 150) {
+        setKeyboardVisible(true);
+      } else {
+        setKeyboardVisible(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleSelection = (field, value) => {
     setSelections((prev) => ({
       ...prev,
       [field]: value,
     }));
     setError(null);
-  };
-
-  // Handle input focus to scroll into view
-  const handleInputFocus = (inputRef) => {
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start'
-        });
-      }
-    }, 300); // Delay to allow keyboard to appear
   };
 
   const advanceToNextPage = () => {
@@ -253,7 +260,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
 
   return createPortal(
     <div className="character-creation-overlay">
-      <div className="character-creation-modal">
+      <div className={`character-creation-modal ${keyboardVisible ? 'keyboard-active' : ''} ${textareaFocused ? 'textarea-active' : ''}`}>
         
         {/* Header with back button and title */}
         <div className="character-creation-header">
@@ -469,15 +476,14 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
             {/* Page 6: Name + Description */}
             {currentPage === 6 && (
               <div className="wizard-page final-page">
-                <div className="final-inputs">
-                  <div className="input-group" ref={nameInputRef}>
+                <div className={`final-inputs ${textareaFocused ? 'textarea-focused' : ''}`}>
+                  <div className="input-group">
                     <input
                       type="text"
                       className="name-input-final"
                       placeholder={t('characterCreation.final.namePlaceholder')}
                       value={selections.name}
                       onChange={(e) => setSelections({ ...selections, name: e.target.value.slice(0, maxNameLength) })}
-                      onFocus={() => handleInputFocus(nameInputRef)}
                       maxLength={maxNameLength}
                       disabled={isCreating}
                     />
@@ -486,7 +492,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
                     </div>
                   </div>
 
-                  <div className="input-group flex-grow" ref={descriptionTextareaRef}>
+                  <div className="input-group flex-grow textarea-group">
                     <label className="input-label-centered">
                       {t('characterCreation.final.personalityLabel')}
                       {isPremium && <span className="premium-badge-inline">{t('characterCreation.final.premiumBadge')}</span>}
@@ -499,7 +505,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
                       placeholder={t('characterCreation.final.descriptionPlaceholder')}
                       value={selections.extra_prompt}
                       onChange={(e) => setSelections({ ...selections, extra_prompt: e.target.value.slice(0, maxDescriptionLength) })}
-                      onFocus={() => handleInputFocus(descriptionTextareaRef)}
+                      onFocus={() => setTextareaFocused(true)}
+                      onBlur={() => setTextareaFocused(false)}
                       maxLength={maxDescriptionLength}
                       disabled={isCreating}
                     />
