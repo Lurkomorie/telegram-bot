@@ -25,8 +25,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       id: 'plus_month',
       name: 'Plus',
       icon: '❄️',
-      daily: 25,
-      stars: 325,
+      daily: 50,
+      stars: 300,
       featureKeys: [
         'premium.plus.feature1',
         'premium.plus.feature2',
@@ -34,12 +34,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
         'premium.plus.feature4',
         'premium.plus.feature5',
         'premium.plus.feature6',
-        'premium.plus.feature7',
-        'premium.plus.feature8',
-        'premium.plus.feature9',
-        'premium.plus.feature10',
-        'premium.plus.feature11',
-        'premium.plus.feature12'
+        'premium.plus.feature7'
       ]
     },
     {
@@ -47,7 +42,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Pro',
       icon: '🔥',
       daily: 75,
-      stars: 625,
+      stars: 450,
       featureKeys: [
         'premium.pro.feature1',
         'premium.pro.feature2',
@@ -59,13 +54,11 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Legendary',
       icon: '🏆',
       daily: 100,
-      stars: 775,
+      stars: 600,
       featureKeys: [
         'premium.legendary.feature1',
         'premium.legendary.feature2',
         'premium.legendary.feature3',
-        'premium.legendary.feature4',
-        'premium.legendary.feature5'
       ]
     }
   ];
@@ -84,7 +77,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
               <span className="tier-name-large">{tier.name}</span>
             </div>
             <div className="premium-card-price">
-              <div className="price-amount">{tier.stars} ₽</div>
+              <div className="price-amount">{tier.stars} ⭐</div>
               <div className="price-period">{t('premium.perMonth')}</div>
             </div>
           </div>

@@ -37,10 +37,9 @@ export default function PlansPage() {
 
   // Premium tiers
   const premiumTiers = [
-    { id: 'plus_month', name: 'Plus', daily: 50, stars: 500 },
-    { id: 'premium_month', name: 'Premium', daily: 75, stars: 750, popular: true },
-    { id: 'pro_month', name: 'Pro', daily: 100, stars: 1000 },
-    { id: 'legendary_month', name: 'Legendary', daily: 200, stars: 2000 },
+    { id: 'plus_month', name: 'Plus', daily: 50, stars: 300 },
+    { id: 'pro_month', name: 'Pro', daily: 75, stars: 450, popular: true },
+    { id: 'legendary_month', name: 'Legendary', daily: 100, stars: 600 },
   ];
 
   const handlePurchase = async () => {
