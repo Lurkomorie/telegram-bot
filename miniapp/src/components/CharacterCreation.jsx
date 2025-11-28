@@ -72,21 +72,6 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   
   const totalPages = 6;
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    
-    // Show Telegram native back button
-    WebApp.BackButton.show();
-    WebApp.BackButton.onClick(goToPreviousPage);
-    
-    return () => {
-      document.body.style.overflow = '';
-      // Hide back button and remove listener when component unmounts
-      WebApp.BackButton.hide();
-      WebApp.BackButton.offClick(goToPreviousPage);
-    };
-  }, [goToPreviousPage]);
-
   const handleSelection = (field, value) => {
     setSelections((prev) => ({
       ...prev,
@@ -108,6 +93,21 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
       onClose();
     }
   }, [currentPage, onClose]);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    
+    // Show Telegram native back button
+    WebApp.BackButton.show();
+    WebApp.BackButton.onClick(goToPreviousPage);
+    
+    return () => {
+      document.body.style.overflow = '';
+      // Hide back button and remove listener when component unmounts
+      WebApp.BackButton.hide();
+      WebApp.BackButton.offClick(goToPreviousPage);
+    };
+  }, [goToPreviousPage]);
 
   const handleCreate = async () => {
     if (!selections.name.trim()) {
