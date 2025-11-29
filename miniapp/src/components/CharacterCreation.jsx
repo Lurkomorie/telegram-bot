@@ -14,17 +14,17 @@ import { useTranslation } from '../i18n/TranslationContext';
 import './CharacterCreation.css';
 
 // Import images directly
-import bodyAthleticImg from '../assets/body-athletic.png';
-import bodyCurvyImg from '../assets/body-curvy.png';
-import bodySlimImg from '../assets/body-slim.png';
-import bodyVoluptuousImg from '../assets/body-voluptuous.png';
-import braidedImg from '../assets/braided.png';
-import curlyImg from '../assets/curly.png';
-import lightningImg from '../assets/lightning.png';
-import longStraightImg from '../assets/long-straight.png';
-import longWavyImg from '../assets/long-wavy.png';
-import ponytailImg from '../assets/ponytail.png';
-import shortImg from '../assets/short.png';
+import bodyAthleticImg from '../assets/body-athletic.webp';
+import bodyCurvyImg from '../assets/body-curvy.webp';
+import bodySlimImg from '../assets/body-slim.webp';
+import bodyVoluptuousImg from '../assets/body-voluptuous.webp';
+import braidedImg from '../assets/braided.webp';
+import curlyImg from '../assets/curly.webp';
+import lightningImg from '../assets/lightning.webp';
+import longStraightImg from '../assets/long-straight.webp';
+import longWavyImg from '../assets/long-wavy.webp';
+import ponytailImg from '../assets/ponytail.webp';
+import shortImg from '../assets/short.webp';
 
 const HAIR_STYLE_IMAGES = {
   'long_straight': longStraightImg,

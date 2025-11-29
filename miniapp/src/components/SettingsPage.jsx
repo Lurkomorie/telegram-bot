@@ -1,6 +1,6 @@
-import giftIcon from '../assets/gift.png';
-import lightningIcon from '../assets/lightning.png';
-import premiumIcon from '../assets/premium.png';
+import giftIcon from '../assets/gift.webp';
+import lightningIcon from '../assets/lightning.webp';
+import premiumIcon from '../assets/premium.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './SettingsPage.css';
 

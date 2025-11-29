@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { createInvoice, trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PlansPage.css';
-import starIcon from '../assets/star.png';
+import starIcon from '../assets/star.webp';
 
 /**
  * PlansPage Component
@@ -38,9 +38,9 @@ export default function PlansPage() {
 
   // Premium tiers
   const premiumTiers = [
-    { id: 'plus_month', name: 'Plus', daily: 50, stars: 300 },
-    { id: 'pro_month', name: 'Pro', daily: 75, stars: 450, popular: true },
-    { id: 'legendary_month', name: 'Legendary', daily: 100, stars: 600 },
+    { id: 'plus_month', name: 'Plus', daily: 50, stars: 450 },
+    { id: 'pro_month', name: 'Pro', daily: 75, stars: 700, popular: true },
+    { id: 'legendary_month', name: 'Legendary', daily: 100, stars: 900 },
   ];
 
   const handlePurchase = async () => {

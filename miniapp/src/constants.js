@@ -17,12 +17,12 @@ export const HAIR_COLORS = [
 ];
 
 export const HAIR_STYLES = [
-  { value: "long_straight", label: "Long Straight", icon: "/assets/long-straight.png" },
-  { value: "long_wavy", label: "Long Wavy", icon: "/assets/long-wavy.png" },
-  { value: "short", label: "Short", icon: "/assets/short.png" },
-  { value: "ponytail", label: "Ponytail", icon: "/assets/ponytail.png" },
-  { value: "braided", label: "Braided", icon: "/assets/braided.png" },
-  { value: "curly", label: "Curly", icon: "/assets/curly.png" },
+  { value: "long_straight", label: "Long Straight", icon: "/assets/long-straight.webp" },
+  { value: "long_wavy", label: "Long Wavy", icon: "/assets/long-wavy.webp" },
+  { value: "short", label: "Short", icon: "/assets/short.webp" },
+  { value: "ponytail", label: "Ponytail", icon: "/assets/ponytail.webp" },
+  { value: "braided", label: "Braided", icon: "/assets/braided.webp" },
+  { value: "curly", label: "Curly", icon: "/assets/curly.webp" },
 ];
 
 export const EYE_COLORS = [
@@ -34,10 +34,10 @@ export const EYE_COLORS = [
 ];
 
 export const BODY_TYPES = [
-  { value: "slim", label: "Slim", image: "/assets/body-slim.png" },
-  { value: "athletic", label: "Athletic", image: "/assets/body-athletic.png" },
-  { value: "curvy", label: "Curvy", image: "/assets/body-curvy.png" },
-  { value: "voluptuous", label: "Voluptuous", image: "/assets/body-voluptuous.png" },
+  { value: "slim", label: "Slim", image: "/assets/body-slim.webp" },
+  { value: "athletic", label: "Athletic", image: "/assets/body-athletic.webp" },
+  { value: "curvy", label: "Curvy", image: "/assets/body-curvy.webp" },
+  { value: "voluptuous", label: "Voluptuous", image: "/assets/body-voluptuous.webp" },
 ];
 
 export const BREAST_SIZES = [

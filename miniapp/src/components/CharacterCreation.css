@@ -369,9 +369,9 @@
 
 .body-type-label {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: -1px;
+  left: -1px;
+  right: -1px;
   padding: 16px 8px 14px 8px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.8) 60%, transparent 100%);
   text-align: center;
@@ -382,6 +382,7 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
+  border-radius: 0 0 14px 14px;
 }
 
 /* ========== PROPORTIONS - ACTIVE COLOR ========== */

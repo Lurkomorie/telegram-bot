@@ -3,9 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { checkAgeVerification, claimDailyBonus, fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, trackEvent, verifyAge } from './api';
 import './App.css';
 import clockIcon from './assets/clock.svg';
-import giftIcon from './assets/gift.png';
-import lightningIcon from './assets/lightning.png';
-import premiumIcon from './assets/premium.png';
+import giftIcon from './assets/gift.webp';
+import lightningIcon from './assets/lightning.webp';
+import premiumIcon from './assets/premium.webp';
 import BottomNav from './components/BottomNav';
 import CheckoutPage from './components/CheckoutPage';
 import HistorySelection from './components/HistorySelection';
@@ -43,6 +43,28 @@ function App() {
   const [error, setError] = useState(null);
   const [showAgeVerification, setShowAgeVerification] = useState(false);
   const [isVerifyingAge, setIsVerifyingAge] = useState(false);
+
+  // Timer to update countdown for daily bonus
+  useEffect(() => {
+    if (!tokens.can_claim_daily_bonus && tokens.next_bonus_in_seconds > 0) {
+      const timer = setInterval(() => {
+        setTokens(prevTokens => {
+          const newSeconds = prevTokens.next_bonus_in_seconds - 60;
+          if (newSeconds <= 0) {
+            // Time's up! Reload energy data to get fresh state
+            loadEnergy();
+            return prevTokens;
+          }
+          return {
+            ...prevTokens,
+            next_bonus_in_seconds: newSeconds
+          };
+        });
+      }, 60000); // Update every minute
+
+      return () => clearInterval(timer);
+    }
+  }, [tokens.can_claim_daily_bonus, tokens.next_bonus_in_seconds]);
 
   useEffect(() => {
     // Initialize Telegram Web App

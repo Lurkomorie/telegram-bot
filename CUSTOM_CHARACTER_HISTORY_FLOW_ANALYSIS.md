@@ -3,6 +3,7 @@
 ## Problem Statement
 
 Custom-created characters are experiencing two critical issues:
+
 1. **Characters always start nude** - Despite clothing being specified, images show characters without clothes
 2. **Undefined locations** - Characters start in generic/undefined locations rather than scene-appropriate settings
 
@@ -11,15 +12,18 @@ Custom-created characters are experiencing two critical issues:
 ### 1. Character Creation Flow
 
 #### 1.1 User Creates Character (Frontend)
+
 **File:** `miniapp/src/components/CharacterCreation.jsx`
 
 User provides:
+
 - Name
 - Physical attributes (hair, eyes, body type, etc.)
 - Personality description (`extra_prompt`)
 - Optional visual details (clothing, style)
 
 #### 1.2 Character DNA Generation
+
 **File:** `app/core/character_builder.py`
 
 **Function:** `build_character_dna()` (Lines 167-258)
@@ -37,19 +41,22 @@ def build_character_dna(
 ```
 
 **What it does:**
+
 - Builds SDXL prompt tags for physical appearance
 - Calls `extract_visual_details_from_text()` to parse clothing/accessories from `extra_prompt`
 - Adds default traits: `"(no makeup)"`, `"(no piercings)"`, `"(no tattoos)"`
 - **CRITICAL:** Does NOT include default clothing - only what's mentioned in extra_prompt
 
 **Output Example:**
+
 ```
-(1girl), (fair skin:1.2), long straight hair, (blonde hair:1.2), (blue eyes:1.2), 
-(slim body:1.2), (petite frame:1.1), medium breasts, (small butt:1.1), 
+(1girl), (fair skin:1.2), long straight hair, (blonde hair:1.2), (blue eyes:1.2),
+(slim body:1.2), (petite frame:1.1), medium breasts, (small butt:1.1),
 youthful appearance, delicate hands, (no makeup), (no piercings), (no tattoos)
 ```
 
 #### 1.3 Character Saved to Database
+
 **File:** `app/api/miniapp.py` (Lines 1444-1465)
 
 ```python
@@ -64,14 +71,17 @@ persona = crud.create_persona(
 ```
 
 **Database Schema** (`app/db/models.py`, Lines 65-107):
+
 - `persona.prompt`: Dialogue personality (from `build_dialogue_prompt()`)
 - `persona.image_prompt`: Physical DNA (from `build_character_dna()`)
 - `persona.intro`: Generic greeting: `f"Hey! I'm {request.name} 💕"`
 
 #### 1.4 Initial Portrait Generation
+
 **File:** `app/api/miniapp.py` (Lines 1473-1526)
 
 **IMPORTANT - First Image Composition:**
+
 ```python
 first_image_composition = (
     "standing in white room, wearing white lingerie, "
@@ -83,6 +93,7 @@ first_image_composition = (
 ```
 
 **Why this matters:**
+
 - This creates the avatar/portrait image
 - Hardcoded to show "white lingerie" and "white room"
 - This image is stored but **NOT sent to chat** (has `skip_chat_send: true`)
@@ -93,6 +104,7 @@ first_image_composition = (
 ### 2. Story Generation Flow
 
 #### 2.1 User Selects "Generate AI Stories"
+
 **File:** `app/api/miniapp.py` (Lines 1242-1320)
 
 **Endpoint:** `/generate-stories`
@@ -100,11 +112,13 @@ first_image_composition = (
 Calls `generate_character_stories()` to create 3 story scenarios.
 
 #### 2.2 AI Story Generation
+
 **File:** `app/core/story_generator.py` (Lines 10-195)
 
-**Function:** `generate_character_stories()` 
+**Function:** `generate_character_stories()`
 
 **What it does:**
+
 - Analyzes personality traits from `extra_prompt`
 - Generates 3 romantic scenarios using Claude 3.5 Sonnet
 - Returns stories with:
@@ -120,6 +134,7 @@ Calls `generate_character_stories()` to create 3 story scenarios.
 3. **Location mentioned only in description:** Scene location exists in text, but not as structured data
 
 **Example Story Output:**
+
 ```json
 {
   "name": "Coffee Shop Encounter",
@@ -129,12 +144,14 @@ Calls `generate_character_stories()` to create 3 story scenarios.
 ```
 
 **What's missing:** `image_prompt` field that would describe:
+
 - Location details
 - Character's outfit for this scene
 - Pose/composition
 - Mood/lighting
 
 #### 2.3 Story Saved to Database
+
 **File:** `app/api/miniapp.py` (Lines 1657-1672) OR `app/core/story_generator.py` return
 
 **Database Schema** (`app/db/models.py`, Lines 109-130):
@@ -150,6 +167,7 @@ class PersonaHistoryStart:
 ```
 
 **PROBLEM:** Custom character stories have:
+
 - ✅ `description`: "You're at a coffee shop..."
 - ❌ `image_url`: NULL (no pre-generated image)
 - ❌ `image_prompt`: NULL (no SDXL prompt for this scene)
@@ -159,11 +177,13 @@ class PersonaHistoryStart:
 ### 3. Chat Initialization Flow
 
 #### 3.1 User Starts Chat with History
+
 **File:** `app/bot/handlers/start.py` (Lines 470-602)
 
 **Function:** `create_new_persona_chat_with_history()`
 
 **What happens:**
+
 ```python
 # Get history from cache/database
 history_start = get_persona_history(persona_id, history_id)
@@ -177,10 +197,12 @@ description_text = history_start["description"]  # ✅ "You're at coffee shop...
 ```
 
 **Messages saved to database:**
+
 1. **System message (role="system"):** The description text
 2. **Assistant message (role="assistant"):** The greeting text
 
 **Initial Image Job Creation (Lines 563-572):**
+
 ```python
 # Create initial ImageJob for continuity if history has image_prompt
 if history_start_data and history_start_data.get("image_prompt"):
@@ -192,11 +214,13 @@ if history_start_data and history_start_data.get("image_prompt"):
 ```
 
 **PROBLEM:** For custom characters, this block is **SKIPPED** because:
+
 - `image_prompt` is NULL
 - No initial image job is created
 - No visual context is established
 
 #### 3.2 Chat State Initialization
+
 **File:** `app/core/brains/state_resolver.py` (Lines 15-23)
 
 **Function:** `_create_initial_state()`
@@ -213,11 +237,13 @@ Mood: Just starting conversation"""
 ```
 
 **PROBLEM #1 - Generic Default State:**
+
 - Always starts in "online chat room"
 - Always wearing "casual outfit, comfortable clothes"
 - Ignores history description completely
 
 **Chat state snapshot** (`app/db/models.py` Line 195):
+
 ```python
 state_snapshot = Column(JSONB, default={})
 ```
@@ -229,22 +255,25 @@ state_snapshot = Column(JSONB, default={})
 ### 4. First User Message Flow
 
 #### 4.1 User Sends First Message
+
 **File:** `app/bot/handlers/chat.py` (Lines 74-255)
 
 Message added to Redis queue → Pipeline triggered
 
 #### 4.2 Pipeline Processing
+
 **File:** `app/core/multi_brain_pipeline.py` (Lines 56-177)
 
 **Function:** `process_message_pipeline()`
 
 **Data fetched (Lines 203-254):**
+
 ```python
 # Get chat history
 messages = crud.get_chat_messages(db, chat_id, limit=20)
 chat_history = [
-    {"role": m.role, "content": m.text} 
-    for m in messages[-10:] 
+    {"role": m.role, "content": m.text}
+    for m in messages[-10:]
     if m.text
 ]
 
@@ -253,6 +282,7 @@ previous_state = chat.state_snapshot.get("state")  # ❌ NULL for new chat
 ```
 
 **Chat history for custom character:**
+
 ```python
 [
     {"role": "system", "content": "You're at a cozy café downtown. Emma spots you..."},
@@ -263,9 +293,11 @@ previous_state = chat.state_snapshot.get("state")  # ❌ NULL for new chat
 **PROBLEM:** `previous_state` is NULL - no state exists yet
 
 #### 4.3 Brain 1: Dialogue Generation
+
 **File:** `app/core/brains/dialogue_specialist.py`
 
 **What it receives:**
+
 - `state`: NULL
 - `chat_history`: System description + Assistant greeting
 - `user_message`: User's first message
@@ -274,6 +306,7 @@ previous_state = chat.state_snapshot.get("state")  # ❌ NULL for new chat
 **Generates:** AI's dialogue response (text only)
 
 #### 4.4 Brain 2: State Resolution
+
 **File:** `app/core/brains/state_resolver.py` (Lines 76-207)
 
 **Function:** `resolve_state()`
@@ -281,6 +314,7 @@ previous_state = chat.state_snapshot.get("state")  # ❌ NULL for new chat
 **Since previous_state is NULL, creates initial state:**
 
 **Context sent to LLM (Lines 26-73):**
+
 ```python
 # LAST 10 MESSAGES
 SYSTEM: You're at a cozy café downtown. Emma spots you...
@@ -301,12 +335,14 @@ No previous state
 **LLM generates initial state:**
 
 **PROBLEM #2 - State Created from Limited Context:**
+
 - LLM sees text description of café, but no structured location data
 - No `image_prompt` reference for clothing
 - Must infer everything from text alone
 - Often defaults to generic values
 
 **Typical output:**
+
 ```
 Relationship: stranger, just met
 Emotions: curious, interested
@@ -324,16 +360,19 @@ Mood: friendly, open
 ### 5. Image Generation Flow
 
 #### 5.1 Image Decision (Brain 4)
+
 **File:** `app/core/multi_brain_pipeline.py` (Lines 274-311)
 
 For first 2 messages: **Always YES**
 
 #### 5.2 Image Plan Generation (Brain 3)
+
 **File:** `app/core/brains/image_prompt_engineer.py` (Lines 60-159)
 
 **Function:** `generate_image_plan()`
 
 **Context sent to LLM (Lines 15-57):**
+
 ```python
 # CONVERSATION STATE
 Relationship: stranger, just met
@@ -358,14 +397,16 @@ ASSISTANT: [response]
 **LLM generates image prompt for this specific moment**
 
 **PROBLEM #3 - No Visual Reference:**
+
 - State says "casual outfit" (generic)
 - No previous_image_prompt to maintain continuity
 - DNA has no default clothing
 - Must infer outfit from conversation context alone
 
 **Likely output:**
+
 ```
-Character sitting in café, talking across table, 
+Character sitting in café, talking across table,
 full body shot, café interior in background,
 intimate conversation, soft natural lighting
 ```
@@ -373,6 +414,7 @@ intimate conversation, soft natural lighting
 **Notice:** No clothing specified → SDXL will render what it thinks fits → often defaults to revealing/nude
 
 #### 5.3 Final Prompt Assembly
+
 **File:** `app/core/brains/image_prompt_engineer.py` (Lines 162+)
 
 **Function:** `assemble_final_prompt()`
@@ -382,6 +424,7 @@ positive = f"{image_prompt}, {persona.image_prompt}, {BASE_QUALITY_PROMPT}"
 ```
 
 **Assembled prompt:**
+
 ```
 Character sitting in café, talking across table, full body shot, café interior,
 intimate conversation, soft natural lighting,
@@ -392,6 +435,7 @@ masterpiece, best quality, highly detailed, 8k...
 ```
 
 **PROBLEM #4 - Missing Clothing:**
+
 - Image prompt: No clothing
 - Character DNA: No clothing (unless extracted from extra_prompt)
 - Result: SDXL interprets "no clothes specified" → nude/partially clothed
@@ -405,17 +449,20 @@ masterpiece, best quality, highly detailed, 8k...
 **Primary Causes:**
 
 1. **No Clothing in Character DNA (Root)**
-   - `build_character_dna()` only extracts clothing from `extra_prompt` 
+
+   - `build_character_dna()` only extracts clothing from `extra_prompt`
    - If user doesn't explicitly mention clothes → DNA has no clothing
    - Default traits are negatives: "(no makeup), (no piercings), (no tattoos)"
    - No positive default like "wearing casual clothes"
 
 2. **No Image Prompt in History**
+
    - Custom character stories have NULL `image_prompt`
    - No initial visual reference for what character wears in this scene
    - First image generated from scratch without clothing guidance
 
 3. **Generic Initial State**
+
    - `_create_initial_state()` says "casual outfit, comfortable clothes"
    - But this is too vague for SDXL
    - State Resolver must infer specifics from limited context
@@ -426,6 +473,7 @@ masterpiece, best quality, highly detailed, 8k...
    - Each image generated independently
 
 **Code References:**
+
 - `app/core/character_builder.py:167-258` - DNA builder
 - `app/core/story_generator.py:10-195` - Story generation (no image_prompt)
 - `app/core/brains/state_resolver.py:15-23` - Generic initial state
@@ -436,16 +484,19 @@ masterpiece, best quality, highly detailed, 8k...
 **Primary Causes:**
 
 1. **Location Only in Text Description**
+
    - Story has: `description: "You're at a cozy café..."`
    - Saved as system message (text)
    - Not parsed into structured state initially
 
 2. **Initial State Ignores History Description**
+
    - `_create_initial_state()` hardcodes "online chat room"
    - Doesn't read the system message with actual location
    - State created before considering chat history
 
 3. **State Resolver Must Infer Location**
+
    - On first user message, LLM receives:
      - System message with location (text)
      - NULL previous state
@@ -458,6 +509,7 @@ masterpiece, best quality, highly detailed, 8k...
    - Harder for LLM to extract reliably
 
 **Code References:**
+
 - `app/core/story_generator.py:79-147` - Story prompt (text only)
 - `app/core/brains/state_resolver.py:15-23` - Hardcoded initial state
 - `app/db/models.py:109-130` - PersonaHistoryStart schema
@@ -474,17 +526,20 @@ masterpiece, best quality, highly detailed, 8k...
 **What they have:**
 
 1. **Pre-generated History Images**
+
    - Each history has `image_url` (Cloudflare CDN)
    - Each history has `image_prompt` (SDXL prompt used)
    - Visual continuity from first message
 
 2. **Detailed Image Prompts**
+
    - Location: "bedroom at night, dim lighting, moonlight through window"
    - Clothing: "wearing white lace lingerie, garter belt, stockings"
    - Pose: "lying on bed, looking at camera seductively"
    - Mood: "intimate, sensual atmosphere"
 
 3. **Initial Image Job Created**
+
    - `create_initial_image_job()` is called (Line 435-444 in start.py)
    - Sets `previous_image_prompt` for continuity
    - First user message already has visual context
@@ -495,6 +550,7 @@ masterpiece, best quality, highly detailed, 8k...
    - Images maintain consistent setting
 
 **Flow for Eva's "Late Night Texting":**
+
 ```
 1. User selects history
 2. System message: "It's 1 AM, Eva can't sleep..."
@@ -512,16 +568,19 @@ masterpiece, best quality, highly detailed, 8k...
 **What they lack:**
 
 1. **No Pre-generated History Images**
+
    - `image_url`: NULL
    - `image_prompt`: NULL
    - No visual reference at all
 
 2. **Text-Only Scene Description**
+
    - Description: "You're at a café..."
    - No structured visual data
    - LLM must infer everything
 
 3. **No Initial Image Job**
+
    - `create_initial_image_job()` skipped (image_prompt is NULL)
    - No visual baseline
    - `previous_image_prompt` starts NULL
@@ -532,6 +591,7 @@ masterpiece, best quality, highly detailed, 8k...
    - No visual confirmation
 
 **Flow for Custom "Café Encounter":**
+
 ```
 1. User creates character → DNA (no clothing)
 2. Generate AI stories → 3 stories (text only)
@@ -556,27 +616,32 @@ masterpiece, best quality, highly detailed, 8k...
 ## Technical Debt & Architecture Issues
 
 ### 1. Two-Track System
+
 - **Preset personas:** Fully supported with pre-generated content
 - **Custom personas:** Second-class citizens with missing features
 - Code branches based on whether fields are NULL
 
 ### 2. Image Prompts as Visual Memory
+
 - `image_prompt` field serves dual purpose:
   - Storage of SDXL prompt used
   - Continuity mechanism for next image
 - Custom characters start with no "visual memory"
 
 ### 3. State Initialization Problem
+
 - `_create_initial_state()` is generic fallback
 - Should be context-aware from history
 - Currently ignores available chat history
 
 ### 4. Story Generation Incomplete
+
 - `generate_character_stories()` creates text only
 - Should also generate initial scene image prompts
 - Missing step in pipeline
 
 ### 5. Clothing Not First-Class Data
+
 - Clothing is tags buried in prompts
 - Should be tracked as state field
 - Currently inferred indirectly
@@ -588,15 +653,18 @@ masterpiece, best quality, highly detailed, 8k...
 ### User Journey for Custom Character:
 
 1. **Character Creation:**
+
    - User specifies physical traits ✅
    - User writes personality: "She's confident and playful, loves coffee and fashion"
    - User EXPECTS: Character will look fashionable, be at coffee shop
 
 2. **Story Generation:**
+
    - AI generates: "Coffee Shop Encounter - You meet at a trendy café"
    - User EXPECTS: Character will be dressed appropriately for café date
 
 3. **Chat Starts:**
+
    - Text description: "At cozy café downtown..."
    - User EXPECTS: First image will show character at café, dressed nicely
 
@@ -621,16 +689,19 @@ masterpiece, best quality, highly detailed, 8k...
 **Modify:** `app/core/story_generator.py`
 
 **Add to AI story generation:**
+
 - Generate `image_prompt` field for each story
 - Include: location details, character outfit, pose, lighting
 - Store in `PersonaHistoryStart.image_prompt`
 
 **Benefits:**
+
 - Solves both nude and location issues
 - Works with existing architecture
 - Gives custom characters visual baseline
 
 **Implementation:**
+
 ```python
 # In generate_character_stories()
 # Add to LLM prompt:
@@ -638,7 +709,7 @@ masterpiece, best quality, highly detailed, 8k...
 For each story, also provide:
 - image_prompt: SDXL prompt describing the opening scene
   Include: location, character's outfit, pose, lighting, mood
-  
+
 Example:
 {
   "name": "Coffee Date",
@@ -654,22 +725,25 @@ Example:
 **Modify:** `app/core/character_builder.py`
 
 **Add default clothing to DNA:**
+
 ```python
 def build_character_dna(...):
     # ... existing code ...
-    
+
     # Add default clothing if not specified
     if not visual_details or "dress" not in text_lower and "outfit" not in text_lower:
         dna_parts.append("wearing casual outfit (jeans, top)")
-    
+
     return ", ".join(filter(None, dna_parts))
 ```
 
 **Benefits:**
+
 - Quick fix for nude issue
 - Minimal code change
 
 **Limitations:**
+
 - Doesn't solve location problem
 - Generic clothing, not scene-specific
 
@@ -678,18 +752,19 @@ def build_character_dna(...):
 **Modify:** `app/core/brains/state_resolver.py`
 
 **Change `_create_initial_state()`:**
+
 ```python
 def _create_initial_state(persona_name: str, chat_history: list[dict] = None) -> str:
     # Parse system message for location and context
     location = "online chat"
     scene_desc = "casual conversation"
-    
+
     if chat_history:
         for msg in chat_history:
             if msg["role"] == "system":
                 # Extract location from description
                 location, scene_desc = parse_scene_description(msg["content"])
-    
+
     return f"""Relationship: stranger, just starting
 Location: {location}
 Scene: {scene_desc}
@@ -698,10 +773,12 @@ AI Clothing: appropriate outfit for setting
 ```
 
 **Benefits:**
+
 - Makes initial state smarter
 - Uses available context
 
 **Limitations:**
+
 - Doesn't solve missing visual reference
 - "Appropriate outfit" still vague for SDXL
 
@@ -716,11 +793,13 @@ AI Clothing: appropriate outfit for setting
 3. When user selects story → has complete visual baseline
 
 **Benefits:**
+
 - Parity with preset characters
 - Solves all issues comprehensively
 - Best user experience
 
 **Limitations:**
+
 - Most expensive (3 images per character)
 - Takes time to generate
 - Requires token/cost management
@@ -730,7 +809,9 @@ AI Clothing: appropriate outfit for setting
 ## Recommended Implementation Plan
 
 ### Phase 1: Quick Fixes (Week 1)
+
 1. **Add default clothing to DNA** (Solution B)
+
    - Immediate mitigation of nude issue
    - Low risk, fast to implement
 
@@ -739,6 +820,7 @@ AI Clothing: appropriate outfit for setting
    - Uses existing data better
 
 ### Phase 2: Story Enhancement (Week 2-3)
+
 3. **Generate image prompts with stories** (Solution A)
    - Update `generate_character_stories()` prompt
    - Add `image_prompt` to story output
@@ -746,6 +828,7 @@ AI Clothing: appropriate outfit for setting
    - Test with existing custom characters
 
 ### Phase 3: Full Solution (Week 4-5)
+
 4. **Optional: Pre-generate scene images** (Solution D)
    - Add after story generation
    - Queue 3 image jobs (low priority)
@@ -753,7 +836,9 @@ AI Clothing: appropriate outfit for setting
    - Test cost/time impact
 
 ### Phase 4: Polish (Week 6)
+
 5. **Improve story generation prompts**
+
    - Better outfit suggestions based on scene
    - More detailed location descriptions
    - Consistent with character personality
@@ -768,6 +853,7 @@ AI Clothing: appropriate outfit for setting
 ## Testing Strategy
 
 ### Test Case 1: New Custom Character with Clothing Mention
+
 ```
 Name: "Sarah"
 Personality: "Confident businesswoman who loves fashion"
@@ -781,6 +867,7 @@ Expected:
 ```
 
 ### Test Case 2: New Custom Character without Clothing Mention
+
 ```
 Name: "Mia"
 Personality: "Shy bookworm who loves reading"
@@ -794,6 +881,7 @@ Expected:
 ```
 
 ### Test Case 3: Coffee Shop Story
+
 ```
 Story: "Coffee Date" - "You meet at a cozy café..."
 
@@ -804,6 +892,7 @@ Expected:
 ```
 
 ### Test Case 4: Bedroom Story
+
 ```
 Story: "Late Night Chat" - "It's midnight, character texts you from bed..."
 
@@ -818,19 +907,23 @@ Expected:
 ## Code Files to Modify
 
 1. **`app/core/character_builder.py`**
+
    - Add default clothing to DNA
    - Improve visual detail extraction
 
 2. **`app/core/story_generator.py`**
+
    - Update AI prompt to generate image_prompts
    - Parse and return image_prompt field
    - Add example outputs to prompt
 
 3. **`app/api/miniapp.py`** (generate-stories endpoint)
+
    - Save image_prompt when storing stories
    - Optionally: trigger image pre-generation
 
 4. **`app/core/brains/state_resolver.py`**
+
    - Make `_create_initial_state()` context-aware
    - Parse chat history for scene details
    - Add clothing inference logic
@@ -846,15 +939,18 @@ Expected:
 After implementation, measure:
 
 1. **Image Quality:**
+
    - % of first images with appropriate clothing
    - % of images matching scene location
    - User reports of "nude" issue
 
 2. **State Accuracy:**
+
    - % of chats with correct initial location
    - % of chats with specific (not "casual") clothing in state
 
 3. **User Satisfaction:**
+
    - Custom character creation completion rate
    - Custom character chat continuation rate
    - User feedback/complaints
@@ -871,6 +967,7 @@ After implementation, measure:
 The root cause of both issues is the **incomplete custom character pipeline**:
 
 1. **Nude characters:** Missing clothing data throughout the stack
+
    - DNA has no default clothing
    - Stories have no visual prompts
    - State resolver has no visual reference
@@ -882,10 +979,10 @@ The root cause of both issues is the **incomplete custom character pipeline**:
    - State resolver must infer from limited data
 
 **The fix requires:** Bringing custom characters to parity with preset personas by:
+
 - Adding visual prompts to stories (image_prompt field)
 - Ensuring clothing is always specified (DNA defaults + scene outfits)
 - Making initial state context-aware (read chat history)
 - Optionally pre-generating scene images (like presets have)
 
 With these changes, custom characters will have the same rich visual context as preset personas, resulting in appropriate clothing and clear locations from the very first message.
-

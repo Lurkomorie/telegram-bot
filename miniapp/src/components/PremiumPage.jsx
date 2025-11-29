@@ -1,9 +1,9 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect } from 'react';
 import { trackEvent } from '../api';
+import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
-import starIcon from '../assets/star.png';
 
 /**
  * PremiumPage Component
@@ -27,7 +27,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Plus',
       icon: '❄️',
       daily: 50,
-      stars: 300,
+      stars: 450,
       featureKeys: [
         'premium.plus.feature1',
         'premium.plus.feature2',
@@ -43,7 +43,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Pro',
       icon: '🔥',
       daily: 75,
-      stars: 450,
+      stars: 700,
       featureKeys: [
         'premium.pro.feature1',
         'premium.pro.feature2',
@@ -55,7 +55,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Legendary',
       icon: '🏆',
       daily: 100,
-      stars: 600,
+      stars: 900,
       featureKeys: [
         'premium.legendary.feature1',
         'premium.legendary.feature2',

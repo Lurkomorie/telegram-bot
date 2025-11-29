@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { createInvoice } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './CheckoutPage.css';
-import starIcon from '../assets/star.png';
+import starIcon from '../assets/star.webp';
 
 /**
  * CheckoutPage Component

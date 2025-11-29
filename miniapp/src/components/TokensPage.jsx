@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import { createInvoice, trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './TokensPage.css';
-import lightningIcon from '../assets/lightning.png';
-import starIcon from '../assets/star.png';
+import lightningIcon from '../assets/lightning.webp';
+import starIcon from '../assets/star.webp';
 
 /**
  * TokensPage Component
