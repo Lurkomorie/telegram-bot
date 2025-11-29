@@ -60,17 +60,19 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     """Generate image for user with given prompt"""
     config = get_app_config()
     
-    # Check if user is premium (premium users get free images)
+    # Check if user is premium (premium users pay less)
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
-    # Check energy for non-premium users
-    if not is_premium:
-        with get_db() as db:
-            if not crud.check_user_energy(db, user_id, required=5):
-                # Show energy upsell message
-                await show_energy_upsell_message(message, user_id)
-                return
+    # Determine cost based on premium status
+    image_cost = 3 if is_premium else 5
+    
+    # Check energy
+    with get_db() as db:
+        if not crud.check_user_energy(db, user_id, required=image_cost):
+            # Show energy upsell message
+            await show_energy_upsell_message(message, user_id)
+            return
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -93,14 +95,11 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         return
     
     with get_db() as db:
-        # Deduct energy for non-premium users
-        if not is_premium:
-            if not crud.deduct_user_energy(db, user_id, amount=5):
-                await message.answer("❌ Failed to deduct energy. Please try again.")
-                return
-            print(f"[IMAGE] ⚡ Deducted 5 energy from user {user_id}")
-        else:
-            print(f"[IMAGE] 💎 Premium user {user_id} - free image generation")
+        # Deduct energy
+        if not crud.deduct_user_energy(db, user_id, amount=image_cost):
+            await message.answer("❌ Failed to deduct energy. Please try again.")
+            return
+        print(f"[IMAGE] ⚡ Deducted {image_cost} energy from user {user_id} (premium: {is_premium})")
         
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
@@ -218,7 +217,8 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
         f"🪙 <b>You're out of tokens!</b>\n\n"
         f"You have {user_energy['tokens']} tokens.\n"
         f"• Text messages cost <b>1 token</b> each\n"
-        f"• Image generation costs <b>5 tokens</b> per image\n\n"
+        f"• Image generation costs <b>5 tokens</b> (3 tokens for premium)\n"
+        f"• Image refresh costs <b>3 tokens</b> (2 tokens for premium)\n\n"
         f"💎 Get more tokens:\n"
         f"• Purchase token packages\n"
         f"• Subscribe to premium tiers for daily tokens\n"
@@ -232,7 +232,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
 
 
 async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
-    """Generate image for refresh (energy already deducted - costs 3 energy)
+    """Generate image for refresh - costs 3 energy for free users, 2 for premium
     
     Reuses the EXACT same prompts from the original job, only changes the seed.
     """
@@ -402,14 +402,12 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             persona_name=persona.name if persona else None
         )
         
-        # Deduct 3 energy for refresh (non-premium only)
-        if not is_premium:
-            if not crud.deduct_user_energy(db, user_id, amount=3):
-                await callback.answer("❌ Failed to deduct energy", show_alert=True)
-                return
-            print(f"[REFRESH-IMAGE] ⚡ Deducted 3 energy for refresh")
-        else:
-            print(f"[REFRESH-IMAGE] 💎 Premium user - free refresh")
+        # Deduct energy for refresh (3 for free users, 2 for premium)
+        refresh_cost = 2 if is_premium else 3
+        if not crud.deduct_user_energy(db, user_id, amount=refresh_cost):
+            await callback.answer("❌ Failed to deduct energy", show_alert=True)
+            return
+        print(f"[REFRESH-IMAGE] ⚡ Deducted {refresh_cost} energy for refresh (premium: {is_premium})")
     
     # Answer the callback first
     await callback.answer("🔄 Refreshing image...")

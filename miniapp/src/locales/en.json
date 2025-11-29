@@ -81,30 +81,23 @@
     "perMonth": "/ month",
     "getButton": "Get {name}",
     "plus": {
-      "feature1": "Free 25 tokens every day",
-      "feature2": "Enhanced AI model",
-      "feature3": "Cheap photo generation",
-      "feature4": "Photo downloads",
-      "feature5": "Custom chat wallpapers",
-      "feature6": "Voice message generation",
-      "feature7": "Create photos from text",
-      "feature8": "No limitations",
-      "feature9": "Cheaper character creation in workshop",
-      "feature10": "Increased limit to 4,000 characters in character description",
-      "feature11": "Send voice messages up to 30 seconds",
-      "feature12": "Create group chats"
+      "feature1": "Free 50 tokens every day",
+      "feature2": "Enhanced AI models",
+      "feature3": "Cheaper photo generation",
+      "feature4": "No limitations",
+      "feature5": "Cheaper character creation in workshop",
+      "feature6": "Cheaper character creation",
+      "feature7": "Increased limit to 4,000 characters in character description"
     },
     "pro": {
       "feature1": "Everything in Plus, plus",
       "feature2": "Free 75 tokens every day",
-      "feature3": "Send voice messages up to 90 seconds"
+      "feature3": "Generate character from image (coming soon)"
     },
     "legendary": {
       "feature1": "Everything in Premium, plus",
       "feature2": "Free 100 tokens every day",
-      "feature3": "Send voice messages up to 120 seconds",
-      "feature4": "Generate animations from photos",
-      "feature5": "Generate video messages"
+      "feature3": "Receive new updates first"
     }
   },
   "app": {

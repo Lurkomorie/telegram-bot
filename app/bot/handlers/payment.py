@@ -21,19 +21,19 @@ PAYMENT_PRODUCTS = {
     "tokens_25000": {"type": "tokens", "amount": 25000, "stars": 17500},
     
     # Tier subscriptions (30 days)
-    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": 325, "daily_tokens": 25},
-    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": 625, "daily_tokens": 75},
-    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": 775, "daily_tokens": 100},
+    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": 300, "daily_tokens": 50},
+    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": 450, "daily_tokens": 75},
+    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": 600, "daily_tokens": 100},
     
     # Tier subscriptions (90 days) - 5% discount
-    "plus_3months": {"type": "tier", "tier": "plus", "duration": 90, "stars": 926, "daily_tokens": 25},
-    "pro_3months": {"type": "tier", "tier": "pro", "duration": 90, "stars": 1781, "daily_tokens": 75},
-    "legendary_3months": {"type": "tier", "tier": "legendary", "duration": 90, "stars": 2209, "daily_tokens": 100},
+    "plus_3months": {"type": "tier", "tier": "plus", "duration": 90, "stars": 855, "daily_tokens": 50},
+    "pro_3months": {"type": "tier", "tier": "pro", "duration": 90, "stars": 1282, "daily_tokens": 75},
+    "legendary_3months": {"type": "tier", "tier": "legendary", "duration": 90, "stars": 1710, "daily_tokens": 100},
     
     # Tier subscriptions (180 days) - 10% discount
-    "plus_6months": {"type": "tier", "tier": "plus", "duration": 180, "stars": 1755, "daily_tokens": 25},
-    "pro_6months": {"type": "tier", "tier": "pro", "duration": 180, "stars": 3375, "daily_tokens": 75},
-    "legendary_6months": {"type": "tier", "tier": "legendary", "duration": 180, "stars": 4185, "daily_tokens": 100},
+    "plus_6months": {"type": "tier", "tier": "plus", "duration": 180, "stars": 1620, "daily_tokens": 50},
+    "pro_6months": {"type": "tier", "tier": "pro", "duration": 180, "stars": 2430, "daily_tokens": 75},
+    "legendary_6months": {"type": "tier", "tier": "legendary", "duration": 180, "stars": 3240, "daily_tokens": 100},
 }
 
 
