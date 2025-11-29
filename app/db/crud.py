@@ -1424,7 +1424,12 @@ def can_claim_daily_bonus(db: Session, user_id: int) -> dict:
     else:
         # Calculate seconds until next claim
         time_until_next = timedelta(hours=24) - time_since_last
-        return {"can_claim": False, "next_claim_seconds": int(time_until_next.total_seconds())}
+        seconds_until_next = int(time_until_next.total_seconds())
+        # Cap at 23h 59m (86340 seconds) to avoid showing 24h 0m
+        # This ensures we never display 24h 0m, max is 23h 59m
+        if seconds_until_next > 86340:  # 23 hours 59 minutes
+            seconds_until_next = 86340
+        return {"can_claim": False, "next_claim_seconds": seconds_until_next}
 
 
 def claim_daily_bonus(db: Session, user_id: int) -> dict:

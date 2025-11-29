@@ -69,26 +69,43 @@ export default function HistorySelection({ persona, histories, onHistoryClick, i
     
     return (
       <div className="history-selection custom-character-view">
-        {/* Three-dots Menu (top-right corner) */}
-        <div className="character-menu-topright">
-          <button 
-            className="menu-button"
-            onClick={() => setShowMenu(!showMenu)}
-            disabled={isDeleting}
-          >
-            <span>⋮</span>
-          </button>
-          {showMenu && (
-            <div className="menu-dropdown">
-              <button 
-                className="menu-item delete-item"
-                onClick={handleDeleteClick}
-                disabled={isDeleting}
-              >
-                {isDeleting ? '⏳' : t('characterPage.deleteMenu')}
-              </button>
-            </div>
-          )}
+        {/* Character Header with Avatar and Name */}
+        <div className="character-header">
+          {/* Avatar */}
+          <div className="character-avatar">
+            {persona.avatar_url ? (
+              <img src={persona.avatar_url} alt={persona.name} />
+            ) : (
+              <div className="avatar-placeholder">💝</div>
+            )}
+          </div>
+
+          {/* Name */}
+          <div className="character-header-info">
+            <h1 className="character-name">{persona.name}</h1>
+          </div>
+
+          {/* Three-dots Menu */}
+          <div className="character-menu">
+            <button 
+              className="menu-button"
+              onClick={() => setShowMenu(!showMenu)}
+              disabled={isDeleting}
+            >
+              <span>⋮</span>
+            </button>
+            {showMenu && (
+              <div className="menu-dropdown">
+                <button 
+                  className="menu-item delete-item"
+                  onClick={handleDeleteClick}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? '⏳' : t('characterPage.deleteMenu')}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Location Selection */}

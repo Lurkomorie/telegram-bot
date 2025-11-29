@@ -248,6 +248,18 @@
 .package-price {
   font-size: 12px;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.star-icon-inline {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .token-package .checkmark {
@@ -326,6 +338,10 @@
   font-size: 14px;
   color: var(--text-secondary);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .tier-total {

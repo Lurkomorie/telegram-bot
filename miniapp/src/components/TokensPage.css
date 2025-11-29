@@ -81,19 +81,24 @@
 
 .package-right {
   text-align: right;
-}
-
-.package-price-rubles {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .package-price-stars {
-  font-size: 11px;
-  color: #fbbf24;
-  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.star-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .purchase-button-tokens {

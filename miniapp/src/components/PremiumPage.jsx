@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
+import starIcon from '../assets/star.png';
 
 /**
  * PremiumPage Component
@@ -77,7 +78,10 @@ export default function PremiumPage({ onNavigateToCheckout }) {
               <span className="tier-name-large">{tier.name}</span>
             </div>
             <div className="premium-card-price">
-              <div className="price-amount">{tier.stars} ⭐</div>
+              <div className="price-amount">
+                <img src={starIcon} alt="star" className="star-icon" />
+                {tier.stars}
+              </div>
               <div className="price-period">{t('premium.perMonth')}</div>
             </div>
           </div>

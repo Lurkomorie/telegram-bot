@@ -4,6 +4,7 @@ import { createInvoice, trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './TokensPage.css';
 import lightningIcon from '../assets/lightning.png';
+import starIcon from '../assets/star.png';
 
 /**
  * TokensPage Component
@@ -24,15 +25,15 @@ export default function TokensPage({ tokens }) {
 
   // Token packages from screenshot
   const packages = [
-    { id: 'tokens_50', amount: 50, rubles: 68, stars: 35 },
-    { id: 'tokens_100', amount: 100, rubles: 137, stars: 70 },
-    { id: 'tokens_250', amount: 250, rubles: 343, stars: 175 },
-    { id: 'tokens_500', amount: 500, rubles: 686, stars: 350 },
-    { id: 'tokens_1000', amount: 1000, rubles: 1372, stars: 700 },
-    { id: 'tokens_2500', amount: 2500, rubles: 3500, stars: 1750 },
-    { id: 'tokens_5000', amount: 5000, rubles: 6860, stars: 3500 },
-    { id: 'tokens_10000', amount: 10000, rubles: 13720, stars: 7000 },
-    { id: 'tokens_25000', amount: 25000, rubles: 34300, stars: 17500 }
+    { id: 'tokens_50', amount: 50, stars: 35 },
+    { id: 'tokens_100', amount: 100, stars: 70 },
+    { id: 'tokens_250', amount: 250, stars: 175 },
+    { id: 'tokens_500', amount: 500, stars: 350 },
+    { id: 'tokens_1000', amount: 1000, stars: 700 },
+    { id: 'tokens_2500', amount: 2500, stars: 1750 },
+    { id: 'tokens_5000', amount: 5000, stars: 3500 },
+    { id: 'tokens_10000', amount: 10000, stars: 7000 },
+    { id: 'tokens_25000', amount: 25000, stars: 17500 }
   ];
 
   const handlePurchase = async () => {
@@ -84,8 +85,10 @@ export default function TokensPage({ tokens }) {
               </div>
             </div>
             <div className="package-right">
-              <div className="package-price-rubles">{pkg.rubles.toLocaleString()} ₽</div>
-              <div className="package-price-stars">/ {pkg.stars.toLocaleString()} {t('tokens.stars')}</div>
+              <div className="package-price-stars">
+                <img src={starIcon} alt="star" className="star-icon" />
+                {pkg.stars.toLocaleString()}
+              </div>
             </div>
           </div>
         ))}

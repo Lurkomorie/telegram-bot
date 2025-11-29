@@ -200,8 +200,12 @@ function App() {
       const data = await fetchUserEnergy(initData);
       setTokens(data);
       // Update daily bonus day from streak
-      if (data.daily_bonus_streak) {
-        setDailyBonusDay(data.daily_bonus_streak + 1); // Next day to claim
+      // If they can claim, show the next day (streak + 1)
+      // If they already claimed, show current day (streak)
+      if (data.can_claim_daily_bonus) {
+        setDailyBonusDay((data.daily_bonus_streak || 0) + 1);
+      } else {
+        setDailyBonusDay(data.daily_bonus_streak || 1);
       }
     } catch (err) {
       console.error('Failed to load tokens:', err);
@@ -326,16 +330,8 @@ function App() {
         
         // Update tokens after a short delay (for animation)
         setTimeout(() => {
-          setTokens(prev => ({
-            ...prev,
-            tokens: result.tokens,
-            can_claim_daily_bonus: false,
-            next_bonus_in_seconds: 86400,
-            daily_bonus_streak: result.streak || prev.daily_bonus_streak + 1
-          }));
-          
-          // Update daily bonus day
-          setDailyBonusDay((result.streak || 0) + 1);
+          // Reload fresh data from server to ensure consistency
+          loadEnergy();
           
           // Hide animation
           setTimeout(() => {
@@ -366,7 +362,11 @@ function App() {
     if (currentPage === 'checkout' && selectedTier) return t('app.header.checkoutTitle', { icon: selectedTier.icon, name: selectedTier.name });
     if (currentPage === 'tokens') return t('app.header.energy');
     if (currentPage === 'referrals') return t('app.header.referrals');
-    if (currentPage === 'history' && selectedPersona) return selectedPersona.name;
+    // For custom characters, don't show title (it's in the component itself with avatar)
+    // For preset characters, show name in header
+    if (currentPage === 'history' && selectedPersona) {
+      return selectedPersona.is_custom ? '' : selectedPersona.name;
+    }
     return '';
   };
 

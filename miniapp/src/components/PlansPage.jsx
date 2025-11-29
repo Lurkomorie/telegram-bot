@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createInvoice, trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PlansPage.css';
+import starIcon from '../assets/star.png';
 
 /**
  * PlansPage Component
@@ -104,7 +105,10 @@ export default function PlansPage() {
                 {pkg.popular && <div className="badge popular">Popular</div>}
                 {pkg.bestValue && <div className="badge best-value">Best Value</div>}
                 <div className="package-amount">🪙 {pkg.amount.toLocaleString()}</div>
-                <div className="package-price">⭐ {pkg.stars.toLocaleString()} stars</div>
+                <div className="package-price">
+                  <img src={starIcon} alt="star" className="star-icon-inline" />
+                  {pkg.stars.toLocaleString()} stars
+                </div>
                 {selectedProduct === pkg.id && (
                   <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                     <polyline points="20 6 9 17 4 12"></polyline>
@@ -129,7 +133,10 @@ export default function PlansPage() {
                 {tier.popular && <div className="badge popular">Popular</div>}
                 <div className="tier-name">{tier.name}</div>
                 <div className="tier-daily">+{tier.daily} tokens/day</div>
-                <div className="tier-price">⭐ {tier.stars} stars/month</div>
+                <div className="tier-price">
+                  <img src={starIcon} alt="star" className="star-icon-inline" />
+                  {tier.stars} stars/month
+                </div>
                 <div className="tier-total">{tier.daily * 30} tokens total</div>
                 {selectedProduct === tier.id && (
                   <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">

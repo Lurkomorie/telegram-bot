@@ -58,8 +58,11 @@ def extract_visual_details_from_text(text: str) -> str:
     """
     Extract visual/style details from user's free-text description.
     
-    Parses clothing, makeup, accessories, and style preferences mentioned
+    Parses makeup, accessories, and permanent body modifications mentioned
     in the character description to include in image generation.
+    
+    NOTE: Clothing should NOT be extracted here - it comes from STATE, not DNA.
+    DNA should only contain permanent physical features.
     
     Args:
         text: User's character description text
@@ -72,42 +75,6 @@ def extract_visual_details_from_text(text: str) -> str:
     
     visual_tags = []
     text_lower = text.lower()
-    
-    # Clothing preferences
-    if "dress" in text_lower:
-        if "short" in text_lower and "tight" in text_lower:
-            visual_tags.append("(short tight dress:1.2)")
-        elif "short" in text_lower:
-            visual_tags.append("(short dress:1.2)")
-        elif "tight" in text_lower:
-            visual_tags.append("(tight dress:1.2)")
-        elif "long" in text_lower:
-            visual_tags.append("long dress")
-        elif "elegant" in text_lower or "evening" in text_lower:
-            visual_tags.append("elegant dress")
-        else:
-            visual_tags.append("dress")
-    
-    if "skirt" in text_lower:
-        if "short" in text_lower or "mini" in text_lower:
-            visual_tags.append("(short skirt:1.2)")
-        else:
-            visual_tags.append("skirt")
-    
-    if "heels" in text_lower or "high heels" in text_lower:
-        visual_tags.append("high heels")
-    
-    if "boots" in text_lower:
-        visual_tags.append("boots")
-    
-    if "stockings" in text_lower or "pantyhose" in text_lower:
-        visual_tags.append("stockings")
-    
-    if "lingerie" in text_lower:
-        visual_tags.append("lingerie")
-    
-    if "bikini" in text_lower:
-        visual_tags.append("bikini")
     
     # Makeup
     if "lipstick" in text_lower:
@@ -142,19 +109,7 @@ def extract_visual_details_from_text(text: str) -> str:
     if "bracelet" in text_lower:
         visual_tags.append("bracelet")
     
-    # Style/aesthetic descriptors
-    if "elegant" in text_lower or "classy" in text_lower or "sophisticated" in text_lower:
-        visual_tags.append("elegant style")
-    
-    if "sporty" in text_lower or "athletic wear" in text_lower:
-        visual_tags.append("sporty outfit")
-    
-    if "casual" in text_lower:
-        visual_tags.append("casual style")
-    
-    if "sexy" in text_lower or "seductive" in text_lower:
-        visual_tags.append("seductive style")
-    
+    # Permanent body modifications
     if "tattoo" in text_lower:
         visual_tags.append("tattoo")
     

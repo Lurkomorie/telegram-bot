@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { createInvoice } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './CheckoutPage.css';
+import starIcon from '../assets/star.png';
 
 /**
  * CheckoutPage Component
@@ -110,7 +111,10 @@ export default function CheckoutPage({ tier, onBack }) {
       <div className="checkout-footer">
         <div className="total-section">
           <span className="total-label">{t('checkout.totalLabel')}</span>
-          <span className="total-amount">{priceInfo.price.toLocaleString()} {t('checkout.stars')}</span>
+          <span className="total-amount">
+            <img src={starIcon} alt="star" className="star-icon-inline" />
+            {priceInfo.price.toLocaleString()} {t('checkout.stars')}
+          </span>
         </div>
         <button 
           className="pay-button"
