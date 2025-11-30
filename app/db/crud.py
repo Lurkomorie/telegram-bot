@@ -1225,14 +1225,15 @@ def deduct_user_energy(db: Session, user_id: int, amount: int = 5) -> bool:
 
 def add_user_energy(db: Session, user_id: int, amount: int) -> bool:
     """
-    Add energy to user (up to max_energy)
+    Add tokens to user (no cap - tokens are purchased)
     Returns True if successful
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
     
-    user.energy = min(user.energy + amount, user.max_energy)
+    # Simply add tokens - no max_energy cap for purchased tokens
+    user.energy += amount
     db.commit()
     return True
 
@@ -1331,28 +1332,6 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
     
     db.commit()
     return True
-
-
-def regenerate_user_energy(db: Session, user_id: int) -> bool:
-    """
-    Add 10 energy to user (daily regeneration for free users)
-    Only applies to non-premium users
-    Returns True if energy was added
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return False
-    
-    # Skip if user is premium
-    if check_user_premium(db, user_id):
-        return False
-    
-    # Add 10 energy, capped at max_energy
-    old_energy = user.energy
-    user.energy = min(user.energy + 10, user.max_energy)
-    db.commit()
-    
-    return user.energy > old_energy
 
 
 def add_daily_tokens_by_tier(db: Session) -> int:

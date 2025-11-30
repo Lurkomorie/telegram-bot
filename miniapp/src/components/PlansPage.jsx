@@ -52,7 +52,18 @@ export default function PlansPage() {
       const initData = WebApp.initData;
       
       // Create invoice via API
-      const { invoice_link } = await createInvoice(selectedProduct, initData);
+      const result = await createInvoice(selectedProduct, initData);
+      
+      // Check if this is a simulated payment
+      if (result.simulated) {
+        // Simulated payment - already processed on backend
+        WebApp.showAlert('✅ Payment successful! Thank you for your purchase!');
+        window.location.reload();
+        return;
+      }
+      
+      // Real payment - open Telegram invoice
+      const { invoice_link } = result;
       
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {

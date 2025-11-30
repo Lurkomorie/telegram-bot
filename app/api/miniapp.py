@@ -1013,7 +1013,10 @@ async def create_invoice(
     """
     Create a Telegram Stars invoice for token package or tier subscription
     
-    Returns: {invoice_link: str}
+    When SIMULATE_PAYMENTS=True: Processes payment immediately without creating invoice
+    When SIMULATE_PAYMENTS=False: Creates real Telegram Stars invoice link
+    
+    Returns: {invoice_link: str} OR {success: bool, simulated: bool, ...}
     """
     # Validate authentication
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
@@ -1032,7 +1035,7 @@ async def create_invoice(
         raise HTTPException(status_code=400, detail=f"Failed to parse user data: {e}")
     
     # Get payment products from payment handler
-    from app.bot.handlers.payment import PAYMENT_PRODUCTS
+    from app.bot.handlers.payment import PAYMENT_PRODUCTS, process_payment_transaction
     
     product = PAYMENT_PRODUCTS.get(request.product_id)
     if not product:
@@ -1047,6 +1050,33 @@ async def create_invoice(
         product["type"]
     )
     
+    # SIMULATE PAYMENTS: Process immediately without creating invoice
+    if settings.SIMULATE_PAYMENTS:
+        print(f"[SIMULATED-PAYMENT] 💳 Processing simulated payment for user {user_id}, product: {request.product_id}")
+        
+        with get_db() as db:
+            result = process_payment_transaction(
+                db,
+                user_id,
+                request.product_id,
+                telegram_payment_charge_id=None  # No real payment charge
+            )
+            
+            if result["success"]:
+                print(f"[SIMULATED-PAYMENT] ✅ Simulated payment successful for user {user_id}")
+                return {
+                    "success": True,
+                    "simulated": True,
+                    "message": result["message"],
+                    "tokens": result.get("tokens"),
+                    "tier": result.get("tier"),
+                    "premium_until": result.get("premium_until")
+                }
+            else:
+                print(f"[SIMULATED-PAYMENT] ❌ Simulated payment failed for user {user_id}: {result.get('error')}")
+                raise HTTPException(status_code=400, detail=result["message"])
+    
+    # REAL PAYMENT: Create Telegram Stars invoice
     # Import bot and types
     from app.bot.loader import bot
     from aiogram.types import LabeledPrice

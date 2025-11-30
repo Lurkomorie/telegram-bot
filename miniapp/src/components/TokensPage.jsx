@@ -45,7 +45,18 @@ export default function TokensPage({ tokens }) {
       const initData = WebApp.initData;
       
       // Create invoice via API
-      const { invoice_link } = await createInvoice(selectedPackage, initData);
+      const result = await createInvoice(selectedPackage, initData);
+      
+      // Check if this is a simulated payment
+      if (result.simulated) {
+        // Simulated payment - already processed on backend
+        WebApp.showAlert(t('tokens.tokensAdded'));
+        window.location.reload();
+        return;
+      }
+      
+      // Real payment - open Telegram invoice
+      const { invoice_link } = result;
       
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {

@@ -274,7 +274,7 @@ export async function createCustomStory(storyData, initData) {
  * Create a Telegram Stars invoice for premium subscription
  * @param {string} planId - Plan ID (2days, month, 3months, year)
  * @param {string} initData - Telegram WebApp initData for authentication
- * @returns {Promise<Object>} Invoice object {invoice_link}
+ * @returns {Promise<Object>} Invoice object {invoice_link} or simulated result {success, simulated, ...}
  */
 export async function createInvoice(productId, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
@@ -290,7 +290,14 @@ export async function createInvoice(productId, initData) {
     throw new Error('Failed to create invoice');
   }
   
-  return response.json();
+  const data = await response.json();
+  
+  // Check if this is a simulated payment
+  if (data.simulated) {
+    console.log('[SIMULATED PAYMENT] Payment processed immediately:', data);
+  }
+  
+  return data;
 }
 
 /**

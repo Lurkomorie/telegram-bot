@@ -1,9 +1,9 @@
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
 import { createInvoice } from '../api';
+import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './CheckoutPage.css';
-import starIcon from '../assets/star.webp';
 
 /**
  * CheckoutPage Component
@@ -21,9 +21,9 @@ export default function CheckoutPage({ tier, onBack }) {
       case 'month':
         return { price: basePrice, discount: null };
       case '3months':
-        return { price: Math.floor(basePrice * 3 * 0.95), discount: '-5%' };
+        return { price: Math.floor(basePrice * 3 * 0.90), discount: '-10%' };
       case '6months':
-        return { price: Math.floor(basePrice * 6 * 0.90), discount: '-10%' };
+        return { price: Math.floor(basePrice * 6 * 0.70), discount: '-30%' };
       default:
         return { price: basePrice, discount: null };
     }
@@ -48,7 +48,18 @@ export default function CheckoutPage({ tier, onBack }) {
       }
       
       // Create invoice via API
-      const { invoice_link } = await createInvoice(tierId, initData);
+      const result = await createInvoice(tierId, initData);
+      
+      // Check if this is a simulated payment
+      if (result.simulated) {
+        // Simulated payment - already processed on backend
+        WebApp.showAlert(t('checkout.subscriptionSuccess'));
+        window.location.reload();
+        return;
+      }
+      
+      // Real payment - open Telegram invoice
+      const { invoice_link } = result;
       
       // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {

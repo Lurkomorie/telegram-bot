@@ -101,6 +101,7 @@
     }
   },
   "app": {
+    "premiumBadge": "Premium",
     "ageVerification": {
       "title": "Age Verification Required",
       "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",

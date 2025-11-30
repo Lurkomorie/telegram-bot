@@ -25,6 +25,13 @@ import { useTranslation } from './i18n/TranslationContext';
  */
 function App() {
   const { t, isLoading: isLoadingLanguage, onLanguageChange } = useTranslation();
+  
+  // Premium tier mapping
+  const premiumTiers = {
+    'premium': { name: 'Plus', icon: '❄️' },
+    'pro': { name: 'Pro', icon: '🔥' },
+    'legendary': { name: 'Legendary', icon: '🏆' }
+  };
   const [currentPage, setCurrentPage] = useState('gallery'); // 'gallery' | 'history' | 'custom-story' | 'settings' | 'language' | 'plans' | 'premium' | 'checkout' | 'tokens' | 'referrals'
   const [userName, setUserName] = useState('User');
   const [userId, setUserId] = useState(null);
@@ -513,6 +520,12 @@ function App() {
                     +
                   </button>
                 </div>
+                {tokens.is_premium && tokens.premium_tier && premiumTiers[tokens.premium_tier] && (
+                  <div className="premium-badge-small">
+                    <span className="premium-badge-icon">{premiumTiers[tokens.premium_tier].icon}</span>
+                    <span className="premium-badge-text">{premiumTiers[tokens.premium_tier].name}</span>
+                  </div>
+                )}
               </div>
             </div>
             <button className="referral-bonus-button" onClick={() => handleNavigate('referrals')}>
