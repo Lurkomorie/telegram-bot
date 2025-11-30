@@ -839,22 +839,19 @@ async def _process_scenario_selection(
                 is_processed=True
             )
             
-            # Generate image for custom character stories using AI pipeline
-            should_generate_image = False
-            if persona.get("image_prompt"):  # Custom character
-                # Check if this is a custom character by checking if it has owner_user_id
-                with get_db() as db:
-                    db_persona = crud.get_persona_by_id(db, persona_uuid)
-                    if db_persona and db_persona.owner_user_id is not None:
-                        should_generate_image = True
-                        print(f"[MINIAPP-SELECT] 🎨 Custom character detected - will use AI pipeline for image")
-            
             # Create initial ImageJob for continuity
             job_id = None
-            initial_state = None
+            should_generate_image = False
             
             if history_start_data and history_start_data.get("image_url"):
                 # For preset personas with existing images, use them
+                # Check if this is a custom character by checking if it has owner_user_id
+                if persona.get("image_prompt"):
+                    with get_db() as db:
+                        db_persona = crud.get_persona_by_id(db, persona_uuid)
+                        if db_persona and db_persona.owner_user_id is not None:
+                            should_generate_image = True
+                
                 if not should_generate_image:
                     print("[MINIAPP-SELECT] 🎨 Using preset persona image for visual continuity")
                     crud.create_initial_image_job(
@@ -866,44 +863,18 @@ async def _process_scenario_selection(
                         result_url=history_start_data.get("image_url")
                     )
             
-            # Generate image for custom characters using AI pipeline
-            if should_generate_image and description_text:
-                print("[MINIAPP-SELECT] 🤖 Using AI pipeline to generate initial image")
-                
-                # Step 1: Generate initial state from story description
-                initial_state = await generate_initial_state_for_story(
-                    persona_name=persona_name,
-                    story_description=description_text,
-                    greeting_text=greeting_text
-                )
-                
-                # Step 2: Generate image prompts using Image Brain
-                positive_prompt, negative_prompt = await generate_initial_story_image_prompts(
-                    persona=persona,
-                    state=initial_state,
-                    story_description=description_text,
-                    greeting_text=greeting_text
-                )
-                
-                # Step 3: Create image job with AI-generated prompts
-                seed = random.randint(1, 2147483647)
-                job = crud.create_image_job(
-                    db,
-                    user_id=user_id,
-                    persona_id=persona_uuid,
-                    prompt=positive_prompt,
-                    negative_prompt=negative_prompt,
-                    chat_id=chat_id,
-                    ext={"seed": seed, "source": "ai_initial_story"}
-                )
-                job_id = job.id
-                print(f"[MINIAPP-SELECT] 📋 Created AI-generated image job {job_id}")
-                
-                # Step 4: Save initial state to chat
-                crud.update_chat_state(db, chat_id, {"state": initial_state})
-                print(f"[MINIAPP-SELECT] ✅ Saved initial state to chat")
+            # For custom characters, mark for AI image generation (but don't run it yet)
+            if persona.get("image_prompt") and description_text:
+                with get_db() as db:
+                    db_persona = crud.get_persona_by_id(db, persona_uuid)
+                    if db_persona and db_persona.owner_user_id is not None:
+                        should_generate_image = True
+                        print(f"[MINIAPP-SELECT] 🎨 Custom character detected - will use AI pipeline for image")
         
-        # Send messages to user
+        # Determine if this is a custom location scenario vs public persona story
+        is_location_scenario = location is not None and history_uuid is None
+        
+        # Send messages to user FIRST (before AI pipeline)
         # Send hint message FIRST (before story starts)
         from app.settings import get_ui_text
         hint_text = get_ui_text("hints.restart", language=user_language)
@@ -912,6 +883,10 @@ async def _process_scenario_selection(
             text=escape_markdown_v2(hint_text),
             parse_mode="MarkdownV2"
         )
+        
+        # Wait 1 second before sending next message
+        import asyncio
+        await asyncio.sleep(1)
         
         # Send description if exists
         if description_text:
@@ -923,21 +898,75 @@ async def _process_scenario_selection(
                 parse_mode="MarkdownV2"
             )
         
-        # Send greeting (images from history starts don't get refresh buttons - they're static greeting images)
-        escaped_greeting = escape_markdown_v2(greeting_text)
-        if history_start_data and history_start_data["image_url"]:
-            await bot.send_photo(
-                chat_id=user_id,
-                photo=history_start_data["image_url"],
-                caption=escaped_greeting,
-                parse_mode="MarkdownV2"
-            )
-        else:
+        # For custom location scenarios, send greeting text immediately (don't wait for image)
+        # For public persona stories, wait 3 seconds then send greeting
+        if is_location_scenario:
+            # Send greeting text immediately for location scenarios
+            escaped_greeting = escape_markdown_v2(greeting_text)
             await bot.send_message(
                 chat_id=user_id,
                 text=escaped_greeting,
                 parse_mode="MarkdownV2"
             )
+        else:
+            # Wait 3 seconds before sending greeting/image for public stories
+            await asyncio.sleep(3)
+            
+            # Send greeting (images from history starts don't get refresh buttons - they're static greeting images)
+            escaped_greeting = escape_markdown_v2(greeting_text)
+            if history_start_data and history_start_data["image_url"]:
+                await bot.send_photo(
+                    chat_id=user_id,
+                    photo=history_start_data["image_url"],
+                    caption=escaped_greeting,
+                    parse_mode="MarkdownV2"
+                )
+            else:
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=escaped_greeting,
+                    parse_mode="MarkdownV2"
+                )
+        
+        # NOW run AI pipeline for custom characters (after messages are sent)
+        if should_generate_image and description_text:
+            print("[MINIAPP-SELECT] 🤖 Starting AI pipeline to generate initial image (after messages sent)")
+            
+            # Step 1: Generate initial state from story description
+            initial_state = await generate_initial_state_for_story(
+                persona_name=persona_name,
+                story_description=description_text,
+                greeting_text=greeting_text
+            )
+            
+            # Step 2: Generate image prompts using Image Brain
+            positive_prompt, negative_prompt = await generate_initial_story_image_prompts(
+                persona=persona,
+                state=initial_state,
+                story_description=description_text,
+                greeting_text=greeting_text
+            )
+            
+            # Step 3: Create image job with AI-generated prompts
+            seed = random.randint(1, 2147483647)
+            job_ext = {"seed": seed, "source": "ai_initial_story"}
+            
+            with get_db() as db:
+                job = crud.create_image_job(
+                    db,
+                    user_id=user_id,
+                    persona_id=persona_uuid,
+                    prompt=positive_prompt,
+                    negative_prompt=negative_prompt,
+                    chat_id=chat_id,
+                    ext=job_ext
+                )
+                job_id = job.id
+                print(f"[MINIAPP-SELECT] 📋 Created AI-generated image job {job_id}")
+                
+                # Step 4: Save initial state to chat
+                crud.update_chat_state(db, chat_id, {"state": initial_state})
+                print(f"[MINIAPP-SELECT] ✅ Saved initial state to chat")
         
         # Dispatch image generation for custom characters immediately
         if job_id:

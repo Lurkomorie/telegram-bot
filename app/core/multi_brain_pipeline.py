@@ -222,6 +222,8 @@ async def _process_single_batch(
             previous_image_prompt = previous_image_job.prompt if previous_image_job else None
             if previous_image_prompt:
                 log_verbose(f"[BATCH] ✅ Found previous image prompt ({len(previous_image_prompt)} chars)")
+                if previous_image_job:
+                    log_verbose(f"[BATCH]    Job ID: {previous_image_job.id}, Source: {previous_image_job.ext.get('source', 'unknown') if previous_image_job.ext else 'unknown'}")
             else:
                 log_verbose(f"[BATCH] ℹ️  No previous image prompt found")
             

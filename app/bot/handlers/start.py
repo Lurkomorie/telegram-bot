@@ -2,6 +2,7 @@
 /start command handler and persona selection
 """
 import json
+import asyncio
 from aiogram import types
 from aiogram.filters import Command
 from app.bot.loader import router
@@ -578,6 +579,9 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
         parse_mode="MarkdownV2"
     )
     
+    # Wait 1 second before sending next message
+    await asyncio.sleep(1)
+    
     # Send description if exists
     if description_text:
         escaped_description = escape_markdown_v2(description_text)
@@ -586,6 +590,9 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
             formatted_description,
             parse_mode="MarkdownV2"
         )
+    
+    # Wait 3 seconds before sending greeting/image
+    await asyncio.sleep(3)
     
     # Send greeting
     escaped_greeting = escape_markdown_v2(greeting_text)
@@ -982,6 +989,9 @@ async def select_story_callback(callback: types.CallbackQuery):
         parse_mode="MarkdownV2"
     )
     
+    # Wait 1 second before sending next message
+    await asyncio.sleep(1)
+    
     # Send description if it exists (in italic using MarkdownV2)
     if description_text:
         escaped_description = escape_markdown_v2(description_text)
@@ -991,14 +1001,31 @@ async def select_story_callback(callback: types.CallbackQuery):
             parse_mode="MarkdownV2"
         )
     
+    # Wait 3 seconds before sending greeting/image
+    await asyncio.sleep(3)
+    
     # Send greeting
     escaped_greeting = escape_markdown_v2(greeting_text)
     if history_start_data and history_start_data["image_url"]:
+        # Send the image
         await callback.message.answer_photo(
             photo=history_start_data["image_url"],
             caption=escaped_greeting,
             parse_mode="MarkdownV2"
         )
+        
+        # Create an ImageJob record for this initial image so future messages can reference it
+        # This ensures continuity when generating subsequent images
+        with get_db() as db:
+            initial_image_job = crud.create_initial_image_job(
+                db,
+                user_id=callback.from_user.id,
+                persona_id=persona_id,
+                chat_id=chat_id,
+                prompt=history_start.get("image_prompt", "predefined_story_image"),
+                result_url=history_start_data["image_url"]
+            )
+            print(f"[SELECT_STORY] ✅ Created ImageJob record for initial story image (job_id={initial_image_job.id})")
     else:
         await callback.message.answer(
             escaped_greeting,

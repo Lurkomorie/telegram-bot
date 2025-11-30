@@ -15,30 +15,42 @@ class TranslationService:
         self._lock = Lock()  # Thread-safe cache updates
     
     def load(self):
-        """Load all translations from database into memory cache"""
-        from app.db.base import get_db
-        from app.db import crud
+        """Load all translations from JSON files into memory cache"""
+        import json
+        from pathlib import Path
         
-        print("[TRANSLATION-SERVICE] 📦 Loading translations from database...")
+        print("[TRANSLATION-SERVICE] 📦 Loading translations from JSON files...")
         
         with self._lock:
             # Clear existing cache
             self._cache = {}
             
-            # Load all translations from DB
-            with get_db() as db:
-                all_translations = crud.get_all_translations(db)
+            # Get path to config/translations/
+            # Assuming this file is at app/core/translation_service.py
+            app_dir = Path(__file__).parent.parent  # app/
+            config_dir = app_dir.parent / "config" / "translations"
+            
+            # Load each language file
+            for lang in ['en', 'ru']:
+                json_file = config_dir / f"{lang}.json"
                 
-                # Organize by language
-                for translation in all_translations:
-                    lang = translation.lang
-                    key = translation.key
-                    value = translation.value
+                if not json_file.exists():
+                    print(f"[TRANSLATION-SERVICE] ⚠️  Warning: {json_file} not found, skipping")
+                    continue
+                
+                try:
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        translations_nested = json.load(f)
                     
-                    if lang not in self._cache:
-                        self._cache[lang] = {}
+                    # Flatten nested structure to dot-notation keys
+                    translations_flat = self._flatten_dict(translations_nested)
                     
-                    self._cache[lang][key] = value
+                    self._cache[lang] = translations_flat
+                    print(f"[TRANSLATION-SERVICE] ✓ Loaded {len(translations_flat)} translations for '{lang}' from {json_file.name}")
+                
+                except Exception as e:
+                    print(f"[TRANSLATION-SERVICE] ✗ Error loading {json_file}: {e}")
+                    continue
             
             self._loaded = True
             
@@ -46,6 +58,17 @@ class TranslationService:
             total_translations = sum(len(keys) for keys in self._cache.values())
             languages = list(self._cache.keys())
             print(f"[TRANSLATION-SERVICE] ✅ Loaded {total_translations} translations across {len(languages)} languages: {languages}")
+    
+    def _flatten_dict(self, d, parent_key='', sep='.'):
+        """Flatten nested dict to dot-notation keys"""
+        items = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                items.append((new_key, v))
+        return dict(items)
     
     def get(self, key: str, lang: str = 'en', fallback: bool = True) -> str:
         """Get single translation with optional fallback to English
