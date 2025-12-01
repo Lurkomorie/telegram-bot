@@ -12,6 +12,8 @@ import AuthGuard from './components/AuthGuard';
 import Characters from './components/Characters';
 import Translations from './components/Translations';
 import UserMessageStats from './components/UserMessageStats';
+import SystemMessages from './components/SystemMessages';
+import SystemMessageTemplates from './components/SystemMessageTemplates';
 
 function App() {
   return (
@@ -38,6 +40,8 @@ function App() {
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
                   <Route path="/user-message-stats" element={<UserMessageStats />} />
                   <Route path="/translations" element={<Translations />} />
+                  <Route path="/system-messages" element={<SystemMessages />} />
+                  <Route path="/system-messages/templates" element={<SystemMessageTemplates />} />
                 </Routes>
               </main>
             </div>
