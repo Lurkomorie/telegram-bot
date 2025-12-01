@@ -75,8 +75,16 @@ def grant_tokens_to_premium_users(dry_run: bool = False):
             current_tokens = user.energy
             new_tokens = current_tokens + tokens_to_grant
             
-            # Get tier-based temp_energy
-            tier = user.premium_tier or "free"
+            # Ensure all existing premium users have "premium" tier
+            original_tier = user.premium_tier or "free"
+            if user.premium_tier != "premium":
+                user.premium_tier = "premium"
+                tier_changed = True
+            else:
+                tier_changed = False
+            
+            # Get tier-based temp_energy (always "premium" now)
+            tier = user.premium_tier
             temp_energy_amount = TIER_TEMP_ENERGY.get(tier, 0)
             
             if dry_run:
@@ -86,6 +94,10 @@ def grant_tokens_to_premium_users(dry_run: bool = False):
                 logger.info(
                     f"  • Tokens: {current_tokens} → {new_tokens} (+{tokens_to_grant})"
                 )
+                if original_tier != "premium":
+                    logger.info(
+                        f"  • Tier: {original_tier} → premium (upgraded)"
+                    )
                 logger.info(
                     f"  • Temp energy: {getattr(user, 'temp_energy', 0)} → {temp_energy_amount} (tier: {tier})"
                 )
@@ -105,6 +117,10 @@ def grant_tokens_to_premium_users(dry_run: bool = False):
                     logger.info(
                         f"✅ Updated {user_info}:"
                     )
+                    if tier_changed:
+                        logger.info(
+                            f"  • Tier: {original_tier} → premium (set)"
+                        )
                     logger.info(
                         f"  • Tokens: {current_tokens} → {new_tokens} (+{tokens_to_grant})"
                     )
