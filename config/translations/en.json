@@ -734,6 +734,14 @@
       "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
       "premiumBenefits": "💎 Premium = daily refills + huge discounts",
       "instantTokens": "🛍️ Instant tokens → continue immediately"
+    },
+    "outOfTokensPremium": {
+      "title": "🪙 Out of tokens",
+      "balance": "Balance: {tokens} tokens",
+      "costs": "Token costs:",
+      "message": "• Message → 1 token",
+      "image": "• Image → 3 tokens (40% Premium discount)",
+      "buyMore": "💎 Buy more tokens to continue"
     }
   },
   "welcome": {

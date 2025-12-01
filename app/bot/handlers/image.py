@@ -200,6 +200,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
     with get_db() as db:
         user_energy = crud.get_user_energy(db, user_id)
         user_language = crud.get_user_language(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
         # Delete previous upsell message if exists
         upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
@@ -213,21 +214,33 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language)
     
-    # Build message using translations
     tokens = user_energy['tokens']
-    message_text = (
-        f"<b>{get_ui_text('tokens.outOfTokens.title', user_language)}</b>\n\n"
-        f"{get_ui_text('tokens.outOfTokens.subtitle', user_language)}\n\n"
-        f"{get_ui_text('tokens.outOfTokens.balance', user_language, tokens=tokens)}\n\n"
-        f"{get_ui_text('tokens.outOfTokens.waiting', user_language)}\n\n"
-        f"<b>{get_ui_text('tokens.outOfTokens.costs', user_language)}</b>\n"
-        f"{get_ui_text('tokens.outOfTokens.messageBack', user_language)}\n"
-        f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n\n"
-        f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
-        f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
-        f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"
-        f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
-    )
+    
+    # Different message for premium users
+    if is_premium:
+        message_text = (
+            f"<b>{get_ui_text('tokens.outOfTokensPremium.title', user_language)}</b>\n\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.balance', user_language, tokens=tokens)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokensPremium.costs', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.message', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.image', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.buyMore', user_language)}"
+        )
+    else:
+        # Emotional message for free users
+        message_text = (
+            f"<b>{get_ui_text('tokens.outOfTokens.title', user_language)}</b>\n\n"
+            f"{get_ui_text('tokens.outOfTokens.subtitle', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokens.balance', user_language, tokens=tokens)}\n\n"
+            f"{get_ui_text('tokens.outOfTokens.waiting', user_language)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokens.costs', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokens.messageBack', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
+        )
     
     sent_msg = await message.answer(
         message_text,

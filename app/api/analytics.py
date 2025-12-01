@@ -160,13 +160,13 @@ async def get_all_users(limit: int = 100, offset: int = 0) -> Dict[str, Any]:
 
 
 @router.get("/users/{client_id}/events")
-async def get_user_events(client_id: int, limit: int = 1000) -> List[Dict[str, Any]]:
+async def get_user_events(client_id: int, limit: int = 10000) -> List[Dict[str, Any]]:
     """
     Get event timeline for a specific user
     
     Args:
         client_id: Telegram user ID
-        limit: Maximum number of events to return (default 1000)
+        limit: Maximum number of events to return (default 10000)
     
     Returns list of events with:
         - id: Event ID
