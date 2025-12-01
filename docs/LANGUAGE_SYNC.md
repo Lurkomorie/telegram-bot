@@ -247,3 +247,4 @@ python scripts/merge_translations.py
 - Support more languages (fr, de, es)
 - Add translation validation script
 - Create admin UI for editing translations
+

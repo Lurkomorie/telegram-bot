@@ -986,3 +986,4 @@ The root cause of both issues is the **incomplete custom character pipeline**:
 - Optionally pre-generating scene images (like presets have)
 
 With these changes, custom characters will have the same rich visual context as preset personas, resulting in appropriate clothing and clear locations from the very first message.
+

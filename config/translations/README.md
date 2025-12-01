@@ -200,3 +200,4 @@ To add more languages:
 3. Update `app/core/translation_service.py` supported languages
 4. Update `miniapp/src/i18n/TranslationContext.jsx` supported languages
 
+
