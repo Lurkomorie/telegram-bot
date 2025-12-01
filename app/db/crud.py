@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.models import (
     User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
-    PersonaTranslation, PersonaHistoryTranslation
+    PersonaTranslation, PersonaHistoryTranslation, SystemMessage, SystemMessageTemplate, SystemMessageDelivery
 )
 from datetime import datetime, date
 
@@ -3141,6 +3141,166 @@ def delete_start_code(db: Session, code: str) -> bool:
     return True
 
 
+# ========== SYSTEM MESSAGE OPERATIONS ==========
+
+def create_system_message(
+    db: Session,
+    title: str = None,
+    text: str = None,
+    media_type: str = "none",
+    media_url: str = None,
+    buttons: dict = None,
+    target_type: str = None,
+    target_user_ids: List[int] = None,
+    target_group: str = None,
+    send_immediately: bool = False,
+    scheduled_at: datetime = None,
+    created_by: str = None,
+    ext: dict = None,
+    template_id: UUID = None
+) -> SystemMessage:
+    """Create a new system message"""
+    # Determine initial status
+    if send_immediately:
+        status = "sending"
+    elif scheduled_at:
+        status = "scheduled"
+    else:
+        status = "draft"
+    
+    message = SystemMessage(
+        title=title,
+        text=text,
+        media_type=media_type,
+        media_url=media_url,
+        buttons=buttons or [],
+        target_type=target_type,
+        target_user_ids=target_user_ids,
+        target_group=target_group,
+        status=status,
+        send_immediately=send_immediately,
+        scheduled_at=scheduled_at,
+        created_by=created_by,
+        ext=ext or {},
+        template_id=template_id
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def get_system_message(db: Session, message_id: UUID) -> Optional[SystemMessage]:
+    """Get system message by ID"""
+    return db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+
+
+def list_system_messages(
+    db: Session,
+    page: int = 1,
+    per_page: int = 50,
+    status: str = None,
+    target_type: str = None,
+    date_from: datetime = None,
+    date_to: datetime = None
+) -> dict:
+    """List system messages with pagination and filters"""
+    query = db.query(SystemMessage)
+    
+    if status:
+        query = query.filter(SystemMessage.status == status)
+    if target_type:
+        query = query.filter(SystemMessage.target_type == target_type)
+    if date_from:
+        query = query.filter(SystemMessage.created_at >= date_from)
+    if date_to:
+        query = query.filter(SystemMessage.created_at <= date_to)
+    
+    total = query.count()
+    messages = query.order_by(desc(SystemMessage.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'messages': messages,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
+
+
+def update_system_message(
+    db: Session,
+    message_id: UUID,
+    title: str = None,
+    text: str = None,
+    media_type: str = None,
+    media_url: str = None,
+    buttons: dict = None,
+    target_type: str = None,
+    target_user_ids: List[int] = None,
+    target_group: str = None,
+    send_immediately: bool = None,
+    scheduled_at: datetime = None,
+    ext: dict = None
+) -> Optional[SystemMessage]:
+    """Update system message (only if status is 'draft' or 'scheduled')"""
+    message = db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+    if not message:
+        return None
+    
+    if message.status not in ('draft', 'scheduled'):
+        raise ValueError(f"Cannot update message with status '{message.status}'")
+    
+    if title is not None:
+        message.title = title
+    if text is not None:
+        message.text = text
+    if media_type is not None:
+        message.media_type = media_type
+    if media_url is not None:
+        message.media_url = media_url
+    if buttons is not None:
+        message.buttons = buttons
+    if target_type is not None:
+        message.target_type = target_type
+    if target_user_ids is not None:
+        message.target_user_ids = target_user_ids
+    if target_group is not None:
+        message.target_group = target_group
+    if send_immediately is not None:
+        message.send_immediately = send_immediately
+    if scheduled_at is not None:
+        message.scheduled_at = scheduled_at
+    if ext is not None:
+        message.ext = ext
+    
+    # Update status based on send_immediately and scheduled_at
+    if message.send_immediately:
+        message.status = "sending"
+    elif message.scheduled_at:
+        message.status = "scheduled"
+    else:
+        message.status = "draft"
+    
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def delete_system_message(db: Session, message_id: UUID) -> bool:
+    """Delete system message (only if status is 'draft', 'scheduled', or 'cancelled')"""
+    message = db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+    if not message:
+        return False
+    
+    if message.status not in ('draft', 'scheduled', 'cancelled'):
+        raise ValueError(f"Cannot delete message with status '{message.status}'")
+    
+    db.delete(message)
+    db.commit()
+    return True
+
+
 # ========== TRANSLATION OPERATIONS ==========
 
 def get_translation(db: Session, key: str, lang: str):
@@ -3197,6 +3357,282 @@ def get_all_translations(db: Session, lang: Optional[str] = None) -> List:
     
     return query.all()
 
+
+# ========== SYSTEM MESSAGE DELIVERY & SCHEDULING ==========
+
+def get_scheduled_messages(db: Session) -> List[SystemMessage]:
+    """
+    Get messages that are scheduled and ready to send
+    
+    Uses SELECT FOR UPDATE SKIP LOCKED for concurrency safety:
+    - Multiple scheduler instances won't process the same message
+    - Locked rows are skipped, not blocked
+    - Status is immediately updated to 'sending' within transaction
+    """
+    from sqlalchemy import select
+    
+    now = datetime.utcnow()
+    
+    # Use FOR UPDATE SKIP LOCKED for distributed lock-free concurrency
+    stmt = select(SystemMessage).filter(
+        SystemMessage.status == "scheduled",
+        SystemMessage.scheduled_at <= now
+    ).with_for_update(skip_locked=True)
+    
+    messages = db.execute(stmt).scalars().all()
+    
+    # Immediately update status to 'sending' to prevent other instances from picking them up
+    for message in messages:
+        message.status = "sending"
+    
+    if messages:
+        db.commit()
+        # Refresh to ensure we have latest data
+        for message in messages:
+            db.refresh(message)
+    
+    return messages
+
+
+def get_users_by_group(db: Session, group_name: str) -> List[User]:
+    """Get users by group name"""
+    now = datetime.utcnow()
+    
+    if group_name == "premium":
+        return db.query(User).filter(
+            User.is_premium == True,
+            User.premium_until > now
+        ).all()
+    
+    elif group_name == "inactive_7d":
+        from datetime import timedelta
+        cutoff = now - timedelta(days=7)
+        # Users with no messages or image generations in last 7 days
+        # Check last_user_message_at from chats
+        active_user_ids = db.query(Chat.user_id).filter(
+            Chat.last_user_message_at >= cutoff
+        ).distinct().all()
+        active_user_ids = [uid[0] for uid in active_user_ids]
+        
+        # Also check image generation events
+        active_image_user_ids = db.query(TgAnalyticsEvent.client_id).filter(
+            TgAnalyticsEvent.event_name == "image_generated",
+            TgAnalyticsEvent.created_at >= cutoff
+        ).distinct().all()
+        active_image_user_ids = [uid[0] for uid in active_image_user_ids]
+        
+        all_active_ids = set(active_user_ids + active_image_user_ids)
+        if all_active_ids:
+            return db.query(User).filter(~User.id.in_(all_active_ids)).all()
+        else:
+            return db.query(User).all()
+    
+    elif group_name == "inactive_30d":
+        from datetime import timedelta
+        cutoff = now - timedelta(days=30)
+        active_user_ids = db.query(Chat.user_id).filter(
+            Chat.last_user_message_at >= cutoff
+        ).distinct().all()
+        active_user_ids = [uid[0] for uid in active_user_ids]
+        
+        active_image_user_ids = db.query(TgAnalyticsEvent.client_id).filter(
+            TgAnalyticsEvent.event_name == "image_generated",
+            TgAnalyticsEvent.created_at >= cutoff
+        ).distinct().all()
+        active_image_user_ids = [uid[0] for uid in active_image_user_ids]
+        
+        all_active_ids = set(active_user_ids + active_image_user_ids)
+        if all_active_ids:
+            return db.query(User).filter(~User.id.in_(all_active_ids)).all()
+        else:
+            return db.query(User).all()
+    
+    elif group_name.startswith("acquisition_source:"):
+        source = group_name.replace("acquisition_source:", "")
+        return db.query(User).filter(User.acquisition_source == source).all()
+    
+    else:
+        return []
+
+
+# ========== SYSTEM MESSAGE TEMPLATE OPERATIONS ==========
+
+def create_template(
+    db: Session,
+    name: str,
+    title: str = None,
+    text: str = None,
+    media_type: str = "none",
+    media_url: str = None,
+    buttons: dict = None,
+    created_by: str = None
+) -> SystemMessageTemplate:
+    """Create a new system message template"""
+    template = SystemMessageTemplate(
+        name=name,
+        title=title,
+        text=text,
+        media_type=media_type,
+        media_url=media_url,
+        buttons=buttons or [],
+        created_by=created_by
+    )
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return template
+
+
+def get_template(db: Session, template_id: UUID) -> Optional[SystemMessageTemplate]:
+    """Get template by ID"""
+    return db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+
+
+def list_templates(
+    db: Session,
+    page: int = 1,
+    per_page: int = 50,
+    is_active: bool = None
+) -> dict:
+    """List templates with pagination"""
+    query = db.query(SystemMessageTemplate)
+    
+    if is_active is not None:
+        query = query.filter(SystemMessageTemplate.is_active == is_active)
+    
+    total = query.count()
+    templates = query.order_by(desc(SystemMessageTemplate.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'templates': templates,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
+
+
+def get_active_templates(db: Session) -> List[SystemMessageTemplate]:
+    """Get all active templates"""
+    return db.query(SystemMessageTemplate).filter(SystemMessageTemplate.is_active == True).all()
+
+
+def update_template(
+    db: Session,
+    template_id: UUID,
+    name: str = None,
+    title: str = None,
+    text: str = None,
+    media_type: str = None,
+    media_url: str = None,
+    buttons: dict = None,
+    is_active: bool = None
+) -> Optional[SystemMessageTemplate]:
+    """Update template"""
+    template = db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+    if not template:
+        return None
+    
+    if name is not None:
+        template.name = name
+    if title is not None:
+        template.title = title
+    if text is not None:
+        template.text = text
+    if media_type is not None:
+        template.media_type = media_type
+    if media_url is not None:
+        template.media_url = media_url
+    if buttons is not None:
+        template.buttons = buttons
+    if is_active is not None:
+        template.is_active = is_active
+    
+    db.commit()
+    db.refresh(template)
+    return template
+
+
+def delete_template(db: Session, template_id: UUID) -> bool:
+    """Delete template"""
+    template = db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+    if not template:
+        return False
+    
+    db.delete(template)
+    db.commit()
+    return True
+
+
+# ========== SYSTEM MESSAGE DELIVERY OPERATIONS ==========
+
+def create_delivery_records(db: Session, system_message_id: UUID, user_ids: List[int], max_retries: int = 3) -> List[SystemMessageDelivery]:
+    """Create delivery records for all target users"""
+    deliveries = []
+    for user_id in user_ids:
+        delivery = SystemMessageDelivery(
+            system_message_id=system_message_id,
+            user_id=user_id,
+            max_retries=max_retries
+        )
+        db.add(delivery)
+        deliveries.append(delivery)
+    
+    db.commit()
+    for delivery in deliveries:
+        db.refresh(delivery)
+    return deliveries
+
+
+def get_delivery_record(db: Session, delivery_id: UUID) -> Optional[SystemMessageDelivery]:
+    """Get delivery record by ID"""
+    return db.query(SystemMessageDelivery).filter(SystemMessageDelivery.id == delivery_id).first()
+
+
+def update_delivery_status(
+    db: Session,
+    delivery_id: UUID,
+    status: str = None,
+    error: str = None,
+    sent_at: datetime = None,
+    message_id: int = None,
+    retry_count: int = None
+) -> Optional[SystemMessageDelivery]:
+    """Update delivery status"""
+    delivery = db.query(SystemMessageDelivery).filter(SystemMessageDelivery.id == delivery_id).first()
+    if not delivery:
+        return None
+    
+    if status is not None:
+        delivery.status = status
+    if error is not None:
+        delivery.error = error
+    if sent_at is not None:
+        delivery.sent_at = sent_at
+    if message_id is not None:
+        delivery.message_id = message_id
+    if retry_count is not None:
+        delivery.retry_count = retry_count
+    
+    db.commit()
+    db.refresh(delivery)
+    return delivery
+
+
+def get_failed_deliveries(db: Session, system_message_id: UUID = None) -> List[SystemMessageDelivery]:
+    """Get failed deliveries that can be retried"""
+    query = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.status == "failed",
+        SystemMessageDelivery.retry_count < SystemMessageDelivery.max_retries
+    )
+    
+    if system_message_id:
+        query = query.filter(SystemMessageDelivery.system_message_id == system_message_id)
+    
+    return query.all()
+
+
+# ========== TRANSLATION OPERATIONS (CONTINUED) ==========
 
 def create_or_update_translation(
     db: Session,
@@ -3398,6 +3834,59 @@ def get_daily_user_stats(db: Session, target_date: datetime.date) -> List[Dict[s
     stats.sort(key=lambda x: x["estimated_cost"], reverse=True)
     
     return stats
+
+
+# ========== SYSTEM MESSAGE DELIVERY STATISTICS ==========
+
+def get_delivery_stats(db: Session, system_message_id: UUID) -> dict:
+    """Get delivery statistics for a system message"""
+    deliveries = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.system_message_id == system_message_id
+    ).all()
+    
+    total = len(deliveries)
+    sent = sum(1 for d in deliveries if d.status == "sent")
+    failed = sum(1 for d in deliveries if d.status == "failed")
+    blocked = sum(1 for d in deliveries if d.status == "blocked")
+    pending = sum(1 for d in deliveries if d.status == "pending")
+    
+    success_rate = (sent / total * 100) if total > 0 else 0
+    
+    return {
+        'total': total,
+        'sent': sent,
+        'failed': failed,
+        'blocked': blocked,
+        'pending': pending,
+        'success_rate': round(success_rate, 2)
+    }
+
+
+def get_deliveries_by_message(
+    db: Session,
+    system_message_id: UUID,
+    page: int = 1,
+    per_page: int = 100,
+    status: str = None
+) -> dict:
+    """Get deliveries for a system message with pagination"""
+    query = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.system_message_id == system_message_id
+    )
+    
+    if status:
+        query = query.filter(SystemMessageDelivery.status == status)
+    
+    total = query.count()
+    deliveries = query.order_by(desc(SystemMessageDelivery.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'deliveries': deliveries,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
 
 
 
