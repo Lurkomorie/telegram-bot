@@ -29,6 +29,7 @@ class User(Base):
     # Token system (formerly energy)
     energy = Column(BigInteger, default=100, nullable=False)  # Now represents token balance
     max_energy = Column(BigInteger, default=100, nullable=False)  # Maximum energy/tokens a user can have
+    temp_energy = Column(BigInteger, default=0, nullable=False)  # Temporary daily energy (resets daily, consumed first)
     last_energy_upsell_message_id = Column(BigInteger, nullable=True)
     last_energy_upsell_chat_id = Column(BigInteger, nullable=True)
     
@@ -37,6 +38,7 @@ class User(Base):
     premium_until = Column(DateTime, nullable=True)
     premium_tier = Column(String(20), default="free", nullable=False)  # free, plus, premium, pro, legendary
     last_daily_token_addition = Column(DateTime, nullable=True)  # Last automatic tier-based token addition
+    last_temp_energy_refill = Column(DateTime, nullable=True)  # Last temporary energy refill (daily)
     last_daily_bonus_claim = Column(DateTime, nullable=True)  # Last manual daily bonus claim
     daily_bonus_streak = Column(BigInteger, default=0, nullable=False)  # Consecutive days of claiming daily bonus
     

@@ -1199,26 +1199,39 @@ def delete_persona_history(db: Session, history_id: UUID) -> bool:
 # ========== USER ENERGY OPERATIONS ==========
 
 def get_user_energy(db: Session, user_id: int) -> dict:
-    """Get user's current token balance"""
+    """Get user's current token balance (combined temp_energy + regular energy)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return {"tokens": 0, "premium_tier": "free"}
-    return {"tokens": user.energy, "premium_tier": user.premium_tier}
+    total_tokens = (user.temp_energy or 0) + user.energy
+    return {"tokens": total_tokens, "premium_tier": user.premium_tier}
 
 
 def deduct_user_energy(db: Session, user_id: int, amount: int = 5) -> bool:
     """
     Deduct tokens from user (all users including premium tiers consume tokens)
+    Deducts from temp_energy first, then regular energy
     Returns True if successful, False if insufficient tokens
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
     
-    if user.energy < amount:
+    # Check if user has enough total energy
+    total_energy = (user.temp_energy or 0) + user.energy
+    if total_energy < amount:
         return False
     
-    user.energy -= amount
+    # Deduct from temp_energy first
+    if user.temp_energy >= amount:
+        # Sufficient temp energy to cover the cost
+        user.temp_energy -= amount
+    else:
+        # Use all temp energy and deduct the rest from regular energy
+        remaining = amount - user.temp_energy
+        user.temp_energy = 0
+        user.energy -= remaining
+    
     db.commit()
     return True
 
@@ -1239,11 +1252,12 @@ def add_user_energy(db: Session, user_id: int, amount: int) -> bool:
 
 
 def check_user_energy(db: Session, user_id: int, required: int = 5) -> bool:
-    """Check if user has enough energy"""
+    """Check if user has enough energy (checks temp_energy + regular energy combined)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
-    return user.energy >= required
+    total_energy = (user.temp_energy or 0) + user.energy
+    return total_energy >= required
 
 
 def save_energy_upsell_message(db: Session, user_id: int, message_id: int, chat_id: int):
@@ -1318,6 +1332,9 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
     if not user:
         return False
     
+    # Check if this is a new subscription (not an extension)
+    is_new_subscription = not user.is_premium or (user.premium_until and user.premium_until <= datetime.utcnow())
+    
     # Set premium status and tier
     user.is_premium = True
     user.premium_tier = tier
@@ -1330,20 +1347,44 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
         # New subscription
         user.premium_until = datetime.utcnow() + timedelta(days=duration_days)
     
+    # Add one-time energy bonus for new subscriptions
+    if is_new_subscription:
+        tier_bonus = {
+            "plus": 500,
+            "premium": 500,
+            "pro": 750,
+            "legendary": 1000
+        }
+        bonus = tier_bonus.get(tier, 0)
+        if bonus > 0:
+            user.energy += bonus
+        
+        # Also set initial temp_energy for immediate use
+        tier_temp_energy = {
+            "plus": 50,
+            "premium": 75,
+            "pro": 100,
+            "legendary": 200
+        }
+        temp_energy = tier_temp_energy.get(tier, 0)
+        if temp_energy > 0:
+            user.temp_energy = temp_energy
+            user.last_temp_energy_refill = datetime.utcnow()
+    
     db.commit()
     return True
 
 
 def add_daily_tokens_by_tier(db: Session) -> int:
     """
-    Add daily tokens to premium tier users based on their subscription level
+    Reset temporary daily energy for premium tier users based on their subscription level
     Runs every day via scheduler
-    Returns count of users who received tokens
+    Returns count of users who received their daily refill
     """
     from datetime import timedelta
     
-    # Tier token amounts
-    TIER_DAILY_TOKENS = {
+    # Tier temporary daily energy amounts
+    TIER_DAILY_TEMP_ENERGY = {
         "plus": 50,
         "premium": 75,
         "pro": 100,
@@ -1360,17 +1401,17 @@ def add_daily_tokens_by_tier(db: Session) -> int:
     now = datetime.utcnow()
     
     for user in users:
-        # Check if 24 hours have passed since last addition
-        if user.last_daily_token_addition:
-            time_since_last = now - user.last_daily_token_addition
+        # Check if 24 hours have passed since last refill
+        if user.last_temp_energy_refill:
+            time_since_last = now - user.last_temp_energy_refill
             if time_since_last < timedelta(hours=24):
                 continue  # Skip if less than 24 hours
         
-        # Add tokens based on tier
-        tokens_to_add = TIER_DAILY_TOKENS.get(user.premium_tier, 0)
-        if tokens_to_add > 0:
-            user.energy += tokens_to_add
-            user.last_daily_token_addition = now
+        # Reset temp_energy to tier amount (doesn't accumulate)
+        temp_energy_amount = TIER_DAILY_TEMP_ENERGY.get(user.premium_tier, 0)
+        if temp_energy_amount > 0:
+            user.temp_energy = temp_energy_amount  # Reset, not add
+            user.last_temp_energy_refill = now
             count += 1
     
     db.commit()

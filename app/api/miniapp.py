@@ -303,8 +303,11 @@ async def get_user_energy(
             premium_info = crud.check_user_premium(db, user_id)
             bonus_info = crud.can_claim_daily_bonus(db, user_id)
             
+            # Calculate total energy (temp_energy + regular energy)
+            total_tokens = (user.temp_energy or 0) + user.energy
+            
             return {
-                "tokens": user.energy,
+                "tokens": total_tokens,
                 "premium_tier": premium_info["tier"],
                 "is_premium": premium_info["is_premium"],
                 "can_claim_daily_bonus": bonus_info["can_claim"],

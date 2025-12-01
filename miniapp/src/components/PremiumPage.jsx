@@ -27,6 +27,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       name: 'Plus',
       icon: '❄️',
       daily: 50,
+      bonus: 500,
       stars: 450,
       featureKeys: [
         'premium.plus.feature1',
@@ -42,7 +43,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       id: 'pro_month',
       name: 'Pro',
       icon: '🔥',
-      daily: 75,
+      daily: 100,
+      bonus: 750,
       stars: 700,
       featureKeys: [
         'premium.pro.feature1',
@@ -54,7 +56,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       id: 'legendary_month',
       name: 'Legendary',
       icon: '🏆',
-      daily: 100,
+      daily: 200,
+      bonus: 1000,
       stars: 900,
       featureKeys: [
         'premium.legendary.feature1',

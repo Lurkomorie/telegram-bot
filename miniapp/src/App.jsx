@@ -8,6 +8,7 @@ import lightningIcon from './assets/lightning.webp';
 import premiumIcon from './assets/premium.webp';
 import BottomNav from './components/BottomNav';
 import CheckoutPage from './components/CheckoutPage';
+import CustomStoryCreation from './components/CustomStoryCreation';
 import HistorySelection from './components/HistorySelection';
 import LanguagePage from './components/LanguagePage';
 import PersonasGallery from './components/PersonasGallery';
@@ -16,7 +17,6 @@ import PremiumPage from './components/PremiumPage';
 import ReferralsPage from './components/ReferralsPage';
 import SettingsPage from './components/SettingsPage';
 import TokensPage from './components/TokensPage';
-import CustomStoryCreation from './components/CustomStoryCreation';
 import { useTranslation } from './i18n/TranslationContext';
 
 /**
@@ -28,7 +28,8 @@ function App() {
   
   // Premium tier mapping
   const premiumTiers = {
-    'premium': { name: 'Plus', icon: '❄️' },
+    'plus': { name: 'Plus', icon: '❄️' },
+    'premium': { name: 'Premium', icon: '❄️' },
     'pro': { name: 'Pro', icon: '🔥' },
     'legendary': { name: 'Legendary', icon: '🏆' }
   };
@@ -520,12 +521,6 @@ function App() {
                     +
                   </button>
                 </div>
-                {tokens.is_premium && tokens.premium_tier && premiumTiers[tokens.premium_tier] && (
-                  <div className="premium-badge-small">
-                    <span className="premium-badge-icon">{premiumTiers[tokens.premium_tier].icon}</span>
-                    <span className="premium-badge-text">{premiumTiers[tokens.premium_tier].name}</span>
-                  </div>
-                )}
               </div>
             </div>
             <button className="referral-bonus-button" onClick={() => handleNavigate('referrals')}>
@@ -556,10 +551,28 @@ function App() {
             </button>
             <button className="action-button subscription-button" onClick={() => handleNavigate('premium')}>
               <div className="button-content">
-                <img src={premiumIcon} alt="premium" className="button-icon-large" />
-                <span className="button-label">{t('app.dailyBonus.subscription')}</span>
+                {tokens.is_premium ? (
+                  <>
+                    <span className="button-icon-large" style={{ fontSize: '16px', lineHeight: '1' }}>
+                      {premiumTiers[tokens.premium_tier]?.icon || '💎'}
+                    </span>
+                    <span className="button-label">
+                      {premiumTiers[tokens.premium_tier]?.name || tokens.premium_tier.charAt(0).toUpperCase() + tokens.premium_tier.slice(1)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <img src={premiumIcon} alt="premium" className="button-icon-large" />
+                    <span className="button-label">{t('app.dailyBonus.subscription')}</span>
+                  </>
+                )}
               </div>
-              <div className="button-subtitle">{t(`app.subscriptionTexts.${subscriptionText}`)}</div>
+              <div className="button-subtitle">
+                {tokens.is_premium 
+                  ? t('app.subscriptionTexts.enjoy')
+                  : t(`app.subscriptionTexts.${subscriptionText}`)
+                }
+              </div>
             </button>
           </div>
           {showBonusAnimation && (

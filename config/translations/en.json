@@ -574,23 +574,23 @@
     "perMonth": "/ month",
     "getButton": "Get {name}",
     "plus": {
-      "feature1": "Free 50 tokens every day",
-      "feature2": "Enhanced AI models",
-      "feature3": "Cheaper photo generation",
-      "feature4": "No limitations",
-      "feature5": "Cheaper character creation",
-      "feature6": "Increased limit to 4,000 characters in character description",
-      "feature7": "Enhanced memory system"
+      "feature1": "+500 bonus tokens on purchase",
+      "feature2": "Free 50 tokens every day",
+      "feature3": "Enhanced AI models",
+      "feature4": "Cheaper photo generation",
+      "feature5": "No limitations",
+      "feature6": "Cheaper character creation",
+      "feature7": "Increased limit to 4,000 characters in character description"
     },
     "pro": {
       "feature1": "Everything in Plus, plus",
-      "feature2": "Free 75 tokens every day",
-      "feature3": "Generate character from image (coming soon)"
+      "feature2": "+750 bonus tokens on purchase",
+      "feature3": "Free 100 tokens every day"
     },
     "legendary": {
-      "feature1": "Everything in Premium, plus",
-      "feature2": "Free 100 tokens every day",
-      "feature3": "Receive new updates first"
+      "feature1": "Everything in Pro, plus",
+      "feature2": "+1,000 bonus tokens on purchase",
+      "feature3": "Free 200 tokens every day"
     }
   },
   "prompts": {

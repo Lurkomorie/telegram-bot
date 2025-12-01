@@ -60,19 +60,17 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     """Generate image for user with given prompt"""
     config = get_app_config()
     
-    # Check if user is premium (premium users pay less)
+    # Check if user is premium (premium users get free images)
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
-    # Determine cost based on premium status
-    image_cost = 3 if is_premium else 5
-    
-    # Check energy
-    with get_db() as db:
-        if not crud.check_user_energy(db, user_id, required=image_cost):
-            # Show energy upsell message
-            await show_energy_upsell_message(message, user_id)
-            return
+    # Check energy for non-premium users (image costs 5 energy)
+    if not is_premium:
+        with get_db() as db:
+            if not crud.check_user_energy(db, user_id, required=5):
+                # Show energy upsell message
+                await show_energy_upsell_message(message, user_id)
+                return
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -95,11 +93,14 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         return
     
     with get_db() as db:
-        # Deduct energy
-        if not crud.deduct_user_energy(db, user_id, amount=image_cost):
-            await message.answer("❌ Failed to deduct energy. Please try again.")
-            return
-        print(f"[IMAGE] ⚡ Deducted {image_cost} energy from user {user_id} (premium: {is_premium})")
+        # Deduct energy for non-premium users
+        if not is_premium:
+            if not crud.deduct_user_energy(db, user_id, amount=5):
+                await message.answer("❌ Failed to deduct energy. Please try again.")
+                return
+            print(f"[IMAGE] ⚡ Deducted 5 energy from user {user_id}")
+        else:
+            print(f"[IMAGE] 💎 Premium user - free image generation")
         
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
@@ -402,12 +403,14 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             persona_name=persona.name if persona else None
         )
         
-        # Deduct energy for refresh (3 for free users, 2 for premium)
-        refresh_cost = 2 if is_premium else 3
-        if not crud.deduct_user_energy(db, user_id, amount=refresh_cost):
-            await callback.answer("❌ Failed to deduct energy", show_alert=True)
-            return
-        print(f"[REFRESH-IMAGE] ⚡ Deducted {refresh_cost} energy for refresh (premium: {is_premium})")
+        # Deduct energy for refresh (3 for free users, 0 for premium)
+        if not is_premium:
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await callback.answer("❌ Failed to deduct energy", show_alert=True)
+                return
+            print(f"[REFRESH-IMAGE] ⚡ Deducted 3 energy for refresh")
+        else:
+            print(f"[REFRESH-IMAGE] 💎 Premium user - free refresh")
     
     # Answer the callback first
     await callback.answer("🔄 Refreshing image...")
