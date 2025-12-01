@@ -133,8 +133,12 @@ function App() {
         // Check URL parameters for routing
         const urlParams = new URLSearchParams(window.location.search);
         const page = urlParams.get('page');
-        if (page === 'premium' || page === 'plans') {
+        if (page === 'premium') {
+          setCurrentPage('premium');
+        } else if (page === 'plans') {
           setCurrentPage('plans');
+        } else if (page === 'energy' || page === 'tokens') {
+          setCurrentPage('tokens');
         }
         
         // Load initial data

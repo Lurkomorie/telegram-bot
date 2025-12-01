@@ -113,20 +113,17 @@ async def handle_text_message(message: types.Message):
             language_code=message.from_user.language_code
         )
         
-        # Check if user is premium (premium users get free messages)
+        # Check if user is premium (all users pay 1 energy per message)
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
-        # Check energy for non-premium users (1 energy per message)
-        if not is_premium:
-            if not crud.check_user_energy(db, user_id, required=1):
-                # Show energy upsell message
-                from app.bot.handlers.image import show_energy_upsell_message
-                await show_energy_upsell_message(message, user_id)
-                log_verbose(f"[CHAT] ⚠️  User {user_id} has insufficient energy")
-                return
-            log_verbose(f"[CHAT] ⚡ User has sufficient energy")
-        else:
-            log_verbose(f"[CHAT] 💎 Premium user - free messages")
+        # Check energy (1 energy per message for all users)
+        if not crud.check_user_energy(db, user_id, required=1):
+            # Show energy upsell message
+            from app.bot.handlers.image import show_energy_upsell_message
+            await show_energy_upsell_message(message, user_id)
+            log_verbose(f"[CHAT] ⚠️  User {user_id} has insufficient energy")
+            return
+        log_verbose(f"[CHAT] ⚡ User has sufficient energy")
         
         # Delete any existing energy upsell message (user is chatting, not low on energy)
         upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
@@ -205,14 +202,13 @@ async def handle_text_message(message: types.Message):
         
         db.commit()
         
-        # Deduct energy for non-premium users (1 energy per message)
-        if not is_premium:
-            if crud.deduct_user_energy(db, user_id, amount=1):
-                log_verbose(f"[CHAT] ⚡ Deducted 1 energy from user {user_id}")
-            else:
-                log_verbose(f"[CHAT] ⚠️  Failed to deduct energy from user {user_id}")
-                await message.answer("❌ Failed to deduct energy. Please try again.")
-                return
+        # Deduct energy (1 energy per message for all users)
+        if crud.deduct_user_energy(db, user_id, amount=1):
+            log_verbose(f"[CHAT] ⚡ Deducted 1 energy from user {user_id}")
+        else:
+            log_verbose(f"[CHAT] ⚠️  Failed to deduct energy from user {user_id}")
+            await message.answer("❌ Failed to deduct energy. Please try again.")
+            return
         
         # Increment global message counter for priority queue logic
         user = db.query(User).filter(User.id == user_id).first()

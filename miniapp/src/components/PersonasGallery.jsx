@@ -102,6 +102,17 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
     personasRef.current = personas;
   }, [onRefresh, personas]);
 
+  // Auto-open creation if URL has create=true parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('create') === 'true') {
+      setShowCreation(true);
+      // Clear the parameter from URL to avoid re-triggering
+      const newUrl = window.location.pathname + '?page=gallery';
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div className="loading">

@@ -347,6 +347,7 @@
     "small_description": "Elegant, commanding CEO who loves control"
   },
   "miniapp": {
+    "buy_tokens_button": "🛍️ Buy Tokens",
     "app": {
       "ageVerification": {
         "confirmButton": "I am 18 years or older",
@@ -720,11 +721,25 @@
     "invoiceFailed": "Failed to create invoice. Please try again.",
     "stars": "stars",
     "processing": "Processing...",
-    "buyButton": "Buy Energy"
+    "buyButton": "Buy Energy",
+    "outOfTokens": {
+      "title": "🫢 Not now!",
+      "subtitle": "You're completely out of tokens — right when things were getting interesting.",
+      "balance": "Balance: {tokens} tokens",
+      "waiting": "She's still there, waiting for your next move...",
+      "costs": "Costs:",
+      "messageBack": "• Message her back → 1 token",
+      "generateImage": "• Generate an image → 5 tokens (Premium: 3)",
+      "fixNow": "Fix this now:",
+      "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
+      "premiumBenefits": "💎 Premium = daily refills + huge discounts",
+      "instantTokens": "🛍️ Instant tokens → continue immediately"
+    }
   },
   "welcome": {
     "browse_button": "👯 Browse Characters",
     "create_button": " Create Your Own Girl",
+    "create_girlfriend_button": "🎨 Create Your Girlfriend",
     "discover_button": "✨ Discover all characters",
     "discover_description": "Browse our full collection of AI companions in the gallery!",
     "discover_title": "✨ Discover All Characters",
