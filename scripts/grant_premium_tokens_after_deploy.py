@@ -15,7 +15,7 @@ from datetime import datetime
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import sessionmaker
 from app.settings import settings
 from app.db.models import User
@@ -52,7 +52,7 @@ def grant_tokens_to_premium_users(dry_run: bool = False):
         active_premium_users = db.query(User).filter(
             User.is_premium == True,
             # Either no expiry (lifetime) or not expired yet
-            db.or_(
+            or_(
                 User.premium_until.is_(None),
                 User.premium_until > now
             )
