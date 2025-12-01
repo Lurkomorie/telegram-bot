@@ -1,0 +1,150 @@
+.checkout-page {
+  min-height: 100vh;
+  padding: 20px;
+  padding-bottom: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.checkout-section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+  letter-spacing: 0.5px;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 10px;
+}
+
+.payment-option:active {
+  transform: scale(0.98);
+}
+
+.payment-option.selected {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-red);
+}
+
+.radio-button {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.radio-button.selected {
+  border-color: var(--color-red);
+}
+
+.radio-button.selected::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background: var(--color-red);
+  border-radius: 50%;
+}
+
+.option-text {
+  font-size: 15px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.discount-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4ade80;
+  padding: 3px 6px;
+  background: rgba(74, 222, 128, 0.1);
+  border-radius: 6px;
+}
+
+.period-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.checkout-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px;
+  background: linear-gradient(to top, #0a0a0a 70%, transparent);
+}
+
+.total-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.total-label {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.total-amount {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.star-icon-inline {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.pay-button {
+  width: 100%;
+  padding: 14px;
+  background: var(--gradient-primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pay-button:active {
+  transform: scale(0.98);
+}
+
+.pay-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

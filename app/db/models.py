@@ -26,15 +26,25 @@ class User(Base):
     # Settings
     settings = Column(JSONB, default={})
     
-    # Energy system
-    energy = Column(BigInteger, default=100, nullable=False)
-    max_energy = Column(BigInteger, default=100, nullable=False)
+    # Token system (formerly energy)
+    energy = Column(BigInteger, default=100, nullable=False)  # Now represents token balance
+    max_energy = Column(BigInteger, default=100, nullable=False)  # Maximum energy/tokens a user can have
+    temp_energy = Column(BigInteger, default=0, nullable=False)  # Temporary daily energy (resets daily, consumed first)
     last_energy_upsell_message_id = Column(BigInteger, nullable=True)
     last_energy_upsell_chat_id = Column(BigInteger, nullable=True)
     
-    # Premium subscription
+    # Premium tiers and subscription
     is_premium = Column(Boolean, default=False, nullable=False)
     premium_until = Column(DateTime, nullable=True)
+    premium_tier = Column(String(20), default="free", nullable=False)  # free, plus, premium, pro, legendary
+    last_daily_token_addition = Column(DateTime, nullable=True)  # Last automatic tier-based token addition
+    last_temp_energy_refill = Column(DateTime, nullable=True)  # Last temporary energy refill (daily)
+    last_daily_bonus_claim = Column(DateTime, nullable=True)  # Last manual daily bonus claim
+    daily_bonus_streak = Column(BigInteger, default=0, nullable=False)  # Consecutive days of claiming daily bonus
+    
+    # Referral system
+    referred_by_user_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    referral_tokens_awarded = Column(Boolean, default=False, nullable=False)
     
     # Global message counter (for priority queue logic)
     global_message_count = Column(BigInteger, default=0, nullable=False)
@@ -45,6 +55,9 @@ class User(Base):
     
     # Age verification
     age_verified = Column(Boolean, default=False, nullable=False)  # Whether user confirmed 18+
+    
+    # Character creation tracking
+    char_created = Column(Boolean, default=False, nullable=False)  # Whether user has created their first character (first is free)
     
     # Relationships
     chats = relationship("Chat", back_populates="user")
@@ -76,17 +89,22 @@ class Persona(Base):
     intro = Column(Text, nullable=True)  # Introduction message
     avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
     
+    # Ordering and menu visibility
+    order = Column(BigInteger, nullable=True, default=999)  # Sort order (lower appears first)
+    main_menu = Column(Boolean, nullable=True, default=True)  # Show in chat main menu
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
     owner = relationship("User", back_populates="personas")
-    chats = relationship("Chat", back_populates="persona")
-    history_starts = relationship("PersonaHistoryStart", back_populates="persona")
+    chats = relationship("Chat", back_populates="persona", cascade="all, delete-orphan")
+    history_starts = relationship("PersonaHistoryStart", back_populates="persona", cascade="all, delete-orphan")
     
     __table_args__ = (
         Index("ix_personas_owner_user_id", "owner_user_id"),
         Index("ix_personas_key", "key"),
         Index("ix_personas_visibility", "visibility"),
+        Index("ix_personas_order", "order"),
     )
 
 
@@ -95,7 +113,7 @@ class PersonaHistoryStart(Base):
     __tablename__ = "persona_history_starts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=False)
+    persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=True)  # Story name (e.g., "The Dairy Queen")
     small_description = Column(Text, nullable=True)  # Short story description for menu
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
@@ -318,7 +336,6 @@ class StartCode(Base):
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=True)  # Optional persona
     history_id = Column(UUID(as_uuid=True), ForeignKey("persona_history_starts.id"), nullable=True)  # Optional history
     is_active = Column(Boolean, default=True, nullable=False)  # Active/inactive toggle
-    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -348,4 +365,152 @@ class Translation(Base):
         UniqueConstraint("key", "lang", name="uq_translations_key_lang"),
         Index("ix_translations_key_lang", "key", "lang"),
         Index("ix_translations_category", "category"),
+    )
+
+
+class PaymentTransaction(Base):
+    """Payment transactions for tracking all token purchases and tier subscriptions"""
+    __tablename__ = "payment_transactions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    transaction_type = Column(
+        String(20),
+        CheckConstraint("transaction_type IN ('token_package', 'tier_subscription')"),
+        nullable=False
+    )
+    product_id = Column(String(50), nullable=False)  # e.g., "tokens_100", "premium_month"
+    amount_stars = Column(BigInteger, nullable=False)  # Stars paid
+    tokens_received = Column(BigInteger, nullable=True)  # For token packages
+    tier_granted = Column(String(20), nullable=True)  # For subscriptions: plus, premium, pro, legendary
+    subscription_days = Column(BigInteger, nullable=True)  # For subscriptions
+    telegram_payment_charge_id = Column(String(255), nullable=True)  # Telegram's payment ID
+    status = Column(
+        String(20),
+        CheckConstraint("status IN ('completed', 'pending', 'failed', 'refunded')"),
+        default="completed",
+        nullable=False
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    
+    __table_args__ = (
+        Index("ix_payment_transactions_user_id", "user_id"),
+        Index("ix_payment_transactions_created_at", "created_at"),
+        Index("ix_payment_transactions_status", "status"),
+    )
+
+
+class SystemMessageTemplate(Base):
+    """Templates for system messages"""
+    __tablename__ = "system_message_templates"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    name = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=True)
+    text = Column(Text, nullable=False)
+    media_type = Column(
+        String(20),
+        CheckConstraint("media_type IN ('none', 'photo', 'video', 'animation')"),
+        default="none",
+        nullable=False
+    )
+    media_url = Column(Text, nullable=True)
+    buttons = Column(JSONB, default=[], nullable=True)
+    created_by = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    system_messages = relationship("SystemMessage", back_populates="template")
+    
+    __table_args__ = (
+        Index("ix_system_message_templates_is_active", "is_active"),
+        Index("ix_system_message_templates_created_at", "created_at"),
+    )
+
+
+class SystemMessage(Base):
+    """System messages sent to users"""
+    __tablename__ = "system_messages"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    title = Column(String(255), nullable=True)
+    text = Column(Text, nullable=False)
+    media_type = Column(
+        String(20),
+        CheckConstraint("media_type IN ('none', 'photo', 'video', 'animation')"),
+        default="none",
+        nullable=False
+    )
+    media_url = Column(Text, nullable=True)
+    buttons = Column(JSONB, default=[], nullable=True)
+    target_type = Column(
+        String(20),
+        CheckConstraint("target_type IN ('all', 'user', 'users', 'group')"),
+        nullable=False
+    )
+    target_user_ids = Column(ARRAY(BigInteger), nullable=True)
+    target_group = Column(String(255), nullable=True)
+    status = Column(
+        String(20),
+        CheckConstraint("status IN ('draft', 'scheduled', 'sending', 'completed', 'failed', 'cancelled')"),
+        default="draft",
+        nullable=False
+    )
+    send_immediately = Column(Boolean, default=False, nullable=False)
+    scheduled_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    created_by = Column(String(255), nullable=True)
+    ext = Column(JSONB, default={}, nullable=True)
+    template_id = Column(UUID(as_uuid=True), ForeignKey("system_message_templates.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    template = relationship("SystemMessageTemplate", back_populates="system_messages")
+    deliveries = relationship("SystemMessageDelivery", back_populates="system_message", cascade="all, delete-orphan")
+    
+    __table_args__ = (
+        Index("ix_system_messages_status", "status"),
+        Index("ix_system_messages_target_type", "target_type"),
+        Index("ix_system_messages_scheduled_at", "scheduled_at"),
+        Index("ix_system_messages_created_at", "created_at"),
+        Index("ix_system_messages_template_id", "template_id"),
+    )
+
+
+class SystemMessageDelivery(Base):
+    """Delivery tracking for system messages"""
+    __tablename__ = "system_message_deliveries"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    system_message_id = Column(UUID(as_uuid=True), ForeignKey("system_messages.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    status = Column(
+        String(20),
+        CheckConstraint("status IN ('pending', 'sent', 'failed', 'blocked')"),
+        default="pending",
+        nullable=False
+    )
+    error = Column(Text, nullable=True)
+    retry_count = Column(BigInteger, default=0, nullable=False)
+    max_retries = Column(BigInteger, default=3, nullable=False)
+    sent_at = Column(DateTime, nullable=True)
+    message_id = Column(BigInteger, nullable=True)  # Telegram message ID
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    system_message = relationship("SystemMessage", back_populates="deliveries")
+    user = relationship("User")
+    
+    __table_args__ = (
+        Index("ix_system_message_deliveries_system_message_id", "system_message_id"),
+        Index("ix_system_message_deliveries_user_id", "user_id"),
+        Index("ix_system_message_deliveries_status", "status"),
+        Index("ix_system_message_deliveries_retry_count", "retry_count"),
     )

@@ -2,6 +2,7 @@
 /start command handler and persona selection
 """
 import json
+import asyncio
 from aiogram import types
 from aiogram.filters import Command
 from app.bot.loader import router
@@ -146,6 +147,26 @@ async def cmd_start(message: types.Message):
             print(f"[START-CODE] ⚠️  Start code not found or inactive: {deep_link_param}")
             # Fall through to normal flow
     
+    # Handle referral codes (format: ref_<user_id>)
+    if deep_link_param and deep_link_param.startswith("ref_"):
+        try:
+            referrer_id = int(deep_link_param.split("_")[1])
+            print(f"[REFERRAL] 🎁 Processing referral from user {referrer_id} to new user {message.from_user.id}")
+            
+            # Don't allow self-referral
+            if referrer_id != message.from_user.id:
+                with get_db() as db:
+                    # Track the referral
+                    success = crud.track_referral(db, referrer_id, message.from_user.id)
+                    if success:
+                        print(f"[REFERRAL] ✅ Referral tracked: {referrer_id} -> {message.from_user.id}")
+                    else:
+                        print(f"[REFERRAL] ⚠️  Referral not tracked (already set or user not found)")
+            else:
+                print(f"[REFERRAL] ⚠️  Self-referral attempted by user {referrer_id}")
+        except (ValueError, IndexError) as e:
+            print(f"[REFERRAL] ❌ Invalid referral code format: {deep_link_param}, error: {e}")
+    
     # Handle telegram_ads_* deep links (e.g., telegram_ads_kiki3)
     if deep_link_param and deep_link_param.startswith("telegram_ads_"):
         import re
@@ -258,6 +279,8 @@ async def cmd_start(message: types.Message):
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
@@ -556,6 +579,9 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
         parse_mode="MarkdownV2"
     )
     
+    # Wait 1 second before sending next message
+    await asyncio.sleep(1)
+    
     # Send description if exists
     if description_text:
         escaped_description = escape_markdown_v2(description_text)
@@ -564,6 +590,9 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
             formatted_description,
             parse_mode="MarkdownV2"
         )
+    
+    # Wait 3 seconds before sending greeting/image
+    await asyncio.sleep(3)
     
     # Send greeting
     escaped_greeting = escape_markdown_v2(greeting_text)
@@ -590,6 +619,8 @@ async def show_personas_callback(callback: types.CallbackQuery):
     # Get personas from cache
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
@@ -958,6 +989,9 @@ async def select_story_callback(callback: types.CallbackQuery):
         parse_mode="MarkdownV2"
     )
     
+    # Wait 1 second before sending next message
+    await asyncio.sleep(1)
+    
     # Send description if it exists (in italic using MarkdownV2)
     if description_text:
         escaped_description = escape_markdown_v2(description_text)
@@ -967,14 +1001,31 @@ async def select_story_callback(callback: types.CallbackQuery):
             parse_mode="MarkdownV2"
         )
     
+    # Wait 3 seconds before sending greeting/image
+    await asyncio.sleep(3)
+    
     # Send greeting
     escaped_greeting = escape_markdown_v2(greeting_text)
     if history_start_data and history_start_data["image_url"]:
+        # Send the image
         await callback.message.answer_photo(
             photo=history_start_data["image_url"],
             caption=escaped_greeting,
             parse_mode="MarkdownV2"
         )
+        
+        # Create an ImageJob record for this initial image so future messages can reference it
+        # This ensures continuity when generating subsequent images
+        with get_db() as db:
+            initial_image_job = crud.create_initial_image_job(
+                db,
+                user_id=callback.from_user.id,
+                persona_id=persona_id,
+                chat_id=chat_id,
+                prompt=history_start.get("image_prompt", "predefined_story_image"),
+                result_url=history_start_data["image_url"]
+            )
+            print(f"[SELECT_STORY] ✅ Created ImageJob record for initial story image (job_id={initial_image_job.id})")
     else:
         await callback.message.answer(
             escaped_greeting,
@@ -1184,6 +1235,8 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     # No pending deep link or it failed - show standard persona selection
     from app.core.persona_cache import get_preset_personas, get_persona_field
     preset_data = get_preset_personas()
+    # Filter to only show personas with main_menu=True for chat start
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions

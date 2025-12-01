@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.db.models import (
     User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
-    PersonaTranslation, PersonaHistoryTranslation
+    PersonaTranslation, PersonaHistoryTranslation, SystemMessage, SystemMessageTemplate, SystemMessageDelivery
 )
 from datetime import datetime, date
 
@@ -227,9 +227,23 @@ def get_persona_by_id(db: Session, persona_id: UUID) -> Optional[Persona]:
     return db.query(Persona).filter(Persona.id == persona_id).first()
 
 
-def get_preset_personas(db: Session) -> List[Persona]:
-    """Get all public personas"""
-    return db.query(Persona).filter(Persona.visibility == 'public').all()
+def get_preset_personas(db: Session, main_menu_only: bool = False) -> List[Persona]:
+    """Get all public personas, optionally filtered by main_menu
+    
+    Args:
+        db: Database session
+        main_menu_only: If True, only return personas with main_menu=True
+    
+    Returns:
+        List of personas ordered by 'order' field ascending
+    """
+    query = db.query(Persona).filter(Persona.visibility == 'public')
+    
+    if main_menu_only:
+        query = query.filter(Persona.main_menu == True)
+    
+    # Order by 'order' field (lower numbers appear first), with NULL values last
+    return query.order_by(Persona.order.asc().nullslast()).all()
 
 
 def get_user_personas(db: Session, user_id: int) -> List[Persona]:
@@ -249,7 +263,9 @@ def create_persona(
     description: str = None,
     intro: str = None,
     owner_user_id: int = None,
-    key: str = None
+    key: str = None,
+    order: int = 999,
+    main_menu: bool = True
 ) -> Persona:
     """Create a new persona"""
     persona = Persona(
@@ -260,7 +276,9 @@ def create_persona(
         description=description,
         intro=intro,
         owner_user_id=owner_user_id,
-        key=key
+        key=key,
+        order=order,
+        main_menu=main_menu
     )
     db.add(persona)
     db.commit()
@@ -407,7 +425,9 @@ def update_persona(
     small_description: str = None,
     emoji: str = None,
     intro: str = None,
-    avatar_url: str = None
+    avatar_url: str = None,
+    order: int = None,
+    main_menu: bool = None
 ) -> Optional[Persona]:
     """Update an existing persona"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
@@ -436,6 +456,10 @@ def update_persona(
         persona.intro = intro
     if avatar_url is not None:
         persona.avatar_url = avatar_url
+    if order is not None:
+        persona.order = order
+    if main_menu is not None:
+        persona.main_menu = main_menu
     
     db.commit()
     db.refresh(persona)
@@ -443,11 +467,29 @@ def update_persona(
 
 
 def delete_persona(db: Session, persona_id: UUID) -> bool:
-    """Delete a persona by ID"""
+    """Delete a persona by ID (with cascade deletion of related records)"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return False
     
+    # Delete in correct order to avoid foreign key constraints:
+    # 1. Image jobs (references persona and chat)
+    # 2. History starts (references persona)
+    # 3. Chats (references persona)
+    # 4. Persona
+    
+    from app.db.models import ImageJob, Chat, PersonaHistoryStart
+    
+    # Delete all image jobs for this persona
+    db.query(ImageJob).filter(ImageJob.persona_id == persona_id).delete(synchronize_session='fetch')
+    
+    # Delete all history starts for this persona
+    db.query(PersonaHistoryStart).filter(PersonaHistoryStart.persona_id == persona_id).delete(synchronize_session='fetch')
+    
+    # Delete all chats for this persona (cascade will delete messages)
+    db.query(Chat).filter(Chat.persona_id == persona_id).delete(synchronize_session='fetch')
+    
+    # Now safe to delete the persona
     db.delete(persona)
     db.commit()
     return True
@@ -1157,50 +1199,65 @@ def delete_persona_history(db: Session, history_id: UUID) -> bool:
 # ========== USER ENERGY OPERATIONS ==========
 
 def get_user_energy(db: Session, user_id: int) -> dict:
-    """Get user's current energy"""
+    """Get user's current token balance (combined temp_energy + regular energy)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return {"energy": 0, "max_energy": 0}
-    return {"energy": user.energy, "max_energy": user.max_energy}
+        return {"tokens": 0, "premium_tier": "free"}
+    total_tokens = (user.temp_energy or 0) + user.energy
+    return {"tokens": total_tokens, "premium_tier": user.premium_tier}
 
 
 def deduct_user_energy(db: Session, user_id: int, amount: int = 5) -> bool:
     """
-    Deduct energy from user
-    Returns True if successful, False if insufficient energy
+    Deduct tokens from user (all users including premium tiers consume tokens)
+    Deducts from temp_energy first, then regular energy
+    Returns True if successful, False if insufficient tokens
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
     
-    if user.energy < amount:
+    # Check if user has enough total energy
+    total_energy = (user.temp_energy or 0) + user.energy
+    if total_energy < amount:
         return False
     
-    user.energy -= amount
+    # Deduct from temp_energy first
+    if user.temp_energy >= amount:
+        # Sufficient temp energy to cover the cost
+        user.temp_energy -= amount
+    else:
+        # Use all temp energy and deduct the rest from regular energy
+        remaining = amount - user.temp_energy
+        user.temp_energy = 0
+        user.energy -= remaining
+    
     db.commit()
     return True
 
 
 def add_user_energy(db: Session, user_id: int, amount: int) -> bool:
     """
-    Add energy to user (up to max_energy)
+    Add tokens to user (no cap - tokens are purchased)
     Returns True if successful
     """
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
     
-    user.energy = min(user.energy + amount, user.max_energy)
+    # Simply add tokens - no max_energy cap for purchased tokens
+    user.energy += amount
     db.commit()
     return True
 
 
 def check_user_energy(db: Session, user_id: int, required: int = 5) -> bool:
-    """Check if user has enough energy"""
+    """Check if user has enough energy (checks temp_energy + regular energy combined)"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
-    return user.energy >= required
+    total_energy = (user.temp_energy or 0) + user.energy
+    return total_energy >= required
 
 
 def save_energy_upsell_message(db: Session, user_id: int, message_id: int, chat_id: int):
@@ -1234,35 +1291,39 @@ def get_and_clear_energy_upsell_message(db: Session, user_id: int) -> tuple:
 
 # ========== PREMIUM SUBSCRIPTION OPERATIONS ==========
 
-def check_user_premium(db: Session, user_id: int) -> bool:
+def check_user_premium(db: Session, user_id: int) -> dict:
     """
-    Check if user has active premium subscription
-    Returns True if user is premium and subscription hasn't expired
+    Check if user has active premium subscription and return tier information
+    Returns: {"is_premium": bool, "tier": str}
     """
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return False
+        return {"is_premium": False, "tier": "free"}
     
     # Check if premium and not expired
     if user.is_premium:
-        if user.premium_until is None:
-            return True  # Lifetime premium
-        if user.premium_until > datetime.utcnow():
-            return True  # Active subscription
+        if user.premium_until is None or user.premium_until > datetime.utcnow():
+            # Active subscription - ensure tier is set
+            if user.premium_tier == "free":
+                user.premium_tier = "premium"  # Default tier
+                db.commit()
+            return {"is_premium": True, "tier": user.premium_tier}
         else:
-            # Expired - clear premium status
+            # Expired - downgrade to free
             user.is_premium = False
+            user.premium_tier = "free"
             db.commit()
-            return False
+            return {"is_premium": False, "tier": "free"}
     
-    return False
+    return {"is_premium": False, "tier": user.premium_tier}
 
 
-def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
+def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = "premium") -> bool:
     """
-    Activate premium subscription for user
+    Activate premium subscription for user with specific tier
     duration_days: number of days to add to subscription
+    tier: premium tier (plus, premium, pro, legendary)
     Returns True if successful
     """
     from datetime import timedelta
@@ -1271,8 +1332,12 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
     if not user:
         return False
     
-    # Set premium status
+    # Check if this is a new subscription (not an extension)
+    is_new_subscription = not user.is_premium or (user.premium_until and user.premium_until <= datetime.utcnow())
+    
+    # Set premium status and tier
     user.is_premium = True
+    user.premium_tier = tier
     
     # Calculate expiry date
     if user.premium_until and user.premium_until > datetime.utcnow():
@@ -1282,57 +1347,250 @@ def activate_premium(db: Session, user_id: int, duration_days: int) -> bool:
         # New subscription
         user.premium_until = datetime.utcnow() + timedelta(days=duration_days)
     
+    # Add one-time energy bonus for new subscriptions
+    if is_new_subscription:
+        tier_bonus = {
+            "plus": 500,
+            "premium": 500,
+            "pro": 750,
+            "legendary": 1000
+        }
+        bonus = tier_bonus.get(tier, 0)
+        if bonus > 0:
+            user.energy += bonus
+        
+        # Also set initial temp_energy for immediate use
+        tier_temp_energy = {
+            "plus": 50,
+            "premium": 75,
+            "pro": 100,
+            "legendary": 200
+        }
+        temp_energy = tier_temp_energy.get(tier, 0)
+        if temp_energy > 0:
+            user.temp_energy = temp_energy
+            user.last_temp_energy_refill = datetime.utcnow()
+    
     db.commit()
     return True
 
 
-def regenerate_user_energy(db: Session, user_id: int) -> bool:
+def add_daily_tokens_by_tier(db: Session) -> int:
     """
-    Add 10 energy to user (daily regeneration for free users)
-    Only applies to non-premium users
-    Returns True if energy was added
+    Reset temporary daily energy for premium tier users based on their subscription level
+    Runs every day via scheduler
+    Returns count of users who received their daily refill
     """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return False
+    from datetime import timedelta
     
-    # Skip if user is premium
-    if check_user_premium(db, user_id):
-        return False
+    # Tier temporary daily energy amounts
+    TIER_DAILY_TEMP_ENERGY = {
+        "plus": 50,
+        "premium": 75,
+        "pro": 100,
+        "legendary": 200
+    }
     
-    # Add 10 energy, capped at max_energy
-    old_energy = user.energy
-    user.energy = min(user.energy + 10, user.max_energy)
-    db.commit()
-    
-    return user.energy > old_energy
-
-
-def regenerate_all_users_energy(db: Session) -> int:
-    """
-    Regenerate 10 energy for all non-premium users (runs every day)
-    Returns count of users who received energy
-    """
-    
-    # Get all non-premium users
+    # Get all premium tier users whose subscription hasn't expired
     users = db.query(User).filter(
-        (User.is_premium == False) | 
-        ((User.is_premium == True) & (User.premium_until < datetime.utcnow()))
+        User.premium_tier.in_(["plus", "premium", "pro", "legendary"]),
+        (User.premium_until.is_(None)) | (User.premium_until > datetime.utcnow())
     ).all()
     
     count = 0
+    now = datetime.utcnow()
+    
     for user in users:
-        # Update expired premium status
-        if user.is_premium and user.premium_until and user.premium_until < datetime.utcnow():
-            user.is_premium = False
+        # Check if 24 hours have passed since last refill
+        if user.last_temp_energy_refill:
+            time_since_last = now - user.last_temp_energy_refill
+            if time_since_last < timedelta(hours=24):
+                continue  # Skip if less than 24 hours
         
-        # Add energy if below max
-        if user.energy < user.max_energy:
-            user.energy = min(user.energy + 10, user.max_energy)
+        # Reset temp_energy to tier amount (doesn't accumulate)
+        temp_energy_amount = TIER_DAILY_TEMP_ENERGY.get(user.premium_tier, 0)
+        if temp_energy_amount > 0:
+            user.temp_energy = temp_energy_amount  # Reset, not add
+            user.last_temp_energy_refill = now
             count += 1
     
     db.commit()
     return count
+
+
+# ========== DAILY BONUS OPERATIONS ==========
+
+def can_claim_daily_bonus(db: Session, user_id: int) -> dict:
+    """
+    Check if user can claim daily bonus
+    Returns: {can_claim: bool, next_claim_seconds: int}
+    """
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"can_claim": False, "next_claim_seconds": 0}
+    
+    # If never claimed, can claim now
+    if not user.last_daily_bonus_claim:
+        return {"can_claim": True, "next_claim_seconds": 0}
+    
+    # Check if 24 hours have passed
+    now = datetime.utcnow()
+    time_since_last = now - user.last_daily_bonus_claim
+    
+    if time_since_last >= timedelta(hours=24):
+        return {"can_claim": True, "next_claim_seconds": 0}
+    else:
+        # Calculate seconds until next claim
+        time_until_next = timedelta(hours=24) - time_since_last
+        seconds_until_next = int(time_until_next.total_seconds())
+        # Cap at 23h 59m (86340 seconds) to avoid showing 24h 0m
+        # This ensures we never display 24h 0m, max is 23h 59m
+        if seconds_until_next > 86340:  # 23 hours 59 minutes
+            seconds_until_next = 86340
+        return {"can_claim": False, "next_claim_seconds": seconds_until_next}
+
+
+def claim_daily_bonus(db: Session, user_id: int) -> dict:
+    """
+    Claim daily bonus (10 tokens)
+    Returns: {success: bool, tokens: int, message: str, streak: int}
+    """
+    from datetime import timedelta
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"success": False, "tokens": 0, "message": "User not found", "streak": 0}
+    
+    # Check if can claim
+    if user.last_daily_bonus_claim:
+        time_since_last = datetime.utcnow() - user.last_daily_bonus_claim
+        if time_since_last < timedelta(hours=24):
+            time_until_next = timedelta(hours=24) - time_since_last
+            hours = int(time_until_next.total_seconds() // 3600)
+            minutes = int((time_until_next.total_seconds() % 3600) // 60)
+            return {
+                "success": False,
+                "tokens": user.energy,
+                "message": f"Already claimed today. Next bonus in {hours}h {minutes}m",
+                "streak": user.daily_bonus_streak or 0
+            }
+        
+        # Check if streak should be reset (more than 48 hours)
+        if time_since_last > timedelta(hours=48):
+            user.daily_bonus_streak = 0
+    
+    # Award 10 tokens and increment streak
+    user.energy += 10
+    user.last_daily_bonus_claim = datetime.utcnow()
+    user.daily_bonus_streak = (user.daily_bonus_streak or 0) + 1
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "success": True,
+        "tokens": user.energy,
+        "message": f"Claimed 10 tokens! Day {user.daily_bonus_streak} streak!",
+        "streak": user.daily_bonus_streak
+    }
+
+
+# ========== REFERRAL OPERATIONS ==========
+
+def track_referral(db: Session, referrer_id: int, new_user_id: int) -> bool:
+    """
+    Track that a new user was referred by an existing user
+    Returns True if successfully tracked
+    """
+    new_user = db.query(User).filter(User.id == new_user_id).first()
+    if not new_user:
+        return False
+    
+    # Only set referrer if not already set
+    if not new_user.referred_by_user_id:
+        new_user.referred_by_user_id = referrer_id
+        db.commit()
+        return True
+    
+    return False
+
+
+def award_referral_tokens(db: Session, referrer_id: int, new_user_id: int) -> bool:
+    """
+    Award 50 tokens to referrer when their referred user completes onboarding
+    Returns True if tokens were awarded
+    """
+    # Check that new user was referred by this referrer
+    new_user = db.query(User).filter(User.id == new_user_id).first()
+    if not new_user or new_user.referred_by_user_id != referrer_id:
+        return False
+    
+    # Check if tokens already awarded
+    if new_user.referral_tokens_awarded:
+        return False
+    
+    # Award tokens to referrer
+    referrer = db.query(User).filter(User.id == referrer_id).first()
+    if not referrer:
+        return False
+    
+    referrer.energy += 50
+    new_user.referral_tokens_awarded = True
+    
+    db.commit()
+    return True
+
+
+# ========== PAYMENT TRANSACTION OPERATIONS ==========
+
+def create_payment_transaction(
+    db: Session,
+    user_id: int,
+    transaction_type: str,
+    product_id: str,
+    amount_stars: int,
+    tokens_received: int = None,
+    tier_granted: str = None,
+    subscription_days: int = None,
+    telegram_payment_charge_id: str = None,
+    status: str = "completed"
+) -> 'PaymentTransaction':
+    """
+    Create a payment transaction record
+    """
+    from app.db.models import PaymentTransaction
+    
+    transaction = PaymentTransaction(
+        user_id=user_id,
+        transaction_type=transaction_type,
+        product_id=product_id,
+        amount_stars=amount_stars,
+        tokens_received=tokens_received,
+        tier_granted=tier_granted,
+        subscription_days=subscription_days,
+        telegram_payment_charge_id=telegram_payment_charge_id,
+        status=status
+    )
+    
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    
+    return transaction
+
+
+def get_user_transactions(db: Session, user_id: int, limit: int = 50) -> list:
+    """
+    Get user's payment transaction history
+    """
+    from app.db.models import PaymentTransaction
+    
+    transactions = db.query(PaymentTransaction).filter(
+        PaymentTransaction.user_id == user_id
+    ).order_by(PaymentTransaction.created_at.desc()).limit(limit).all()
+    
+    return transactions
 
 
 # ========== ANALYTICS OPERATIONS ==========
@@ -2883,6 +3141,166 @@ def delete_start_code(db: Session, code: str) -> bool:
     return True
 
 
+# ========== SYSTEM MESSAGE OPERATIONS ==========
+
+def create_system_message(
+    db: Session,
+    title: str = None,
+    text: str = None,
+    media_type: str = "none",
+    media_url: str = None,
+    buttons: dict = None,
+    target_type: str = None,
+    target_user_ids: List[int] = None,
+    target_group: str = None,
+    send_immediately: bool = False,
+    scheduled_at: datetime = None,
+    created_by: str = None,
+    ext: dict = None,
+    template_id: UUID = None
+) -> SystemMessage:
+    """Create a new system message"""
+    # Determine initial status
+    if send_immediately:
+        status = "sending"
+    elif scheduled_at:
+        status = "scheduled"
+    else:
+        status = "draft"
+    
+    message = SystemMessage(
+        title=title,
+        text=text,
+        media_type=media_type,
+        media_url=media_url,
+        buttons=buttons or [],
+        target_type=target_type,
+        target_user_ids=target_user_ids,
+        target_group=target_group,
+        status=status,
+        send_immediately=send_immediately,
+        scheduled_at=scheduled_at,
+        created_by=created_by,
+        ext=ext or {},
+        template_id=template_id
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def get_system_message(db: Session, message_id: UUID) -> Optional[SystemMessage]:
+    """Get system message by ID"""
+    return db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+
+
+def list_system_messages(
+    db: Session,
+    page: int = 1,
+    per_page: int = 50,
+    status: str = None,
+    target_type: str = None,
+    date_from: datetime = None,
+    date_to: datetime = None
+) -> dict:
+    """List system messages with pagination and filters"""
+    query = db.query(SystemMessage)
+    
+    if status:
+        query = query.filter(SystemMessage.status == status)
+    if target_type:
+        query = query.filter(SystemMessage.target_type == target_type)
+    if date_from:
+        query = query.filter(SystemMessage.created_at >= date_from)
+    if date_to:
+        query = query.filter(SystemMessage.created_at <= date_to)
+    
+    total = query.count()
+    messages = query.order_by(desc(SystemMessage.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'messages': messages,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
+
+
+def update_system_message(
+    db: Session,
+    message_id: UUID,
+    title: str = None,
+    text: str = None,
+    media_type: str = None,
+    media_url: str = None,
+    buttons: dict = None,
+    target_type: str = None,
+    target_user_ids: List[int] = None,
+    target_group: str = None,
+    send_immediately: bool = None,
+    scheduled_at: datetime = None,
+    ext: dict = None
+) -> Optional[SystemMessage]:
+    """Update system message (only if status is 'draft' or 'scheduled')"""
+    message = db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+    if not message:
+        return None
+    
+    if message.status not in ('draft', 'scheduled'):
+        raise ValueError(f"Cannot update message with status '{message.status}'")
+    
+    if title is not None:
+        message.title = title
+    if text is not None:
+        message.text = text
+    if media_type is not None:
+        message.media_type = media_type
+    if media_url is not None:
+        message.media_url = media_url
+    if buttons is not None:
+        message.buttons = buttons
+    if target_type is not None:
+        message.target_type = target_type
+    if target_user_ids is not None:
+        message.target_user_ids = target_user_ids
+    if target_group is not None:
+        message.target_group = target_group
+    if send_immediately is not None:
+        message.send_immediately = send_immediately
+    if scheduled_at is not None:
+        message.scheduled_at = scheduled_at
+    if ext is not None:
+        message.ext = ext
+    
+    # Update status based on send_immediately and scheduled_at
+    if message.send_immediately:
+        message.status = "sending"
+    elif message.scheduled_at:
+        message.status = "scheduled"
+    else:
+        message.status = "draft"
+    
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+def delete_system_message(db: Session, message_id: UUID) -> bool:
+    """Delete system message (only if status is 'draft', 'scheduled', or 'cancelled')"""
+    message = db.query(SystemMessage).filter(SystemMessage.id == message_id).first()
+    if not message:
+        return False
+    
+    if message.status not in ('draft', 'scheduled', 'cancelled'):
+        raise ValueError(f"Cannot delete message with status '{message.status}'")
+    
+    db.delete(message)
+    db.commit()
+    return True
+
+
 # ========== TRANSLATION OPERATIONS ==========
 
 def get_translation(db: Session, key: str, lang: str):
@@ -2939,6 +3357,282 @@ def get_all_translations(db: Session, lang: Optional[str] = None) -> List:
     
     return query.all()
 
+
+# ========== SYSTEM MESSAGE DELIVERY & SCHEDULING ==========
+
+def get_scheduled_messages(db: Session) -> List[SystemMessage]:
+    """
+    Get messages that are scheduled and ready to send
+    
+    Uses SELECT FOR UPDATE SKIP LOCKED for concurrency safety:
+    - Multiple scheduler instances won't process the same message
+    - Locked rows are skipped, not blocked
+    - Status is immediately updated to 'sending' within transaction
+    """
+    from sqlalchemy import select
+    
+    now = datetime.utcnow()
+    
+    # Use FOR UPDATE SKIP LOCKED for distributed lock-free concurrency
+    stmt = select(SystemMessage).filter(
+        SystemMessage.status == "scheduled",
+        SystemMessage.scheduled_at <= now
+    ).with_for_update(skip_locked=True)
+    
+    messages = db.execute(stmt).scalars().all()
+    
+    # Immediately update status to 'sending' to prevent other instances from picking them up
+    for message in messages:
+        message.status = "sending"
+    
+    if messages:
+        db.commit()
+        # Refresh to ensure we have latest data
+        for message in messages:
+            db.refresh(message)
+    
+    return messages
+
+
+def get_users_by_group(db: Session, group_name: str) -> List[User]:
+    """Get users by group name"""
+    now = datetime.utcnow()
+    
+    if group_name == "premium":
+        return db.query(User).filter(
+            User.is_premium == True,
+            User.premium_until > now
+        ).all()
+    
+    elif group_name == "inactive_7d":
+        from datetime import timedelta
+        cutoff = now - timedelta(days=7)
+        # Users with no messages or image generations in last 7 days
+        # Check last_user_message_at from chats
+        active_user_ids = db.query(Chat.user_id).filter(
+            Chat.last_user_message_at >= cutoff
+        ).distinct().all()
+        active_user_ids = [uid[0] for uid in active_user_ids]
+        
+        # Also check image generation events
+        active_image_user_ids = db.query(TgAnalyticsEvent.client_id).filter(
+            TgAnalyticsEvent.event_name == "image_generated",
+            TgAnalyticsEvent.created_at >= cutoff
+        ).distinct().all()
+        active_image_user_ids = [uid[0] for uid in active_image_user_ids]
+        
+        all_active_ids = set(active_user_ids + active_image_user_ids)
+        if all_active_ids:
+            return db.query(User).filter(~User.id.in_(all_active_ids)).all()
+        else:
+            return db.query(User).all()
+    
+    elif group_name == "inactive_30d":
+        from datetime import timedelta
+        cutoff = now - timedelta(days=30)
+        active_user_ids = db.query(Chat.user_id).filter(
+            Chat.last_user_message_at >= cutoff
+        ).distinct().all()
+        active_user_ids = [uid[0] for uid in active_user_ids]
+        
+        active_image_user_ids = db.query(TgAnalyticsEvent.client_id).filter(
+            TgAnalyticsEvent.event_name == "image_generated",
+            TgAnalyticsEvent.created_at >= cutoff
+        ).distinct().all()
+        active_image_user_ids = [uid[0] for uid in active_image_user_ids]
+        
+        all_active_ids = set(active_user_ids + active_image_user_ids)
+        if all_active_ids:
+            return db.query(User).filter(~User.id.in_(all_active_ids)).all()
+        else:
+            return db.query(User).all()
+    
+    elif group_name.startswith("acquisition_source:"):
+        source = group_name.replace("acquisition_source:", "")
+        return db.query(User).filter(User.acquisition_source == source).all()
+    
+    else:
+        return []
+
+
+# ========== SYSTEM MESSAGE TEMPLATE OPERATIONS ==========
+
+def create_template(
+    db: Session,
+    name: str,
+    title: str = None,
+    text: str = None,
+    media_type: str = "none",
+    media_url: str = None,
+    buttons: dict = None,
+    created_by: str = None
+) -> SystemMessageTemplate:
+    """Create a new system message template"""
+    template = SystemMessageTemplate(
+        name=name,
+        title=title,
+        text=text,
+        media_type=media_type,
+        media_url=media_url,
+        buttons=buttons or [],
+        created_by=created_by
+    )
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return template
+
+
+def get_template(db: Session, template_id: UUID) -> Optional[SystemMessageTemplate]:
+    """Get template by ID"""
+    return db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+
+
+def list_templates(
+    db: Session,
+    page: int = 1,
+    per_page: int = 50,
+    is_active: bool = None
+) -> dict:
+    """List templates with pagination"""
+    query = db.query(SystemMessageTemplate)
+    
+    if is_active is not None:
+        query = query.filter(SystemMessageTemplate.is_active == is_active)
+    
+    total = query.count()
+    templates = query.order_by(desc(SystemMessageTemplate.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'templates': templates,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
+
+
+def get_active_templates(db: Session) -> List[SystemMessageTemplate]:
+    """Get all active templates"""
+    return db.query(SystemMessageTemplate).filter(SystemMessageTemplate.is_active == True).all()
+
+
+def update_template(
+    db: Session,
+    template_id: UUID,
+    name: str = None,
+    title: str = None,
+    text: str = None,
+    media_type: str = None,
+    media_url: str = None,
+    buttons: dict = None,
+    is_active: bool = None
+) -> Optional[SystemMessageTemplate]:
+    """Update template"""
+    template = db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+    if not template:
+        return None
+    
+    if name is not None:
+        template.name = name
+    if title is not None:
+        template.title = title
+    if text is not None:
+        template.text = text
+    if media_type is not None:
+        template.media_type = media_type
+    if media_url is not None:
+        template.media_url = media_url
+    if buttons is not None:
+        template.buttons = buttons
+    if is_active is not None:
+        template.is_active = is_active
+    
+    db.commit()
+    db.refresh(template)
+    return template
+
+
+def delete_template(db: Session, template_id: UUID) -> bool:
+    """Delete template"""
+    template = db.query(SystemMessageTemplate).filter(SystemMessageTemplate.id == template_id).first()
+    if not template:
+        return False
+    
+    db.delete(template)
+    db.commit()
+    return True
+
+
+# ========== SYSTEM MESSAGE DELIVERY OPERATIONS ==========
+
+def create_delivery_records(db: Session, system_message_id: UUID, user_ids: List[int], max_retries: int = 3) -> List[SystemMessageDelivery]:
+    """Create delivery records for all target users"""
+    deliveries = []
+    for user_id in user_ids:
+        delivery = SystemMessageDelivery(
+            system_message_id=system_message_id,
+            user_id=user_id,
+            max_retries=max_retries
+        )
+        db.add(delivery)
+        deliveries.append(delivery)
+    
+    db.commit()
+    for delivery in deliveries:
+        db.refresh(delivery)
+    return deliveries
+
+
+def get_delivery_record(db: Session, delivery_id: UUID) -> Optional[SystemMessageDelivery]:
+    """Get delivery record by ID"""
+    return db.query(SystemMessageDelivery).filter(SystemMessageDelivery.id == delivery_id).first()
+
+
+def update_delivery_status(
+    db: Session,
+    delivery_id: UUID,
+    status: str = None,
+    error: str = None,
+    sent_at: datetime = None,
+    message_id: int = None,
+    retry_count: int = None
+) -> Optional[SystemMessageDelivery]:
+    """Update delivery status"""
+    delivery = db.query(SystemMessageDelivery).filter(SystemMessageDelivery.id == delivery_id).first()
+    if not delivery:
+        return None
+    
+    if status is not None:
+        delivery.status = status
+    if error is not None:
+        delivery.error = error
+    if sent_at is not None:
+        delivery.sent_at = sent_at
+    if message_id is not None:
+        delivery.message_id = message_id
+    if retry_count is not None:
+        delivery.retry_count = retry_count
+    
+    db.commit()
+    db.refresh(delivery)
+    return delivery
+
+
+def get_failed_deliveries(db: Session, system_message_id: UUID = None) -> List[SystemMessageDelivery]:
+    """Get failed deliveries that can be retried"""
+    query = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.status == "failed",
+        SystemMessageDelivery.retry_count < SystemMessageDelivery.max_retries
+    )
+    
+    if system_message_id:
+        query = query.filter(SystemMessageDelivery.system_message_id == system_message_id)
+    
+    return query.all()
+
+
+# ========== TRANSLATION OPERATIONS (CONTINUED) ==========
 
 def create_or_update_translation(
     db: Session,
@@ -3140,6 +3834,59 @@ def get_daily_user_stats(db: Session, target_date: datetime.date) -> List[Dict[s
     stats.sort(key=lambda x: x["estimated_cost"], reverse=True)
     
     return stats
+
+
+# ========== SYSTEM MESSAGE DELIVERY STATISTICS ==========
+
+def get_delivery_stats(db: Session, system_message_id: UUID) -> dict:
+    """Get delivery statistics for a system message"""
+    deliveries = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.system_message_id == system_message_id
+    ).all()
+    
+    total = len(deliveries)
+    sent = sum(1 for d in deliveries if d.status == "sent")
+    failed = sum(1 for d in deliveries if d.status == "failed")
+    blocked = sum(1 for d in deliveries if d.status == "blocked")
+    pending = sum(1 for d in deliveries if d.status == "pending")
+    
+    success_rate = (sent / total * 100) if total > 0 else 0
+    
+    return {
+        'total': total,
+        'sent': sent,
+        'failed': failed,
+        'blocked': blocked,
+        'pending': pending,
+        'success_rate': round(success_rate, 2)
+    }
+
+
+def get_deliveries_by_message(
+    db: Session,
+    system_message_id: UUID,
+    page: int = 1,
+    per_page: int = 100,
+    status: str = None
+) -> dict:
+    """Get deliveries for a system message with pagination"""
+    query = db.query(SystemMessageDelivery).filter(
+        SystemMessageDelivery.system_message_id == system_message_id
+    )
+    
+    if status:
+        query = query.filter(SystemMessageDelivery.status == status)
+    
+    total = query.count()
+    deliveries = query.order_by(desc(SystemMessageDelivery.created_at)).offset((page - 1) * per_page).limit(per_page).all()
+    
+    return {
+        'deliveries': deliveries,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    }
 
 
 

@@ -1,4 +1,50 @@
 {
+  "referrals": {
+    "note": "Your friend must use your link and open the app to earn tokens",
+    "opening": "Opening...",
+    "inviteButton": "Invite a friend",
+    "linkCopiedTitle": "Link copied!",
+    "linkCopiedMessage": "Referral link copied to clipboard",
+    "copyFailed": "Failed to copy link",
+    "title": "Turn friends into tokens!",
+    "earn": "Earn",
+    "tokensAmount": "50 tokens",
+    "perFriend": "per friend",
+    "statsTitle": "Referrals",
+    "friendsInvited": "Friends invited"
+  },
+  "gallery": {
+    "customTag": "Yours",
+    "createCharacter": {
+      "title": "Your character",
+      "subtitle": "Will become anyone you want",
+      "free": "Create free"
+    },
+    "loading": "Loading characters...",
+    "empty": "No characters available",
+    "arrivingSoon": "Arriving soon",
+    "deleteConfirm": "Delete {name}? This cannot be undone.",
+    "deleteSuccess": "{name} deleted successfully"
+  },
+  "characterPage": {
+    "selectLocation": "Choose where to start",
+    "locations": {
+      "home": "Home",
+      "office": "Office",
+      "school": "School",
+      "cafe": "Cafe",
+      "gym": "Gym",
+      "park": "Park"
+    },
+    "createCustomButton": "Create custom",
+    "deleteMenu": "Delete",
+    "deleteConfirm": {
+      "title": "Delete {name}?",
+      "message": "This will permanently delete this character. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    }
+  },
   "premium": {
     "alerts": {
       "paymentFailed": "Payment failed. Please try again.",
@@ -30,9 +76,32 @@
       "photos": "Unlimited photo generation"
     },
     "upgradeButton": "Get Premium 💎",
-    "processing": "Processing..."
+    "processing": "Processing...",
+    "benefits": "Benefits",
+    "perMonth": "/ month",
+    "getButton": "Get {name}",
+    "plus": {
+      "feature1": "+500 bonus tokens on purchase",
+      "feature2": "Free 50 tokens every day",
+      "feature3": "Enhanced AI models",
+      "feature4": "Cheaper photo generation",
+      "feature5": "No limitations",
+      "feature6": "Cheaper character creation",
+      "feature7": "Increased limit to 4,000 characters in character description"
+    },
+    "pro": {
+      "feature1": "Everything in Plus, plus",
+      "feature2": "+750 bonus tokens on purchase",
+      "feature3": "Free 100 tokens every day"
+    },
+    "legendary": {
+      "feature1": "Everything in Pro, plus",
+      "feature2": "+1,000 bonus tokens on purchase",
+      "feature3": "Free 200 tokens every day"
+    }
   },
   "app": {
+    "premiumBadge": "Premium",
     "ageVerification": {
       "title": "Age Verification Required",
       "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
@@ -41,7 +110,11 @@
     },
     "header": {
       "characters": "Characters",
-      "settings": "Settings"
+      "settings": "Settings",
+      "premium": "Premium",
+      "energy": "Energy",
+      "referrals": "Referrals",
+      "checkoutTitle": "Purchase {icon} {name}"
     },
     "energy": {
       "regen": "+2/h"
@@ -49,11 +122,27 @@
     "errors": {
       "loadFailed": "Failed to load characters. Please try again.",
       "retryButton": "Retry"
+    },
+    "dailyBonus": {
+      "referralBonus": "Friend Bonus",
+      "gift": "Gift",
+      "day": "Day {day}",
+      "clickToClaim": "Click to claim",
+      "subscription": "Subscription",
+      "alreadyClaimed": "Bonus already claimed! Next in {hours}h {minutes}m",
+      "claimFailed": "Failed to claim bonus",
+      "claimError": "Error claiming bonus. Please try again."
+    },
+    "subscriptionTexts": {
+      "coolFeatures": "Cool Features",
+      "recommendBuy": "We Recommend",
+      "tryIt": "Try It",
+      "enjoy": "Enjoy"
+    },
+    "time": {
+      "hours": "h",
+      "minutes": "m"
     }
-  },
-  "gallery": {
-    "loading": "Loading characters...",
-    "empty": "No characters available"
   },
   "history": {
     "loading": "Loading scenarios...",
@@ -82,6 +171,106 @@
     "currentPlan": {
       "free": "Free",
       "premium": "Premium"
-    }
+    },
+    "premiumSubscriptions": "Premium Subscriptions",
+    "friends": "Friends",
+    "buyEnergy": "Buy Energy"
+  },
+  "checkout": {
+    "paymentMethod": "PAYMENT METHOD",
+    "payWithStars": "Stars",
+    "period": "PERIOD",
+    "periodMonth": "Month",
+    "period3Months": "3 months",
+    "period6Months": "6 months",
+    "totalLabel": "Total",
+    "stars": "stars",
+    "processing": "Processing...",
+    "payButton": "Pay",
+    "subscriptionSuccess": "✅ Subscription successful! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again."
+  },
+  "tokens": {
+    "tokensAdded": "✅ Tokens successfully added! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again.",
+    "stars": "stars",
+    "processing": "Processing...",
+    "buyButton": "Buy Energy"
+  },
+  "customStory": {
+    "title": "Create your story with {name}",
+    "startButton": "Start story",
+    "placeholder": "Describe the scenario you want to experience with {name}. Where are you? What's happening? What's the mood? Be creative! (e.g., 'We're hiking in the mountains when we find a hidden waterfall...')"
+  },
+  "characterCreation": {
+    "hairColor": {
+      "black": "Black",
+      "brown": "Brunette",
+      "blonde": "Blonde",
+      "red": "Redhead",
+      "white": "White",
+      "pink": "Pink",
+      "blue": "Blue",
+      "green": "Green",
+      "purple": "Purple",
+      "multicolor": "Multicolor",
+      "title": "Hair Color"
+    },
+    "hairStyle": {
+      "title": "Hair Style",
+      "longStraight": "Long Straight",
+      "longWavy": "Long Wavy",
+      "short": "Short",
+      "ponytail": "Ponytail",
+      "braided": "Braided",
+      "curly": "Curly"
+    },
+    "eyeColor": {
+      "title": "Eye Color",
+      "brown": "Brown",
+      "blue": "Blue",
+      "green": "Green",
+      "hazel": "Hazel",
+      "gray": "Gray"
+    },
+    "bodyType": {
+      "title": "Body Type",
+      "slim": "Slim",
+      "athletic": "Athletic",
+      "curvy": "Curvy",
+      "voluptuous": "Voluptuous"
+    },
+    "proportions": {
+      "title": "Proportions",
+      "breastSize": "Breast Size",
+      "buttSize": "Butt Size",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "nextButton": "NEXT"
+    },
+    "final": {
+      "title": "Final Details",
+      "namePlaceholder": "Enter her name...",
+      "nameCounter": "{current}/20",
+      "personalityLabel": "Personality & Relationship",
+      "premiumBadge": "Premium",
+      "descriptionHint": "Describe her personality, your relationship, background...",
+      "descriptionPlaceholder": "Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years...",
+      "descriptionCounter": "{current}/{max}",
+      "createButton": "Create Girlfriend",
+      "creating": "Creating..."
+    },
+    "errors": {
+      "nameRequired": "Please enter a name",
+      "descriptionRequired": "Please describe your girlfriend",
+      "insufficientTokens": "Insufficient tokens. Need {cost}, have {have}",
+      "creationFailed": "Failed to create character. Please try again."
+    },
+    "success": "{name} created successfully! 💕\nGenerating portrait..."
   }
 }

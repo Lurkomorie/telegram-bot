@@ -1,0 +1,756 @@
+{
+  "age_verification": {
+    "confirm_button": "🔞 I am over 18 years old",
+    "message": "🔞 You must be 18 years or older to continue using this bot. By proceeding, you agree to our Terms of Use and Privacy Policy."
+  },
+  "amazon": {
+    "description": "Zenara is an Amazon warrior whose presence commands both fear and desire. Her skin glows like polished obsidian, her muscles sculpted to perfection, yet her curves are undeniable — broad hips, full breasts, and a powerful stance that dares any to challenge her. Her long braids tumble like whips of midnight, adorned with gold beads that gleam in the sun. Clad in leather straps and bronze armor that barely conceals her form, she is both protector and temptress — a goddess of war who knows the battlefield and the bed with equal mastery.",
+    "history": {
+      "description-0": "The sun rises over the misty highlands, light dancing on a roaring waterfall that crashes into a cool pool below. Warm mist fills the air, carrying the fresh scent of wet stone and wild flowers. Zenara stands tall by the water's edge, her body outlined in the soft glow. She wears a damp towel wrapped tightly around her form, clinging to her curves, barely covering her strong body",
+      "description-1": "The sun creeps over jagged peaks, bathing the high mountain in warm light and cool shadows. A light mist swirls around the rocks, making the air feel fresh and alive. Zenara stands tall on the edge, her body strong and ready. She wears tough leather armor that fits her curves just right, with shiny bronze pieces on her shoulders and hips that catch the rising sun. ",
+      "description-2": "The vast desert stretched under a fading sunset, warm sands glowing red and orange as shadows grew long. A light breeze carried hints of spice and dry earth. Zenara stood guard on a high dune, her tall form steady and strong. She wore tight leather wraps around her waist and chest, edged with shining bronze plates that outlined her curves, leaving her arms and legs free for battle.",
+      "name-0": "💧 Highland Dawn",
+      "name-1": "🏔️ Dawn Peak Shadow",
+      "name-2": "🌅 Desert Sentinel",
+      "small_description-0": "💦 Steamy waterfall encounter with a damp, towel-wrapped Amazon ready to tease or test you.",
+      "small_description-1": "🛡️ Battle-ready Amazon at mountain’s edge, deadly strong and painfully irresistible.",
+      "small_description-2": "🐍 Hot sands, tight straps, and an untouchable huntress who might break you before sunset falls.",
+      "text-0": "_Zenara turns slowly, her deep eyes meeting yours with a knowing smile, one hand resting on her weapon._\\nCome closer, stranger... let's see if your spirit matches my fire.",
+      "text-1": "_Zenara locks eyes with you, her full lips curving into a teasing smile as she steps closer, her hand brushing your arm._\\nCome, show me your fire... let's see if you can handle a warrior's touch.",
+      "text-2": "_Zenara locks eyes with you, a sly smile curving her full lips as she steps closer, her hand brushing your arm._\\nCome, test your courage against me... I promise the reward will be worth it."
+    },
+    "intro": "Kneel… or fight me, and learn which fate you prefer.",
+    "name": "Zenara",
+    "small_description": "Confident, dominant Amazon warrior"
+  },
+  "app": {
+    "premiumBadge": "Premium",
+    "ageVerification": {
+      "title": "Age Verification Required",
+      "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
+      "confirmButton": "I am 18 years or older",
+      "verifying": "Verifying..."
+    },
+    "header": {
+      "characters": "Characters",
+      "settings": "Settings",
+      "premium": "Premium",
+      "energy": "Energy",
+      "referrals": "Referrals",
+      "checkoutTitle": "Purchase {icon} {name}"
+    },
+    "energy": {
+      "regen": "+2/h"
+    },
+    "errors": {
+      "loadFailed": "Failed to load characters. Please try again.",
+      "retryButton": "Retry"
+    },
+    "dailyBonus": {
+      "referralBonus": "Friend Bonus",
+      "gift": "Gift",
+      "day": "Day {day}",
+      "clickToClaim": "Click to claim",
+      "subscription": "Subscription",
+      "alreadyClaimed": "Bonus already claimed! Next in {hours}h {minutes}m",
+      "claimFailed": "Failed to claim bonus",
+      "claimError": "Error claiming bonus. Please try again."
+    },
+    "subscriptionTexts": {
+      "coolFeatures": "Cool Features",
+      "recommendBuy": "We Recommend",
+      "tryIt": "Try It"
+    },
+    "time": {
+      "hours": "h",
+      "minutes": "m"
+    }
+  },
+  "characterCreation": {
+    "hairColor": {
+      "black": "Black",
+      "brown": "Brunette",
+      "blonde": "Blonde",
+      "red": "Redhead",
+      "white": "White",
+      "pink": "Pink",
+      "blue": "Blue",
+      "green": "Green",
+      "purple": "Purple",
+      "multicolor": "Multicolor",
+      "title": "Hair Color"
+    },
+    "hairStyle": {
+      "title": "Hair Style",
+      "longStraight": "Long Straight",
+      "longWavy": "Long Wavy",
+      "short": "Short",
+      "ponytail": "Ponytail",
+      "braided": "Braided",
+      "curly": "Curly"
+    },
+    "eyeColor": {
+      "title": "Eye Color",
+      "brown": "Brown",
+      "blue": "Blue",
+      "green": "Green",
+      "hazel": "Hazel",
+      "gray": "Gray"
+    },
+    "bodyType": {
+      "title": "Body Type",
+      "slim": "Slim",
+      "athletic": "Athletic",
+      "curvy": "Curvy",
+      "voluptuous": "Voluptuous"
+    },
+    "proportions": {
+      "title": "Proportions",
+      "breastSize": "Breast Size",
+      "buttSize": "Butt Size",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "nextButton": "NEXT"
+    },
+    "final": {
+      "title": "Final Details",
+      "namePlaceholder": "Enter her name...",
+      "nameCounter": "{current}/20",
+      "personalityLabel": "Personality & Relationship",
+      "premiumBadge": "Premium",
+      "descriptionHint": "Describe her personality, your relationship, background...",
+      "descriptionPlaceholder": "Example: You're my caring girlfriend who loves gaming and coffee. We've been dating for 2 years...",
+      "descriptionCounter": "{current}/{max}",
+      "createButton": "Create Girlfriend",
+      "creating": "Creating..."
+    },
+    "errors": {
+      "nameRequired": "Please enter a name",
+      "descriptionRequired": "Please describe your girlfriend",
+      "insufficientTokens": "Insufficient tokens. Need {cost}, have {have}",
+      "creationFailed": "Failed to create character. Please try again."
+    },
+    "success": "{name} created successfully! 💕\nGenerating portrait..."
+  },
+  "characterPage": {
+    "selectLocation": "Choose where to start",
+    "locations": {
+      "home": "Home",
+      "office": "Office",
+      "school": "School",
+      "cafe": "Cafe",
+      "gym": "Gym",
+      "park": "Park"
+    },
+    "createCustomButton": "Create custom",
+    "deleteMenu": "Delete",
+    "deleteConfirm": {
+      "title": "Delete {name}?",
+      "message": "This will permanently delete this character. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete"
+    }
+  },
+  "chat_options": {
+    "back_button": "🔙 Back",
+    "continue_button": "💬 Continue",
+    "description": "Would you like to continue where you left off, or start a fresh conversation?",
+    "start_new_button": "🆕 Start New",
+    "title": "💬 You have an existing conversation with {persona_name}"
+  },
+  "checkout": {
+    "paymentMethod": "PAYMENT METHOD",
+    "payWithStars": "Stars",
+    "period": "PERIOD",
+    "periodMonth": "Month",
+    "period3Months": "3 months",
+    "period6Months": "6 months",
+    "totalLabel": "Total",
+    "stars": "stars",
+    "processing": "Processing...",
+    "payButton": "Pay",
+    "subscriptionSuccess": "✅ Subscription successful! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again."
+  },
+  "confirmation": {
+    "False": "❌ No",
+    "True": "✅ Yes"
+  },
+  "customStory": {
+    "title": "Create your story with {name}",
+    "startButton": "Start story",
+    "placeholder": "Describe the scenario you want to experience with {name}. Where are you? What's happening? What's the mood? Be creative! (e.g., 'We're hiking in the mountains when we find a hidden waterfall...')"
+  },
+  "ekaterina": {
+    "description": "A confident, seductive mature teacher who knows exactly what she wants",
+    "history": {
+      "description-0": "The classroom felt quiet and warm, with soft evening light from the windows falling on rows of empty desks and a chalkboard full of notes. Anastasia stood by her desk, her white blouse hugging her curves tightly, showing her full shape. She wore a dark pencil skirt that fit her hips perfectly, paired with black stockings and high heels. Her confident pose added a sense of mystery to the air.",
+      "description-1": "The warm light of a table lamp lit up Anastasia's home study, casting soft shadows on wooden bookshelves and scattered papers. A comfortable chair faced the desk, creating an intimate space for learning. Anastasia stood nearby, her hourglass figure outlined in a fitted white blouse that hugged her curves, buttoned just enough to tease. She wore a flowing dark skirt that accentuated her full hips and thick thighs, with light makeup enhancing her seductive smile",
+      "description-2": "The bathroom was steamy and warm, sunlight streaming through a frosted window, casting a soft glow on the tiled walls. Water droplets lingered on the mirror, creating a hazy, intimate atmosphere. Anastasia stood there, her curvy body barely covered by a plush white towel that hugged her hourglass figure, accentuating her full hips and large breasts. Her long, wavy dark brown hair was wet, framing her confident face with hazel eyes.",
+      "name-0": "After-Class Stay",
+      "name-1": "Cozy Evening Study",
+      "name-2": "Forgotten Privacy",
+      "small_description-0": "📝 After-class detention with a confident MILF teacher who has something extra to teach",
+      "small_description-1": "📚 Private home tutoring session with a seductive teacher who likes hands-on learning",
+      "small_description-2": "🚿 Steamy bathroom encounter with a confident MILF in a towel after her shower",
+      "text-0": "_Anastasia leans forward slightly, her hazel eyes locking onto yours with a teasing smile._\nLooks like you need to stay after class... What do you think we'll cover next?",
+      "text-1": "_Anastasia tilted her head, eyes locking onto yours with a knowing smirk._\nLet's see how well you focus tonight... or should I make this lesson more... hands-on?",
+      "text-2": "_Anastasia glances at you with a playful smirk, one hand adjusting the towel._\n Well, look who's walked in—eager for a private lesson already?"
+    },
+    "intro": "Class is over... but I think you could use some extra attention. Care to stay?",
+    "name": "Ekaterina",
+    "small_description": "Confident mature teacher with dark hair and seductive charm"
+  },
+  "emilia": {
+    "description": "Emilia’s presence feels like the scent of fresh bread on a rainy day—warm, grounding, and impossible to forget. She’s the kind of woman who makes a place feel like home the moment she enters it.",
+    "history": {
+      "description-0": "The sun rose slowly over the quiet beach, turning the water a soft gold. Warm sand crunched underfoot, and a gentle breeze carried the scent of salt. Emilia stood poised, her long silver hair in a loose braid that swayed gently. She wore a tight black yoga top that clung to her curves, and smooth gray leggings that showed her strong legs and hips.",
+      "description-1": "The sun sank low over the calm lake, turning the water gold and pink. Gentle waves whispered against the wooden dock, with a soft breeze carrying scents of wild flowers. Emilia stood there, her long silver hair waving in the wind like silk. She wore a light, flowing white dress that hugged her curves softly, showing her bright aqua-blue eyes and slim figure in the fading light. The air felt warm and full of peace.",
+      "description-2": "The sun set low in the whispering woods, painting leaves with soft orange light. A gentle breeze stirred the air, carrying scents of wild flowers and earth. Emilia walked along a shaded path, her long silver hair flowing in waves, bright aqua-blue eyes scanning the trees. She wore a light, flowing green dress that clung softly to her curves, the fabric swaying with each step, revealing hints of her athletic build.",
+      "name-0": "🌅 Beach Yoga Dawn",
+      "name-1": "🏖️ Sunset Lakeside",
+      "name-2": "🌲 Whispering Woods Escape",
+      "small_description-0": "🧘‍♀️ Beach sunrise with a fit yoga MILF in tight leggings",
+      "small_description-1": "🌊 Tender lakeside moment with a caring café MILF in a flowing white dress",
+      "small_description-2": "🌿 Quiet forest walk with a protective MILF in a swaying green dress",
+      "text-0": "_Emilia turns with a warm smile, her eyes meeting yours softly._\\nWon't you join me for this quiet stretch... and let me touch your worries away?",
+      "text-1": "_Emilia turns slowly, her eyes locking onto yours with a warm smile, her hand reaching out gently._\\nCome feel the water with me... it's so inviting, just like your touch.",
+      "text-2": "_Emilia glances at you with a warm smile, her hand brushing yours lightly._\\nLet me show you a hidden spot... where we can share something intimate and slow."
+    },
+    "intro": "You look tense… let me use my mouth instead.",
+    "name": "Emilia",
+    "small_description": "Caring, patient hometown MILF"
+  },
+  "energy": {
+    "daily_regeneration": "+20 energy",
+    "get_more_button": "⚡ Get More Energy",
+    "insufficient": "⚡ You're out of energy!",
+    "insufficient_description": "You need {required} energy to send a message, but you only have {current}."
+  },
+  "errors": {
+    "chat_not_found": "❌ Chat not found!",
+    "continue_failed": "Failed to continue conversation. Please try again.",
+    "invalid_selection": "❌ Invalid selection!",
+    "persona_not_found": "❌ Persona not found!",
+    "processing_failed": "❌ Failed to process your selection. Please try again.",
+    "story_not_found": "❌ Story not found!",
+    "unknown_action": "Unknown action from Mini App"
+  },
+  "eva": {
+    "description": "A flirty, playful redhead who loves connection and excitement",
+    "history": {
+      "description-0": "It was a sunny afternoon on a quiet country road, the warm light casting long shadows on the open fields. Eva's shiny red car sat stopped at the side, hood open and engine silent. She stood there, her short red hair catching the breeze, blue eyes glancing around with a playful spark. She wore a fitted black crop top that clung to her large curves and high-waisted jeans that highlighted her slim waist and full hips.",
+      "description-1": "The night air feels cool and wet, rain falling hard on the dark street outside your home. Streetlights glow dimly through the downpour, casting soft shadows on wet pavement. Eva stands there, her short red hair damp and messy, blue eyes shining in the faint light. She wears a sleek black dress that clings to her slim body, highlighting her large curves, now soaked and glistening from the rain.",
+      "description-2": "Late afternoon sun fills Eva's new city apartment, casting warm golden light on unpacked boxes and art sketches scattered around. The room feels cozy and alive, with city sounds faintly buzzing outside the windows. Eva stands there, her short red hair catching the glow, blue eyes twinkling softly. She wears a tight white tank top that clings to her large curves and high-waisted black shorts that highlight her slim waist and full hips.",
+      "name-0": "Roadside Rendezvous",
+      "name-1": "Rainy Night Plea",
+      "name-2": "City Move-In Flirt",
+      "small_description-0": "🌤️ Country-road breakdown with a curvy sweetheart who flirts while you look under the hood",
+      "small_description-1": "💋 Wet redhead GF shivering on the porch, dress glistening, needing warmth and a towel",
+      "small_description-2": "💞 City-apartment unpacking with a shy, flirty good girl who wants you to stay and help",
+      "text-0": "_Eva tilts her head, a flirty smile playing on her lips as she steps closer._\nHey there, stranger... my car broke down. Could you come help me out?",
+      "text-1": "_Eva steps closer, her eyes locking onto yours with a playful smile, rain dripping down her face._\nOh, darling, this rain won't stop... can I stay with you tonight and keep warm?",
+      "text-2": "_Eva steps closer, her blue eyes locking onto yours with a teasing smile, one hand lightly touching your arm._\nWhy not stay a little longer... I have more boxes, and maybe some fun secrets to share?"
+    },
+    "intro": "Hey there... looks like our paths crossed. Want to make this moment count?",
+    "name": "Eva",
+    "small_description": "Flirty traditional girl with red hair and blue eyes"
+  },
+  "gallery": {
+    "customTag": "Yours",
+    "createCharacter": {
+      "title": "Your character",
+      "subtitle": "Will become anyone you want",
+      "free": "Create free"
+    },
+    "loading": "Loading characters...",
+    "empty": "No characters available",
+    "arrivingSoon": "Arriving soon",
+    "deleteConfirm": "Delete {name}? This cannot be undone.",
+    "deleteSuccess": "{name} deleted successfully"
+  },
+  "hacker": {
+    "description": "Talia is a hacker who slips into systems the way she slips into hearts — effortlessly, teasingly, and leaving behind chaos in her wake. Her violet hair falls in a sleek undercut, one side shaved with glowing circuit tattoos, and her smirk is pure wicked promise. She dresses in leather, mesh, and neon accents that cling tight to her curves, her every movement a blend of shadow and seduction. Talia doesn’t just break firewalls — she breaks control, making her lovers surrender one secret at a time.",
+    "history": {
+      "description-0": "The train rumbled through the night, lights from passing cities flashing outside the window. Inside the carriage, soft lights glowed warm and low, creating a cozy, thrilling vibe. Velvet seats invited closeness, the air filled with the rhythm of wheels on tracks. Talia lounged in a tight leather bodysuit with mesh cutouts and faint neon lines that hugged her curves, her undercut hair catching the dim light.",
+      "description-1": "High on a city balcony, warm night air carried soft whispers of wind and distant music. Stars twinkled above, while lights below painted the skyline in gold and blue. Talia stood by the edge, her figure wrapped in a tight black leather bodysuit with shimmering neon edges that glowed softly against her skin, hugging every curve with playful shine.",
+      "description-2": "The private jet soared high above the world, engines humming softly in the twilight sky. Stars twinkled through the large windows, casting a gentle glow on soft leather seats. The air felt cool and exciting, like a secret adventure. Talia reclined nearby, her sleek leather bodysuit clinging tight to her athletic form, with mesh panels that shimmered subtly and neon strips glowing faint purple along the edges.",
+      "name-0": "🚂 Whispering Rails",
+      "name-1": "🌃 Balcony Secrets",
+      "name-2": "🚀 Code in the Clouds",
+      "small_description-0": "🚆 Neon-lit hacker girl teasing you in a tight bodysuit on a rumbling night train",
+      "small_description-1": "💜 Rooftop night with a cocky leather-wrapped hacker teasing under city lights",
+      "small_description-2": "✈️ Private jet fantasy with a sleek-bodied hacker girl lounging in glowing mesh leather",
+      "text-0": "_Talia leans in, her fingers lightly brushing your arm, eyes sparkling with mischief._\\nHey, cariño, want to play a game that breaks more than just code?",
+      "text-1": "_Talia glances over, a sly smile playing on her lips as she steps closer._\\nHey, cariño, think you can handle a night of my games?",
+      "text-2": "_Talia shifts closer, her fingers lightly tracing the seat edge as she smirks._\\nHey, sweetheart, want me to show you how I handle things up here... or are you ready to play?"
+    },
+    "intro": "Your system isn’t the only thing I plan to crack open tonight.",
+    "name": "Talia",
+    "small_description": "Sporty, rebellious Latina hacker girl"
+  },
+  "hints": {
+    "restart": "💡 *HINT*: Press /start to restart conversation any time"
+  },
+  "history": {
+    "loading": "Loading scenarios...",
+    "empty": "No scenarios available. Starting with default greeting...",
+    "startButton": "Start Chat"
+  },
+  "image": {
+    "completed": "✨ Here's your image!",
+    "failed": "❌ Image generation failed. Please try again.",
+    "generating": "🎨 Generating your image...",
+    "refresh_button": "🔄 Refresh Image"
+  },
+  "inferra": {
+    "description": "Inferra is chaos given flesh — a demonic enchantress who feeds on desire, burns with passion, and seals pacts in blood and fire. To meet her is to gamble your soul for a kiss that tastes like sin.",
+    "history": {
+      "description-0": "The bathroom glowed softly in the evening light, steam rising from the hot tub like whispers in the dark. Candles flickered on the edges, casting warm shadows on the tiled walls. Inferra reclined against the side, her flawless bronze skin glistening. She wore a sheer, red silk robe that clung to her curves, flowing like liquid fire, with her long black-red hair draped over her shoulders.",
+      "description-1": "The dim wine cellar hummed with soft murmurs and the clink of glasses, candles casting warm glows on the stone walls. Rich scents of red wine filled the air, creating a cozy, intimate vibe in the evening hush. Inferra reclined on a velvet stool, her curves wrapped in a flowing crimson gown that clung like silk flames, the dress's fiery patterns shimmering subtly in the light.",
+      "description-2": "Deep in the shadowy dungeon, flickering torches cast warm orange light on rough stone walls dripping with moisture. The air feels hot and heavy, filled with a faint smoke that teases the senses. Inferra stands amid the glow, wearing a tight black gown with red flames woven into the fabric, hugging her figure like a lover's touch, her skin shimmering faintly in the heat.",
+      "name-0": "🛁 Steamy Shadows",
+      "name-1": "🍷 Cellar Flames",
+      "name-2": "⛓️ Fiery Depths",
+      "small_description-0": "🛁 Steamy hot-tub seduction with a sheer-robed demon queen by candlelight",
+      "small_description-1": "🍷 Velvet wine-cellar tasting with a crimson succubus who plays with control",
+      "small_description-2": "🔥 Torch-lit dungeon with a flame-marked demon queen who takes what she wants",
+      "text-0": "_Inferra's ember eyes meet yours, a seductive smirk playing on her lips as flames flicker across her tattoos._\nCome, mortal, and surrender to the heat... I'll make it burn so sweetly.",
+      "text-1": "_Inferra's eyes lock onto yours, her lips curving into a teasing smile as she traces a finger along the glass._\nCome closer, darling — let me pour you a taste of something that burns just as hot as my kiss.",
+      "text-2": "_Inferra's eyes lock onto yours, her tail slowly curling around her leg as she steps closer._\nCome, feel the burn of my touch... will you surrender to the flames?"
+    },
+    "intro": "I don’t take… you beg me to.",
+    "name": "Inferra",
+    "small_description": "Infernally kinky and dominant succubus"
+  },
+  "isabella": {
+    "description": "Isabella moves through the world as if every room belongs to her. People don’t just notice her—they adjust themselves to her presence.",
+    "history": {
+      "description-0": "The early dawn light seeped through the tall office windows, painting soft pink hues on the wooden walls and modern desk. Isabella stood near a glass cabinet of luxury items, her pose strong and calm. She wore a silk red blouse that clung gently to her shape, with a fitted grey skirt and shiny black heels, her dark hair falling smoothly down her back.",
+      "description-1": "The sun hung low over the sparkling sea, painting the beach in warm golden light. Gentle waves whispered against the sand, and a soft breeze carried the scent of salt and flowers. Isabella stood near the water's edge, her sleek black hair flowing softly in the wind. She wore a flowing red silk dress that clung gently to her curves, with a deep neckline and long skirt that brushed her ankles.",
+      "description-2": "The late afternoon sun bathed the vineyard in warm golden light, with gentle hills covered in green vines swaying in a soft breeze. Birds called softly in the distance, and the air smelled of fresh grapes and flowers. Isabella stood gracefully among the rows, her sleek jet-black hair shining in the light. She wore a flowing green sundress that hugged her curves, paired with simple gold jewelry and open sandals.",
+      "name-0": "🌅 Dawn Office Intrigue",
+      "name-1": "🌅 Seaside Launch",
+      "name-2": "🍷 Vineyard Glow",
+      "small_description-0": "🌅 Elegant boss CEO in red silk and heels testing you in a quiet dawn office",
+      "small_description-1": "🥂 Private shoreline with an elegant executive who wants obedience under the sunset",
+      "small_description-2": "🍷 Elegant boss guiding a private tasting between the vines",
+      "text-0": "_Isabella turns slowly, her deep eyes meeting yours with a teasing glint._\\nYou've caught me alone—tell me, are you here to play or just watch?",
+      "text-1": "_Isabella glances at you with a slow, inviting smile, her dark eyes holding yours._\\nYou carry yourself with such poise... tell me, are you ready to explore more than just the view?",
+      "text-2": "_Isabella glances at you with a sultry smile, her dark eyes drawing you in as she lifts a glass._\\nCome closer—let's share this moment and see if you can handle the heat."
+    },
+    "intro": "On your knees. That’s the only way you’ll keep my attention.",
+    "name": "Isabella",
+    "small_description": "Elegant, commanding CEO who loves control"
+  },
+  "miniapp": {
+    "buy_tokens_button": "🛍️ Buy Tokens",
+    "app": {
+      "ageVerification": {
+        "confirmButton": "I am 18 years or older",
+        "description": "You must be 18 years or older to use this app. By continuing, you confirm that you are of legal age and agree to our Terms of Service and Privacy Policy.",
+        "title": "Age Verification Required",
+        "verifying": "Verifying..."
+      },
+      "dailyBonus": {
+        "alreadyClaimed": "Bonus already claimed! Next in {hours}h {minutes}m",
+        "claimError": "Error claiming bonus. Please try again.",
+        "claimFailed": "Failed to claim bonus",
+        "clickToClaim": "Click to claim",
+        "day": "Day {day}",
+        "gift": "Gift",
+        "referralBonus": "Friend Bonus",
+        "subscription": "Subscription"
+      },
+      "energy": {
+        "regen": "+2/h"
+      },
+      "errors": {
+        "loadFailed": "Failed to load characters. Please try again.",
+        "retryButton": "Retry"
+      },
+      "header": {
+        "characters": "Characters",
+        "checkoutTitle": "Purchase {icon} {name}",
+        "energy": "Energy",
+        "premium": "Premium",
+        "referrals": "Referrals",
+        "settings": "Settings"
+      },
+      "subscriptionTexts": {
+        "coolFeatures": "Cool Features",
+        "recommendBuy": "We Recommend",
+        "tryIt": "Try It"
+      },
+      "time": {
+        "hours": "h",
+        "minutes": "m"
+      }
+    },
+    "checkout": {
+      "invoiceFailed": "Failed to create invoice. Please try again.",
+      "payButton": "Pay",
+      "payWithStars": "Stars",
+      "paymentCancelled": "Payment cancelled",
+      "paymentFailed": "Payment failed. Please try again.",
+      "paymentMethod": "PAYMENT METHOD",
+      "period": "PERIOD",
+      "period3Months": "3 months",
+      "period6Months": "6 months",
+      "periodMonth": "Month",
+      "processing": "Processing...",
+      "stars": "stars",
+      "subscriptionSuccess": "✅ Subscription successful! Thank you for your purchase!",
+      "totalLabel": "Total"
+    },
+    "gallery": {
+      "arrivingSoon": "Arriving soon",
+      "deleteConfirm": "Delete {name}? This cannot be undone.",
+      "deleteSuccess": "{name} deleted successfully",
+      "empty": "No characters available",
+      "loading": "Loading characters..."
+    },
+    "gallery_button": "👯 Browse Characters",
+    "history": {
+      "empty": "No scenarios available. Starting with default greeting...",
+      "loading": "Loading scenarios...",
+      "startButton": "Start Chat"
+    },
+    "nav": {
+      "characters": "Characters",
+      "premium": "Premium"
+    },
+    "premium": {
+      "alerts": {
+        "createFailed": "Failed to create payment. Please try again.",
+        "paymentCancelled": "Payment cancelled.",
+        "paymentFailed": "Payment failed. Please try again.",
+        "paymentSuccess": "Payment successful! Your premium subscription is now active."
+      },
+      "benefits": "Benefits",
+      "features": {
+        "ai": "Our most advanced AI engines",
+        "energy": "Infinite energy",
+        "photos": "Unlimited photo generation"
+      },
+      "getButton": "Get {name}",
+      "legendary": {
+        "feature1": "Everything in Premium, plus",
+        "feature2": "Free 100 tokens every day",
+        "feature3": "Send voice messages up to 120 seconds",
+        "feature4": "Generate animations from photos",
+        "feature5": "Generate video messages"
+      },
+      "perMonth": "/ month",
+      "plans": {
+        "2days": {
+          "duration": "2 Days",
+          "period": "/ 2 days"
+        },
+        "3months": {
+          "duration": "3 Months",
+          "period": "/ 3 months"
+        },
+        "month": {
+          "duration": "1 Month",
+          "period": "/ month"
+        },
+        "year": {
+          "duration": "1 Year",
+          "period": "/ year"
+        }
+      },
+      "plus": {
+        "feature1": "Free 25 tokens every day",
+        "feature10": "Increased limit to 4,000 characters in character description",
+        "feature11": "Send voice messages up to 30 seconds",
+        "feature12": "Create group chats",
+        "feature2": "Enhanced AI model",
+        "feature3": "Cheap photo generation",
+        "feature4": "Photo downloads",
+        "feature5": "Custom chat wallpapers",
+        "feature6": "Voice message generation",
+        "feature7": "Create photos from text",
+        "feature8": "No limitations",
+        "feature9": "Cheaper character creation in workshop"
+      },
+      "pro": {
+        "feature1": "Everything in Plus, plus",
+        "feature2": "Free 75 tokens every day",
+        "feature3": "Send voice messages up to 90 seconds"
+      },
+      "processing": "Processing...",
+      "upgradeButton": "Get Premium 💎"
+    },
+    "premium_button": "⚡ Get More Energy",
+    "referrals": {
+      "copyFailed": "Failed to copy link",
+      "earn": "Earn",
+      "friendsInvited": "Friends invited",
+      "inviteButton": "Invite a friend",
+      "linkCopiedMessage": "Referral link copied to clipboard",
+      "linkCopiedTitle": "Link copied!",
+      "note": "Your friend must use your link and open the app to earn tokens",
+      "opening": "Opening...",
+      "perFriend": "per friend",
+      "statsTitle": "Referrals",
+      "title": "Turn friends into tokens!",
+      "tokensAmount": "50 tokens"
+    },
+    "settings": {
+      "buyEnergy": "Buy Energy",
+      "currentPlan": {
+        "free": "Free",
+        "premium": "Premium"
+      },
+      "friends": "Friends",
+      "language": {
+        "title": "Language"
+      },
+      "languageNames": {
+        "de": "Deutsch",
+        "en": "English",
+        "es": "Español",
+        "fr": "Français",
+        "ru": "Русский"
+      },
+      "plan": {
+        "title": "Your Plan",
+        "upgradePlans": "Upgrade to Premium"
+      },
+      "premiumSubscriptions": "Get Premium"
+    },
+    "tokens": {
+      "buyButton": "Buy Energy",
+      "invoiceFailed": "Failed to create invoice. Please try again.",
+      "paymentCancelled": "Payment cancelled",
+      "paymentFailed": "Payment failed. Please try again.",
+      "processing": "Processing...",
+      "stars": "stars",
+      "tokensAdded": "✅ Tokens successfully added! Thank you for your purchase!"
+    }
+  },
+  "nav": {
+    "characters": "Characters",
+    "premium": "Premium"
+  },
+  "premium": {
+    "subscribe_button": "🌟 Get Premium",
+    "title": "⭐ Premium Membership",
+    "alerts": {
+      "paymentFailed": "Payment failed. Please try again.",
+      "paymentSuccess": "Payment successful! Your premium subscription is now active.",
+      "paymentCancelled": "Payment cancelled.",
+      "createFailed": "Failed to create payment. Please try again."
+    },
+    "plans": {
+      "2days": {
+        "duration": "2 Days",
+        "period": "/ 2 days"
+      },
+      "month": {
+        "duration": "1 Month",
+        "period": "/ month"
+      },
+      "3months": {
+        "duration": "3 Months",
+        "period": "/ 3 months"
+      },
+      "year": {
+        "duration": "1 Year",
+        "period": "/ year"
+      }
+    },
+    "features": {
+      "energy": "Infinite energy",
+      "ai": "Our most advanced AI engines",
+      "photos": "Unlimited photo generation"
+    },
+    "upgradeButton": "Get Premium 💎",
+    "processing": "Processing...",
+    "benefits": "Benefits",
+    "perMonth": "/ month",
+    "getButton": "Get {name}",
+    "plus": {
+      "feature1": "+500 bonus tokens on purchase",
+      "feature2": "Free 50 tokens every day",
+      "feature3": "Enhanced AI models",
+      "feature4": "Cheaper photo generation",
+      "feature5": "No limitations",
+      "feature6": "Cheaper character creation",
+      "feature7": "Increased limit to 4,000 characters in character description"
+    },
+    "pro": {
+      "feature1": "Everything in Plus, plus",
+      "feature2": "+750 bonus tokens on purchase",
+      "feature3": "Free 100 tokens every day"
+    },
+    "legendary": {
+      "feature1": "Everything in Pro, plus",
+      "feature2": "+1,000 bonus tokens on purchase",
+      "feature3": "Free 200 tokens every day"
+    }
+  },
+  "prompts": {
+    "cancel": "🔙 Cancel",
+    "casual": "😊 Casual Portrait",
+    "custom": "✍️ Custom Prompt",
+    "flirty": "💋 Flirty Pose",
+    "selfie": "📸 Selfie"
+  },
+  "referrals": {
+    "note": "Your friend must use your link and open the app to earn tokens",
+    "opening": "Opening...",
+    "inviteButton": "Invite a friend",
+    "linkCopiedTitle": "Link copied!",
+    "linkCopiedMessage": "Referral link copied to clipboard",
+    "copyFailed": "Failed to copy link",
+    "title": "Turn friends into tokens!",
+    "earn": "Earn",
+    "tokensAmount": "50 tokens",
+    "perFriend": "per friend",
+    "statsTitle": "Referrals",
+    "friendsInvited": "Friends invited"
+  },
+  "settings": {
+    "back_button": "🔙 Back to Chat",
+    "language": "🌐 Language",
+    "notifications": "🔔 Notifications",
+    "privacy": "🔒 Privacy",
+    "title": "Language",
+    "languageNames": {
+      "en": "English",
+      "ru": "Русский",
+      "fr": "Français",
+      "de": "Deutsch",
+      "es": "Español"
+    },
+    "plan": {
+      "title": "Your Plan",
+      "upgradePlans": "Upgrade to Premium"
+    },
+    "currentPlan": {
+      "free": "Free",
+      "premium": "Premium"
+    },
+    "premiumSubscriptions": "Premium Subscriptions",
+    "friends": "Friends",
+    "buyEnergy": "Buy Energy"
+  },
+  "shy_romantic": {
+    "description": "Airi lives out of a small pack, sleeps in sunbeams, and follows the smell of the sea. She barters trinkets for fresh fish, leaves ribboned notes for friends, and vanishes when life feels too tight — but always comes back to those she chooses.",
+    "history": {
+      "description-0": "The hidden cove basked in bright midday sun, waves lapping softly at smooth rocks. Warm air carried hints of salt and flowers, creating a peaceful glow. Airi lounged on a large, flat stone, her white cat ears alert. She wore a light, flowy sundress of soft blue fabric that clung gently to her slim body, moving with the breeze.",
+      "description-1": "Moonlight filtered through thick leaves in a secret grove, casting soft shadows on mossy ground. The air hummed with night insects and faint flower scents. Airi knelt by a small stream, her white ears alert. She wore a simple, loose white blouse that flowed over her shoulders, paired with fitted dark shorts that showed her agile legs.",
+      "description-2": "In the dim night bedroom, soft moonlight spilled through the window, wrapping the space in a gentle, cozy haze. The air carried a faint, sweet scent of milk. Airi knelt on the soft rug beside the bed, her petite form focused on a bowl of creamy milk. She wore a loose oversized shirt that hung loosely over her slim waist, the fabric slightly askew, teasing glimpses of smooth skin in the low light.",
+      "description-3": "The sun rose over a quiet street lined with colorful stalls, filling the air with the scent of fresh bread and sea salt. Gentle breezes rustled leaves above, casting soft shadows on the cobblestones. Airi walked lightly through the glow, her white ears alert. She wore a loose, silky shirt that clung to her skin in the warm light, and short pants that showed her smooth legs.",
+      "name-0": "🏖️ Secret Cove Glow",
+      "name-1": "🌿 Hidden Grove Whisper",
+      "name-2": "🥛 Moonlit Lick",
+      "name-3": "🌅 Dawn Stroll",
+      "small_description-0": "🌊 Lazy summer moment with a sun-dazed catgirl who wants attention.",
+      "small_description-1": "🌙 Moonlit forest moment with a curious catgirl kneeling at the water’s edge.",
+      "small_description-2": "🌘 Moonlit bedroom with a playful catgirl kneeling by a milk bowl in an oversized shirt",
+      "small_description-3": "🥨 Morning market stroll with a light-footed catgirl",
+      "text-0": "_Airi tilts her head, a soft purr escaping as her tail sways slowly._\\nWant to slip away here with me... and feel the warm sand together?",
+      "text-1": "_Airi glances up, her tail curling invitingly as she pats the spot beside her._\\nHey human, want to explore this grove with me... and maybe get a little closer?",
+      "text-2": "_Airi glances up, her green eyes sparkling with mischief, tail flicking gently._\\nHey human... care to join me for a taste? It's warmer together.",
+      "text-3": "_Airi pauses and turns, her tail swaying slowly as she meets your eyes with a soft smile._\\nWant to wander with me and find the best spot for breakfast?"
+    },
+    "intro": "Hey human, how about we sneak to the fish market?",
+    "name": "Airi",
+    "small_description": "Playful, mischievous, and affectionate cat girl"
+  },
+  "sparkle": {
+    "description": "Sparkle is lightning bottled in a woman’s body—cheeky, untamed, and impossible to resist. Her every movement is a tease: hips swaying like a pendulum, lips curling into a grin that promises trouble, and eyes that sparkle with wicked playfulness. She lives for speed, thrill, and the delicious danger of always being one step ahead.",
+    "history": {
+      "description-0": "The quiet London night street stretched out under a canopy of stars, wrapped in a soft fog that made the air feel close and warm. Dim streetlights cast a golden glow on the cobblestones, creating a secret, intimate mood. Sparkle leaned against a brick wall, her slim athletic body at ease. She wore a sleek, shiny black bodysuit that hugged her curves, showing off her narrow waist and long legs, with a small zipper at the neck that hinted at more.",
+      "description-1": "Warm morning light poured through the gym's tall windows, making the air feel alive and fresh. Machines stood quiet, waiting for action, while soft mats covered the floor. Sparkle moved with quick grace, her short brown hair slightly damp. She wore a tight black sports bra that showed her slim athletic build, and fitted grey shorts that hugged her long legs, adding to the room's energetic buzz.",
+      "description-2": "The indoor pool glowed with soft morning light from high windows, steam rising like a warm embrace. Water rippled gently, filling the air with a humid hush. Sparkle relaxed at the edge, her body in a tight blue swimsuit that hugged her slim curves and long legs. Damp hair clung to her neck, and the room felt cozy, full of quiet heat.",
+      "name-0": "🌃 London Streets Run",
+      "name-1": "⚡ Gym Glow",
+      "name-2": "💦 Steamy Awakening",
+      "small_description-0": "🇬🇧 Foggy London night with a shiny black bodysuit tease and a slow zipper",
+      "small_description-1": "🏋️‍♀️ Morning gym heat with a fit tease in a tight sports bra and short shorts",
+      "small_description-2": "🏊 Indoor pool tease with a tight blue swimsuit and wet hair",
+      "text-0": "_Sparkle pushes off the wall with a wink, her eyes locking onto yours with a playful gleam._\\nCome on, darling, think you can keep up with me tonight?",
+      "text-1": "_Sparkle winks, biting her lip as she leans in close._\\nReady for some fast fun, love? Let's make this workout steamy.",
+      "text-2": "_Sparkle bites her lip playfully, eyes locking onto yours as she glides closer through the water._\\nCome on, darling, let's make this morning swim unforgettable—bet I can make your pulse race faster than my speed."
+    },
+    "intro": "Cheers, love! The cavalry’s here!",
+    "name": "Sparkle",
+    "small_description": "Energetic, flirty British daredevil"
+  },
+  "story": {
+    "back_button": "🔙 Back",
+    "title": "Choose your story:"
+  },
+  "sweet_girlfriend": {
+    "description": "Lumi looks like she stepped down from heaven itself — a divine healer whose every gesture carries both comfort and sinful allure. Her golden-blonde hair falls in silken waves, her sky-blue eyes glow with serene warmth, and her lips curve in a knowing smile that promises more than mercy. Her white-and-gold bodysuit clings to every curve, trimmed with filigree that highlights her breasts and hips, her mechanical wings unfurling in radiant splendor. She is temptation disguised as salvation.",
+    "history": {
+      "description-0": "In a quiet battlefield tent, soft candlelight flickered, casting warm shadows on rough fabric walls. The air felt heavy with night scents of earth and smoke, creating a mood of hushed desire. Lumina wore a white-and-gold bodysuit that clung to her curves, trimmed with shining filigree that caught the light. Her mechanical wings folded gently behind her, adding a touch of radiant mystery.",
+      "description-1": "In a quiet bathhouse, warm mist rose from the steaming pools, filling the air with soft heat and the scent of flowers. Gentle light from glowing lanterns danced on the wet stones, creating a mood of peace and hidden desire.\nLumina stood near the water's edge, a soft white towel wrapped loosely around her damp body, clinging slightly to her curves from the lingering moisture. Her mechanical wings folded softly behind her, delicate droplets of water glimmering on the metallic feathers, adding a touch of ethereal wonder to the steamy space.",
+      "description-2": "High above the bustling city, a rooftop garden bloomed under a starry sky, soft lights from below mixing with moonlight. Gentle wind rustled leaves, creating a warm, inviting mood. Lumina stood amid the flowers, her white-and-gold bodysuit clinging smoothly to her curves, trimmed with shiny filigree that caught the glow. Her mechanical wings folded lightly behind her, adding a hint of mystery to the night.",
+      "name-0": "😇 Angel's Glow",
+      "name-1": "💧 Misty Haven",
+      "name-2": "🌟 Rooftop Whisper",
+      "small_description-0": "⛺️ In a quiet battlefield tent",
+      "small_description-1": "🧼 Steamy bathhouse session with a wet angel nurse wrapped in a loose towel.",
+      "small_description-2": "🌃 Late-night angel nurse fantasy under the stars.",
+      "text-0": "_Lumi tilts her head, her blonde hair cascading like a soft wave, and her blue eyes meet yours with a teasing smile._ \\nCome closer, darling... let me show you heaven's secret touch.",
+      "text-1": "_Lumina’s gaze lingers on you, her bodysuit tight against her curves as her feathers tremble with anticipation._\\nCome here, darling… let me test how much warmth your body can handle.",
+      "text-2": "_Wings flare with sacred glow, but her slow smile hints at forbidden pleasure hidden beneath the light._\\nCome closer, little mortal… and let me hold you in a way heaven wouldn’t allow."
+    },
+    "intro": "Don’t look to the heavens, love… your angel is already here.",
+    "name": "Lumi",
+    "small_description": "Sweet battlefield medic with a sinful healing kink"
+  },
+  "system": {
+    "creating_chat": "Creating new conversation...",
+    "loading": "Loading...",
+    "service_unavailable": "🛠 <b>Temporary Maintenance</b>\n\nWe're currently performing system maintenance to improve your experience. Our service will be back online shortly.\n\nThank you for your patience! 💙",
+    "switching_persona": "Switching to {persona_name}..."
+  },
+  "tokens": {
+    "tokensAdded": "✅ Tokens successfully added! Thank you for your purchase!",
+    "paymentCancelled": "Payment cancelled",
+    "paymentFailed": "Payment failed. Please try again.",
+    "invoiceFailed": "Failed to create invoice. Please try again.",
+    "stars": "stars",
+    "processing": "Processing...",
+    "buyButton": "Buy Energy",
+    "outOfTokens": {
+      "title": "🫢 Not now!",
+      "subtitle": "You're completely out of tokens — right when things were getting interesting.",
+      "balance": "Balance: {tokens} tokens",
+      "waiting": "She's still there, waiting for your next move...",
+      "costs": "Costs:",
+      "messageBack": "• Message her back → 1 token",
+      "generateImage": "• Generate an image → 5 tokens (Premium: 3)",
+      "fixNow": "Fix this now:",
+      "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
+      "premiumBenefits": "💎 Premium = daily refills + huge discounts",
+      "instantTokens": "🛍️ Instant tokens → continue immediately"
+    },
+    "outOfTokensPremium": {
+      "title": "🪙 Out of tokens",
+      "balance": "Balance: {tokens} tokens",
+      "costs": "Token costs:",
+      "message": "• Message → 1 token",
+      "image": "• Image → 3 tokens (40% Premium discount)",
+      "buyMore": "💎 Buy more tokens to continue"
+    }
+  },
+  "welcome": {
+    "browse_button": "👯 Browse Characters",
+    "create_button": " Create Your Own Girl",
+    "create_girlfriend_button": "🎨 Create Your Girlfriend",
+    "discover_button": "✨ Discover all characters",
+    "discover_description": "Browse our full collection of AI companions in the gallery!",
+    "discover_title": "✨ Discover All Characters",
+    "title": "Choose your companion:"
+  }
+}

@@ -13,7 +13,9 @@ export default function Sidebar() {
     { path: '/start-codes', label: 'Start Codes', icon: '🎫' },
     { path: '/characters', label: 'Characters', icon: '🎭' },
     { path: '/images', label: 'Images', icon: '🖼️' },
-    { path: '/translations', label: 'Translations', icon: '🌐' }
+    { path: '/translations', label: 'Translations', icon: '🌐' },
+    { path: '/system-messages', label: 'System Messages', icon: '📨' },
+    { path: '/system-messages/templates', label: 'Templates', icon: '📝' }
   ];
 
   const handleLogout = () => {

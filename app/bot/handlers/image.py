@@ -60,17 +60,17 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     """Generate image for user with given prompt"""
     config = get_app_config()
     
-    # Check if user is premium (premium users get free images)
+    # Check if user is premium (premium users pay 3 energy, free users pay 5)
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
-    # Check energy for non-premium users
-    if not is_premium:
-        with get_db() as db:
-            if not crud.check_user_energy(db, user_id, required=5):
-                # Show energy upsell message
-                await show_energy_upsell_message(message, user_id)
-                return
+    # Check energy (3 for premium, 5 for free users)
+    energy_cost = 3 if is_premium else 5
+    with get_db() as db:
+        if not crud.check_user_energy(db, user_id, required=energy_cost):
+            # Show energy upsell message
+            await show_energy_upsell_message(message, user_id)
+            return
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -93,14 +93,12 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         return
     
     with get_db() as db:
-        # Deduct energy for non-premium users
-        if not is_premium:
-            if not crud.deduct_user_energy(db, user_id, amount=5):
-                await message.answer("❌ Failed to deduct energy. Please try again.")
-                return
-            print(f"[IMAGE] ⚡ Deducted 5 energy from user {user_id}")
-        else:
-            print(f"[IMAGE] 💎 Premium user {user_id} - free image generation")
+        # Deduct energy (3 for premium, 5 for free users)
+        energy_cost = 3 if is_premium else 5
+        if not crud.deduct_user_energy(db, user_id, amount=energy_cost):
+            await message.answer("❌ Failed to deduct energy. Please try again.")
+            return
+        print(f"[IMAGE] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
         
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
@@ -197,10 +195,12 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
 async def show_energy_upsell_message(message: types.Message, user_id: int):
     """Show energy upsell message with button to open premium page"""
     from app.bot.keyboards.inline import build_energy_upsell_keyboard
-    from app.settings import settings
+    from app.settings import settings, get_ui_text
     
     with get_db() as db:
         user_energy = crud.get_user_energy(db, user_id)
+        user_language = crud.get_user_language(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
         # Delete previous upsell message if exists
         upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
@@ -212,15 +212,38 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
     
     # Send new upsell message
     miniapp_url = f"{settings.public_url}/miniapp"
-    keyboard = build_energy_upsell_keyboard(miniapp_url)
+    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language)
+    
+    tokens = user_energy['tokens']
+    
+    # Different message for premium users
+    if is_premium:
+        message_text = (
+            f"<b>{get_ui_text('tokens.outOfTokensPremium.title', user_language)}</b>\n\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.balance', user_language, tokens=tokens)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokensPremium.costs', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.message', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.image', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.buyMore', user_language)}"
+        )
+    else:
+        # Emotional message for free users
+        message_text = (
+            f"<b>{get_ui_text('tokens.outOfTokens.title', user_language)}</b>\n\n"
+            f"{get_ui_text('tokens.outOfTokens.subtitle', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokens.balance', user_language, tokens=tokens)}\n\n"
+            f"{get_ui_text('tokens.outOfTokens.waiting', user_language)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokens.costs', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokens.messageBack', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n\n"
+            f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
+            f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
+        )
     
     sent_msg = await message.answer(
-        f"⚡ <b>You're out of energy!</b>\n\n"
-        f"You have {user_energy['energy']}/{user_energy['max_energy']} energy.\n"
-        f"• Text messages cost <b>1 energy</b> each\n"
-        f"• Image generation costs <b>5 energy</b> per image\n"
-        f"• Energy regenerates at <b>2 per hour</b>\n\n"
-        f"💎 Get unlimited energy with Premium!",
+        message_text,
         reply_markup=keyboard
     )
     
@@ -230,7 +253,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
 
 
 async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
-    """Generate image for refresh (energy already deducted - costs 3 energy)
+    """Generate image for refresh - costs 3 energy for free users, 0 for premium
     
     Reuses the EXACT same prompts from the original job, only changes the seed.
     """
@@ -259,7 +282,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
     
     # Check if user is premium for priority determination
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
         global_message_count = user.global_message_count if user else 999
@@ -359,7 +382,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
 
 @router.callback_query(lambda c: c.data.startswith("refresh_image:"))
 async def refresh_image_callback(callback: types.CallbackQuery):
-    """Handle refresh image button click - costs 3 energy (2 less than original)"""
+    """Handle refresh image button click - costs 3 energy for free, 0 for premium"""
     job_id_str = callback.data.split(":")[1]
     user_id = callback.from_user.id
     
@@ -367,7 +390,7 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     
     # Check if user is premium
     with get_db() as db:
-        is_premium = crud.check_user_premium(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
     # Check energy for non-premium users (refresh costs 3 energy)
     if not is_premium:
@@ -400,7 +423,7 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             persona_name=persona.name if persona else None
         )
         
-        # Deduct 3 energy for refresh (non-premium only)
+        # Deduct energy for refresh (3 for free users, 0 for premium)
         if not is_premium:
             if not crud.deduct_user_energy(db, user_id, amount=3):
                 await callback.answer("❌ Failed to deduct energy", show_alert=True)

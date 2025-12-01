@@ -1,151 +1,116 @@
 import WebApp from '@twa-dev/sdk';
-import { useState } from 'react';
-import { createInvoice } from '../api';
+import { useEffect } from 'react';
+import { trackEvent } from '../api';
+import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
 
 /**
  * PremiumPage Component
- * Shows upgrade plans and pricing options
+ * Shows premium tier subscriptions
  */
-export default function PremiumPage({ energy, onBack }) {
-  const { t, language, changeLanguage, supportedLanguages } = useTranslation();
-  const [selectedPlan, setSelectedPlan] = useState('year');
-  const [isProcessing, setIsProcessing] = useState(false);
+export default function PremiumPage({ onNavigateToCheckout }) {
+  const { t } = useTranslation();
+  
+  // Track page view
+  useEffect(() => {
+    const initData = WebApp.initData;
+    trackEvent('plans_page_viewed', {}, initData).catch(err => {
+      console.error('Failed to track plans page view:', err);
+    });
+  }, []);
 
-  const plans = [
+  // Premium tiers with translation keys
+  const tiers = [
     {
-      id: '2days',
-      duration: t('premium.plans.2days.duration'),
-      stars: 250,
-      period: t('premium.plans.2days.period'),
+      id: 'plus_month',
+      name: 'Plus',
+      icon: '❄️',
+      daily: 50,
+      bonus: 500,
+      stars: 450,
+      featureKeys: [
+        'premium.plus.feature1',
+        'premium.plus.feature2',
+        'premium.plus.feature3',
+        'premium.plus.feature4',
+        'premium.plus.feature5',
+        'premium.plus.feature6',
+        'premium.plus.feature7'
+      ]
     },
     {
-      id: 'month',
-      duration: t('premium.plans.month.duration'),
-      stars: 500,
-      period: t('premium.plans.month.period'),
+      id: 'pro_month',
+      name: 'Pro',
+      icon: '🔥',
+      daily: 100,
+      bonus: 750,
+      stars: 700,
+      featureKeys: [
+        'premium.pro.feature1',
+        'premium.pro.feature2',
+        'premium.pro.feature3'
+      ]
     },
     {
-      id: '3months',
-      duration: t('premium.plans.3months.duration'),
-      stars: 1000,
-      period: t('premium.plans.3months.period'),
-    },
-    {
-      id: 'year',
-      duration: t('premium.plans.year.duration'),
-      stars: 3000,
-      period: t('premium.plans.year.period'),
-    },
-  ];
-
-  const features = [
-    { icon: '⚡', text: t('premium.features.energy') },
-    { icon: '👯', text: t('premium.features.ai') },
-    { icon: '📸', text: t('premium.features.photos') },
-  ];
-
-  const handleUpgrade = async () => {
-    if (isProcessing) return;
-    
-    setIsProcessing(true);
-    
-    try {
-      const selected = plans.find(p => p.id === selectedPlan);
-      const initData = WebApp.initData;
-      
-      // Create invoice via API
-      const { invoice_link } = await createInvoice(selectedPlan, initData);
-      
-      // Open invoice using Telegram WebApp API
-      WebApp.openInvoice(invoice_link, (status) => {
-        if (status === 'paid') {
-          WebApp.showAlert(t('premium.alerts.paymentSuccess'));
-          // Reload the page to refresh premium status
-          window.location.reload();
-        } else if (status === 'cancelled') {
-          WebApp.showAlert(t('premium.alerts.paymentCancelled'));
-        } else if (status === 'failed') {
-          WebApp.showAlert(t('premium.alerts.paymentFailed'));
-        }
-        setIsProcessing(false);
-      });
-    } catch (error) {
-      console.error('Failed to create invoice:', error);
-      WebApp.showAlert(t('premium.alerts.createFailed'));
-      setIsProcessing(false);
+      id: 'legendary_month',
+      name: 'Legendary',
+      icon: '🏆',
+      daily: 200,
+      bonus: 1000,
+      stars: 900,
+      featureKeys: [
+        'premium.legendary.feature1',
+        'premium.legendary.feature2',
+        'premium.legendary.feature3',
+      ]
     }
+  ];
+
+  const handleTierClick = (tier) => {
+    onNavigateToCheckout(tier);
   };
 
   return (
     <div className="premium-page">
-      {/* Language Selection Section */}
-      <div className="language-section">
-        <h3 className="language-title">{t('settings.language')}</h3>
-        <div className="language-grid">
-          {supportedLanguages.map((lang) => (
-            <button
-              key={lang}
-              className={`language-button ${language === lang ? 'active' : ''}`}
-              onClick={() => changeLanguage(lang)}
-            >
-              {t(`settings.languageNames.${lang}`)}
-              {language === lang && (
-                <svg className="checkmark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="plans-section">
-        <div className="plans-grid">
-          {plans.map((plan, index) => (
-            <div
-              key={plan.id}
-              className={`plan-card ${selectedPlan === plan.id ? 'selected' : ''} ${index >= 2 ? 'full-width' : ''}`}
-              onClick={() => setSelectedPlan(plan.id)}
-            >
-              <div className="plan-content">
-                <div className="plan-info">
-                  <div className="plan-duration">{plan.duration}</div>
-                  <div className="plan-price">
-                    {plan.stars} <span className="plan-period">⭐ {plan.period}</span>
-                  </div>
-                </div>
-                <div className="plan-selector">
-                  {selectedPlan === plan.id && (
-                    <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  )}
-                </div>
+      {tiers.map((tier) => (
+        <div key={tier.id} className="premium-card">
+          <div className="premium-card-header">
+            <div className="premium-card-title">
+              <span className="tier-icon-large">{tier.icon}</span>
+              <span className="tier-name-large">{tier.name}</span>
+            </div>
+            <div className="premium-card-price">
+              <div className="price-amount">
+                <img src={starIcon} alt="star" className="star-icon" />
+                {tier.stars}
               </div>
+              <div className="price-period">{t('premium.perMonth')}</div>
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div className="features-list">
-          {features.map((feature, index) => (
-            <div key={index} className="feature-item">
-              <span className="feature-icon">{feature.icon}</span>
-              <span className="feature-text">{feature.text}</span>
+          <div className="premium-card-body">
+            <h3 className="benefits-title">{t('premium.benefits')}</h3>
+            <div className="benefits-list">
+              {tier.featureKeys.map((featureKey, index) => (
+                <div key={index} className="benefit-item">
+                  <svg className="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span className="benefit-text">{t(featureKey)}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          <button 
+            className="premium-card-button" 
+            onClick={() => handleTierClick(tier)}
+          >
+            {t('premium.getButton', { name: tier.name })}
+          </button>
         </div>
-      </div>
-
-      <div className="footer-note">
-        <p>@sexsplicit_companion_bot</p>
-      </div>
-
-      <button className="upgrade-button-sticky" onClick={handleUpgrade} disabled={isProcessing}>
-        {isProcessing ? t('premium.processing') : t('premium.upgradeButton')}
-      </button>
+      ))}
     </div>
   );
 }
-

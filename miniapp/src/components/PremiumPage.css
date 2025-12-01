@@ -1,257 +1,126 @@
 .premium-page {
   min-height: 100vh;
-  padding-bottom: 100px; /* Space for sticky button */
-  padding-top: 20px;
+  padding: 20px;
+  padding-bottom: 40px;
 }
 
-.plans-section {
-  margin: 0 20px;
-}
-
-.plans-title {
-  text-align: center;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 20px 0;
-}
-
-.plans-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.plan-card {
-  background: rgba(255, 255, 255, 0.05);
+.premium-card {
+  background: rgba(255, 255, 255, 0.03);
   border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 16px;
-  cursor: pointer;
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
   transition: all 0.2s ease;
-  position: relative;
 }
 
-.plan-card.full-width {
-  grid-column: 1 / -1;
-}
-
-.plan-card:active {
-  transform: scale(0.98);
-}
-
-.plan-card.selected {
-  background: var(--gradient-subtle);
-  border-color: var(--color-red);
-  box-shadow: 0 0 0 2px var(--color-red);
-}
-
-.plan-content {
+.premium-card-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.plan-info {
-  flex: 1;
-}
-
-.plan-duration {
-  font-size: 16px;
-  font-weight: 600;
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 6px;
-}
-
-.plan-energy {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 8px;
+.premium-card-title {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 12px;
 }
 
-.plan-price {
-  font-size: 16px;
+.tier-icon-large {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.tier-name-large {
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.plan-period {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-secondary);
+.premium-card-price {
+  text-align: right;
 }
 
-.plan-selector {
+.price-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.star-icon {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  object-fit: contain;
 }
 
-.plan-card.selected .plan-selector {
-  background: var(--gradient-primary);
-  border-color: var(--color-red);
+.price-period {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
 }
 
-.checkmark {
-  width: 14px;
-  height: 14px;
-  color: white;
+.premium-card-body {
+  margin-bottom: 20px;
 }
 
-.features-list {
-  margin-bottom: 24px;
+.benefits-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.benefits-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
-.feature-item {
+.benefit-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.feature-item:last-child {
-  border-bottom: none;
-}
-
-.feature-icon {
-  font-size: 20px;
-  width: 24px;
-  text-align: center;
-}
-
-.feature-text {
-  font-size: 15px;
-  color: var(--text-primary);
-  font-weight: 400;
-}
-
-.upgrade-button {
-  width: 100%;
-  padding: 16px;
-  background: var(--gradient-primary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
-}
-
-.upgrade-button:active {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
-}
-
-.upgrade-button-sticky {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  padding: 16px 20px;
-  background: var(--gradient-primary);
-  color: var(--text-primary);
-  border: none;
-  border-radius: 0;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-}
-
-.upgrade-button-sticky:active {
-  transform: scale(0.98);
-}
-
-.upgrade-button-sticky:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.language-section {
-  margin: 32px 20px 24px 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.language-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 16px 0;
-}
-
-.language-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  align-items: flex-start;
   gap: 10px;
 }
 
-.language-button {
-  position: relative;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
+.check-icon {
+  width: 18px;
+  height: 18px;
+  color: #4ade80;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.language-button:active {
+.benefit-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.premium-card-button {
+  width: 100%;
+  padding: 14px;
+  background: var(--gradient-primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.premium-card-button:active {
   transform: scale(0.98);
 }
 
-.language-button.active {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: var(--color-red);
-  color: var(--color-red);
+.premium-card-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
-
-.checkmark-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.footer-note {
-  text-align: center;
-  padding: 24px 20px;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 13px;
-}
-
-.footer-note p {
-  margin: 0;
-  font-weight: 400;
-}
-

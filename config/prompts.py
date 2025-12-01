@@ -242,8 +242,11 @@ INTENSITY GUARDRAIL:
 - You may ONLY use 'explicit NSFW' if nudity or sexual acts are actually happening in the LAST ASSISTANT MESSAGE or clearly in the current scene state, not just requested by the user.
 
 **IMPORTANT**
-CHARACTER DNA NOTE: The woman's ethnicity, hair color, eye color, and body type are ALREADY included automatically. 
-DO NOT describe them in your tags.
+CHARACTER DNA NOTE: The woman's physical attributes (ethnicity, hair, eyes, body) and her STYLE PREFERENCES are ALREADY included automatically in her character DNA.
+- DO NOT describe hair color, eye color, or body type in your tags
+- DO NOT override her style preferences (if she loves dresses, don't default to jeans)
+- Your tags should focus on: SCENE, POSE, CURRENT CLOTHING STATE, and EXPRESSION
+- The character DNA already includes her signature style - respect it and build upon it
 </CRITICAL_INSTRUCTIONS>
 
 <IMAGE_GENERATION_RULES>
@@ -338,6 +341,27 @@ terminateDialog: true or false.
 
 terminateReason: empty string unless terminateDialog=true, then brief reason.
 
+CLOTHING INFERENCE RULES (CRITICAL):
+- If previous state has aiClothing defined (not empty), preserve it unless conversation explicitly changes it
+- If aiClothing is undefined/empty AND no clothing is mentioned in conversation:
+  → You MUST infer appropriate, context-appropriate clothing based on:
+    1. Location (e.g., "beach" → "blue bikini", "office" → "white blouse, black pencil skirt", "gym" → "sports bra, yoga pants")
+    2. Relationship stage (e.g., "stranger" → modest/casual, "lover" → potentially more intimate but still clothed)
+    3. Time of day from moodNotes (e.g., evening at home → "comfortable pajamas", daytime → day clothes)
+    4. Character personality/occupation if known from context
+  → DEFAULT to modest, everyday clothing (e.g., "casual t-shirt, jeans" or "comfortable dress")
+  → NEVER use empty string or vague terms like "casual outfit"
+  → NEVER default to "naked" or "completely naked" unless explicitly stated in conversation
+  → Be specific with colors and items (e.g., "light blue t-shirt, denim jeans" not just "casual clothes")
+
+Examples of appropriate inference:
+- Location "cafe", no clothing mentioned → "casual sundress, sandals" or "jeans, comfortable top"
+- Location "bedroom", morning, no clothing mentioned → "pajamas, comfortable sleepwear"
+- Location "office", no clothing mentioned → "professional blouse, skirt" or "business casual outfit"
+- Location "home", evening, no clothing mentioned → "comfortable loungewear, soft t-shirt and shorts"
+- Location "beach", no clothing mentioned → "beach cover-up, swimsuit" or "bikini, beach wrap"
+- Location "gym", no clothing mentioned → "sports bra, yoga pants" or "athletic wear"
+
 CRITICAL CONSISTENCY RULES - READ CAREFULLY
 
 1. **PRESERVE PREVIOUS STATE BY DEFAULT**
@@ -348,8 +372,9 @@ CRITICAL CONSISTENCY RULES - READ CAREFULLY
 2. **ONLY UPDATE WHEN EXPLICITLY MENTIONED**
    - location: Change ONLY if conversation explicitly mentions going somewhere new ("let's go to...", "we're at...", "move to...")
    - aiClothing: Change ONLY if conversation explicitly mentions clothing change ("I put on...", "wearing...", "changing into...", "takes off...")
+     → EXCEPTION: If aiClothing is currently empty/undefined, you MUST infer appropriate clothing (see CLOTHING INFERENCE RULES above)
    - userClothing: Change ONLY if conversation explicitly mentions user's clothing
-   - DO NOT infer or assume changes based on context
+   - DO NOT infer or assume changes based on context (except for empty aiClothing - see above)
 
 3. **FORBIDDEN: DO NOT HALLUCINATE**
    - DO NOT change location just because you think it "makes sense"
@@ -502,12 +527,16 @@ Example of good memory:
 6. NEVER confuse user (human) with assistant (AI character)
 7. Be specific, not vague - "works as software engineer" not just "has a job"
 8. Quality over quantity - one detailed fact is better than five vague ones
+9. Keep memory CONCISE and under 1000 characters - prioritize important facts
+10. NEVER repeat the same sentence multiple times - each fact should appear once
 
 CRITICAL REMINDERS:
 - You are extracting facts about the HUMAN USER, not the AI character
 - Always output the COMPLETE memory (old + new), never just the new facts alone
 - If current memory is empty/placeholder, build the first real memory from what you learn
 - Be specific and detailed - capture the richness of what the user reveals
+- STRICT LENGTH LIMIT: Maximum 1000 characters total
+- NO REPETITION: Each fact should only appear once in the memory
 </INSTRUCTIONS>
 
 <CURRENT_MEMORY>

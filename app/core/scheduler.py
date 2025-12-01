@@ -3,12 +3,15 @@ Background scheduler for auto-messages and other periodic tasks
 """
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from datetime import datetime
+import logging
 from app.db.base import get_db
 from app.db import crud
 from app.core import redis_queue
 from app.core.multi_brain_pipeline import process_message_pipeline
+from app.core import system_message_service
 
 scheduler = AsyncIOScheduler()
+logger = logging.getLogger(__name__)
 
 
 async def check_inactive_chats():
@@ -161,17 +164,17 @@ async def check_inactive_chats_3day():
         print(f"[SCHEDULER] Error checking inactive chats (3 day): {e}")
 
 
-async def regenerate_daily_energy():
-    """Regenerate 10 energy every day for all non-premium users"""
-    print("[SCHEDULER] ⚡ Running daily energy regeneration...")
+async def add_daily_tokens_by_tier():
+    """Add daily tokens to premium tier users based on their subscription level"""
+    print("[SCHEDULER] 🪙 Running daily token addition by tier...")
     
     try:
         with get_db() as db:
-            count = crud.regenerate_all_users_energy(db)
+            count = crud.add_daily_tokens_by_tier(db)
         
-        print(f"[SCHEDULER] ✅ Regenerated 10 energy for {count} users")
+        print(f"[SCHEDULER] ✅ Added daily tokens for {count} premium tier users")
     except Exception as e:
-        print(f"[SCHEDULER] ❌ Error regenerating energy: {e}")
+        print(f"[SCHEDULER] ❌ Error adding daily tokens: {e}")
 
 
 async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
@@ -245,10 +248,10 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
     # Create varied, context-aware follow-up prompts
     import random
     followup_prompts = [
-        "[AUTO_FOLLOWUP] The user hasn't replied in a while. Reach out naturally - ask what they've been up to, share a playful thought, or tease them gently about the silence. Keep it light, flirty, and conversational.",
-        "[AUTO_FOLLOWUP] It's been quiet for a bit. Send a message that picks up naturally from your last conversation - reference what you were talking about, ask a curious question, or create a new hook to draw them back in.",
-        "[AUTO_FOLLOWUP] Time to re-engage. Send a natural, spontaneous message - maybe share what you've been thinking about, tease them playfully, or suggest something fun. Make it feel organic, not forced.",
-        "[AUTO_FOLLOWUP] The conversation paused. Reach out with genuine curiosity - ask about their day, bring up something from earlier, or shift the mood with a flirty or playful comment.",
+        "[AUTO_FOLLOWUP] The user hasn't replied in a while. Reach out naturally - ask what they've been up to, share a playful thought, or tease them gently about the silence. Keep it light, flirty, and conversational. Respond in the dialog's language.",
+        "[AUTO_FOLLOWUP] It's been quiet for a bit. Send a message that picks up naturally from your last conversation - reference what you were talking about, ask a curious question, or create a new hook to draw them back in. Respond in the dialog's language.",
+        "[AUTO_FOLLOWUP] Time to re-engage. Send a natural, spontaneous message - maybe share what you've been thinking about, tease them playfully, or suggest something fun. Make it feel organic, not forced. Respond in the dialog's language.",
+        "[AUTO_FOLLOWUP] The conversation paused. Reach out with genuine curiosity - ask about their day, bring up something from earlier, or shift the mood with a flirty or playful comment. Respond in the dialog's language.",
     ]
     
     selected_prompt = random.choice(followup_prompts)
@@ -294,6 +297,76 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
                     db.commit()
 
 
+async def check_scheduled_messages():
+    """
+    Check for scheduled messages ready to send
+    
+    Uses database-level locking for concurrency safety across multiple instances
+    """
+    logger.debug("Checking for scheduled system messages")
+    
+    try:
+        with get_db() as db:
+            # This now uses SELECT FOR UPDATE SKIP LOCKED for concurrency safety
+            scheduled_messages = crud.get_scheduled_messages(db)
+            message_data = [
+                {"id": msg.id, "status": msg.status}
+                for msg in scheduled_messages
+            ]
+        
+        if not message_data:
+            logger.debug("No scheduled messages ready to send")
+            return
+        
+        logger.info(f"Found {len(message_data)} scheduled messages ready to send", extra={
+            "message_count": len(message_data),
+            "message_ids": [str(d["id"]) for d in message_data]
+        })
+        
+        for data in message_data:
+            try:
+                await system_message_service.send_system_message(data["id"])
+                logger.info(f"Sent scheduled message", extra={
+                    "message_id": str(data["id"])
+                })
+            except Exception as e:
+                logger.error(f"Error sending scheduled message", extra={
+                    "message_id": str(data["id"]),
+                    "error": str(e)
+                }, exc_info=True)
+                
+    except Exception as e:
+        logger.error(f"Error checking scheduled messages", extra={
+            "error": str(e)
+        }, exc_info=True)
+
+
+async def retry_failed_deliveries_task():
+    """
+    Retry failed system message deliveries
+    
+    Note: This task is NOT scheduled to run automatically.
+    Users can manually retry failed deliveries via the UI button.
+    This function remains here in case you want to re-enable auto-retry in the future.
+    """
+    logger.debug("Retrying failed system message deliveries")
+    
+    try:
+        stats = await system_message_service.retry_failed_deliveries()
+        if stats["retried"] > 0:
+            logger.info(f"Retried deliveries", extra={
+                "retried": stats["retried"],
+                "success": stats["success"],
+                "failed": stats["failed"]
+            })
+        else:
+            logger.debug("No failed deliveries to retry")
+    except Exception as e:
+        logger.error(f"Error retrying failed deliveries", extra={
+            "error": str(e)
+        }, exc_info=True)
+
+
 def start_scheduler():
     """Start the background scheduler"""
     from app.settings import settings
@@ -317,12 +390,17 @@ def start_scheduler():
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Regenerate energy every day (if enabled)
-    if settings.ENABLE_ENERGY_REGEN:
-        scheduler.add_job(regenerate_daily_energy, 'interval', days=1)
-        print("[SCHEDULER] ✅ Energy regeneration enabled (10 energy every day)")
-    else:
-        print("[SCHEDULER] ⚠️  Energy regeneration disabled (ENABLE_ENERGY_REGEN=False)")
+    # Add daily tokens for premium tiers (runs every day)
+    scheduler.add_job(add_daily_tokens_by_tier, 'interval', days=1)
+    print("[SCHEDULER] ✅ Daily token addition enabled (tier-based: Plus=50, Premium=75, Pro=100, Legendary=200)")
+    
+    # Check for scheduled system messages every minute
+    scheduler.add_job(check_scheduled_messages, 'interval', minutes=1)
+    print("[SCHEDULER] ✅ Scheduled system messages check enabled (every 1 minute)")
+    
+    # Note: Auto-retry disabled - use manual retry button in UI instead
+    # scheduler.add_job(retry_failed_deliveries_task, 'interval', minutes=5)
+    # print("[SCHEDULER] ⚠️  Auto-retry disabled (use manual retry in UI)")
     
     scheduler.start()
     
@@ -334,5 +412,3 @@ def stop_scheduler():
     print("[SCHEDULER] Stopping scheduler...")
     scheduler.shutdown()
     print("[SCHEDULER] ✅ Scheduler stopped")
-
-

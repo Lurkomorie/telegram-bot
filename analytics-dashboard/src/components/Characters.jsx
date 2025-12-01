@@ -49,7 +49,9 @@ export default function Characters() {
     small_description: '',
     emoji: '',
     intro: '',
-    avatar_url: ''
+    avatar_url: '',
+    order: 999,
+    main_menu: true
   });
   const [personaFormErrors, setPersonaFormErrors] = useState({});
 
@@ -120,7 +122,9 @@ export default function Characters() {
       small_description: '',
       emoji: '',
       intro: '',
-      avatar_url: ''
+      avatar_url: '',
+      order: 999,
+      main_menu: true
     });
     setPersonaFormErrors({});
     setShowPersonaModal(true);
@@ -139,7 +143,9 @@ export default function Characters() {
       small_description: persona.small_description || '',
       emoji: persona.emoji || '',
       intro: persona.intro || '',
-      avatar_url: persona.avatar_url || ''
+      avatar_url: persona.avatar_url || '',
+      order: persona.order !== undefined ? persona.order : 999,
+      main_menu: persona.main_menu !== undefined ? persona.main_menu : true
     });
     setPersonaFormErrors({});
     setShowPersonaModal(true);
@@ -159,7 +165,9 @@ export default function Characters() {
       small_description: '',
       emoji: '',
       intro: '',
-      avatar_url: ''
+      avatar_url: '',
+      order: 999,
+      main_menu: true
     });
     setPersonaFormErrors({});
   };
@@ -194,7 +202,9 @@ export default function Characters() {
         small_description: personaFormData.small_description || null,
         emoji: personaFormData.emoji || null,
         intro: personaFormData.intro || null,
-        avatar_url: personaFormData.avatar_url || null
+        avatar_url: personaFormData.avatar_url || null,
+        order: personaFormData.order !== undefined ? personaFormData.order : 999,
+        main_menu: personaFormData.main_menu !== undefined ? personaFormData.main_menu : true
       };
       
       if (editingPersona) {
@@ -415,6 +425,16 @@ export default function Characters() {
                       }`}>
                         {persona.visibility}
                       </span>
+                      {persona.main_menu && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Main Menu
+                        </span>
+                      )}
+                      {persona.order !== undefined && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Order: {persona.order}
+                        </span>
+                      )}
                     </div>
                     
                     {persona.key && (
@@ -617,6 +637,37 @@ export default function Characters() {
                     <option value="private">Private</option>
                     <option value="custom">Custom</option>
                   </select>
+                </div>
+
+                {/* Order */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Order (Lower appears first)
+                  </label>
+                  <input
+                    type="number"
+                    value={personaFormData.order}
+                    onChange={(e) => setPersonaFormData({ ...personaFormData, order: parseInt(e.target.value) || 999 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="999"
+                    min="0"
+                  />
+                </div>
+
+                {/* Main Menu */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Show in Chat Main Menu
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={personaFormData.main_menu}
+                      onChange={(e) => setPersonaFormData({ ...personaFormData, main_menu: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Display in chat start menu</span>
+                  </div>
                 </div>
               </div>
 

@@ -40,7 +40,16 @@ def _build_state_context(
     ]) if chat_history else "No conversation history yet."
     
     # Handle None previous state
-    state_text = previous_state if previous_state else "No previous state"
+    if previous_state:
+        state_text = previous_state
+    else:
+        # First message - AI MUST infer complete state from conversation history
+        state_text = """No previous state - THIS IS THE FIRST MESSAGE.
+You MUST create a complete initial state by reading the conversation history above, especially the SYSTEM message.
+The SYSTEM message contains the scene description - extract location and infer appropriate clothing from it.
+CRITICAL: Do NOT use generic values like 'casual outfit' or 'indoor location'.
+Be SPECIFIC with colors and details: 'light blue sundress, white sandals' not 'casual outfit'.
+Extract location from SYSTEM message: if it says 'cozy cafe', use location="cozy cafe downtown" not "indoor location"."""
     
     # Add previous image prompt if available
     image_context = ""
@@ -184,6 +193,20 @@ async def resolve_state(
             # Log full state for debugging repetition issues
             print(f"[STATE-RESOLVER] ✅ State resolved ({len(state_text)} chars)")
             print(f"[STATE-RESOLVER] 📝 Full state: {state_text}")
+            
+            # Parse and log key fields for debugging
+            if "location=" in state_text:
+                try:
+                    location = state_text.split('location="')[1].split('"')[0] if 'location="' in state_text else "NOT FOUND"
+                    print(f"[STATE-RESOLVER]   📍 Location: {location}")
+                except:
+                    print(f"[STATE-RESOLVER]   📍 Location: (parse error)")
+            if "aiClothing=" in state_text:
+                try:
+                    clothing = state_text.split('aiClothing="')[1].split('"')[0] if 'aiClothing="' in state_text else "NOT FOUND"
+                    print(f"[STATE-RESOLVER]   👗 AI Clothing: {clothing}")
+                except:
+                    print(f"[STATE-RESOLVER]   👗 AI Clothing: (parse error)")
             
             # Check if state has changed
             if previous_state and state_text == previous_state:

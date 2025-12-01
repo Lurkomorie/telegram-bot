@@ -93,6 +93,14 @@ def build_persona_selection_keyboard(
                 web_app=WebAppInfo(url=f"{miniapp_url}?page=gallery")
             )
         ])
+        
+        # Add create girlfriend button
+        buttons.append([
+            InlineKeyboardButton(
+                text=get_ui_text("welcome.create_girlfriend_button", language=language),
+                web_app=WebAppInfo(url=f"{miniapp_url}?page=gallery&create=true")
+            )
+        ])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 

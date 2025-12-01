@@ -222,6 +222,8 @@ async def _process_single_batch(
             previous_image_prompt = previous_image_job.prompt if previous_image_job else None
             if previous_image_prompt:
                 log_verbose(f"[BATCH] ✅ Found previous image prompt ({len(previous_image_prompt)} chars)")
+                if previous_image_job:
+                    log_verbose(f"[BATCH]    Job ID: {previous_image_job.id}, Source: {previous_image_job.ext.get('source', 'unknown') if previous_image_job.ext else 'unknown'}")
             else:
                 log_verbose(f"[BATCH] ℹ️  No previous image prompt found")
             
@@ -579,23 +581,21 @@ async def _background_image_generation(
             await action_mgr.stop()
             return
         
-        # Check if user is premium (premium users get free images)
+        # Check if user is premium (premium users pay 3 energy, free users pay 5)
         with get_db() as db:
-            is_premium = crud.check_user_premium(db, user_id)
+            is_premium = crud.check_user_premium(db, user_id)["is_premium"]
             # Get user's global message count for priority determination
             user = db.query(User).filter(User.id == user_id).first()
             global_message_count = user.global_message_count if user else 999
         
-        if is_premium:
-            log_always(f"[IMAGE-BG] 💎 Premium user {user_id} - free image generation")
-        else:
-            # Deduct energy for non-premium users (5 energy per image)
-            with get_db() as db:
-                if not crud.deduct_user_energy(db, user_id, amount=5):
-                    log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image - skipping")
-                    await action_mgr.stop()
-                    return
-                log_always(f"[IMAGE-BG] ⚡ Deducted 5 energy from user {user_id}")
+        # Deduct energy (3 for premium, 5 for free users)
+        energy_cost = 3 if is_premium else 5
+        with get_db() as db:
+            if not crud.deduct_user_energy(db, user_id, amount=energy_cost):
+                log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image - skipping")
+                await action_mgr.stop()
+                return
+            log_always(f"[IMAGE-BG] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
         
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")

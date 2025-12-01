@@ -18,6 +18,15 @@
   margin: 0 0 12px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 /* Plan Display */
@@ -51,6 +60,7 @@
 .upgrade-plans-button {
   width: 100%;
   padding: 14px;
+  margin-top: 16px;
   background: var(--gradient-primary);
   color: var(--text-primary);
   border: none;
@@ -65,6 +75,60 @@
 .upgrade-plans-button:active {
   transform: scale(0.98);
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+/* Action Buttons (Premium & Tokens) */
+.settings-action-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+
+.settings-action-button:last-child {
+  margin-bottom: 0;
+}
+
+.settings-action-button:active {
+  transform: scale(0.98);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.premium-button {
+  background: linear-gradient(135deg, rgba(139, 69, 255, 0.15) 0%, rgba(109, 40, 217, 0.15) 100%);
+  border-color: rgba(139, 69, 255, 0.3);
+}
+
+.friends-button {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.tokens-button {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.15) 100%);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.button-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  line-height: 1;
+}
+
+.button-text {
+  flex: 1;
+  font-weight: 600;
+  text-align: left;
 }
 
 /* Language Selector */
