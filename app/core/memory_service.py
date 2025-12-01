@@ -29,9 +29,35 @@ def _validate_memory_quality(updated_memory: str, current_memory: str) -> Tuple[
         else:
             return False, "reverted to placeholder when memory existed"
     
+    # CRITICAL: Hard limit at 1000 characters
+    if len(updated_memory) > 1000:
+        return False, f"exceeds 1000 char limit ({len(updated_memory)} chars)"
+    
     # Check minimum length for actual memories
     if len(updated_memory) < 30:
         return False, f"too short ({len(updated_memory)} chars)"
+    
+    # Check for repetition loops (same sentence repeated multiple times)
+    sentences = [s.strip() for s in re.split(r'[.!?]+', updated_memory) if s.strip()]
+    if sentences:
+        from collections import Counter
+        sentence_counts = Counter(sentences)
+        # Find most repeated sentence
+        max_repetitions = max(sentence_counts.values()) if sentence_counts else 0
+        
+        # If any sentence repeats 3+ times, it's a repetition loop
+        if max_repetitions >= 3:
+            repeated_sentence = [s for s, count in sentence_counts.items() if count == max_repetitions][0]
+            return False, f"repetition loop detected (sentence repeated {max_repetitions}x: '{repeated_sentence[:50]}...')"
+        
+        # Check overall repetition ratio
+        unique_sentences = len(sentence_counts)
+        total_sentences = len(sentences)
+        unique_ratio = unique_sentences / total_sentences if total_sentences > 0 else 1.0
+        
+        # If less than 50% unique sentences, it's too repetitive
+        if unique_ratio < 0.5 and total_sentences >= 5:
+            return False, f"too repetitive (only {unique_ratio:.0%} unique sentences)"
     
     # Check for role confusion - user should not be described as AI
     role_confusion_patterns = [
@@ -152,18 +178,24 @@ async def update_memory(
             messages=messages,
             model=memory_model,
             temperature=0.5,  # Slightly higher for better extraction quality
-            max_tokens=1500  # Allow for growing memory
+            max_tokens=800  # Limit to stay under 1000 char hard limit
         )
         
         updated_memory = response.strip()
+        
+        # Log memory stats before validation
+        log_verbose(f"[MEMORY]    Generated memory: {len(updated_memory)} chars")
         
         # Validate memory quality
         is_valid, reason = _validate_memory_quality(updated_memory, current_memory)
         
         if not is_valid:
-            log_always(f"[MEMORY] ❌ Validation failed: {reason}")
+            log_always(f"[MEMORY] ❌ Validation FAILED: {reason}")
+            log_always(f"[MEMORY]    Generated length: {len(updated_memory)} chars (limit: 1000)")
             log_always(f"[MEMORY]    Rejected memory preview: {updated_memory[:200]}...")
-            log_always(f"[MEMORY] 🔄 Keeping existing memory")
+            if len(updated_memory) > 500:
+                log_always(f"[MEMORY]    End of rejected memory: ...{updated_memory[-200:]}")
+            log_always(f"[MEMORY] 🔄 Keeping existing memory ({len(current_memory or '')} chars)")
             return current_memory or ""
         
         log_verbose(f"[MEMORY] ✅ Validation passed: {reason}")
@@ -173,7 +205,8 @@ async def update_memory(
             log_verbose(f"[MEMORY] ⚠️  Empty or invalid response, keeping existing memory")
             return current_memory or ""
         
-        log_always(f"[MEMORY] ✅ Memory updated ({len(updated_memory)} chars)")
+        log_always(f"[MEMORY] ✅ Memory updated successfully!")
+        log_always(f"[MEMORY]    Old: {len(current_memory or '')} chars → New: {len(updated_memory)} chars")
         log_verbose(f"[MEMORY]    Preview: {updated_memory[:150]}...")
         
         return updated_memory

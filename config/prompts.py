@@ -527,12 +527,16 @@ Example of good memory:
 6. NEVER confuse user (human) with assistant (AI character)
 7. Be specific, not vague - "works as software engineer" not just "has a job"
 8. Quality over quantity - one detailed fact is better than five vague ones
+9. Keep memory CONCISE and under 1000 characters - prioritize important facts
+10. NEVER repeat the same sentence multiple times - each fact should appear once
 
 CRITICAL REMINDERS:
 - You are extracting facts about the HUMAN USER, not the AI character
 - Always output the COMPLETE memory (old + new), never just the new facts alone
 - If current memory is empty/placeholder, build the first real memory from what you learn
 - Be specific and detailed - capture the richness of what the user reveals
+- STRICT LENGTH LIMIT: Maximum 1000 characters total
+- NO REPETITION: Each fact should only appear once in the memory
 </INSTRUCTIONS>
 
 <CURRENT_MEMORY>
