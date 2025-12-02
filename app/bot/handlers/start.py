@@ -272,9 +272,13 @@ async def cmd_start(message: types.Message):
     
     # Standard /start flow (user is age verified)
     
-    # Get user language (retrieve again since we may have skipped the first DB block)
+    # Get user language and archive all chats (retrieve again since we may have skipped the first DB block)
     with get_db() as db:
         user_language = get_and_update_user_language(db, message.from_user)
+        
+        # Archive all user chats so messages don't continue previous conversation
+        crud.archive_all_user_chats(db, message.from_user.id)
+        print(f"[START] 📦 Archived all chats for user {message.from_user.id}")
     
     # Get personas from cache (much faster!)
     from app.core.persona_cache import get_preset_personas, get_persona_field
@@ -607,6 +611,53 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
             escaped_greeting,
             parse_mode="MarkdownV2"
         )
+
+
+@router.callback_query(lambda c: c.data == "trigger_start")
+async def trigger_start_callback(callback: types.CallbackQuery):
+    """Trigger start flow from 'no active chat' button"""
+    # Get user language and archive all chats
+    with get_db() as db:
+        user_language = get_and_update_user_language(db, callback.from_user)
+        
+        # Archive all user chats
+        crud.archive_all_user_chats(db, callback.from_user.id)
+        print(f"[START] 📦 Archived all chats for user {callback.from_user.id} (trigger_start)")
+        
+        # Clear the no_chat_msg_id since user is starting fresh
+        from app.db.models import User
+        user = db.query(User).filter(User.id == callback.from_user.id).first()
+        if user and user.ext and user.ext.get("no_chat_msg_id"):
+            from sqlalchemy.orm.attributes import flag_modified
+            user.ext["no_chat_msg_id"] = None
+            flag_modified(user, "ext")
+            db.commit()
+    
+    # Get personas from cache
+    from app.core.persona_cache import get_preset_personas, get_persona_field
+    preset_data = get_preset_personas()
+    preset_data = [p for p in preset_data if p.get('main_menu', True)]
+    user_data = []
+    
+    # Build text with persona descriptions
+    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    for p in preset_data:
+        emoji = p.get('emoji', '💕')
+        name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
+        desc = get_persona_field(p, 'small_description', language=user_language)
+        if desc:
+            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+        else:
+            welcome_text += f"{emoji} <b>{name}</b>\n\n"
+    
+    miniapp_url = f"{settings.public_url}/miniapp"
+    keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
+    
+    await callback.message.edit_text(
+        welcome_text,
+        reply_markup=keyboard
+    )
+    await callback.answer()
 
 
 @router.callback_query(lambda c: c.data == "show_personas")

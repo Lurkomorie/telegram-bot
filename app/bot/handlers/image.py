@@ -472,10 +472,14 @@ async def generate_image_for_persona_callback(callback: types.CallbackQuery, sta
     """Handle 'Generate Image' button - ask for user prompt"""
     persona_id = callback.data.split(":")[1]
     
-    # Get user language
+    # Get user language and archive all chats
     with get_db() as db:
         from app.bot.handlers.start import get_and_update_user_language
         user_language = get_and_update_user_language(db, callback.from_user)
+        
+        # Archive all user chats so messages don't continue previous conversation
+        crud.archive_all_user_chats(db, callback.from_user.id)
+        print(f"[IMAGE-GEN] 📦 Archived all chats for user {callback.from_user.id}")
     
     # Get persona from cache
     persona = get_persona_by_id(persona_id)
