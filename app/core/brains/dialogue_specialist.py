@@ -15,29 +15,22 @@ import time
 def _apply_template_replacements(
     template: str,
     persona: dict,
-    state: str
+    state: str,
+    memory: str = ""
 ) -> str:
     """Apply template replacements to prompt"""
+    char_name = persona.get("name", "AI")
+    
     replacements = {
-        "{{char.name}}": persona.get("name", "AI"),
-        "{{char.physical_description}}": persona.get("prompt", ""),
-        "{{scene.location}}": "[see state below]",
-        "{{scene.description}}": "[see state below]",
-        "{{scene.aiClothing}}": "[see state below]",
-        "{{scene.userClothing}}": "[see state below]",
-        "{{rel.relationshipStage}}": "[see state below]",
-        "{{rel.emotions}}": "[see state below]",
-        "{{rel.moodNotes}}": "[see state below]",
-        "{{custom.prompt}}": persona.get("prompt", ""),
-        "{{custom.negative_prompt}}": "",
-        # Core personalities and sexual archetypes (simplified for v1)
-        "{{core.personalities}}": "Natural, Authentic",
-        "{{core.personality.prompts}}": "",
-        "{{sexual.archetypes}}": "Balanced",
-        "{{sexual.archetype.prompts}}": "",
-        # User profile
-        "{{user.name}}": "the user",
-        "{{user.lang}}": "[detect from conversation]",
+        # Character placeholders
+        "{{character.name}}": char_name,
+        "{{character.image_prompt}}": persona.get("image_prompt", persona.get("prompt", "")),
+        "{{character.prompt}}": persona.get("prompt", ""),
+        "{{char.name}}": char_name,
+        # User placeholder
+        # State and memory
+        "{{state}}": state or "",
+        "{{memory}}": memory or "",
     }
     
     result = template
@@ -96,39 +89,9 @@ async def generate_dialogue(
     system_prompt = _apply_template_replacements(
         base_prompt,
         persona=persona,
-        state=state
+        state=state,
+        memory=memory or ""
     )
-    
-    # Add memory context if available
-    memory_context = ""
-    if memory and memory.strip():
-        memory_context = f"""
-
-# CONVERSATION MEMORY
-{memory}
-
-Note: This memory contains important facts about the user and past interactions. Use these details naturally in your responses to show continuity and personalization.
-"""
-    
-    # Add current state context as string
-    state_context = f"""
-
-# CURRENT SCENE & STATE
-{state}
-
-# CONVERSATION FLOW RULES
-- CRITICAL: Respond DIRECTLY to the user's LAST message above. Read it carefully.
-- ABSOLUTELY FORBIDDEN: Repeating ANY previous response, even partially. Each response MUST be 100% unique.
-- Check conversation history: If you see similar context, you MUST respond differently.
-- Reference specific details from the user's message (their words, their questions, their actions).
-- Build on the conversation naturally - don't reset or start over.
-- Vary your physical actions, expressions, and dialogue completely - never reuse phrases, actions, or sentence structures.
-
-# LANGUAGE CONSISTENCY WARNING
-- If you see mixed languages in conversation history (English + Russian in same message), these are ERRORS from past.
-- DO NOT copy this pattern. Use ONLY the language from user's CURRENT message.
-- Example: If history shows "_I smile_ *Привет*" but user writes Russian → YOU write ALL in Russian.
-"""
     
     # Add enhanced instructions for auto-followup messages
     followup_guidance = ""
@@ -148,7 +111,7 @@ You are reaching out after a period of silence. Follow these rules:
 - Don't apologize for the silence - just naturally re-engage
 """
     
-    full_system_prompt = system_prompt + memory_context + state_context + followup_guidance
+    full_system_prompt = system_prompt + followup_guidance
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):
@@ -187,9 +150,9 @@ You are reaching out after a period of silence. Follow these rules:
                 log_dev_context_breakdown(
                     brain_name="Dialogue Specialist",
                     system_prompt_parts={
-                        "base_prompt": system_prompt,
-                        "memory_context": memory_context,
-                        "state_context": state_context,
+                        "base_prompt": base_prompt,
+                        "state": state or "",
+                        "memory": memory or "",
                         "followup_guidance": followup_guidance,
                     },
                     history_messages=chat_history[-recent_history_count:],
@@ -205,7 +168,7 @@ You are reaching out after a period of silence. Follow these rules:
                     top_p=0.9,
                     frequency_penalty=0.8,
                     presence_penalty=0.8,
-                    max_tokens=config["llm"].get("max_tokens", 512)
+                    max_tokens=200
                 )
             
             brain_start = time.time()
@@ -213,11 +176,11 @@ You are reaching out after a period of silence. Follow these rules:
             response = await generate_text(
                 messages=messages,
                 model=dialogue_model,
-                temperature=min(temperature, 1.0),
+                temperature=0.8,
                 top_p=0.9,
                 frequency_penalty=0.8,  # Increased to prevent repetition
                 presence_penalty=0.8,   # Increased to encourage new tokens
-                max_tokens=config["llm"].get("max_tokens", 512),
+                max_tokens=200,
                 user_id=user_id
             )
             

@@ -3,18 +3,21 @@ Image generation handler
 """
 from aiogram import types
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from app.bot.loader import router, bot
 from app.bot.keyboards.inline import build_image_prompt_keyboard
+from app.bot.states import ImageGeneration
 from app.db.base import get_db
 from app.db import crud
 from app.db.models import User
-from app.settings import get_app_config
+from app.settings import get_app_config, get_ui_text
 from app.core.actions import send_action_repeatedly
 from app.core.rate import check_rate_limit
 from app.core.pipeline_adapter import build_image_prompts
 from app.core.img_runpod import submit_image_job
 from app.core.constants import ERROR_MESSAGES
 from app.core import analytics_service_tg
+from app.core.persona_cache import get_persona_by_id, get_persona_field
 import random
 
 
@@ -462,5 +465,246 @@ async def cancel_image_callback(callback: types.CallbackQuery):
     """Cancel image generation"""
     await callback.message.edit_text("✅ <b>Image generation cancelled.</b>")
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("generate_image_for_persona:"))
+async def generate_image_for_persona_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Handle 'Generate Image' button - ask for user prompt"""
+    persona_id = callback.data.split(":")[1]
+    
+    # Get user language
+    with get_db() as db:
+        from app.bot.handlers.start import get_and_update_user_language
+        user_language = get_and_update_user_language(db, callback.from_user)
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+        await callback.answer(error_msg, show_alert=True)
+        return
+    
+    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
+    
+    # Save persona_id to state for later use
+    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
+    await state.set_state(ImageGeneration.waiting_for_prompt)
+    
+    # Ask user for prompt
+    prompt_text = get_ui_text("image.prompt_request", language=user_language, persona_name=persona_name)
+    await callback.message.edit_text(prompt_text)
+    await callback.answer()
+
+
+@router.message(ImageGeneration.waiting_for_prompt)
+async def handle_image_prompt_input(message: types.Message, state: FSMContext):
+    """Handle user's custom image prompt and generate image"""
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    
+    # Clear state
+    await state.clear()
+    
+    if not persona_id:
+        await message.answer(get_ui_text("errors.session_expired", language=user_language))
+        return
+    
+    user_prompt = message.text
+    
+    # Show loading message
+    loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
+    loading_msg = await message.answer(loading_text)
+    
+    # Generate image
+    await generate_image_with_prompt(message, message.from_user.id, persona_id, user_prompt, user_language)
+    
+    # Delete loading message
+    try:
+        await loading_msg.delete()
+    except Exception:
+        pass
+
+
+async def generate_image_with_prompt(message: types.Message, user_id: int, persona_id: str, user_prompt: str, user_language: str = "en"):
+    """Generate image for user with given persona and prompt using image brain"""
+    config = get_app_config()
+    
+    # Check if user is premium (premium users pay 3 energy, free users pay 5)
+    with get_db() as db:
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+    
+    # Check energy (3 for premium, 5 for free users)
+    energy_cost = 3 if is_premium else 5
+    with get_db() as db:
+        if not crud.check_user_energy(db, user_id, required=energy_cost):
+            # Show energy upsell message
+            await show_energy_upsell_message(message, user_id)
+            return
+    
+    # Rate limit check
+    allowed, _ = await check_rate_limit(
+        user_id,
+        "image",
+        config["limits"]["image_per_min"],
+        60
+    )
+    
+    if not allowed:
+        await message.answer(ERROR_MESSAGES["rate_limit_image"])
+        return
+    
+    # Check concurrent image limit
+    from app.core import redis_queue
+    from app.settings import settings
+    current_count = await redis_queue.get_user_image_count(user_id)
+    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
+        print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
+        return
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await message.answer(get_ui_text("errors.persona_not_found", language=user_language))
+        return
+    
+    with get_db() as db:
+        # Deduct energy (3 for premium, 5 for free users)
+        if not crud.deduct_user_energy(db, user_id, amount=energy_cost):
+            await message.answer("❌ Failed to deduct energy. Please try again.")
+            return
+        print(f"[IMAGE] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
+        
+        # Get user's global message count for priority determination
+        user = db.query(User).filter(User.id == user_id).first()
+        global_message_count = user.global_message_count if user else 999
+        
+        # Get or create active chat for this persona
+        chat = crud.get_active_chat(db, message.chat.id, user_id)
+        
+        # If no chat exists, create one with default history
+        if not chat or chat.persona_id != persona_id:
+            # Get persona's histories
+            from app.core.persona_cache import get_persona_histories
+            histories = get_persona_histories(persona_id)
+            history_id = histories[0]["id"] if histories else None
+            
+            # Create new chat
+            chat = crud.create_chat(
+                db,
+                tg_chat_id=message.chat.id,
+                user_id=user_id,
+                persona_id=persona_id,
+                history_id=history_id
+            )
+            print(f"[IMAGE] Created new chat {chat.id} for persona {persona_id}")
+        
+        # Use image brain to generate prompt (without system message, using chat history)
+        from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
+        
+        # Get chat history
+        chat_history = crud.get_chat_messages(db, chat.id, limit=10)
+        chat_history_formatted = [
+            {"role": msg.role, "content": msg.content}
+            for msg in chat_history
+        ]
+        
+        # Generate image tags using the brain
+        try:
+            # Use persona description as state, user prompt as dialogue response
+            state = persona.get("description", "")
+            dialogue_response = user_prompt  # What user wants to see
+            
+            image_tags = await generate_image_plan(
+                state=state,
+                dialogue_response=dialogue_response,
+                user_message=user_prompt,
+                persona=persona,
+                chat_history=chat_history_formatted,
+                previous_image_prompt=None
+            )
+            
+            print(f"[IMAGE] Generated tags via brain: {image_tags[:100]}...")
+            
+            # Assemble final prompt
+            persona_image_prompt = persona.get("image_prompt", persona.get("prompt", ""))
+            positive_prompt, negative_prompt = assemble_final_prompt(image_tags, persona_image_prompt)
+            
+        except Exception as e:
+            print(f"[IMAGE] ⚠️ Failed to generate prompt via brain: {e}, falling back to simple prompt")
+            # Fallback to simple prompt building
+            positive_prompt, negative_prompt = build_image_prompts(
+                {},
+                persona,
+                user_prompt,
+                chat,
+                ""
+            )
+        
+        # Create image job
+        seed = random.randint(1, 2147483647)
+        job = crud.create_image_job(
+            db,
+            user_id=user_id,
+            persona_id=persona_id,
+            prompt=positive_prompt,
+            negative_prompt=negative_prompt,
+            chat_id=chat.id,
+            ext={"seed": seed, "user_prompt": user_prompt}
+        )
+        
+        job_id = job.id
+    
+    # Increment concurrent image counter (after job creation, before submission)
+    await redis_queue.increment_user_image_count(user_id)
+    print(f"[IMAGE] 📊 Incremented user image count")
+    
+    # Determine priority based on rules (same as pipeline)
+    if is_premium:
+        queue_priority = "high"
+        priority_reason = "premium user"
+    elif global_message_count <= 2:
+        queue_priority = "high"
+        priority_reason = f"first 2 messages globally (count: {global_message_count})"
+    else:
+        queue_priority = "medium"
+        priority_reason = "regular user message"
+    
+    print(f"[IMAGE] 📊 Queue priority: {queue_priority} ({priority_reason})")
+    
+    # Submit to Runpod with upload_photo action
+    try:
+        async with send_action_repeatedly(bot, message.chat.id, "upload_photo"):
+            await submit_image_job(
+                job_id=job_id,
+                prompt=positive_prompt,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                queue_priority=queue_priority
+            )
+            
+            # Job submitted successfully
+            print(f"[IMAGE] Job {job_id} submitted to Runpod")
+    
+    except Exception as e:
+        print(f"[IMAGE] Error submitting job: {e}")
+        
+        # Decrement counter since submission failed
+        await redis_queue.decrement_user_image_count(user_id)
+        print(f"[IMAGE] 📊 Decremented user image count (submission failed)")
+        
+        with get_db() as db:
+            crud.update_image_job_status(
+                db,
+                job_id,
+                status="failed",
+                error=str(e)
+            )
+        
+        await message.answer(
+            ERROR_MESSAGES["image_failed"]
+        )
 
 

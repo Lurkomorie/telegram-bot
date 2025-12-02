@@ -187,6 +187,10 @@ def build_chat_options_keyboard(persona_id: str, language: str = "en") -> Inline
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
+            text=get_ui_text("image.generate_button", language=language), 
+            callback_data=f"generate_image_for_persona:{persona_id}"
+        )],
+        [InlineKeyboardButton(
             text=get_ui_text("chat_options.continue_button", language=language), 
             callback_data=f"continue_chat:{persona_id}"
         )],
@@ -206,12 +210,19 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     
     Args:
         stories: List of dicts with 'id', 'name', 'small_description', 'description'
-        persona_id: Persona ID for back button (optional, unused for now)
+        persona_id: Persona ID for back button
         language: Language code for translations
     """
     from app.core.persona_cache import get_history_field
     
     buttons = []
+    
+    # First button: Generate Image (full width)
+    if persona_id:
+        buttons.append([InlineKeyboardButton(
+            text=get_ui_text("image.generate_button", language=language),
+            callback_data=f"generate_image_for_persona:{persona_id}"
+        )])
     
     # Helper function to create a story button
     def create_story_button(story):
