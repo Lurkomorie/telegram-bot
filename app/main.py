@@ -614,8 +614,9 @@ async def image_callback(request: Request):
                         db.commit()
                         print(f"[IMAGE-CALLBACK] 💾 Stored message ID {sent_message.message_id} as last image")
                 
-                # If this is a character creation image (no chat), update avatar immediately
-                if not job_chat_id and job_persona_id:
+                # If this is a character creation image (skip_chat_send=True), update avatar immediately
+                # Note: standalone image generation also has no chat_id but should NOT update avatar
+                if skip_chat_send and job_persona_id:
                     # Get Telegram CDN URL for the avatar
                     telegram_cdn_url = f"https://api.telegram.org/file/bot{settings.BOT_TOKEN}/{sent_message.photo[-1].file_unique_id}"
                     
