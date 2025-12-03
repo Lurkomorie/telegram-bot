@@ -509,10 +509,8 @@ async def handle_image_prompt_input(message: types.Message, state: FSMContext):
     persona_name = state_data.get("persona_name")
     user_language = state_data.get("user_language", "en")
     
-    # Clear state
-    await state.clear()
-    
     if not persona_id:
+        await state.clear()
         await message.answer(get_ui_text("errors.session_expired", language=user_language))
         return
     
@@ -528,6 +526,90 @@ async def handle_image_prompt_input(message: types.Message, state: FSMContext):
     # Delete loading message
     try:
         await loading_msg.delete()
+    except Exception:
+        pass
+    
+    # After generation, set state to waiting_for_another so user can generate more
+    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
+    await state.set_state(ImageGeneration.waiting_for_another)
+
+
+@router.message(ImageGeneration.waiting_for_another)
+async def handle_another_image_prompt(message: types.Message, state: FSMContext):
+    """Handle text input when user already generated an image - ask for confirmation"""
+    from app.bot.keyboards.inline import build_another_image_keyboard
+    
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    
+    if not persona_id:
+        await state.clear()
+        await message.answer(get_ui_text("errors.session_expired", language=user_language))
+        return
+    
+    user_prompt = message.text
+    
+    # Save the new prompt for later use
+    await state.update_data(pending_prompt=user_prompt)
+    
+    # Ask for confirmation
+    confirm_text = get_ui_text("image.another_prompt", language=user_language, prompt=user_prompt, persona_name=persona_name)
+    keyboard = build_another_image_keyboard(language=user_language)
+    await message.answer(confirm_text, reply_markup=keyboard)
+
+
+@router.callback_query(lambda c: c.data == "confirm_another_image")
+async def confirm_another_image_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Confirm and generate another image"""
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    pending_prompt = state_data.get("pending_prompt")
+    
+    if not persona_id or not pending_prompt:
+        await state.clear()
+        await callback.answer(get_ui_text("errors.session_expired", language=user_language), show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Delete the confirmation message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # Show loading message
+    loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
+    loading_msg = await callback.message.answer(loading_text)
+    
+    # Generate image
+    await generate_image_with_prompt(callback.message, callback.from_user.id, persona_id, pending_prompt, user_language)
+    
+    # Delete loading message
+    try:
+        await loading_msg.delete()
+    except Exception:
+        pass
+    
+    # Stay in waiting_for_another state
+    await state.update_data(pending_prompt=None)
+
+
+@router.callback_query(lambda c: c.data == "cancel_another_image")
+async def cancel_another_image_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Cancel another image generation and clear state"""
+    await state.clear()
+    await callback.answer()
+    
+    # Delete the confirmation message
+    try:
+        await callback.message.delete()
     except Exception:
         pass
 

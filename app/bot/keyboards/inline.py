@@ -280,6 +280,24 @@ def build_no_active_chat_keyboard(language: str = "en") -> InlineKeyboardMarkup:
     ])
 
 
+def build_another_image_keyboard(language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard for confirming another image generation"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("image.confirm_another", language=language),
+            callback_data="confirm_another_image"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("image.cancel_another", language=language),
+            callback_data="cancel_another_image"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("common.main_menu", language=language),
+            callback_data="trigger_start"
+        )]
+    ])
+
+
 def build_age_verification_keyboard(deep_link: str = None, language: str = "en") -> InlineKeyboardMarkup:
     """Build keyboard for age verification confirmation
     

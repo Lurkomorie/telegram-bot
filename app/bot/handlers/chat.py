@@ -171,11 +171,11 @@ async def handle_text_message(message: types.Message):
             user_language = user.locale if user else 'en'
             
             # Delete previous "no active chat" service message if exists
-            if user and user.ext and user.ext.get("no_chat_msg_id"):
+            if user and user.settings and user.settings.get("no_chat_msg_id"):
                 try:
                     await bot.delete_message(
                         chat_id=message.chat.id,
-                        message_id=user.ext["no_chat_msg_id"]
+                        message_id=user.settings["no_chat_msg_id"]
                     )
                     log_verbose(f"[CHAT] 🗑️  Deleted previous no-chat service message")
                 except Exception as e:
@@ -189,10 +189,10 @@ async def handle_text_message(message: types.Message):
             # Save service message ID for later deletion
             if user:
                 from sqlalchemy.orm.attributes import flag_modified
-                if user.ext is None:
-                    user.ext = {}
-                user.ext["no_chat_msg_id"] = service_msg.message_id
-                flag_modified(user, "ext")
+                if user.settings is None:
+                    user.settings = {}
+                user.settings["no_chat_msg_id"] = service_msg.message_id
+                flag_modified(user, "settings")
                 db.commit()
             
             return

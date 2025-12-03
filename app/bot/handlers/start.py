@@ -5,6 +5,7 @@ import json
 import asyncio
 from aiogram import types
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from app.bot.loader import router
 from app.bot.keyboards.inline import build_persona_selection_keyboard, build_chat_options_keyboard, build_story_selection_keyboard, build_persona_gallery_keyboard, build_age_verification_keyboard
 from app.core.telegram_utils import escape_markdown_v2
@@ -43,8 +44,11 @@ def get_and_update_user_language(db, telegram_user) -> str:
 
 
 @router.message(Command("start"))
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, state: FSMContext):
     """Handle /start command with optional deep link parameter"""
+    # Clear any FSM state (e.g., image generation waiting for prompt)
+    await state.clear()
+    
     # Track start command
     analytics_service_tg.track_start_command(
         client_id=message.from_user.id,
@@ -627,10 +631,10 @@ async def trigger_start_callback(callback: types.CallbackQuery):
         # Clear the no_chat_msg_id since user is starting fresh
         from app.db.models import User
         user = db.query(User).filter(User.id == callback.from_user.id).first()
-        if user and user.ext and user.ext.get("no_chat_msg_id"):
+        if user and user.settings and user.settings.get("no_chat_msg_id"):
             from sqlalchemy.orm.attributes import flag_modified
-            user.ext["no_chat_msg_id"] = None
-            flag_modified(user, "ext")
+            user.settings["no_chat_msg_id"] = None
+            flag_modified(user, "settings")
             db.commit()
     
     # Get personas from cache
