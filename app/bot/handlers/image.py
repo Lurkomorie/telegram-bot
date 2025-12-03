@@ -524,14 +524,16 @@ async def handle_image_prompt_input(message: types.Message, state: FSMContext):
     loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
     loading_msg = await message.answer(loading_text)
     
-    # Generate image
-    await generate_image_with_prompt(message, message.from_user.id, persona_id, user_prompt, user_language)
-    
-    # Delete loading message
-    try:
-        await loading_msg.delete()
-    except Exception:
-        pass
+    # Generate image (pass loading_msg_id so it can be deleted when image is ready)
+    await generate_image_with_prompt(
+        message, 
+        message.from_user.id, 
+        persona_id, 
+        user_prompt, 
+        user_language,
+        loading_msg_id=loading_msg.message_id
+    )
+    # Loading message will be deleted by webhook callback when image is ready
 
 
 @router.message(ImageGeneration.waiting_for_another)
@@ -588,14 +590,16 @@ async def confirm_another_image_callback(callback: types.CallbackQuery, state: F
     loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
     loading_msg = await callback.message.answer(loading_text)
     
-    # Generate image
-    await generate_image_with_prompt(callback.message, callback.from_user.id, persona_id, pending_prompt, user_language)
-    
-    # Delete loading message
-    try:
-        await loading_msg.delete()
-    except Exception:
-        pass
+    # Generate image (pass loading_msg_id so it can be deleted when image is ready)
+    await generate_image_with_prompt(
+        callback.message, 
+        callback.from_user.id, 
+        persona_id, 
+        pending_prompt, 
+        user_language,
+        loading_msg_id=loading_msg.message_id
+    )
+    # Loading message will be deleted by webhook callback when image is ready
     
     # Stay in waiting_for_another state
     await state.update_data(pending_prompt=None)
@@ -614,10 +618,11 @@ async def cancel_another_image_callback(callback: types.CallbackQuery, state: FS
         pass
 
 
-async def generate_image_with_prompt(message: types.Message, user_id: int, persona_id: str, user_prompt: str, user_language: str = "en"):
+async def generate_image_with_prompt(message: types.Message, user_id: int, persona_id: str, user_prompt: str, user_language: str = "en", loading_msg_id: int = None):
     """Generate image for user with given persona and prompt using image brain
     
     Does NOT create a chat - just generates the image based on persona and user prompt.
+    If loading_msg_id is provided, it will be stored in job.ext so the callback can delete it.
     """
     config = get_app_config()
     
@@ -675,16 +680,27 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         
         # Generate image tags using the brain
         try:
-            # Use persona description as state, user prompt as dialogue response
+            # Get persona name for context
+            persona_name = persona.get("name", "She")
+            
+            # Build context that matches what the brain expects:
+            # - dialogue_response = what the assistant (persona) is DOING (the scene)
+            # - state = current scene description from persona
+            # - user_message = the original request
+            
+            # Format dialogue_response as if the persona is doing/showing what user requested
+            # This tells the brain "this is what's actually happening"
+            dialogue_response = f"*{persona_name} {user_prompt}*"
+            
+            # Use persona description as scene state
             state = persona.get("description", "")
-            dialogue_response = user_prompt  # What user wants to see
             
             image_tags = await generate_image_plan(
                 state=state,
-                dialogue_response=dialogue_response,
-                user_message=user_prompt,
+                dialogue_response=dialogue_response,  # What persona is doing
+                user_message=user_prompt,  # What user requested
                 persona=persona,
-                chat_history=[],  # No chat history needed for standalone image gen
+                chat_history=[],  # No chat history for standalone
                 previous_image_prompt=None
             )
             
@@ -707,6 +723,14 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         
         # Create image job (without chat_id - standalone image generation)
         seed = random.randint(1, 2147483647)
+        job_ext = {
+            "seed": seed, 
+            "user_prompt": user_prompt,
+            "tg_chat_id": message.chat.id  # Store tg_chat_id for callback
+        }
+        if loading_msg_id:
+            job_ext["loading_msg_id"] = loading_msg_id
+        
         job = crud.create_image_job(
             db,
             user_id=user_id,
@@ -714,7 +738,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
             prompt=positive_prompt,
             negative_prompt=negative_prompt,
             chat_id=None,  # No chat needed
-            ext={"seed": seed, "user_prompt": user_prompt}
+            ext=job_ext
         )
         
         job_id = job.id
