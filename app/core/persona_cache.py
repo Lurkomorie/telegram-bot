@@ -37,6 +37,7 @@ def load_cache():
                 "small_description": persona.small_description,
                 "description": persona.description,
                 "prompt": persona.prompt,
+                "image_prompt": persona.image_prompt,  # SDXL tags for character appearance
                 "intro": persona.intro,
                 "badges": persona.badges or [],
                 "avatar_url": persona.avatar_url,

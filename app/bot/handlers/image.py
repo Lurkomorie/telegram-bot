@@ -706,8 +706,8 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
             
             print(f"[IMAGE] Generated tags via brain: {image_tags[:100]}...")
             
-            # Assemble final prompt
-            persona_image_prompt = persona.get("image_prompt", persona.get("prompt", ""))
+            # Assemble final prompt - use only image_prompt (SDXL tags), NOT prompt (dialogue description)
+            persona_image_prompt = persona.get("image_prompt") or ""
             positive_prompt, negative_prompt = assemble_final_prompt(image_tags, persona_image_prompt)
             
         except Exception as e:
