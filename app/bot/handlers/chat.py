@@ -3,7 +3,8 @@ Text chat handler with multi-brain AI pipeline
 """
 from datetime import datetime
 from aiogram import types, F
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
 from app.bot.loader import router, bot
 from app.db.base import get_db
 from app.db import crud
@@ -72,9 +73,13 @@ async def cmd_clear(message: types.Message):
             await message.answer("Failed to clear chat. Please try again.")
 
 
-@router.message(F.text & ~F.text.startswith("/"))
-async def handle_text_message(message: types.Message):
-    """Handle regular text messages with Redis-based batching and multi-brain pipeline"""
+@router.message(F.text & ~F.text.startswith("/"), StateFilter(None))
+async def handle_text_message(message: types.Message, state: FSMContext):
+    """Handle regular text messages with Redis-based batching and multi-brain pipeline
+    
+    Note: StateFilter(None) ensures this handler only runs when there's no active FSM state.
+    This allows FSM handlers (like image generation) to take priority.
+    """
     user_id = message.from_user.id
     user_text = message.text
     
