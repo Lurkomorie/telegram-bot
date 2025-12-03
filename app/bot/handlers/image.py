@@ -516,6 +516,10 @@ async def handle_image_prompt_input(message: types.Message, state: FSMContext):
     
     user_prompt = message.text
     
+    # IMMEDIATELY switch to waiting_for_another state to prevent duplicate processing
+    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
+    await state.set_state(ImageGeneration.waiting_for_another)
+    
     # Show loading message
     loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
     loading_msg = await message.answer(loading_text)
@@ -528,10 +532,6 @@ async def handle_image_prompt_input(message: types.Message, state: FSMContext):
         await loading_msg.delete()
     except Exception:
         pass
-    
-    # After generation, set state to waiting_for_another so user can generate more
-    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
-    await state.set_state(ImageGeneration.waiting_for_another)
 
 
 @router.message(ImageGeneration.waiting_for_another)
@@ -615,7 +615,10 @@ async def cancel_another_image_callback(callback: types.CallbackQuery, state: FS
 
 
 async def generate_image_with_prompt(message: types.Message, user_id: int, persona_id: str, user_prompt: str, user_language: str = "en"):
-    """Generate image for user with given persona and prompt using image brain"""
+    """Generate image for user with given persona and prompt using image brain
+    
+    Does NOT create a chat - just generates the image based on persona and user prompt.
+    """
     config = get_app_config()
     
     # Check if user is premium (premium users pay 3 energy, free users pay 5)
@@ -667,35 +670,8 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         user = db.query(User).filter(User.id == user_id).first()
         global_message_count = user.global_message_count if user else 999
         
-        # Get or create active chat for this persona
-        chat = crud.get_active_chat(db, message.chat.id, user_id)
-        
-        # If no chat exists, create one with default history
-        if not chat or chat.persona_id != persona_id:
-            # Get persona's histories
-            from app.core.persona_cache import get_persona_histories
-            histories = get_persona_histories(persona_id)
-            history_id = histories[0]["id"] if histories else None
-            
-            # Create new chat
-            chat = crud.create_chat(
-                db,
-                tg_chat_id=message.chat.id,
-                user_id=user_id,
-                persona_id=persona_id,
-                history_id=history_id
-            )
-            print(f"[IMAGE] Created new chat {chat.id} for persona {persona_id}")
-        
-        # Use image brain to generate prompt (without system message, using chat history)
+        # Use image brain to generate prompt (without system message)
         from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
-        
-        # Get chat history
-        chat_history = crud.get_chat_messages(db, chat.id, limit=10)
-        chat_history_formatted = [
-            {"role": msg.role, "content": msg.content}
-            for msg in chat_history
-        ]
         
         # Generate image tags using the brain
         try:
@@ -708,7 +684,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
                 dialogue_response=dialogue_response,
                 user_message=user_prompt,
                 persona=persona,
-                chat_history=chat_history_formatted,
+                chat_history=[],  # No chat history needed for standalone image gen
                 previous_image_prompt=None
             )
             
@@ -725,11 +701,11 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
                 {},
                 persona,
                 user_prompt,
-                chat,
+                None,  # No chat
                 ""
             )
         
-        # Create image job
+        # Create image job (without chat_id - standalone image generation)
         seed = random.randint(1, 2147483647)
         job = crud.create_image_job(
             db,
@@ -737,7 +713,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
             persona_id=persona_id,
             prompt=positive_prompt,
             negative_prompt=negative_prompt,
-            chat_id=chat.id,
+            chat_id=None,  # No chat needed
             ext={"seed": seed, "user_prompt": user_prompt}
         )
         
