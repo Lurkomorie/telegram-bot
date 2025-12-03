@@ -151,7 +151,8 @@ async def resolve_state(
                 messages=messages,
                 model=state_model,
                 temperature=0.3,
-                max_tokens=800
+                max_tokens=800,
+                brain_name="State Resolver"
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000

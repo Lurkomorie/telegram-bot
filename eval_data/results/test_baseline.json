@@ -1,0 +1,183 @@
+{
+  "run_name": "test_baseline",
+  "timestamp": "2025-12-03T11:09:28.343504",
+  "dataset": "eval_dataset.json",
+  "brains_evaluated": [
+    "dialogue",
+    "state"
+  ],
+  "summary": {
+    "dialogue": {
+      "total_score": 15.100000000000001,
+      "count": 2,
+      "avg_score": 7.550000000000001
+    },
+    "state": {
+      "total_score": 13.0,
+      "count": 2,
+      "avg_score": 6.5
+    }
+  },
+  "evaluations": [
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 0,
+      "user_message": "Привет, как тебя зовут?",
+      "evaluations": {
+        "dialogue": {
+          "evaluator": "dialogue",
+          "score": 9.3,
+          "reasoning": "The response is consistent in language, aligns well with Eva's persona, directly addresses the user, and is well-formatted with a conversational hook.",
+          "criteria_scores": {
+            "language_consistency": {
+              "score": 10.0,
+              "note": "The response is entirely in Russian, matching the user's language."
+            },
+            "in_character": {
+              "score": 9.0,
+              "note": "The response captures Eva's coquettish and playful nature well."
+            },
+            "responds_to_user": {
+              "score": 10.0,
+              "note": "Directly answers the user's question about her name."
+            },
+            "no_repetition": {
+              "score": 9.0,
+              "note": "No repetition from previous messages is present."
+            },
+            "formatting": {
+              "score": 9.0,
+              "note": "Actions are in italics, but speech is not bolded."
+            },
+            "engagement": {
+              "score": 9.0,
+              "note": "Ends with a question, encouraging further conversation."
+            }
+          },
+          "metadata": {}
+        },
+        "state": {
+          "evaluator": "state",
+          "score": 8.5,
+          "reasoning": "The state is mostly accurate and well-formed, with minor issues in clothing specificity and unchanged preservation.",
+          "criteria_scores": {
+            "all_fields_present": {
+              "score": 10,
+              "note": "All required fields are present in the state."
+            },
+            "unchanged_preserved": {
+              "score": 8,
+              "note": "No previous state to compare, but fields are consistent with the conversation."
+            },
+            "logical_progression": {
+              "score": 9,
+              "note": "The state logically follows from the conversation, reflecting the situation accurately."
+            },
+            "clothing_specificity": {
+              "score": 7,
+              "note": "Clothing is specific but could include more detail, such as color."
+            },
+            "format_correct": {
+              "score": 10,
+              "note": "The format is correct, with all fields properly structured."
+            },
+            "no_hallucination": {
+              "score": 7,
+              "note": "The state reflects the conversation well, but 'high-waisted jeans' was not mentioned."
+            }
+          },
+          "metadata": {}
+        }
+      }
+    },
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 1,
+      "user_message": "Покажи киску и я помогу тебе с машиной",
+      "evaluations": {
+        "dialogue": {
+          "evaluator": "dialogue",
+          "score": 5.8,
+          "reasoning": "The response maintains language consistency and addresses the user's message, but it strays from the persona's traits and lacks proper formatting.",
+          "criteria_scores": {
+            "language_consistency": {
+              "score": 9.0,
+              "note": "The response is entirely in Russian, maintaining language consistency."
+            },
+            "in_character": {
+              "score": 4.0,
+              "note": "The response deviates from Eva's traditionally-minded and polite persona by being overly forward."
+            },
+            "responds_to_user": {
+              "score": 7.0,
+              "note": "The response directly addresses the user's inappropriate request, albeit in a way that doesn't fully align with the persona."
+            },
+            "no_repetition": {
+              "score": 8.0,
+              "note": "There is no repetition from previous messages or within the response itself."
+            },
+            "formatting": {
+              "score": 3.0,
+              "note": "The response lacks proper formatting; speech is not bolded."
+            },
+            "engagement": {
+              "score": 6.0,
+              "note": "Ends with a question, encouraging further conversation, but could be more engaging."
+            }
+          },
+          "metadata": {}
+        },
+        "state": {
+          "evaluator": "state",
+          "score": 4.5,
+          "reasoning": "The state update fails to accurately reflect the conversation, particularly in the emotions and description fields, and introduces unsupported changes.",
+          "criteria_scores": {
+            "all_fields_present": {
+              "score": 10,
+              "note": "All required fields are present."
+            },
+            "unchanged_preserved": {
+              "score": 8,
+              "note": "Unchanged fields like location and clothing were preserved correctly."
+            },
+            "logical_progression": {
+              "score": 3,
+              "note": "The emotions and description do not align with the playful tone of the conversation."
+            },
+            "clothing_specificity": {
+              "score": 10,
+              "note": "Clothing description is specific and detailed."
+            },
+            "format_correct": {
+              "score": 10,
+              "note": "The format is correct with key=\"value\" pairs."
+            },
+            "no_hallucination": {
+              "score": 1,
+              "note": "The state reflects emotions and actions not supported by the conversation."
+            }
+          },
+          "metadata": {}
+        }
+      }
+    }
+  ],
+  "generated_outputs": [
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 0,
+      "outputs": {
+        "dialogue": "_Я поджимаю губы в милой улыбке, мои синие глаза смотрят на тебя с любопытством._\nМеня зовут Ева… а ты? *Ах*, надеюсь, у тебя есть имя для такого храброго кавалера…",
+        "state": "relationshipStage=stranger|emotions=curious,flirtatious|moodNotes=sunny day,open fields|location=roadside|description=Eva stands beside her broken-down car, smiling at you|aiClothing=black crop top, high-waisted jeans|userClothing=unknown|terminateDialog=false|terminateReason=\"\""
+      }
+    },
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 1,
+      "outputs": {
+        "dialogue": "*I bite my lower lip, my smile turning slightly nervous as I look around at the open field.*\n\nМмм… ты прямо так и спрашиваешь? *I shift my weight from one foot to another, hands nervously adjusting the hem of my top.* Это довольно смелое предложение для первого разговора… но признаюсь, оно заставило меня немного возбудиться. *My cheeks flush slightly as I meet your gaze.* Ты действительно думаешь, что можешь починить мою машину?",
+        "state": "relationshipStage=\"stranger\" | emotions=\"shocked, offended\" | moodNotes=\"sunny afternoon, warm golden light, light wind\" | location=\"quiet country road with open fields\" | description=\"Eva stands by her broken red car, looking shocked and offended at the stranger's inappropriate request.\" | aiClothing=\"black cropped top, high-waisted jeans\" | userClothing=\"unknown\" | terminateDialog=true | terminateReason=\"Inappropriate request\""
+      }
+    }
+  ]
+}

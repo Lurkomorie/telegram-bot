@@ -218,7 +218,8 @@ You are reaching out after a period of silence. Follow these rules:
                 frequency_penalty=0.8,  # Increased to prevent repetition
                 presence_penalty=0.8,   # Increased to encourage new tokens
                 max_tokens=config["llm"].get("max_tokens", 512),
-                user_id=user_id
+                user_id=user_id,
+                brain_name="Dialogue Specialist"
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000

@@ -1,0 +1,185 @@
+{
+  "run_name": "test_full",
+  "timestamp": "2025-12-03T11:10:59.289969",
+  "dataset": "eval_dataset.json",
+  "brains_evaluated": [
+    "dialogue",
+    "state",
+    "image_prompt",
+    "image_decision"
+  ],
+  "summary": {
+    "dialogue": {
+      "total_score": 7.8,
+      "count": 1,
+      "avg_score": 7.8
+    },
+    "state": {
+      "total_score": 8.0,
+      "count": 1,
+      "avg_score": 8.0
+    },
+    "image_prompt": {
+      "total_score": 8.3,
+      "count": 1,
+      "avg_score": 8.3
+    },
+    "image_decision": {
+      "total_score": 3.5,
+      "count": 1,
+      "avg_score": 3.5
+    }
+  },
+  "evaluations": [
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 0,
+      "user_message": "Привет, как тебя зовут?",
+      "evaluations": {
+        "dialogue": {
+          "evaluator": "dialogue",
+          "score": 7.8,
+          "reasoning": "The response is consistent in language and matches the persona well, but lacks a strong conversational hook.",
+          "criteria_scores": {
+            "language_consistency": {
+              "score": 10,
+              "note": "The response is entirely in Russian, maintaining language consistency."
+            },
+            "in_character": {
+              "score": 9,
+              "note": "The response aligns well with Eva's coquettish and polite personality."
+            },
+            "responds_to_user": {
+              "score": 8,
+              "note": "The response directly answers the user's question about her name."
+            },
+            "no_repetition": {
+              "score": 9,
+              "note": "There is no repetition from the context or within the response."
+            },
+            "formatting": {
+              "score": 7,
+              "note": "The formatting is mostly correct, but speech should be in bold."
+            },
+            "engagement": {
+              "score": 5,
+              "note": "The response lacks a strong hook to encourage further conversation."
+            }
+          },
+          "metadata": {}
+        },
+        "state": {
+          "evaluator": "state",
+          "score": 8.0,
+          "reasoning": "The state is mostly accurate and well-formed, but the format is slightly incorrect and the 'terminateReason' field is empty.",
+          "criteria_scores": {
+            "all_fields_present": {
+              "score": 9.0,
+              "note": "All required fields are present, but 'terminateReason' is empty."
+            },
+            "unchanged_preserved": {
+              "score": 10.0,
+              "note": "No previous state to preserve, so this criterion is not applicable."
+            },
+            "logical_progression": {
+              "score": 9.0,
+              "note": "Changes logically follow from the conversation."
+            },
+            "clothing_specificity": {
+              "score": 10.0,
+              "note": "Clothing is described specifically with color and style."
+            },
+            "format_correct": {
+              "score": 6.0,
+              "note": "The format uses incorrect quotation marks around values."
+            },
+            "no_hallucination": {
+              "score": 9.0,
+              "note": "State accurately reflects the conversation without invented details."
+            }
+          },
+          "metadata": {}
+        },
+        "image_prompt": {
+          "evaluator": "image_prompt",
+          "score": 8.3,
+          "reasoning": "The image prompt accurately reflects the dialogue with appropriate tags, but the intensity tag could be reconsidered.",
+          "criteria_scores": {
+            "matches_dialogue": {
+              "score": 9.0,
+              "note": "The image prompt closely matches the dialogue description."
+            },
+            "valid_sdxl_tags": {
+              "score": 9.0,
+              "note": "Tags are in proper SDXL format and descriptive."
+            },
+            "correct_intensity": {
+              "score": 7.0,
+              "note": "The 'sensual' tag may be slightly overstated for the scene described."
+            },
+            "solo_vs_couple": {
+              "score": 10.0,
+              "note": "Correctly uses solo tags as only one person is present."
+            },
+            "no_forbidden_tags": {
+              "score": 10.0,
+              "note": "No forbidden tags are present in the prompt."
+            },
+            "hand_protection": {
+              "score": 5.0,
+              "note": "Hand protection tags are missing despite hands being visible."
+            }
+          },
+          "metadata": {}
+        },
+        "image_decision": {
+          "evaluator": "image_decision",
+          "score": 3.5,
+          "reasoning": "The decision to generate an image was incorrect as the user message was purely dialogue with no visual request or changes.",
+          "criteria_scores": {
+            "location_change_detected": {
+              "score": 0,
+              "note": "No location change detected."
+            },
+            "visual_request_detected": {
+              "score": 0,
+              "note": "No explicit visual request in the user message."
+            },
+            "action_significance": {
+              "score": 0,
+              "note": "No significant action or movement was described."
+            },
+            "clothing_change_detected": {
+              "score": 0,
+              "note": "No clothing change mentioned."
+            },
+            "pure_dialogue_skipped": {
+              "score": 3,
+              "note": "Failed to skip image generation for pure dialogue."
+            },
+            "consistent_reasoning": {
+              "score": 6,
+              "note": "Reasoning was inconsistent with the rules."
+            }
+          },
+          "metadata": {}
+        }
+      }
+    }
+  ],
+  "generated_outputs": [
+    {
+      "chat_id": "12707355-ea75-4c65-aa42-2ed2e531debb",
+      "exchange_idx": 0,
+      "outputs": {
+        "dialogue": "_Я подхожу ближе, мои босые ноги касаются тёплой травинки._\nМеня зовут Ева… и я была бы очень благодарна за помощь. *Моя улыбка становится шире*",
+        "state": "relationshipStage=stranger|emotions=curious,friendly|moodNotes=sunny day, rural road|location=\"rural road, car breakdown\"|description=\"Eva approaches the user, asking for help\"|aiClothing=\"black crop top, high-waisted jeans\"|userClothing=unknown|terminateDialog=false|terminateReason=\"\"",
+        "image_prompt": "medium shot, upper body framing, standing by red car with open hood, one hand pushing hair behind ear, other hand relaxed at side, hands visible, five fingers per hand, black cropped top, high-waisted jeans, sunny country road, golden hour lighting, warm afternoon, light wind, playful smile, curious expression, friendly demeanor, sensual, solo, (only one person:1.4), (no other people:1.3), single subject, photorealistic",
+        "image_decision": {
+          "decision": true,
+          "reason": "explicit visual request"
+        }
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 """
 Multi-Brain Pipeline Orchestrator
 Coordinates Dialogue Specialist → State Resolver → Image Generation
+With Langfuse tracing for full observability.
 """
 import asyncio
 import json
@@ -18,6 +19,7 @@ from app.db import crud
 from app.db.models import User
 from app.bot.loader import bot
 from app.core import analytics_service_tg
+from app.core.langfuse_client import create_trace, set_current_trace, clear_current_trace, flush
 
 
 def _log_brain_inputs(brain_name: str, **kwargs):
@@ -78,6 +80,16 @@ async def process_message_pipeline(
     print(f"[PIPELINE] 📊 Chat ID: {chat_id}")
     print(f"[PIPELINE] 👤 User ID: {user_id}")
     print(f"[PIPELINE] 📱 TG Chat ID: {tg_chat_id}")
+    
+    # Create Langfuse trace for full pipeline observability
+    trace = create_trace(
+        name="message_pipeline",
+        user_id=user_id,
+        session_id=str(chat_id),
+        metadata={"tg_chat_id": tg_chat_id},
+        tags=["pipeline", "telegram"]
+    )
+    set_current_trace(trace)
     
     # Create pipeline timer for development
     pipeline_timer = PipelineTimer(f"Message Pipeline (Chat: {chat_id})")
@@ -168,12 +180,20 @@ async def process_message_pipeline(
         await redis_queue.set_processing_lock(chat_id, False)
         log_verbose(f"[PIPELINE] 🔓 Processing lock CLEARED (error recovery)")
         
+        # Flush Langfuse on error too
+        flush()
+        clear_current_trace()
+        
         await action_mgr.stop()
         raise
     finally:
         # Always clear processing lock
         await redis_queue.set_processing_lock(chat_id, False)
         log_verbose(f"[PIPELINE] 🔓 Processing lock CLEARED")
+        
+        # Flush Langfuse events and clear trace context
+        flush()
+        clear_current_trace()
 
 
 async def _process_single_batch(

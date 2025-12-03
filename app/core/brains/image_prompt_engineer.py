@@ -128,7 +128,8 @@ async def generate_image_plan(
                 model=model,
                 temperature=0.5,
                 frequency_penalty=0.1,
-                max_tokens=512
+                max_tokens=512,
+                brain_name="Image Prompt Engineer"
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000

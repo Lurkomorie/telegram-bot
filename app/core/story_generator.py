@@ -158,7 +158,8 @@ Generate 3 creative, romantic stories that fit the character's personality."""
             model="anthropic/claude-3.5-sonnet",  # Best for creative writing
             temperature=0.8,  # Higher temperature for creativity
             max_tokens=2000,
-            user_id=user_id
+            user_id=user_id,
+            brain_name="Story Generator"
         )
         
         # Parse JSON response

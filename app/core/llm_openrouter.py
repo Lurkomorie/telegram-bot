@@ -1,11 +1,13 @@
 """
 OpenRouter LLM Client (Non-Streaming)
+With Langfuse tracing for observability.
 """
 import httpx
 import asyncio
 from typing import List, Dict, Optional
 from app.settings import settings, get_app_config
 from app.core import analytics_service_tg
+from app.core.langfuse_client import get_current_trace, create_generation, end_generation
 
 # Model pricing (USD per 1M tokens) - (Input, Output)
 MODEL_PRICING = {
@@ -36,7 +38,8 @@ async def generate_text(
     frequency_penalty: float = None,
     presence_penalty: float = None,
     timeout_sec: int = None,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    brain_name: Optional[str] = None  # For Langfuse tracing
 ) -> str:
     """
     Generate text response from OpenRouter (non-streaming)
@@ -51,6 +54,7 @@ async def generate_text(
         presence_penalty: Presence penalty parameter
         timeout_sec: Override default timeout
         user_id: Optional Telegram user ID for cost tracking
+        brain_name: Optional name for Langfuse tracing (e.g., "Dialogue Specialist")
     
     Returns:
         Generated text response
@@ -126,6 +130,24 @@ async def generate_text(
     max_retries = 3
     request_start = time.time()
     
+    # Create Langfuse generation if tracing is active
+    trace = get_current_trace()
+    generation = None
+    if trace and brain_name:
+        generation = create_generation(
+            trace=trace,
+            name=brain_name,
+            model=body['model'],
+            input_messages=messages,
+            model_parameters={
+                "temperature": body['temperature'],
+                "max_tokens": body['max_tokens'],
+                "top_p": top_p,
+                "frequency_penalty": frequency_penalty,
+                "presence_penalty": presence_penalty,
+            }
+        )
+    
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -181,6 +203,17 @@ async def generate_text(
                     response=result,
                     duration_ms=request_duration_ms
                 )
+                
+                # End Langfuse generation with output and usage
+                if generation:
+                    langfuse_usage = None
+                    if "usage" in data:
+                        langfuse_usage = {
+                            "input": data["usage"].get("prompt_tokens", 0),
+                            "output": data["usage"].get("completion_tokens", 0),
+                            "total": data["usage"].get("total_tokens", 0),
+                        }
+                    end_generation(generation, output=result, usage=langfuse_usage)
                 
                 return result
                 

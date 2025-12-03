@@ -31,5 +31,11 @@ Pillow>=10.0.0
 # Scheduler
 APScheduler==3.10.4
 
+# Observability & Evaluation
+langfuse>=2.0.0
+
+# Observability & Evaluation
+langfuse>=2.0.0
+
 
 

@@ -140,7 +140,8 @@ async def should_generate_image(
                 messages=messages,
                 model=decision_model,
                 temperature=0.3,
-                max_tokens=50  # Short response
+                max_tokens=50,  # Short response
+                brain_name="Image Decision"
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000

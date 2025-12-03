@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     CLOUDFLARE_ACCOUNT_ID: Optional[str] = None
     CLOUDFLARE_ACCOUNT_HASH: Optional[str] = None
     
+    # Langfuse (observability & evaluation)
+    LANGFUSE_SECRET_KEY: Optional[str] = None
+    LANGFUSE_PUBLIC_KEY: Optional[str] = None
+    LANGFUSE_BASE_URL: str = "https://cloud.langfuse.com"
+    
     # App
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"

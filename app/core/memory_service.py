@@ -178,7 +178,8 @@ async def update_memory(
             messages=messages,
             model=memory_model,
             temperature=0.5,  # Slightly higher for better extraction quality
-            max_tokens=800  # Limit to stay under 1000 char hard limit
+            max_tokens=800,  # Limit to stay under 1000 char hard limit
+            brain_name="Memory Extractor"
         )
         
         updated_memory = response.strip()
