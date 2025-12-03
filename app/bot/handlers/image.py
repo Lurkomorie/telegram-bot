@@ -3,18 +3,21 @@ Image generation handler
 """
 from aiogram import types
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from app.bot.loader import router, bot
 from app.bot.keyboards.inline import build_image_prompt_keyboard
+from app.bot.states import ImageGeneration
 from app.db.base import get_db
 from app.db import crud
 from app.db.models import User
-from app.settings import get_app_config
+from app.settings import get_app_config, get_ui_text
 from app.core.actions import send_action_repeatedly
 from app.core.rate import check_rate_limit
 from app.core.pipeline_adapter import build_image_prompts
 from app.core.img_runpod import submit_image_job
 from app.core.constants import ERROR_MESSAGES
 from app.core import analytics_service_tg
+from app.core.persona_cache import get_persona_by_id, get_persona_field
 import random
 
 
@@ -462,5 +465,332 @@ async def cancel_image_callback(callback: types.CallbackQuery):
     """Cancel image generation"""
     await callback.message.edit_text("✅ <b>Image generation cancelled.</b>")
     await callback.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("generate_image_for_persona:"))
+async def generate_image_for_persona_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Handle 'Generate Image' button - ask for user prompt"""
+    persona_id = callback.data.split(":")[1]
+    
+    # Get user language and archive all chats
+    with get_db() as db:
+        from app.bot.handlers.start import get_and_update_user_language
+        user_language = get_and_update_user_language(db, callback.from_user)
+        
+        # Archive all user chats so messages don't continue previous conversation
+        crud.archive_all_user_chats(db, callback.from_user.id)
+        print(f"[IMAGE-GEN] 📦 Archived all chats for user {callback.from_user.id}")
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        error_msg = get_ui_text("errors.persona_not_found", language=user_language)
+        await callback.answer(error_msg, show_alert=True)
+        return
+    
+    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
+    
+    # Save persona_id to state for later use
+    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
+    await state.set_state(ImageGeneration.waiting_for_prompt)
+    
+    # Ask user for prompt
+    prompt_text = get_ui_text("image.prompt_request", language=user_language, persona_name=persona_name)
+    await callback.message.edit_text(prompt_text)
+    await callback.answer()
+
+
+@router.message(ImageGeneration.waiting_for_prompt)
+async def handle_image_prompt_input(message: types.Message, state: FSMContext):
+    """Handle user's custom image prompt and generate image"""
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    
+    if not persona_id:
+        await state.clear()
+        await message.answer(get_ui_text("errors.session_expired", language=user_language))
+        return
+    
+    user_prompt = message.text
+    
+    # IMMEDIATELY switch to waiting_for_another state to prevent duplicate processing
+    await state.update_data(persona_id=persona_id, persona_name=persona_name, user_language=user_language)
+    await state.set_state(ImageGeneration.waiting_for_another)
+    
+    # Show loading message
+    loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
+    loading_msg = await message.answer(loading_text)
+    
+    # Generate image (pass loading_msg_id so it can be deleted when image is ready)
+    await generate_image_with_prompt(
+        message, 
+        message.from_user.id, 
+        persona_id, 
+        user_prompt, 
+        user_language,
+        loading_msg_id=loading_msg.message_id
+    )
+    # Loading message will be deleted by webhook callback when image is ready
+
+
+@router.message(ImageGeneration.waiting_for_another)
+async def handle_another_image_prompt(message: types.Message, state: FSMContext):
+    """Handle text input when user already generated an image - ask for confirmation"""
+    from app.bot.keyboards.inline import build_another_image_keyboard
+    
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    
+    if not persona_id:
+        await state.clear()
+        await message.answer(get_ui_text("errors.session_expired", language=user_language))
+        return
+    
+    user_prompt = message.text
+    
+    # Save the new prompt for later use
+    await state.update_data(pending_prompt=user_prompt)
+    
+    # Ask for confirmation
+    confirm_text = get_ui_text("image.another_prompt", language=user_language, prompt=user_prompt, persona_name=persona_name)
+    keyboard = build_another_image_keyboard(language=user_language)
+    await message.answer(confirm_text, reply_markup=keyboard)
+
+
+@router.callback_query(lambda c: c.data == "confirm_another_image")
+async def confirm_another_image_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Confirm and generate another image"""
+    # Get stored data from state
+    state_data = await state.get_data()
+    persona_id = state_data.get("persona_id")
+    persona_name = state_data.get("persona_name")
+    user_language = state_data.get("user_language", "en")
+    pending_prompt = state_data.get("pending_prompt")
+    
+    if not persona_id or not pending_prompt:
+        await state.clear()
+        await callback.answer(get_ui_text("errors.session_expired", language=user_language), show_alert=True)
+        return
+    
+    await callback.answer()
+    
+    # Delete the confirmation message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # Show loading message
+    loading_text = get_ui_text("image.generating", language=user_language, persona_name=persona_name)
+    loading_msg = await callback.message.answer(loading_text)
+    
+    # Generate image (pass loading_msg_id so it can be deleted when image is ready)
+    await generate_image_with_prompt(
+        callback.message, 
+        callback.from_user.id, 
+        persona_id, 
+        pending_prompt, 
+        user_language,
+        loading_msg_id=loading_msg.message_id
+    )
+    # Loading message will be deleted by webhook callback when image is ready
+    
+    # Stay in waiting_for_another state
+    await state.update_data(pending_prompt=None)
+
+
+@router.callback_query(lambda c: c.data == "cancel_another_image")
+async def cancel_another_image_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Cancel another image generation and clear state"""
+    await state.clear()
+    await callback.answer()
+    
+    # Delete the confirmation message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+
+
+async def generate_image_with_prompt(message: types.Message, user_id: int, persona_id: str, user_prompt: str, user_language: str = "en", loading_msg_id: int = None):
+    """Generate image for user with given persona and prompt using image brain
+    
+    Does NOT create a chat - just generates the image based on persona and user prompt.
+    If loading_msg_id is provided, it will be stored in job.ext so the callback can delete it.
+    """
+    config = get_app_config()
+    
+    # Check if user is premium (premium users pay 3 energy, free users pay 5)
+    with get_db() as db:
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+    
+    # Check energy (3 for premium, 5 for free users)
+    energy_cost = 3 if is_premium else 5
+    with get_db() as db:
+        if not crud.check_user_energy(db, user_id, required=energy_cost):
+            # Show energy upsell message
+            await show_energy_upsell_message(message, user_id)
+            return
+    
+    # Rate limit check
+    allowed, _ = await check_rate_limit(
+        user_id,
+        "image",
+        config["limits"]["image_per_min"],
+        60
+    )
+    
+    if not allowed:
+        await message.answer(ERROR_MESSAGES["rate_limit_image"])
+        return
+    
+    # Check concurrent image limit
+    from app.core import redis_queue
+    from app.settings import settings
+    current_count = await redis_queue.get_user_image_count(user_id)
+    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
+        print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
+        return
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await message.answer(get_ui_text("errors.persona_not_found", language=user_language))
+        return
+    
+    with get_db() as db:
+        # Deduct energy (3 for premium, 5 for free users)
+        if not crud.deduct_user_energy(db, user_id, amount=energy_cost):
+            await message.answer("❌ Failed to deduct energy. Please try again.")
+            return
+        print(f"[IMAGE] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
+        
+        # Get user's global message count for priority determination
+        user = db.query(User).filter(User.id == user_id).first()
+        global_message_count = user.global_message_count if user else 999
+        
+        # Use image brain to generate prompt (without system message)
+        from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
+        
+        # Generate image tags using the brain
+        try:
+            # Get persona name for context
+            persona_name = persona.get("name", "She")
+            
+            # Build context that matches what the brain expects:
+            # - dialogue_response = what the assistant (persona) is DOING (the scene)
+            # - state = current scene description from persona
+            # - user_message = the original request
+            
+            # Format dialogue_response as if the persona is doing/showing what user requested
+            # This tells the brain "this is what's actually happening"
+            dialogue_response = f"*{persona_name} {user_prompt}*"
+            
+            # Use persona description as scene state
+            state = persona.get("description", "")
+            
+            image_tags = await generate_image_plan(
+                state=state,
+                dialogue_response=dialogue_response,  # What persona is doing
+                user_message=user_prompt,  # What user requested
+                persona=persona,
+                chat_history=[],  # No chat history for standalone
+                previous_image_prompt=None
+            )
+            
+            print(f"[IMAGE] Generated tags via brain: {image_tags[:100]}...")
+            
+            # Assemble final prompt - use only image_prompt (SDXL tags), NOT prompt (dialogue description)
+            persona_image_prompt = persona.get("image_prompt") or ""
+            positive_prompt, negative_prompt = assemble_final_prompt(image_tags, persona_image_prompt)
+            
+        except Exception as e:
+            print(f"[IMAGE] ⚠️ Failed to generate prompt via brain: {e}, falling back to simple prompt")
+            # Fallback to simple prompt building
+            positive_prompt, negative_prompt = build_image_prompts(
+                {},
+                persona,
+                user_prompt,
+                None,  # No chat
+                ""
+            )
+        
+        # Create image job (without chat_id - standalone image generation)
+        seed = random.randint(1, 2147483647)
+        job_ext = {
+            "seed": seed, 
+            "user_prompt": user_prompt,
+            "tg_chat_id": message.chat.id  # Store tg_chat_id for callback
+        }
+        if loading_msg_id:
+            job_ext["loading_msg_id"] = loading_msg_id
+        
+        job = crud.create_image_job(
+            db,
+            user_id=user_id,
+            persona_id=persona_id,
+            prompt=positive_prompt,
+            negative_prompt=negative_prompt,
+            chat_id=None,  # No chat needed
+            ext=job_ext
+        )
+        
+        job_id = job.id
+    
+    # Increment concurrent image counter (after job creation, before submission)
+    await redis_queue.increment_user_image_count(user_id)
+    print(f"[IMAGE] 📊 Incremented user image count")
+    
+    # Determine priority based on rules (same as pipeline)
+    if is_premium:
+        queue_priority = "high"
+        priority_reason = "premium user"
+    elif global_message_count <= 2:
+        queue_priority = "high"
+        priority_reason = f"first 2 messages globally (count: {global_message_count})"
+    else:
+        queue_priority = "medium"
+        priority_reason = "regular user message"
+    
+    print(f"[IMAGE] 📊 Queue priority: {queue_priority} ({priority_reason})")
+    
+    # Submit to Runpod with upload_photo action
+    try:
+        async with send_action_repeatedly(bot, message.chat.id, "upload_photo"):
+            await submit_image_job(
+                job_id=job_id,
+                prompt=positive_prompt,
+                negative_prompt=negative_prompt,
+                seed=seed,
+                queue_priority=queue_priority
+            )
+            
+            # Job submitted successfully
+            print(f"[IMAGE] Job {job_id} submitted to Runpod")
+    
+    except Exception as e:
+        print(f"[IMAGE] Error submitting job: {e}")
+        
+        # Decrement counter since submission failed
+        await redis_queue.decrement_user_image_count(user_id)
+        print(f"[IMAGE] 📊 Decremented user image count (submission failed)")
+        
+        with get_db() as db:
+            crud.update_image_job_status(
+                db,
+                job_id,
+                status="failed",
+                error=str(e)
+            )
+        
+        await message.answer(
+            ERROR_MESSAGES["image_failed"]
+        )
 
 

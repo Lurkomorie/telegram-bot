@@ -636,7 +636,7 @@ async def _background_image_generation(
         log_verbose(f"[IMAGE-BG] 🔧 Assembling final SDXL prompts...")
         positive, negative = assemble_final_prompt(
             image_prompt,
-            persona_image_prompt=persona.get("image_prompt") or persona.get("prompt", "")
+            persona_image_prompt=persona.get("image_prompt") or ""  # Only use image_prompt, NOT dialogue prompt
         )
         
         log_always(f"[IMAGE-BG] ✅ Prompts assembled (pos: {len(positive)} chars, neg: {len(negative)} chars)")

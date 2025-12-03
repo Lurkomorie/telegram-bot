@@ -2,9 +2,9 @@ llm:
   provider: openrouter
   model: thedrummer/cydonia-24b-v4.1 # Main conversational intelligence
   followup_model: thedrummer/cydonia-24b-v4.1 # Auto-followup messages (cheaper)
-  state_model: mistralai/ministral-3b # Fast model for state resolution
+  state_model: mistralai/mistral-nemo # Fast model for state resolution
   image_model: moonshotai/kimi-k2:nitro # Image tag generation
-  memory_model: mistralai/ministral-3b # Memory extraction - uncensored, cheap, decent quality with good prompt
+  memory_model: x-ai/grok-4-fast # Memory extraction - uncensored, cheap, decent quality with good prompt
   decision_model: mistralai/ministral-3b # Fast, uncensored model for image decisions
   temperature: 0.7
   max_tokens: 512

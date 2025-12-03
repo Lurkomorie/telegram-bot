@@ -442,6 +442,8 @@ async def image_callback(request: Request):
             pending_caption = job_ext_data.get("pending_caption")
             is_auto_followup = job_ext_data.get("is_auto_followup", False)
             skip_chat_send = job_ext_data.get("skip_chat_send", False)  # Check if we should skip sending
+            loading_msg_id = job_ext_data.get("loading_msg_id")  # Loading message to delete
+            ext_tg_chat_id = job_ext_data.get("tg_chat_id")  # For standalone image gen
             job_user_id = job.user_id
             job_persona_id = job.persona_id
             job_prompt = job.prompt
@@ -478,6 +480,9 @@ async def image_callback(request: Request):
                     tg_chat_id = chat.tg_chat_id
                 else:
                     tg_chat_id = job.user_id
+            elif ext_tg_chat_id:
+                # Standalone image gen - use tg_chat_id from job.ext
+                tg_chat_id = ext_tg_chat_id
             else:
                 # No chat associated, send to user directly
                 tg_chat_id = job.user_id
@@ -512,6 +517,14 @@ async def image_callback(request: Request):
     # Send photo to user if completed
     if status == "COMPLETED" and tg_chat_id and (image_url or image_data):
         try:
+            # Delete loading message if exists
+            if loading_msg_id:
+                try:
+                    await bot.delete_message(chat_id=tg_chat_id, message_id=loading_msg_id)
+                    print(f"[IMAGE-CALLBACK] 🗑️  Deleted loading message {loading_msg_id}")
+                except Exception as e:
+                    print(f"[IMAGE-CALLBACK] ⚠️  Could not delete loading message: {e}")
+            
             # Build refresh keyboard
             from app.bot.keyboards.inline import build_image_refresh_keyboard
             refresh_keyboard = build_image_refresh_keyboard(job_id_str)

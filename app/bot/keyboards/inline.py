@@ -187,6 +187,10 @@ def build_chat_options_keyboard(persona_id: str, language: str = "en") -> Inline
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
+            text=get_ui_text("image.generate_button", language=language), 
+            callback_data=f"generate_image_for_persona:{persona_id}"
+        )],
+        [InlineKeyboardButton(
             text=get_ui_text("chat_options.continue_button", language=language), 
             callback_data=f"continue_chat:{persona_id}"
         )],
@@ -206,12 +210,19 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     
     Args:
         stories: List of dicts with 'id', 'name', 'small_description', 'description'
-        persona_id: Persona ID for back button (optional, unused for now)
+        persona_id: Persona ID for back button
         language: Language code for translations
     """
     from app.core.persona_cache import get_history_field
     
     buttons = []
+    
+    # First button: Generate Image (full width)
+    if persona_id:
+        buttons.append([InlineKeyboardButton(
+            text=get_ui_text("image.generate_button", language=language),
+            callback_data=f"generate_image_for_persona:{persona_id}"
+        )])
     
     # Helper function to create a story button
     def create_story_button(story):
@@ -257,6 +268,34 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     buttons.append(row2)
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def build_no_active_chat_keyboard(language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard with Start button for when user has no active chat"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("no_active_chat.start_button", language=language),
+            callback_data="trigger_start"
+        )]
+    ])
+
+
+def build_another_image_keyboard(language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard for confirming another image generation"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("image.confirm_another", language=language),
+            callback_data="confirm_another_image"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("image.cancel_another", language=language),
+            callback_data="cancel_another_image"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("common.main_menu", language=language),
+            callback_data="trigger_start"
+        )]
+    ])
 
 
 def build_age_verification_keyboard(deep_link: str = None, language: str = "en") -> InlineKeyboardMarkup:

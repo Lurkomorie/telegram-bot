@@ -3,18 +3,20 @@ Text chat handler with multi-brain AI pipeline
 """
 from datetime import datetime
 from aiogram import types, F
-from aiogram.filters import Command
-from app.bot.loader import router
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from app.bot.loader import router, bot
 from app.db.base import get_db
 from app.db import crud
 from app.db.models import User
-from app.settings import get_app_config
+from app.settings import get_app_config, get_ui_text
 from app.core.rate import check_rate_limit
 from app.core.multi_brain_pipeline import process_message_pipeline
 from app.core.constants import ERROR_MESSAGES
 from app.core.logging_utils import log_verbose, log_always
 from app.core import redis_queue
 from app.core import analytics_service_tg
+from app.bot.keyboards.inline import build_no_active_chat_keyboard
 
 
 @router.message(Command("clear"))
@@ -71,9 +73,13 @@ async def cmd_clear(message: types.Message):
             await message.answer("Failed to clear chat. Please try again.")
 
 
-@router.message(F.text & ~F.text.startswith("/"))
-async def handle_text_message(message: types.Message):
-    """Handle regular text messages with Redis-based batching and multi-brain pipeline"""
+@router.message(F.text & ~F.text.startswith("/"), StateFilter(None))
+async def handle_text_message(message: types.Message, state: FSMContext):
+    """Handle regular text messages with Redis-based batching and multi-brain pipeline
+    
+    Note: StateFilter(None) ensures this handler only runs when there's no active FSM state.
+    This allows FSM handlers (like image generation) to take priority.
+    """
     user_id = message.from_user.id
     user_text = message.text
     
@@ -164,7 +170,36 @@ async def handle_text_message(message: types.Message):
         
         if not chat:
             log_verbose(f"[CHAT] ❌ No active chat found for user {user_id}")
-            await message.answer(ERROR_MESSAGES["no_persona"])
+            
+            # Get user language
+            user = db.query(User).filter(User.id == user_id).first()
+            user_language = user.locale if user else 'en'
+            
+            # Delete previous "no active chat" service message if exists
+            if user and user.settings and user.settings.get("no_chat_msg_id"):
+                try:
+                    await bot.delete_message(
+                        chat_id=message.chat.id,
+                        message_id=user.settings["no_chat_msg_id"]
+                    )
+                    log_verbose(f"[CHAT] 🗑️  Deleted previous no-chat service message")
+                except Exception as e:
+                    log_verbose(f"[CHAT] ⚠️  Could not delete previous service message: {e}")
+            
+            # Send new service message with button
+            service_text = get_ui_text("no_active_chat.message", language=user_language)
+            keyboard = build_no_active_chat_keyboard(language=user_language)
+            service_msg = await message.answer(service_text, reply_markup=keyboard)
+            
+            # Save service message ID for later deletion
+            if user:
+                from sqlalchemy.orm.attributes import flag_modified
+                if user.settings is None:
+                    user.settings = {}
+                user.settings["no_chat_msg_id"] = service_msg.message_id
+                flag_modified(user, "settings")
+                db.commit()
+            
             return
         
         log_always(f"[CHAT] 💬 Chat {chat.id}")

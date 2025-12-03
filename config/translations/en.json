@@ -237,7 +237,8 @@
     "persona_not_found": "❌ Persona not found!",
     "processing_failed": "❌ Failed to process your selection. Please try again.",
     "story_not_found": "❌ Story not found!",
-    "unknown_action": "Unknown action from Mini App"
+    "unknown_action": "Unknown action from Mini App",
+    "session_expired": "❌ Session expired. Please start again."
   },
   "eva": {
     "description": "A flirty, playful redhead who loves connection and excitement",
@@ -303,8 +304,20 @@
   "image": {
     "completed": "✨ Here's your image!",
     "failed": "❌ Image generation failed. Please try again.",
-    "generating": "🎨 Generating your image...",
-    "refresh_button": "🔄 Refresh Image"
+    "generating": "🎨 {persona_name} is taking a photo for you...",
+    "refresh_button": "🔄 Refresh Image",
+    "generate_button": "🎨 Generate Image",
+    "prompt_request": "✍️ <b>Describe the image you want!</b>\n\n💡 <i>Example: wearing a red dress, at the beach, sunset lighting, smiling at camera</i>\n\n<b>{persona_name}</b> will create a custom photo based on your description. What would you like to see?",
+    "another_prompt": "🎨 <b>Create another image?</b>\n\nYour description: <i>{prompt}</i>\n\nWould you like to generate this image with <b>{persona_name}</b>?",
+    "confirm_another": "✅ Yes, create image",
+    "cancel_another": "❌ Cancel"
+  },
+  "no_active_chat": {
+    "message": "💬 <b>No active conversation</b>\n\nYou don't have an active chat. Choose a character to start chatting!",
+    "start_button": "💕 Choose a Character"
+  },
+  "common": {
+    "main_menu": "🏠 Main Menu"
   },
   "inferra": {
     "description": "Inferra is chaos given flesh — a demonic enchantress who feeds on desire, burns with passion, and seals pacts in blood and fire. To meet her is to gamble your soul for a kiss that tastes like sin.",
