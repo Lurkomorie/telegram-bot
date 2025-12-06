@@ -3447,6 +3447,9 @@ def get_users_by_group(db: Session, group_name: str) -> List[User]:
         else:
             return db.query(User).all()
     
+    elif group_name == "has_acquisition_source":
+        return db.query(User).filter(User.acquisition_source.isnot(None)).all()
+    
     elif group_name.startswith("acquisition_source:"):
         source = group_name.replace("acquisition_source:", "")
         return db.query(User).filter(User.acquisition_source == source).all()

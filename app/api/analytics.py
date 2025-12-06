@@ -2303,6 +2303,7 @@ async def get_user_groups():
             {"name": "premium", "description": "Premium users with active subscription"},
             {"name": "inactive_7d", "description": "Users inactive for 7 days"},
             {"name": "inactive_30d", "description": "Users inactive for 30 days"},
+            {"name": "has_acquisition_source", "description": "Users from any acquisition source"},
             {"name": "acquisition_source:*", "description": "Users from specific acquisition source (e.g., acquisition_source:facebook)"}
         ]
     }
