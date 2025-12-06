@@ -92,7 +92,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 
             await message.answer(
                 age_verification_text,
-                reply_markup=keyboard
+                reply_markup=keyboard,
+                disable_web_page_preview=True
             )
             return
     
