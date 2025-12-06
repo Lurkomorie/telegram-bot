@@ -425,7 +425,7 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
     """
     Send messages to multiple users with rate limiting
     
-    Telegram limits: 30 msg/sec overall, 1 msg/sec per chat
+    Rate limit: 10 messages per minute to avoid spam and ensure delivery
     
     Optimized cancellation checking: checks once per batch instead of per message
     """
@@ -447,14 +447,17 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
         ).all()
         delivery_map = {d.user_id: d.id for d in deliveries}
     
+    # Rate limiting: 10 messages per minute
+    batch_size = 10
+    batch_interval_seconds = 60  # Wait 60 seconds between batches
+    
     logger.info(f"Starting bulk send", extra={
         "message_id": str(message_id),
         "total_recipients": len(user_ids),
-        "batch_size": 30
+        "batch_size": batch_size,
+        "rate_limit": "10 per minute"
     })
     
-    # Rate limiting: send 30 messages, wait 1 second, repeat
-    batch_size = 30
     last_send_times = {}  # Track per-user send times for 1 msg/sec limit
     cancelled = False  # Track cancellation state to avoid repeated DB checks
     
@@ -527,20 +530,23 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
                             stats["failed"] += 1
                     db.commit()
         
-        # Log progress every 100 messages
-        if (i + batch_size) % 100 == 0 or i + batch_size >= len(user_ids):
-            logger.info(f"Bulk send progress", extra={
-                "message_id": str(message_id),
-                "processed": min(i + batch_size, len(user_ids)),
-                "total": len(user_ids),
-                "sent": stats["sent"],
-                "failed": stats["failed"],
-                "blocked": stats["blocked"]
-            })
+        # Log progress after each batch
+        logger.info(f"Bulk send progress", extra={
+            "message_id": str(message_id),
+            "processed": min(i + batch_size, len(user_ids)),
+            "total": len(user_ids),
+            "sent": stats["sent"],
+            "failed": stats["failed"],
+            "blocked": stats["blocked"]
+        })
         
-        # Wait 1 second between batches (except for last batch)
+        # Wait between batches to maintain 10 msgs/minute rate limit (except for last batch)
         if i + batch_size < len(user_ids):
-            await asyncio.sleep(1.0)
+            logger.info(f"Rate limit: waiting {batch_interval_seconds}s before next batch", extra={
+                "message_id": str(message_id),
+                "next_batch_in": batch_interval_seconds
+            })
+            await asyncio.sleep(batch_interval_seconds)
     
     logger.info(f"Bulk send completed", extra={
         "message_id": str(message_id),
