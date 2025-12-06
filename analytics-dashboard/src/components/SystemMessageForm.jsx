@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { api } from '../api';
-import TelegramPreview from './TelegramPreview';
 import EmojiPicker from './EmojiPicker';
+import TelegramPreview from './TelegramPreview';
 
 export default function SystemMessageForm({ message, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -23,6 +23,8 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
   });
   const [templates, setTemplates] = useState([]);
   const [userGroups, setUserGroups] = useState([]);
+  const [acquisitionSources, setAcquisitionSources] = useState([]);
+  const [selectedAcquisitionSource, setSelectedAcquisitionSource] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -111,6 +113,12 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
     }
     loadTemplates();
     loadUserGroups();
+    loadAcquisitionSources();
+    
+    // Initialize selectedAcquisitionSource if editing existing message
+    if (message?.target_group?.startsWith('acquisition_source:')) {
+      setSelectedAcquisitionSource(message.target_group.replace('acquisition_source:', ''));
+    }
   }, [message]);
 
   const loadTemplates = async () => {
@@ -125,9 +133,20 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
   const loadUserGroups = async () => {
     try {
       const data = await api.getUserGroups();
-      setUserGroups(data.groups);
+      // Filter out the acquisition_source:* placeholder
+      setUserGroups(data.groups.filter(g => g.name !== 'acquisition_source:*'));
     } catch (error) {
       console.error('Failed to load user groups:', error);
+    }
+  };
+
+  const loadAcquisitionSources = async () => {
+    try {
+      const data = await api.getAcquisitionSources();
+      // Filter out 'direct' as it's not an acquisition source
+      setAcquisitionSources(data.filter(s => s.source !== 'direct'));
+    } catch (error) {
+      console.error('Failed to load acquisition sources:', error);
     }
   };
 
@@ -231,6 +250,13 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate acquisition source selection
+    if (formData.target_type === 'group' && formData.target_group === 'acquisition_source:') {
+      alert('Please select an acquisition source');
+      return;
+    }
+    
     setLoading(true);
     try {
       const submitData = {
@@ -483,15 +509,48 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                 <div>
                   <label className="block text-sm font-medium mb-1">User Group</label>
                   <select
-                    value={formData.target_group}
-                    onChange={(e) => setFormData({ ...formData, target_group: e.target.value })}
+                    value={formData.target_group.startsWith('acquisition_source:') ? 'acquisition_source' : formData.target_group}
+                    onChange={(e) => {
+                      if (e.target.value === 'acquisition_source') {
+                        // Set placeholder to trigger showing the source dropdown
+                        setFormData({ ...formData, target_group: selectedAcquisitionSource ? `acquisition_source:${selectedAcquisitionSource}` : 'acquisition_source:' });
+                      } else {
+                        setSelectedAcquisitionSource('');
+                        setFormData({ ...formData, target_group: e.target.value });
+                      }
+                    }}
                     className="w-full border rounded px-3 py-2"
                   >
                     <option value="">Select group</option>
                     {userGroups.map(group => (
                       <option key={group.name} value={group.name}>{group.name} - {group.description}</option>
                     ))}
+                    {acquisitionSources.length > 0 && (
+                      <option value="acquisition_source">acquisition_source - Users from specific acquisition source</option>
+                    )}
                   </select>
+                  
+                  {/* Acquisition Source Selection */}
+                  {(formData.target_group === 'acquisition_source' || formData.target_group.startsWith('acquisition_source:')) && acquisitionSources.length > 0 && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium mb-1">Select Acquisition Source</label>
+                      <select
+                        value={selectedAcquisitionSource}
+                        onChange={(e) => {
+                          setSelectedAcquisitionSource(e.target.value);
+                          setFormData({ ...formData, target_group: e.target.value ? `acquisition_source:${e.target.value}` : '' });
+                        }}
+                        className="w-full border rounded px-3 py-2"
+                      >
+                        <option value="">Select source</option>
+                        {acquisitionSources.map(source => (
+                          <option key={source.source} value={source.source}>
+                            {source.source} ({source.user_count} users)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
