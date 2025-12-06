@@ -92,5 +92,5 @@ settings:
 
 # Age Verification
 age_verification:
-  message: "🔞 You must be 18 years or older to continue using this bot. By proceeding, you agree to our Terms of Use and Privacy Policy."
+  message: "🔞 You must be 18 years or older to continue using this bot. By proceeding, you agree to our Terms of Use and Privacy Policy.\n\n<a href=\"https://telegra.ph/Sexsplicit-Terms-of-Service-and-Privacy-Policy-12-06\">📄 Terms of Service & Privacy Policy</a>"
   confirm_button: "🔞 I am over 18 years old"
