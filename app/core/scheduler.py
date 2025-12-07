@@ -390,9 +390,10 @@ def start_scheduler():
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     
-    # Add daily tokens for premium tiers (runs every day)
-    scheduler.add_job(add_daily_tokens_by_tier, 'interval', days=1)
-    print("[SCHEDULER] ✅ Daily token addition enabled (tier-based: Plus=50, Premium=75, Pro=100, Legendary=200)")
+    # Add daily tokens for premium tiers (runs hourly, but function checks 24h per user)
+    # Running hourly ensures server restarts don't cause missed refills
+    scheduler.add_job(add_daily_tokens_by_tier, 'interval', hours=1)
+    print("[SCHEDULER] ✅ Daily temp energy refill check enabled (hourly check, 24h per user)")
     
     # Check for scheduled system messages every minute
     scheduler.add_job(check_scheduled_messages, 'interval', minutes=1)
