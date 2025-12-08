@@ -110,6 +110,11 @@ async def lifespan(app: FastAPI):
     if settings.ENABLE_BOT and bot:
         await bot.session.close()
     
+    # Dispose SQLAlchemy engine to properly close all database connections
+    from app.db.base import engine
+    engine.dispose()
+    print("✅ Database connections closed")
+    
     print("✅ Application stopped")
 
 
