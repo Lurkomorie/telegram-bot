@@ -1856,11 +1856,13 @@ async def create_system_message(data: SystemMessageCreate, background_tasks: Bac
         if data.buttons:
             buttons_list = [btn.model_dump() for btn in data.buttons]
         
-        # Store parse_mode and disable_web_page_preview in ext
+        # Store parse_mode, disable_web_page_preview, and exclude_acquisition_source in ext
         ext = {
             "parse_mode": data.parse_mode,
             "disable_web_page_preview": data.disable_web_page_preview
         }
+        if data.exclude_acquisition_source:
+            ext["exclude_acquisition_source"] = data.exclude_acquisition_source
         
         with get_db() as db:
             message = crud.create_system_message(
@@ -1961,6 +1963,8 @@ async def update_system_message(message_id: UUID, data: SystemMessageUpdate):
             ext["parse_mode"] = data.parse_mode
         if data.disable_web_page_preview is not None:
             ext["disable_web_page_preview"] = data.disable_web_page_preview
+        if data.exclude_acquisition_source is not None:
+            ext["exclude_acquisition_source"] = data.exclude_acquisition_source
         
         with get_db() as db:
             message = crud.update_system_message(

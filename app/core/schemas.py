@@ -65,6 +65,7 @@ class SystemMessageCreate(BaseModel):
     target_type: Literal['all', 'user', 'users', 'group']
     target_user_ids: Optional[List[int]] = None
     target_group: Optional[str] = None
+    exclude_acquisition_source: Optional[str] = None
     send_immediately: bool = False
     scheduled_at: Optional[datetime] = None
     parse_mode: Literal['HTML', 'MarkdownV2'] = 'HTML'
@@ -82,6 +83,7 @@ class SystemMessageUpdate(BaseModel):
     target_type: Optional[Literal['all', 'user', 'users', 'group']] = None
     target_user_ids: Optional[List[int]] = None
     target_group: Optional[str] = None
+    exclude_acquisition_source: Optional[str] = None
     send_immediately: Optional[bool] = None
     scheduled_at: Optional[datetime] = None
     parse_mode: Optional[Literal['HTML', 'MarkdownV2']] = None

@@ -203,7 +203,8 @@ async def send_system_message(message_id: UUID) -> dict:
             db, 
             message_data["target_type"], 
             message_data["target_user_ids"], 
-            message_data["target_group"]
+            message_data["target_group"],
+            message_data["ext"]
         )
         
         if not user_ids:
@@ -271,10 +272,19 @@ async def send_system_message(message_id: UUID) -> dict:
         return {"error": str(e)}
 
 
-async def _get_target_users(db, target_type: str, target_user_ids: List[int], target_group: Optional[str]) -> List[int]:
+async def _get_target_users(db, target_type: str, target_user_ids: List[int], target_group: Optional[str], ext: Optional[dict] = None) -> List[int]:
     """Resolve target user list based on target_type"""
     if target_type == "all":
-        users = db.query(User).all()
+        query = db.query(User)
+        
+        # Handle exclusion of specific acquisition source
+        exclude_source = ext.get("exclude_acquisition_source") if ext else None
+        if exclude_source:
+            query = query.filter(
+                (User.acquisition_source != exclude_source) | (User.acquisition_source.is_(None))
+            )
+        
+        users = query.all()
         return [user.id for user in users]
     
     elif target_type == "user":

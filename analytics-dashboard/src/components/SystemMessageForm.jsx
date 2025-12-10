@@ -15,6 +15,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
     target_type: 'all',
     target_user_ids: [],
     target_group: '',
+    exclude_acquisition_source: '',
     send_immediately: false,
     scheduled_at: '',
     parse_mode: 'HTML',
@@ -104,6 +105,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
         target_type: message.target_type || 'all',
         target_user_ids: message.target_user_ids || [],
         target_group: message.target_group || '',
+        exclude_acquisition_source: message.ext?.exclude_acquisition_source || '',
         send_immediately: message.send_immediately || false,
         scheduled_at: message.scheduled_at ? new Date(message.scheduled_at).toISOString().slice(0, 16) : '',
         parse_mode: message.ext?.parse_mode || 'HTML',
@@ -448,7 +450,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                 <label className="block text-sm font-medium mb-1">Target</label>
                 <select
                   value={formData.target_type}
-                  onChange={(e) => setFormData({ ...formData, target_type: e.target.value, target_user_ids: [], target_group: '' })}
+                  onChange={(e) => setFormData({ ...formData, target_type: e.target.value, target_user_ids: [], target_group: '', exclude_acquisition_source: '' })}
                   className="w-full border rounded px-3 py-2"
                 >
                   <option value="all">All Users</option>
@@ -457,6 +459,26 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                   <option value="group">User Group</option>
                 </select>
               </div>
+
+              {/* Exclude Acquisition Source (for All Users) */}
+              {formData.target_type === 'all' && acquisitionSources.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Exclude Acquisition Source (optional)</label>
+                  <select
+                    value={formData.exclude_acquisition_source || ''}
+                    onChange={(e) => setFormData({ ...formData, exclude_acquisition_source: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option value="">None - Include all sources</option>
+                    {acquisitionSources.map(source => (
+                      <option key={source.source} value={source.source}>
+                        Exclude: {source.source} ({source.user_count} users)
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Optionally exclude users from a specific acquisition source</p>
+                </div>
+              )}
 
               {/* User Selection */}
               {(formData.target_type === 'user' || formData.target_type === 'users') && (
