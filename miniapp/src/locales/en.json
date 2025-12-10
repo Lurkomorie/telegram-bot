@@ -207,6 +207,16 @@
     "placeholder": "Describe the scenario you want to experience with {name}. Where are you? What's happening? What's the mood? Be creative! (e.g., 'We're hiking in the mountains when we find a hidden waterfall...')"
   },
   "characterCreation": {
+    "raceType": {
+      "title": "Race",
+      "european": "European",
+      "asian": "Asian",
+      "african": "African",
+      "latin": "Latina",
+      "elf": "Elf",
+      "catgirl": "Catgirl",
+      "succubus": "Succubus"
+    },
     "hairColor": {
       "black": "Black",
       "brown": "Brunette",

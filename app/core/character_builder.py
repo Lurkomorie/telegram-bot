@@ -4,6 +4,17 @@ Character Builder - Creates SDXL prompts and dialogue prompts for custom charact
 from typing import Dict
 
 # Attribute mappings for SDXL image generation
+
+RACE_TYPES: Dict[str, str] = {
+    "european": "(european woman:1.2), (caucasian:1.1), (fair skin:1.1)",
+    "asian": "(asian woman:1.3), (asian facial features:1.2), (east asian:1.1)",
+    "african": "(african woman:1.3), (dark skin:1.2), (black african ethnicity:1.1), (ebony skin tone:1.1), (african facial features:1.1), (dark complexion:1.1), (full lips:1.0), (high cheekbones:1.0), (brown eyes:1.0)",
+    "latin": "(latina woman:1.3), (latin american:1.2), (hispanic woman:1.1), (olive skin:1.1), (tan skin:1.0), (caramel skin tone:1.0), (full lips:1.0), (high cheekbones:1.0), (warm complexion:1.0), (hispanic heritage:1.0), (mediterranean features:1.0)",
+    "elf": "(elf woman:1.3), (pointed elf ears:1.3), (pale radiant skin:1.2), (sharp cheekbones:1.1), (delicate symmetrical face:1.1), (almond-shaped bright eyes:1.1)",
+    "catgirl": "(catgirl:1.3), (single pair of fox ears:1.3), (no human ears:1.2), (long fluffy fox tail:1.2), (human face:1.1), (human body:1.1), (small canine teeth:1.0), (slit pupils:1.1), (fur on ears:1.0), (white fur on tail tip:1.0), (human skin tone:1.0), (detailed fur texture:1.0), (hair color matching ear color:1.0)",
+    "succubus": "(succubus:1.3), (demonic horns:1.3), (demon tail:1.2), (red skin:1.2), (glowing eyes:1.2), (sharp angular facial features:1.1), (pronounced canine teeth:1.1)",
+}
+
 HAIR_COLORS: Dict[str, str] = {
     "black": "(black hair:1.2)",
     "brown": "(brown hair:1.2)",
@@ -126,7 +137,8 @@ def build_character_dna(
     body_type: str,
     breast_size: str,
     butt_size: str,
-    extra_prompt: str = ""
+    extra_prompt: str = "",
+    race_type: str = "european"
 ) -> str:
     """
     Build character DNA string for SDXL image generation.
@@ -142,6 +154,7 @@ def build_character_dna(
         breast_size: Breast size key from BREAST_SIZES
         butt_size: Butt size key from BUTT_SIZES
         extra_prompt: User's custom description (optional, for extracting visual details)
+        race_type: Race/ethnicity type key from RACE_TYPES
     
     Returns:
         SDXL tag string with weighted attributes
@@ -151,8 +164,13 @@ def build_character_dna(
     
     dna_parts = [
         "(1girl)",
-        "(fair skin:1.2)",  # Default skin tone, can be customized later
     ]
+    
+    # Add race type (includes skin tone and racial features)
+    if race_type in RACE_TYPES:
+        dna_parts.append(RACE_TYPES[race_type])
+    else:
+        dna_parts.append("(fair skin:1.2)")  # Default fallback
     
     # Critical identity markers (heavy weight)
     if hair_color in HAIR_COLORS and hair_style in HAIR_STYLES:
@@ -288,6 +306,7 @@ def validate_attributes(
     body_type: str,
     breast_size: str,
     butt_size: str,
+    race_type: str = "european",
 ) -> tuple[bool, str | None]:
     """
     Validate that all attribute choices are valid.
@@ -295,6 +314,8 @@ def validate_attributes(
     Returns:
         (is_valid, error_field) tuple where error_field is None if valid
     """
+    if race_type not in RACE_TYPES:
+        return False, "race_type"
     if hair_color not in HAIR_COLORS:
         return False, "hair_color"
     if hair_style not in HAIR_STYLES:

@@ -1344,6 +1344,7 @@ class GenerateStoriesRequest(BaseModel):
 
 class CreateCharacterRequest(BaseModel):
     name: str
+    race_type: str = "european"
     hair_color: str
     hair_style: str
     eye_color: str
@@ -1478,7 +1479,8 @@ async def create_character(
                 request.eye_color,
                 request.body_type,
                 request.breast_size,
-                request.butt_size
+                request.butt_size,
+                request.race_type
             )
             
             if not is_valid:
@@ -1525,7 +1527,8 @@ async def create_character(
                 request.body_type,
                 request.breast_size,
                 request.butt_size,
-                request.extra_prompt  # Pass user's description for visual parsing
+                request.extra_prompt,  # Pass user's description for visual parsing
+                request.race_type
             )
             
             dialogue_prompt = build_dialogue_prompt(request.name, request.extra_prompt)

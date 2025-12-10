@@ -324,6 +324,92 @@
   font-weight: 700;
 }
 
+/* ========== RACE TYPE - FULL WIDTH GRID ========== */
+.race-type-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  padding: 4px;
+}
+
+/* Second row with 3 items - center them */
+.race-type-grid > button:nth-child(n+5) {
+  grid-column: span 1;
+}
+
+/* Adjust grid for 4+3 layout */
+.race-type-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+}
+
+.race-type-grid > button:nth-child(1),
+.race-type-grid > button:nth-child(2),
+.race-type-grid > button:nth-child(3),
+.race-type-grid > button:nth-child(4) {
+  grid-column: span 3;
+}
+
+.race-type-grid > button:nth-child(5),
+.race-type-grid > button:nth-child(6),
+.race-type-grid > button:nth-child(7) {
+  grid-column: span 4;
+}
+
+.race-type-box {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background: rgba(26, 26, 26, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.race-type-box:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.race-type-box.selected {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #EF4444;
+  border-width: 3px;
+  transform: scale(1.02);
+}
+
+.race-type-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.race-type-label {
+  position: absolute;
+  bottom: -1px;
+  left: -1px;
+  right: -1px;
+  padding: 16px 8px 14px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.8) 60%, transparent 100%);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  border-radius: 0 0 14px 14px;
+}
+
 /* ========== BODY TYPE - NO BORDERS, IMAGES FROM ASSETS ========== */
 .body-type-grid {
   display: grid;

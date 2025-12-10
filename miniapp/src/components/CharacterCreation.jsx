@@ -3,12 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createCharacter } from '../api';
 import {
-  BODY_TYPES,
-  BREAST_SIZES,
-  BUTT_SIZES,
-  EYE_COLORS,
-  HAIR_COLORS,
-  HAIR_STYLES,
+    BODY_TYPES,
+    BREAST_SIZES,
+    BUTT_SIZES,
+    EYE_COLORS,
+    HAIR_COLORS,
+    HAIR_STYLES,
+    RACE_TYPES,
 } from '../constants';
 import { useTranslation } from '../i18n/TranslationContext';
 import './CharacterCreation.css';
@@ -26,6 +27,15 @@ import longWavyImg from '../assets/long-wavy.webp';
 import ponytailImg from '../assets/ponytail.webp';
 import shortImg from '../assets/short.webp';
 
+// Race type images
+import typeAfricanImg from '../assets/type-african-1.webp';
+import typeAsianImg from '../assets/type-asian-1.webp';
+import typeBeastfolkImg from '../assets/type-beastfolk-1.webp';
+import typeCaucasianImg from '../assets/type-caucasian-1.webp';
+import typeDemonImg from '../assets/type-demon-1.webp';
+import typeElfImg from '../assets/type-elf-1.webp';
+import typeLatinImg from '../assets/type-latin-american-1.webp';
+
 const HAIR_STYLE_IMAGES = {
   'long_straight': longStraightImg,
   'long_wavy': longWavyImg,
@@ -42,6 +52,16 @@ const BODY_TYPE_IMAGES = {
   'voluptuous': bodyVoluptuousImg,
 };
 
+const RACE_TYPE_IMAGES = {
+  'european': typeCaucasianImg,
+  'asian': typeAsianImg,
+  'african': typeAfricanImg,
+  'latin': typeLatinImg,
+  'elf': typeElfImg,
+  'catgirl': typeBeastfolkImg,
+  'succubus': typeDemonImg,
+};
+
 /**
  * CharacterCreation Component
  */
@@ -53,6 +73,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   
   const [selections, setSelections] = useState({
     name: '',
+    race_type: 'european',
     hair_color: 'brown',
     hair_style: 'long_wavy',
     eye_color: 'brown',
@@ -72,7 +93,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const maxDescriptionLength = isPremium ? 4000 : 300;
   const maxNameLength = 20;
   
-  const totalPages = 6;
+  const totalPages = 7;
   
   // Use ref to track current page for back button handler
   const currentPageRef = useRef(currentPage);
@@ -194,12 +215,13 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
 
   const getPageTitle = () => {
     const titles = {
-      1: t('characterCreation.hairColor.title'),
-      2: t('characterCreation.hairStyle.title'),
-      3: t('characterCreation.eyeColor.title'),
-      4: t('characterCreation.bodyType.title'),
-      5: t('characterCreation.proportions.title'),
-      6: t('characterCreation.final.title')
+      1: t('characterCreation.raceType.title'),
+      2: t('characterCreation.hairColor.title'),
+      3: t('characterCreation.hairStyle.title'),
+      4: t('characterCreation.eyeColor.title'),
+      5: t('characterCreation.bodyType.title'),
+      6: t('characterCreation.proportions.title'),
+      7: t('characterCreation.final.title')
     };
     return titles[currentPage];
   };
@@ -319,8 +341,33 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         <div className="creation-content-wrapper">
           <div className={`wizard-container slide-${slideDirection}`} key={currentPage}>
             
-            {/* Page 1: Hair Color */}
+            {/* Page 1: Race Type */}
             {currentPage === 1 && (
+              <div className="wizard-page">
+                <div className="race-type-grid">
+                  {RACE_TYPES.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`race-type-box ${selections.race_type === option.value ? 'selected' : ''}`}
+                      onClick={() => handleSelection('race_type', option.value)}
+                      disabled={isCreating}
+                    >
+                      <img 
+                        src={RACE_TYPE_IMAGES[option.value]}
+                        alt={option.label}
+                        className="race-type-image"
+                      />
+                      <span className="race-type-label">
+                        {t(`characterCreation.raceType.${option.value}`)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Page 2: Hair Color */}
+            {currentPage === 2 && (
               <div className="wizard-page">
                 <div className="hair-color-grid">
                   {HAIR_COLORS.map((option) => {
@@ -350,8 +397,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 2: Hair Style */}
-            {currentPage === 2 && (
+            {/* Page 3: Hair Style */}
+            {currentPage === 3 && (
               <div className="wizard-page">
                 <div className="hair-style-grid">
                   {HAIR_STYLES.map((option) => (
@@ -372,8 +419,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 3: Eye Color */}
-            {currentPage === 3 && (
+            {/* Page 4: Eye Color */}
+            {currentPage === 4 && (
               <div className="wizard-page">
                 <div className="eye-color-grid">
                   {EYE_COLORS.map((option) => {
@@ -405,8 +452,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 4: Body Type */}
-            {currentPage === 4 && (
+            {/* Page 5: Body Type */}
+            {currentPage === 5 && (
               <div className="wizard-page">
                 <div className="body-type-grid">
                   {BODY_TYPES.map((option) => (
@@ -430,8 +477,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 5: Breast + Butt Size (Combined) */}
-            {currentPage === 5 && (
+            {/* Page 6: Breast + Butt Size (Combined) */}
+            {currentPage === 6 && (
               <div className="wizard-page">
                 <div className="proportions-section">
                   <div className="size-group-new">
@@ -473,8 +520,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 6: Name + Description */}
-            {currentPage === 6 && (
+            {/* Page 7: Name + Description */}
+            {currentPage === 7 && (
               <div className="wizard-page final-page">
                 <div className={`final-inputs ${textareaFocused ? 'textarea-focused' : ''}`}>
                   <div className="input-group">
@@ -531,7 +578,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         </div>
 
         {/* Footer - Only on Final Page */}
-        {currentPage === 6 && (
+        {currentPage === 7 && (
           <div className="creation-footer">
             <button
               className="create-button"
@@ -558,7 +605,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         )}
 
         {/* Next button for all pages except last */}
-        {currentPage < 6 && (
+        {currentPage < 7 && (
           <button
             className="next-button-bottom"
             onClick={advanceToNextPage}

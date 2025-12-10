@@ -3,6 +3,18 @@
  * Attribute options for dropdowns
  */
 
+export const RACE_TYPES = [
+  // Row 1: Human races
+  { value: "european", label: "European", image: "/assets/type-caucasian-1.webp" },
+  { value: "asian", label: "Asian", image: "/assets/type-asian-1.webp" },
+  { value: "african", label: "African", image: "/assets/type-african-1.webp" },
+  { value: "latin", label: "Latin American", image: "/assets/type-latin-american-1.webp" },
+  // Row 2: Fantasy races
+  { value: "elf", label: "Elf", image: "/assets/type-elf-1.webp" },
+  { value: "catgirl", label: "Catgirl", image: "/assets/type-beastfolk-1.webp" },
+  { value: "succubus", label: "Succubus", image: "/assets/type-demon-1.webp" },
+];
+
 export const HAIR_COLORS = [
   { value: "brown", label: "Brunette", emoji: "🟤" },
   { value: "blonde", label: "Blonde", emoji: "🟡" },

@@ -410,19 +410,14 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             await callback.answer("❌ Job not found", show_alert=True)
             return
         
-        chat = crud.get_chat_by_id(db, job.chat_id)
-        if not chat:
-            await callback.answer("❌ Chat not found", show_alert=True)
-            return
-        
-        # Get persona for analytics
-        persona = crud.get_persona_by_id(db, chat.persona_id)
+        # Get persona for analytics directly from job (job always has persona_id)
+        persona = crud.get_persona_by_id(db, job.persona_id)
         
         # Track refresh request
         analytics_service_tg.track_image_refresh(
             client_id=user_id,
             original_job_id=job_id_str,
-            persona_id=chat.persona_id if chat else None,
+            persona_id=job.persona_id,
             persona_name=persona.name if persona else None
         )
         
