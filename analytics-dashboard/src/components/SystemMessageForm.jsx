@@ -395,7 +395,11 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                 <div className="space-y-2 mb-2">
                   {formData.buttons.map((btn, idx) => (
                     <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-                      <span className="flex-1">{btn.text}</span>
+                      <span className="flex-1">
+                        {btn.text}
+                        {btn.web_app?.url && <span className="text-xs text-gray-500 ml-2">(Web App)</span>}
+                        {btn.url && <span className="text-xs text-gray-500 ml-2">(Link)</span>}
+                      </span>
                       <button
                         type="button"
                         onClick={() => handleRemoveButton(idx)}
@@ -406,43 +410,95 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Button text"
-                    value={buttonForm.text}
-                    onChange={(e) => setButtonForm({ ...buttonForm, text: e.target.value })}
-                    className="border rounded px-3 py-2"
-                  />
-                  <input
-                    type="url"
-                    placeholder="URL (optional)"
-                    value={buttonForm.url}
-                    onChange={(e) => setButtonForm({ ...buttonForm, url: e.target.value })}
-                    className="border rounded px-3 py-2"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Callback data (optional)"
-                    value={buttonForm.callback_data}
-                    onChange={(e) => setButtonForm({ ...buttonForm, callback_data: e.target.value })}
-                    className="border rounded px-3 py-2"
-                  />
-                  <input
-                    type="url"
-                    placeholder="Web App URL (optional)"
-                    value={buttonForm.web_app_url}
-                    onChange={(e) => setButtonForm({ ...buttonForm, web_app_url: e.target.value })}
-                    className="border rounded px-3 py-2"
-                  />
+                
+                {/* Quick Action Buttons */}
+                <div className="mb-3">
+                  <label className="block text-xs text-gray-500 mb-1">Quick Actions (click to add)</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        buttons: [...formData.buttons, { text: '✨ Create Character', web_app: { url: '/miniapp?page=gallery&create=true' } }]
+                      })}
+                      className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                    >
+                      ✨ Create Character
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        buttons: [...formData.buttons, { text: '👀 Browse Characters', web_app: { url: '/miniapp?page=gallery' } }]
+                      })}
+                      className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                    >
+                      👀 Browse Characters
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        buttons: [...formData.buttons, { text: '⭐ View Premium', web_app: { url: '/miniapp?page=premium' } }]
+                      })}
+                      className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+                    >
+                      ⭐ View Premium
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({
+                        ...formData,
+                        buttons: [...formData.buttons, { text: '⚡ Get Energy', web_app: { url: '/miniapp?page=tokens' } }]
+                      })}
+                      className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                    >
+                      ⚡ Get Energy
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddButton}
-                  className="mt-2 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
-                >
-                  Add Button
-                </button>
+
+                {/* Custom Button Form */}
+                <div className="border-t pt-3">
+                  <label className="block text-xs text-gray-500 mb-1">Or add custom button</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Button text"
+                      value={buttonForm.text}
+                      onChange={(e) => setButtonForm({ ...buttonForm, text: e.target.value })}
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      type="url"
+                      placeholder="URL (optional)"
+                      value={buttonForm.url}
+                      onChange={(e) => setButtonForm({ ...buttonForm, url: e.target.value })}
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Callback data (optional)"
+                      value={buttonForm.callback_data}
+                      onChange={(e) => setButtonForm({ ...buttonForm, callback_data: e.target.value })}
+                      className="border rounded px-3 py-2"
+                    />
+                    <input
+                      type="url"
+                      placeholder="Web App URL (optional)"
+                      value={buttonForm.web_app_url}
+                      onChange={(e) => setButtonForm({ ...buttonForm, web_app_url: e.target.value })}
+                      className="border rounded px-3 py-2"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddButton}
+                    className="mt-2 bg-gray-200 px-4 py-2 rounded hover:bg-gray-300"
+                  >
+                    Add Custom Button
+                  </button>
+                </div>
               </div>
 
               {/* Target Type */}
