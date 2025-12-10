@@ -1451,10 +1451,20 @@ async def create_character(
             # Check premium status to determine cost
             premium_info = crud.check_user_premium(db, user_id)
             is_premium = premium_info["is_premium"]
-            token_cost = 0 if is_first_character else (25 if is_premium else 50)
+            is_legendary = premium_info["tier"] == "legendary"
+            
+            # Base cost
+            base_cost = 0 if is_first_character else (25 if is_premium else 50)
+            
+            # Fantasy race cost (250 extra, free for Legendary)
+            fantasy_races = ["elf", "catgirl", "succubus"]
+            is_fantasy_race = request.race_type in fantasy_races
+            fantasy_cost = 250 if (is_fantasy_race and not is_legendary) else 0
+            
+            token_cost = base_cost + fantasy_cost
             max_description_length = 4000 if is_premium else 500
             
-            print(f"[CREATE-CHARACTER] User {user_id}: first_char={is_first_character}, cost={token_cost}")
+            print(f"[CREATE-CHARACTER] User {user_id}: first_char={is_first_character}, race={request.race_type}, fantasy={is_fantasy_race}, legendary={is_legendary}, cost={token_cost}")
             
             # Validate name length
             if not request.name or len(request.name) > 100:
@@ -1491,8 +1501,8 @@ async def create_character(
                     "message": f"Invalid value for {error_field}"
                 }
             
-            # Only check and deduct tokens if not first character
-            if not is_first_character:
+            # Handle token deduction
+            if token_cost > 0:
                 # Check token balance
                 if not crud.check_user_energy(db, user_id, required=token_cost):
                     user_energy = crud.get_user_energy(db, user_id)
@@ -1500,8 +1510,8 @@ async def create_character(
                         "success": False,
                         "error": "insufficient_tokens",
                         "required": token_cost,
-                        "current": user_energy["energy"],
-                        "message": f"Insufficient tokens. Need {token_cost}, have {user_energy['energy']}"
+                        "current": user_energy["tokens"],
+                        "message": f"Insufficient tokens. Need {token_cost}, have {user_energy['tokens']}"
                     }
                 
                 # Deduct tokens
@@ -1513,9 +1523,10 @@ async def create_character(
                     }
                 
                 print(f"[CREATE-CHARACTER] Deducted {token_cost} tokens from user {user_id}")
-            else:
-                print(f"[CREATE-CHARACTER] First character creation - FREE for user {user_id}")
-                # Mark that user has created their first character
+            
+            # Mark first character creation
+            if is_first_character:
+                print(f"[CREATE-CHARACTER] First character creation for user {user_id}")
                 user.char_created = True
                 db.commit()
             

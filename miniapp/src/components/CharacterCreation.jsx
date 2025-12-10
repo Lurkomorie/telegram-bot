@@ -62,6 +62,10 @@ const RACE_TYPE_IMAGES = {
   'succubus': typeDemonImg,
 };
 
+// Fantasy races that cost extra energy
+const FANTASY_RACES = ['elf', 'catgirl', 'succubus'];
+const FANTASY_RACE_COST = 250;
+
 /**
  * CharacterCreation Component
  */
@@ -88,10 +92,18 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const [textareaFocused, setTextareaFocused] = useState(false);
 
   const isPremium = tokens.is_premium;
-  const tokenCost = isPremium ? 25 : 50;
+  const isLegendary = tokens.premium_tier === 'legendary';
   const hasFreeCreation = !tokens?.char_created;
   const maxDescriptionLength = isPremium ? 4000 : 300;
   const maxNameLength = 20;
+  
+  // Base cost (free for first character)
+  const baseTokenCost = hasFreeCreation ? 0 : (isPremium ? 25 : 50);
+  
+  // Fantasy race cost (free for Legendary users)
+  const isFantasyRace = FANTASY_RACES.includes(selections.race_type);
+  const fantasyRaceCost = (isFantasyRace && !isLegendary) ? FANTASY_RACE_COST : 0;
+  const tokenCost = baseTokenCost + fantasyRaceCost;
   
   const totalPages = 7;
   
@@ -345,23 +357,38 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
             {currentPage === 1 && (
               <div className="wizard-page">
                 <div className="race-type-grid">
-                  {RACE_TYPES.map((option) => (
-                    <button
-                      key={option.value}
-                      className={`race-type-box ${selections.race_type === option.value ? 'selected' : ''}`}
-                      onClick={() => handleSelection('race_type', option.value)}
-                      disabled={isCreating}
-                    >
-                      <img 
-                        src={RACE_TYPE_IMAGES[option.value]}
-                        alt={option.label}
-                        className="race-type-image"
-                      />
-                      <span className="race-type-label">
-                        {t(`characterCreation.raceType.${option.value}`)}
-                      </span>
-                    </button>
-                  ))}
+                  {RACE_TYPES.map((option) => {
+                    const isFantasy = FANTASY_RACES.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        className={`race-type-box ${selections.race_type === option.value ? 'selected' : ''} ${isFantasy ? 'fantasy' : ''}`}
+                        onClick={() => handleSelection('race_type', option.value)}
+                        disabled={isCreating}
+                      >
+                        <img 
+                          src={RACE_TYPE_IMAGES[option.value]}
+                          alt={option.label}
+                          className="race-type-image"
+                        />
+                        <div className="race-type-label-container">
+                          <span className="race-type-label">
+                            {t(`characterCreation.raceType.${option.value}`)}
+                          </span>
+                          {isFantasy && (
+                            <div className="race-type-price">
+                              <span className="price-cost">
+                                <img src={lightningImg} alt="energy" className="price-icon" />
+                                {FANTASY_RACE_COST}
+                              </span>
+                              <span className="price-or">{t('characterCreation.raceType.or')}</span>
+                              <span className="price-legendary">{t('characterCreation.raceType.legendary')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -592,7 +619,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               ) : (
                 <>
                   <span>{t('characterCreation.final.createButton')}</span>
-                  {!hasFreeCreation && (
+                  {tokenCost > 0 && (
                     <span className="button-cost">
                       <img src={lightningImg} alt="tokens" className="button-cost-icon" />
                       {tokenCost}
