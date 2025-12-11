@@ -297,15 +297,8 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
             await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
             return
         
-        # Get active chat
-        chat = crud.get_active_chat(db, tg_chat_id, user_id)
-        
-        if not chat:
-            await bot.send_message(tg_chat_id, ERROR_MESSAGES["no_persona"])
-            return
-        
-        # Get persona
-        persona = crud.get_persona_by_id(db, chat.persona_id)
+        # Get persona directly from original job (works for both chat and standalone images)
+        persona = crud.get_persona_by_id(db, original_job.persona_id)
         
         if not persona:
             await bot.send_message(tg_chat_id, ERROR_MESSAGES["persona_not_found"])
@@ -321,6 +314,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         print(f"[REFRESH-IMAGE]    Negative: {negative_prompt[:100]}...")
         
         # Create new image job with SAME prompts, different seed
+        # Use original job's chat_id (None for standalone images, chat.id for chat images)
         seed = random.randint(1, 2147483647)
         job = crud.create_image_job(
             db,
@@ -328,7 +322,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
             persona_id=persona.id,
             prompt=positive_prompt,
             negative_prompt=negative_prompt,
-            chat_id=chat.id,
+            chat_id=original_job.chat_id,
             ext={"seed": seed, "user_prompt": user_prompt, "refreshed_from": original_job_id}
         )
         
