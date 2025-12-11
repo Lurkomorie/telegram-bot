@@ -411,56 +411,44 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                   ))}
                 </div>
                 
-                {/* Quick Action Buttons */}
+                {/* Quick Actions - Fill form with preset values */}
                 <div className="mb-3">
-                  <label className="block text-xs text-gray-500 mb-1">Quick Actions (click to add)</label>
+                  <label className="block text-xs text-gray-500 mb-1">Quick Actions (click to fill form below)</label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setFormData({
-                        ...formData,
-                        buttons: [...formData.buttons, { text: '✨ Create Character', web_app: { url: '/miniapp?page=gallery&create=true' } }]
-                      })}
+                      onClick={() => setButtonForm({ text: 'Create Character', url: '', callback_data: '', web_app_url: '/miniapp?page=gallery&create=true' })}
                       className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
                     >
-                      ✨ Create Character
+                      Create Character
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({
-                        ...formData,
-                        buttons: [...formData.buttons, { text: '👀 Browse Characters', web_app: { url: '/miniapp?page=gallery' } }]
-                      })}
+                      onClick={() => setButtonForm({ text: 'Browse Characters', url: '', callback_data: '', web_app_url: '/miniapp?page=gallery' })}
                       className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                     >
-                      👀 Browse Characters
+                      Browse Characters
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({
-                        ...formData,
-                        buttons: [...formData.buttons, { text: '⭐ View Premium', web_app: { url: '/miniapp?page=premium' } }]
-                      })}
+                      onClick={() => setButtonForm({ text: 'View Premium', url: '', callback_data: '', web_app_url: '/miniapp?page=premium' })}
                       className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
                     >
-                      ⭐ View Premium
+                      View Premium
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFormData({
-                        ...formData,
-                        buttons: [...formData.buttons, { text: '⚡ Get Energy', web_app: { url: '/miniapp?page=tokens' } }]
-                      })}
+                      onClick={() => setButtonForm({ text: 'Get Energy', url: '', callback_data: '', web_app_url: '/miniapp?page=tokens' })}
                       className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
                     >
-                      ⚡ Get Energy
+                      Get Energy
                     </button>
                   </div>
                 </div>
 
-                {/* Custom Button Form */}
+                {/* Button Form */}
                 <div className="border-t pt-3">
-                  <label className="block text-xs text-gray-500 mb-1">Or add custom button</label>
+                  <label className="block text-xs text-gray-500 mb-1">Button details (customize text and add)</label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"

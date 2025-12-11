@@ -15,6 +15,7 @@ from app.db.base import get_db
 from app.db import crud
 from app.db.models import User, SystemMessageDelivery
 from app.bot.loader import bot
+from app.settings import settings
 
 # Setup structured logging
 logger = logging.getLogger(__name__)
@@ -324,7 +325,11 @@ def _build_keyboard(buttons: Optional[List[dict]]) -> Optional[InlineKeyboardMar
         elif btn.get("web_app"):
             web_app = btn["web_app"]
             if isinstance(web_app, dict) and web_app.get("url"):
-                web_app_info = WebAppInfo(url=web_app["url"])
+                web_app_url = web_app["url"]
+                # Convert relative URLs to absolute URLs using public_url
+                if web_app_url.startswith("/"):
+                    web_app_url = f"{settings.public_url}{web_app_url}"
+                web_app_info = WebAppInfo(url=web_app_url)
                 keyboard_buttons.append([InlineKeyboardButton(text=btn["text"], web_app=web_app_info)])
     
     if keyboard_buttons:
