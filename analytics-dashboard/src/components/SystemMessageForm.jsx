@@ -472,8 +472,8 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                       className="border rounded px-3 py-2"
                     />
                     <input
-                      type="url"
-                      placeholder="Web App URL (optional)"
+                      type="text"
+                      placeholder="Web App URL (optional, e.g. /miniapp?page=gallery)"
                       value={buttonForm.web_app_url}
                       onChange={(e) => setButtonForm({ ...buttonForm, web_app_url: e.target.value })}
                       className="border rounded px-3 py-2"
