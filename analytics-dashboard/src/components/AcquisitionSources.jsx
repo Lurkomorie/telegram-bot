@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import Sparkline from './Sparkline';
 import DateRangeFilter from './DateRangeFilter';
+import Sparkline from './Sparkline';
 
 export default function AcquisitionSources() {
-  // Date filter state
   const getDefaultStartDate = () => {
     const date = new Date();
     date.setDate(date.getDate() - 30);
@@ -17,7 +16,6 @@ export default function AcquisitionSources() {
 
   const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState(getDefaultEndDate());
-
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,7 +52,6 @@ export default function AcquisitionSources() {
       let aValue = a[sortConfig.key];
       let bValue = b[sortConfig.key];
 
-      // Handle null values
       if (aValue === null || aValue === undefined) return 1;
       if (bValue === null || bValue === undefined) return -1;
 
@@ -80,6 +77,12 @@ export default function AcquisitionSources() {
     );
   };
 
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num?.toLocaleString() || '0';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -99,6 +102,8 @@ export default function AcquisitionSources() {
   // Calculate totals
   const totalUsers = sources.reduce((sum, source) => sum + source.user_count, 0);
   const totalEvents = sources.reduce((sum, source) => sum + source.total_events, 0);
+  const totalPurchases = sources.reduce((sum, source) => sum + (source.total_purchases || 0), 0);
+  const totalStars = sources.reduce((sum, source) => sum + (source.total_stars || 0), 0);
   const sortedSources = getSortedSources();
 
   return (
@@ -108,7 +113,6 @@ export default function AcquisitionSources() {
         <p className="text-gray-500 mt-1">User acquisition breakdown by source</p>
       </div>
 
-      {/* Date Range Filter */}
       <DateRangeFilter 
         startDate={startDate}
         endDate={endDate}
@@ -117,18 +121,26 @@ export default function AcquisitionSources() {
       />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-500 mb-1">Total Sources</div>
           <div className="text-3xl font-bold text-gray-800">{sources.length}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-500 mb-1">Total Users</div>
-          <div className="text-3xl font-bold text-gray-800">{totalUsers}</div>
+          <div className="text-3xl font-bold text-gray-800">{formatNumber(totalUsers)}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-500 mb-1">Total Events</div>
-          <div className="text-3xl font-bold text-gray-800">{totalEvents}</div>
+          <div className="text-3xl font-bold text-gray-800">{formatNumber(totalEvents)}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="text-sm text-gray-500 mb-1">Total Purchases</div>
+          <div className="text-3xl font-bold text-green-600">{formatNumber(totalPurchases)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="text-yellow-100 text-sm mb-1">Total Stars</div>
+          <div className="text-3xl font-bold">{formatNumber(totalStars)}</div>
         </div>
       </div>
 
@@ -138,7 +150,7 @@ export default function AcquisitionSources() {
           <thead className="bg-gray-50">
             <tr>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('source')}
               >
                 <div className="flex items-center">
@@ -147,7 +159,7 @@ export default function AcquisitionSources() {
                 </div>
               </th>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('user_count')}
               >
                 <div className="flex items-center">
@@ -155,66 +167,98 @@ export default function AcquisitionSources() {
                   <SortIcon columnKey="user_count" />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 New Users (14d)
               </th>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_purchases')}
+              >
+                <div className="flex items-center">
+                  Purchases
+                  <SortIcon columnKey="total_purchases" />
+                </div>
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                onClick={() => handleSort('total_stars')}
+              >
+                <div className="flex items-center">
+                  Stars
+                  <SortIcon columnKey="total_stars" />
+                </div>
+              </th>
+              <th 
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('total_events')}
               >
                 <div className="flex items-center">
-                  Total Events
+                  Events
                   <SortIcon columnKey="total_events" />
                 </div>
               </th>
               <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                 onClick={() => handleSort('avg_events_per_user')}
               >
                 <div className="flex items-center">
-                  Avg Events per User
+                  Avg Events
                   <SortIcon columnKey="avg_events_per_user" />
                 </div>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                % of Total Users
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                % Users
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedSources.map((source, index) => {
               const userPercentage = totalUsers > 0 ? ((source.user_count / totalUsers) * 100).toFixed(1) : 0;
+              const starsPercentage = totalStars > 0 ? ((source.total_stars / totalStars) * 100).toFixed(1) : 0;
               
               return (
                 <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        {source.source}
-                      </span>
-                    </div>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                      {source.source}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                    {source.user_count}
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                    {formatNumber(source.user_count)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <Sparkline data={source.sparkline_data} />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {source.total_events}
+                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                    {formatNumber(source.total_purchases || 0)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-yellow-600 mr-2">
+                        {formatNumber(source.total_stars || 0)}
+                      </span>
+                      {source.total_stars > 0 && (
+                        <span className="text-xs text-gray-400">
+                          ({starsPercentage}%)
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {formatNumber(source.total_events)}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     {source.avg_events_per_user}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                     <div className="flex items-center">
-                      <div className="flex-1 h-2 bg-gray-200 rounded-full mr-3 max-w-[100px]">
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full mr-2 w-16">
                         <div 
                           className="h-2 bg-blue-500 rounded-full" 
                           style={{ width: `${userPercentage}%` }}
                         ></div>
                       </div>
-                      <span>{userPercentage}%</span>
+                      <span className="w-12 text-right">{userPercentage}%</span>
                     </div>
                   </td>
                 </tr>
@@ -232,4 +276,3 @@ export default function AcquisitionSources() {
     </div>
   );
 }
-

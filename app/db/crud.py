@@ -2007,6 +2007,7 @@ def get_acquisition_source_stats(db: Session, start_date: Optional[str] = None, 
     """
     from sqlalchemy import func, cast, Date, case
     from datetime import datetime, timedelta
+    from app.db.models import PaymentTransaction
     
     # Calculate date range for sparklines (14 days)
     end_date_calc = datetime.utcnow().date()
@@ -2038,6 +2039,23 @@ def get_acquisition_source_stats(db: Session, start_date: Optional[str] = None, 
         func.coalesce(User.acquisition_source, 'direct')
     ).all()
     
+    # Get purchase stats by acquisition source
+    purchase_stats_query = db.query(
+        func.coalesce(User.acquisition_source, 'direct').label('source'),
+        func.count(PaymentTransaction.id).label('purchase_count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('total_stars')
+    ).join(
+        PaymentTransaction, User.id == PaymentTransaction.user_id
+    ).filter(
+        PaymentTransaction.status == 'completed'
+    )
+    # Apply date filter to purchases
+    if start_date or end_date:
+        purchase_stats_query = apply_date_filter(purchase_stats_query, PaymentTransaction.created_at, start_date, end_date)
+    purchase_stats_query = purchase_stats_query.group_by(
+        func.coalesce(User.acquisition_source, 'direct')
+    ).all()
+    
     # Build result dict with main stats
     source_stats = {}
     
@@ -2048,6 +2066,8 @@ def get_acquisition_source_stats(db: Session, start_date: Optional[str] = None, 
             'user_count': row.user_count,
             'total_events': 0,
             'avg_events_per_user': 0,
+            'total_purchases': 0,
+            'total_stars': 0,
             'sparkline_data': []
         }
     
@@ -2057,6 +2077,13 @@ def get_acquisition_source_stats(db: Session, start_date: Optional[str] = None, 
         total_events = event_counts_dict.get(source, 0)
         source_stats[source]['total_events'] = total_events
         source_stats[source]['avg_events_per_user'] = round(total_events / source_stats[source]['user_count'], 2) if source_stats[source]['user_count'] > 0 else 0
+    
+    # Add purchase stats
+    purchase_stats_dict = {row.source: {'count': row.purchase_count, 'stars': int(row.total_stars)} for row in purchase_stats_query}
+    for source in source_stats.keys():
+        purchase_data = purchase_stats_dict.get(source, {'count': 0, 'stars': 0})
+        source_stats[source]['total_purchases'] = purchase_data['count']
+        source_stats[source]['total_stars'] = purchase_data['stars']
     
     # Get sparkline data (new users per day for last 14 days) in a single query
     # Create a subquery for each user's first activity date
@@ -2646,7 +2673,7 @@ def get_failed_images_count(db: Session, start_date: Optional[str] = None, end_d
 
 def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> dict:
     """
-    Get premium user statistics and metrics
+    Get premium user statistics, revenue metrics, and payment transaction data
     
     Args:
         start_date: Filter from this date onwards (YYYY-MM-DD)
@@ -2654,10 +2681,13 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
         acquisition_source: Filter by acquisition source
     
     Returns:
-        Dictionary with premium statistics
+        Dictionary with premium and revenue statistics
     """
     from sqlalchemy import func, distinct, case
     from datetime import timedelta
+    from app.db.models import PaymentTransaction
+    
+    # ========== USER STATS ==========
     
     # Currently active premium users
     active_premium_query = db.query(func.count(User.id)).filter(
@@ -2688,92 +2718,126 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
     total_users = total_ever_premium_users + total_free_users
     conversion_rate = (total_ever_premium_users / total_users * 100) if total_users > 0 else 0
     
-    # Premium activations over time (ALL time, not just last 30 days)
-    # This shows when users became premium (joined while premium or upgraded)
-    premium_users_over_time_query = db.query(
-        func.date_trunc('day', User.created_at).label('date'),
-        func.count(User.id).label('count')
-    ).filter(
-        User.is_premium == True
+    # ========== REVENUE STATS (from PaymentTransaction) ==========
+    
+    # Base query for completed transactions
+    base_tx_query = db.query(PaymentTransaction).join(
+        User, PaymentTransaction.user_id == User.id
+    ).filter(PaymentTransaction.status == 'completed')
+    
+    if acquisition_source:
+        base_tx_query = base_tx_query.filter(User.acquisition_source == acquisition_source)
+    
+    # Apply date filter to transactions
+    if start_date or end_date:
+        base_tx_query = apply_date_filter(base_tx_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    # Total revenue stats
+    revenue_query = db.query(
+        func.count(PaymentTransaction.id).label('total_purchases'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('total_stars'),
+        func.count(distinct(PaymentTransaction.user_id)).label('unique_paying_users')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed'
     )
     if acquisition_source:
-        premium_users_over_time_query = premium_users_over_time_query.filter(User.acquisition_source == acquisition_source)
-    premium_users_over_time = premium_users_over_time_query.group_by(func.date_trunc('day', User.created_at)).order_by('date').all()
+        revenue_query = revenue_query.filter(User.acquisition_source == acquisition_source)
+    if start_date or end_date:
+        revenue_query = apply_date_filter(revenue_query, PaymentTransaction.created_at, start_date, end_date)
     
-    premium_users_over_time_data = [
-        {'date': row.date.isoformat() if row.date else None, 'count': row.count}
-        for row in premium_users_over_time
+    revenue_result = revenue_query.first()
+    total_purchases = revenue_result.total_purchases if revenue_result else 0
+    total_stars = int(revenue_result.total_stars) if revenue_result else 0
+    unique_paying_users = revenue_result.unique_paying_users if revenue_result else 0
+    
+    # Token packages stats
+    token_query = db.query(
+        func.count(PaymentTransaction.id).label('count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars'),
+        func.coalesce(func.sum(PaymentTransaction.tokens_received), 0).label('tokens')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed',
+        PaymentTransaction.transaction_type == 'token_package'
+    )
+    if acquisition_source:
+        token_query = token_query.filter(User.acquisition_source == acquisition_source)
+    if start_date or end_date:
+        token_query = apply_date_filter(token_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    token_result = token_query.first()
+    token_packages_count = token_result.count if token_result else 0
+    token_packages_stars = int(token_result.stars) if token_result else 0
+    tokens_sold = int(token_result.tokens) if token_result else 0
+    
+    # Tier subscriptions stats
+    tier_query = db.query(
+        func.count(PaymentTransaction.id).label('count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed',
+        PaymentTransaction.transaction_type == 'tier_subscription'
+    )
+    if acquisition_source:
+        tier_query = tier_query.filter(User.acquisition_source == acquisition_source)
+    if start_date or end_date:
+        tier_query = apply_date_filter(tier_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    tier_result = tier_query.first()
+    tier_subscriptions_count = tier_result.count if tier_result else 0
+    tier_subscriptions_stars = int(tier_result.stars) if tier_result else 0
+    
+    # Product breakdown
+    breakdown_query = db.query(
+        PaymentTransaction.product_id,
+        PaymentTransaction.transaction_type,
+        func.count(PaymentTransaction.id).label('count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('total_stars')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed'
+    )
+    if acquisition_source:
+        breakdown_query = breakdown_query.filter(User.acquisition_source == acquisition_source)
+    if start_date or end_date:
+        breakdown_query = apply_date_filter(breakdown_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    breakdown_results = breakdown_query.group_by(
+        PaymentTransaction.product_id, 
+        PaymentTransaction.transaction_type
+    ).order_by(func.sum(PaymentTransaction.amount_stars).desc()).all()
+    
+    packages_breakdown = [
+        {
+            'product_id': row.product_id,
+            'transaction_type': row.transaction_type,
+            'count': row.count,
+            'total_stars': int(row.total_stars)
+        }
+        for row in breakdown_results
     ]
     
-    # Premium vs Free image generation (with date filter)
-    image_query = db.query(
-        User.is_premium,
-        func.count(ImageJob.id).label('image_count')
-    ).join(User, ImageJob.user_id == User.id).filter(
-        ImageJob.status == 'completed'
-    )
-    if acquisition_source:
-        image_query = image_query.filter(User.acquisition_source == acquisition_source)
-    
-    image_query = apply_date_filter(image_query, ImageJob.created_at, start_date, end_date)
-    image_results = image_query.group_by(User.is_premium).all()
-    
-    premium_images = 0
-    free_images = 0
-    for row in image_results:
-        if row.is_premium:
-            premium_images = row.image_count
-        else:
-            free_images = row.image_count
-    
-    # Premium vs Free engagement (messages, with date filter)
-    message_query = db.query(
-        TgAnalyticsEvent.client_id,
-        func.count(TgAnalyticsEvent.id).label('message_count')
-    ).filter(
-        TgAnalyticsEvent.event_name.in_(['user_message', 'ai_message'])
-    )
-    
-    message_query = apply_date_filter(message_query, TgAnalyticsEvent.created_at, start_date, end_date)
-    message_query = apply_acquisition_source_filter(db, message_query, acquisition_source)
-    message_results = message_query.group_by(TgAnalyticsEvent.client_id).subquery()
-    
-    engagement_query = db.query(
-        User.is_premium,
-        func.count(message_results.c.client_id).label('user_count'),
-        func.avg(message_results.c.message_count).label('avg_messages')
-    ).join(message_results, User.id == message_results.c.client_id)
-    if acquisition_source:
-        engagement_query = engagement_query.filter(User.acquisition_source == acquisition_source)
-    engagement_results = engagement_query.group_by(User.is_premium).all()
-    
-    premium_engagement = {'user_count': 0, 'avg_messages': 0}
-    free_engagement = {'user_count': 0, 'avg_messages': 0}
-    
-    for row in engagement_results:
-        data = {
-            'user_count': row.user_count,
-            'avg_messages': float(row.avg_messages) if row.avg_messages else 0
-        }
-        if row.is_premium:
-            premium_engagement = data
-        else:
-            free_engagement = data
+    # Average purchase value
+    avg_purchase_value = round(total_stars / total_purchases, 2) if total_purchases > 0 else 0
     
     return {
-        'total_premium_users': total_premium_users,  # Currently active premium
-        'total_ever_premium_users': total_ever_premium_users,  # Total who ever bought premium
+        # User stats
+        'total_premium_users': total_premium_users,
+        'total_ever_premium_users': total_ever_premium_users,
         'total_free_users': total_free_users,
         'conversion_rate': round(conversion_rate, 2),
-        'premium_users_over_time': premium_users_over_time_data,
-        'premium_vs_free_images': {
-            'premium': premium_images,
-            'free': free_images
-        },
-        'premium_vs_free_engagement': {
-            'premium': premium_engagement,
-            'free': free_engagement
-        }
+        'unique_paying_users': unique_paying_users,
+        # Revenue stats
+        'total_purchases': total_purchases,
+        'total_stars': total_stars,
+        'avg_purchase_value': avg_purchase_value,
+        # Token packages
+        'token_packages_count': token_packages_count,
+        'token_packages_stars': token_packages_stars,
+        'tokens_sold': tokens_sold,
+        # Tier subscriptions
+        'tier_subscriptions_count': tier_subscriptions_count,
+        'tier_subscriptions_stars': tier_subscriptions_stars,
+        # Breakdown
+        'packages_breakdown': packages_breakdown
     }
 
 
