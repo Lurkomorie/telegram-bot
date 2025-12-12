@@ -391,7 +391,14 @@ async def _process_single_batch(
         
         # 4. Save batch messages & response to DB + Clear refresh button
         log_always(f"[BATCH] 💾 Saving batch to database...")
+        assistant_message_id = None
+        user_language = 'en'
         with get_db() as db:
+            # Get user language for UI elements
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user_language = user.locale or 'en'
+            
             # Save ALL user messages from batch (mark as processed)
             # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
             messages_to_save = [
@@ -404,8 +411,8 @@ async def _process_single_batch(
             else:
                 log_verbose(f"[BATCH]    No user messages to save")
             
-            # Save assistant message with state
-            crud.create_message_with_state(
+            # Save assistant message with state and capture the ID for voice button
+            assistant_message = crud.create_message_with_state(
                 db, 
                 chat_id, 
                 "assistant", 
@@ -413,6 +420,8 @@ async def _process_single_batch(
                 state_snapshot={"state": new_state},
                 is_processed=True
             )
+            assistant_message_id = assistant_message.id
+            log_verbose(f"[BATCH]    Assistant message ID: {assistant_message_id}")
             
             # Update chat state and timestamps
             crud.update_chat_state(db, chat_id, {"state": new_state})
@@ -472,7 +481,24 @@ async def _process_single_batch(
             log_always(f"[BATCH] ⏳ Delaying text message send - will be sent as image caption (24h followup)")
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
-            await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
+            
+            # Build voice button keyboard if ElevenLabs is configured
+            from app.settings import settings
+            voice_keyboard = None
+            if settings.ELEVENLABS_API_KEY and assistant_message_id:
+                from app.bot.keyboards.inline import build_voice_button_keyboard
+                voice_keyboard = build_voice_button_keyboard(
+                    message_id=assistant_message_id,
+                    language=user_language
+                )
+                log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id}")
+            
+            await bot.send_message(
+                tg_chat_id, 
+                escaped_response, 
+                parse_mode="MarkdownV2",
+                reply_markup=voice_keyboard
+            )
             log_always(f"[BATCH] ✅ Response sent to user")
             log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
         

@@ -332,3 +332,94 @@ async def _background_process(chat_id, user_id, tg_chat_id, config):
             )
         except:
             pass
+
+
+@router.callback_query(F.data.startswith("create_voice:"))
+async def handle_create_voice(callback: types.CallbackQuery):
+    """Handle 'Create Voice' button click - generate voice message from AI response"""
+    from uuid import UUID
+    from aiogram.types import BufferedInputFile
+    
+    user_id = callback.from_user.id
+    
+    log_always(f"[VOICE] 🎤 Voice generation requested by user {user_id}")
+    
+    # Parse message ID from callback data
+    try:
+        message_id_str = callback.data.split(":")[1]
+        message_id = UUID(message_id_str)
+    except (IndexError, ValueError):
+        log_always(f"[VOICE] ❌ Invalid callback data: {callback.data}")
+        await callback.answer("❌ Invalid request", show_alert=True)
+        return
+    
+    # Acknowledge callback immediately
+    await callback.answer()
+    
+    # Get user language for translations
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        user_language = user.locale if user else 'en'
+        
+        # Get the message from database
+        message = crud.get_message_by_id(db, message_id)
+        
+        if not message:
+            log_always(f"[VOICE] ❌ Message {message_id} not found")
+            await callback.message.answer(
+                get_ui_text("voice.failed", language=user_language)
+            )
+            return
+        
+        message_text = message.text
+        
+        # Get persona name for voice processing context
+        chat = crud.get_chat_by_id(db, message.chat_id)
+        persona = crud.get_persona_by_id(db, chat.persona_id) if chat else None
+        persona_name = persona.name if persona else "AI"
+    
+    log_verbose(f"[VOICE]    Message text: {message_text[:100]}...")
+    log_verbose(f"[VOICE]    Persona: {persona_name}")
+    
+    # Show "generating" status
+    status_msg = await callback.message.answer(
+        get_ui_text("voice.generating", language=user_language)
+    )
+    
+    try:
+        # Process text through voice processor brain (add audio tags)
+        from app.core.brains.voice_processor import process_text_for_voice
+        tagged_text = await process_text_for_voice(message_text, persona_name)
+        
+        log_verbose(f"[VOICE]    Tagged text: {tagged_text[:150]}...")
+        
+        # Generate voice audio via ElevenLabs
+        from app.core.elevenlabs_service import generate_voice
+        voice_bytes = await generate_voice(tagged_text)
+        
+        if not voice_bytes:
+            log_always(f"[VOICE] ❌ Voice generation failed")
+            await status_msg.delete()
+            await callback.message.answer(
+                get_ui_text("voice.failed", language=user_language)
+            )
+            return
+        
+        # Delete status message
+        await status_msg.delete()
+        
+        # Send voice message
+        voice_file = BufferedInputFile(voice_bytes, filename="voice.ogg")
+        await callback.message.answer_voice(voice=voice_file)
+        
+        log_always(f"[VOICE] ✅ Voice message sent to user {user_id}")
+        
+    except Exception as e:
+        log_always(f"[VOICE] ❌ Error: {type(e).__name__}: {e}")
+        try:
+            await status_msg.delete()
+        except:
+            pass
+        await callback.message.answer(
+            get_ui_text("voice.failed", language=user_language)
+        )

@@ -721,6 +721,11 @@ def get_chat_messages(db: Session, chat_id: UUID, limit: int = None) -> List[Mes
         ).order_by(Message.created_at).all()
 
 
+def get_message_by_id(db: Session, message_id: UUID) -> Message | None:
+    """Get a message by its ID"""
+    return db.query(Message).filter(Message.id == message_id).first()
+
+
 # ========== MESSAGE BATCHING OPERATIONS ==========
 
 def get_unprocessed_user_messages(db: Session, chat_id: UUID) -> List[Message]:

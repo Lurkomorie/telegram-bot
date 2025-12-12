@@ -317,3 +317,18 @@ def build_age_verification_keyboard(deep_link: str = None, language: str = "en")
     ])
 
 
+def build_voice_button_keyboard(message_id: int, language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard with 'Create Voice' button for AI responses
+    
+    Args:
+        message_id: Database message ID to retrieve text for voice generation
+        language: Language code for button text
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("voice.create_button", language=language),
+            callback_data=f"create_voice:{message_id}"
+        )]
+    ])
+
+
