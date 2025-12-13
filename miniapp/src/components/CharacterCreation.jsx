@@ -10,6 +10,7 @@ import {
     HAIR_COLORS,
     HAIR_STYLES,
     RACE_TYPES,
+    VOICE_OPTIONS,
 } from '../constants';
 import { useTranslation } from '../i18n/TranslationContext';
 import './CharacterCreation.css';
@@ -85,7 +86,11 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
     breast_size: 'medium',
     butt_size: 'medium',
     extra_prompt: '',
+    voice_id: VOICE_OPTIONS[0]?.value || null,  // Default to first voice option
   });
+
+  // Audio preview ref for voice selection
+  const audioRef = useRef(null);
 
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState(null);
@@ -105,7 +110,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
   const fantasyRaceCost = (isFantasyRace && !isLegendary) ? FANTASY_RACE_COST : 0;
   const tokenCost = baseTokenCost + fantasyRaceCost;
   
-  const totalPages = 7;
+  const totalPages = 8;
   
   // Use ref to track current page for back button handler
   const currentPageRef = useRef(currentPage);
@@ -547,8 +552,44 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               </div>
             )}
 
-            {/* Page 7: Name + Description */}
+            {/* Page 7: Voice Selection */}
             {currentPage === 7 && (
+              <div className="wizard-page">
+                <div className="voice-selection-section">
+                  <div className="voice-hint">{t('characterCreation.voice.tapToPreview')}</div>
+                  <div className="voice-options-grid">
+                    {VOICE_OPTIONS.map((voice) => (
+                      <button
+                        key={voice.value}
+                        className={`voice-option ${selections.voice_id === voice.value ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelections({ ...selections, voice_id: voice.value });
+                          // Play audio preview
+                          if (audioRef.current) {
+                            audioRef.current.pause();
+                            audioRef.current.currentTime = 0;
+                          }
+                          const audio = new Audio(voice.preview);
+                          audioRef.current = audio;
+                          audio.play().catch(() => {
+                            // Audio might not be available yet
+                            console.log('Audio preview not available');
+                          });
+                        }}
+                        disabled={isCreating}
+                      >
+                        <span className="voice-icon">🎤</span>
+                        <span className="voice-label">{t(`characterCreation.voice.${voice.labelKey}`)}</span>
+                        {selections.voice_id === voice.value && <span className="voice-check">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Page 8: Name + Description */}
+            {currentPage === 8 && (
               <div className="wizard-page final-page">
                 <div className={`final-inputs ${textareaFocused ? 'textarea-focused' : ''}`}>
                   <div className="input-group">
@@ -605,7 +646,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         </div>
 
         {/* Footer - Only on Final Page */}
-        {currentPage === 7 && (
+        {currentPage === 8 && (
           <div className="creation-footer">
             <button
               className="create-button"
@@ -632,7 +673,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
         )}
 
         {/* Next button for all pages except last */}
-        {currentPage < 7 && (
+        {currentPage < 8 && (
           <button
             className="next-button-bottom"
             onClick={advanceToNextPage}

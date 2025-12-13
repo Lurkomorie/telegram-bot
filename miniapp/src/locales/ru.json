@@ -174,7 +174,11 @@
     },
     "premiumSubscriptions": "Премиум подписки",
     "friends": "Друзья",
-    "buyEnergy": "Купить энергию"
+    "buyEnergy": "Купить энергию",
+    "voice": {
+      "title": "Голосовые сообщения",
+      "description": "Показывать кнопки создания голоса в сообщениях ИИ"
+    }
   },
   "checkout": {
     "paymentMethod": "СПОСОБ ОПЛАТЫ",
@@ -264,6 +268,14 @@
       "buttSize": "Размер ягодиц",
       "large": "Большой",
       "nextButton": "ДАЛЕЕ"
+    },
+    "voice": {
+      "title": "Выберите голос",
+      "softGentle": "Мягкий и нежный",
+      "playfulFlirty": "Игривый и кокетливый",
+      "confidentBold": "Уверенный и смелый",
+      "sweetInnocent": "Милый и невинный",
+      "tapToPreview": "Нажмите для прослушивания"
     },
     "final": {
       "title": "Финальные детали",

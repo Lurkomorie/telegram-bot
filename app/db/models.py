@@ -88,6 +88,7 @@ class Persona(Base):
     emoji = Column(String(10), nullable=True)  # Emoji for persona (e.g., "💕", "🌟")
     intro = Column(Text, nullable=True)  # Introduction message
     avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
+    voice_id = Column(String(100), nullable=True)  # ElevenLabs voice ID for TTS
     
     # Ordering and menu visibility
     order = Column(BigInteger, nullable=True, default=999)  # Sort order (lower appears first)

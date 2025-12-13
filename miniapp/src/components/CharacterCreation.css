@@ -941,3 +941,67 @@
     bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ========== VOICE SELECTION ========== */
+.voice-selection-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px;
+}
+
+.voice-hint {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.voice-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.voice-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid transparent;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.voice-option:active {
+  transform: scale(0.98);
+}
+
+.voice-option.selected {
+  background: rgba(255, 107, 157, 0.15);
+  border-color: #ff6b9d;
+}
+
+.voice-icon {
+  font-size: 28px;
+}
+
+.voice-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  text-align: center;
+}
+
+.voice-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 16px;
+  color: #ff6b9d;
+}

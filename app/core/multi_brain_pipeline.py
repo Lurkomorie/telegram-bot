@@ -393,11 +393,17 @@ async def _process_single_batch(
         log_always(f"[BATCH] 💾 Saving batch to database...")
         assistant_message_id = None
         user_language = 'en'
+        voice_buttons_hidden = False
+        voice_free_available = True
         with get_db() as db:
-            # Get user language for UI elements
+            # Get user language and voice settings for UI elements
             user = db.query(User).filter(User.id == user_id).first()
             if user:
                 user_language = user.locale or 'en'
+                # Check voice settings
+                if user.settings:
+                    voice_buttons_hidden = user.settings.get("voice_buttons_hidden", False)
+                    voice_free_available = not user.settings.get("voice_free_used", False)
             
             # Save ALL user messages from batch (mark as processed)
             # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
@@ -482,16 +488,19 @@ async def _process_single_batch(
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             
-            # Build voice button keyboard if ElevenLabs is configured
+            # Build voice button keyboard if ElevenLabs is configured and not hidden by user
             from app.settings import settings
             voice_keyboard = None
-            if settings.ELEVENLABS_API_KEY and assistant_message_id:
+            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden:
                 from app.bot.keyboards.inline import build_voice_button_keyboard
                 voice_keyboard = build_voice_button_keyboard(
                     message_id=assistant_message_id,
-                    language=user_language
+                    language=user_language,
+                    is_free=voice_free_available
                 )
-                log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id}")
+                log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
+            elif voice_buttons_hidden:
+                log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
             
             await bot.send_message(
                 tg_chat_id, 

@@ -339,6 +339,7 @@ async def handle_create_voice(callback: types.CallbackQuery):
     """Handle 'Create Voice' button click - generate voice message from AI response"""
     from uuid import UUID
     from aiogram.types import BufferedInputFile
+    from sqlalchemy.orm.attributes import flag_modified
     
     user_id = callback.from_user.id
     
@@ -356,10 +357,39 @@ async def handle_create_voice(callback: types.CallbackQuery):
     # Acknowledge callback immediately
     await callback.answer()
     
-    # Get user language for translations
+    # Get user language and check energy/free status
     with get_db() as db:
         user = db.query(User).filter(User.id == user_id).first()
         user_language = user.locale if user else 'en'
+        
+        # Check if user has used their free voice (1 free per lifetime)
+        if user.settings is None:
+            user.settings = {}
+        is_free = not user.settings.get("voice_free_used", False)
+        
+        # If not free, check and deduct 15 energy
+        if not is_free:
+            if not crud.check_user_energy(db, user_id, required=15):
+                log_always(f"[VOICE] ⚠️  User {user_id} has insufficient energy for voice")
+                await callback.message.answer(
+                    get_ui_text("voice.insufficient_energy", language=user_language)
+                )
+                return
+            
+            # Deduct 15 energy
+            if not crud.deduct_user_energy(db, user_id, amount=15):
+                log_always(f"[VOICE] ❌ Failed to deduct energy from user {user_id}")
+                await callback.message.answer(
+                    get_ui_text("voice.failed", language=user_language)
+                )
+                return
+            log_verbose(f"[VOICE] ⚡ Deducted 15 energy from user {user_id}")
+        else:
+            # Mark free voice as used
+            user.settings["voice_free_used"] = True
+            flag_modified(user, "settings")
+            db.commit()
+            log_verbose(f"[VOICE] 🎁 User {user_id} used their free voice")
         
         # Get the message from database
         message = crud.get_message_by_id(db, message_id)
@@ -373,13 +403,23 @@ async def handle_create_voice(callback: types.CallbackQuery):
         
         message_text = message.text
         
-        # Get persona name for voice processing context
+        # Get persona for voice processing context and voice_id
         chat = crud.get_chat_by_id(db, message.chat_id)
         persona = crud.get_persona_by_id(db, chat.persona_id) if chat else None
         persona_name = persona.name if persona else "AI"
+        # Get persona's voice_id if available (for custom characters)
+        persona_voice_id = getattr(persona, 'voice_id', None) if persona else None
     
     log_verbose(f"[VOICE]    Message text: {message_text[:100]}...")
     log_verbose(f"[VOICE]    Persona: {persona_name}")
+    log_verbose(f"[VOICE]    Persona voice_id: {persona_voice_id}")
+    
+    # Remove the voice button from the original message
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+        log_verbose(f"[VOICE] 🗑️  Removed voice button from message")
+    except Exception as e:
+        log_verbose(f"[VOICE] ⚠️  Could not remove voice button: {e}")
     
     # Show "generating" status
     status_msg = await callback.message.answer(
@@ -393,9 +433,9 @@ async def handle_create_voice(callback: types.CallbackQuery):
         
         log_verbose(f"[VOICE]    Tagged text: {tagged_text[:150]}...")
         
-        # Generate voice audio via ElevenLabs
+        # Generate voice audio via ElevenLabs (use persona's voice_id if available)
         from app.core.elevenlabs_service import generate_voice
-        voice_bytes = await generate_voice(tagged_text)
+        voice_bytes = await generate_voice(tagged_text, voice_id=persona_voice_id)
         
         if not voice_bytes:
             log_always(f"[VOICE] ❌ Voice generation failed")
@@ -423,3 +463,38 @@ async def handle_create_voice(callback: types.CallbackQuery):
         await callback.message.answer(
             get_ui_text("voice.failed", language=user_language)
         )
+
+
+@router.callback_query(F.data == "hide_voice_buttons")
+async def handle_hide_voice_buttons(callback: types.CallbackQuery):
+    """Handle 'Hide voice buttons' click - hide voice buttons for this user"""
+    from sqlalchemy.orm.attributes import flag_modified
+    
+    user_id = callback.from_user.id
+    
+    log_always(f"[VOICE] 🔇 User {user_id} requested to hide voice buttons")
+    
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        user_language = user.locale if user else 'en'
+        
+        # Update user settings to hide voice buttons
+        if user.settings is None:
+            user.settings = {}
+        user.settings["voice_buttons_hidden"] = True
+        flag_modified(user, "settings")
+        db.commit()
+        
+        log_verbose(f"[VOICE] ✅ Voice buttons hidden for user {user_id}")
+    
+    # Remove the buttons from the current message
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception as e:
+        log_verbose(f"[VOICE] ⚠️  Could not remove buttons: {e}")
+    
+    # Show popup with message
+    await callback.answer(
+        get_ui_text("voice.hidden_popup", language=user_language),
+        show_alert=True
+    )

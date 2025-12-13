@@ -98,5 +98,9 @@ age_verification:
 # Voice Messages
 voice:
   create_button: "🎤 Create Voice"
+  create_button_free: "🎤 Create Voice (Free)"
   generating: "🎙️ Generating voice message..."
   failed: "❌ Voice generation failed. Please try again."
+  hide_button: "🔇 Hide voice buttons"
+  hidden_popup: "Voice buttons are now hidden. You can enable them in the app Settings."
+  insufficient_energy: "⚡ You need 15 energy to create a voice message."

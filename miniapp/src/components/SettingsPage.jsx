@@ -1,8 +1,13 @@
+import WebApp from '@twa-dev/sdk';
+import { useState } from 'react';
 import giftIcon from '../assets/gift.webp';
 import lightningIcon from '../assets/lightning.webp';
 import premiumIcon from '../assets/premium.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './SettingsPage.css';
+
+// API base URL
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 /**
  * SettingsPage Component
@@ -10,6 +15,33 @@ import './SettingsPage.css';
  */
 export default function SettingsPage({ tokens, onNavigate }) {
   const { t, language } = useTranslation();
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isLoadingVoice, setIsLoadingVoice] = useState(false);
+
+  // Update voice setting on toggle
+  const handleVoiceToggle = async () => {
+    const newValue = !voiceEnabled;
+    setIsLoadingVoice(true);
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/miniapp/user/update-voice-settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': WebApp.initData,
+        },
+        body: JSON.stringify({ voice_enabled: newValue }),
+      });
+      
+      if (response.ok) {
+        setVoiceEnabled(newValue);
+      }
+    } catch (error) {
+      console.error('Failed to update voice settings:', error);
+    } finally {
+      setIsLoadingVoice(false);
+    }
+  };
 
   // Map tier to display name
   const tierNames = {
@@ -69,6 +101,26 @@ export default function SettingsPage({ tokens, onNavigate }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+      </div>
+
+      {/* Voice Settings Section */}
+      <div className="settings-section">
+        <h3 className="section-title">
+          <span className="section-title-emoji">🎤</span>
+          {t('settings.voice.title')}
+        </h3>
+        <div className="voice-toggle-row">
+          <span className="voice-description">{t('settings.voice.description')}</span>
+          <label className={`toggle-switch ${isLoadingVoice ? 'loading' : ''}`}>
+            <input
+              type="checkbox"
+              checked={voiceEnabled}
+              onChange={handleVoiceToggle}
+              disabled={isLoadingVoice}
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
       </div>
     </div>
   );

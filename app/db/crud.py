@@ -427,7 +427,8 @@ def update_persona(
     intro: str = None,
     avatar_url: str = None,
     order: int = None,
-    main_menu: bool = None
+    main_menu: bool = None,
+    voice_id: str = None
 ) -> Optional[Persona]:
     """Update an existing persona"""
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
@@ -460,6 +461,8 @@ def update_persona(
         persona.order = order
     if main_menu is not None:
         persona.main_menu = main_menu
+    if voice_id is not None:
+        persona.voice_id = voice_id
     
     db.commit()
     db.refresh(persona)

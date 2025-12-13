@@ -317,17 +317,25 @@ def build_age_verification_keyboard(deep_link: str = None, language: str = "en")
     ])
 
 
-def build_voice_button_keyboard(message_id: int, language: str = "en") -> InlineKeyboardMarkup:
+def build_voice_button_keyboard(message_id: int, language: str = "en", is_free: bool = False) -> InlineKeyboardMarkup:
     """Build keyboard with 'Create Voice' button for AI responses
     
     Args:
         message_id: Database message ID to retrieve text for voice generation
         language: Language code for button text
+        is_free: If True, shows "Free" text on button (first voice is free)
     """
+    # Choose button text based on whether this is a free voice
+    button_text_key = "voice.create_button_free" if is_free else "voice.create_button"
+    
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("voice.create_button", language=language),
+            text=get_ui_text(button_text_key, language=language),
             callback_data=f"create_voice:{message_id}"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("voice.hide_button", language=language),
+            callback_data="hide_voice_buttons"
         )]
     ])
 

@@ -489,6 +489,60 @@ async def update_user_language(
         raise HTTPException(status_code=500, detail=f"Failed to update language: {str(e)}")
 
 
+class UpdateVoiceSettingsRequest(BaseModel):
+    voice_enabled: bool  # True = show voice buttons, False = hide them
+
+
+@router.post("/user/update-voice-settings")
+async def update_user_voice_settings(
+    request: UpdateVoiceSettingsRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Update user's voice button visibility preference
+    
+    Returns: {success: bool, voice_enabled: bool}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            from app.db.models import User
+            from sqlalchemy.orm.attributes import flag_modified
+            
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Update voice_buttons_hidden setting (inverted logic: enabled=True means hidden=False)
+            if user.settings is None:
+                user.settings = {}
+            user.settings["voice_buttons_hidden"] = not request.voice_enabled
+            flag_modified(user, "settings")
+            db.commit()
+            
+            print(f"[VOICE-SETTINGS-API] ✅ User {user_id} voice buttons {'enabled' if request.voice_enabled else 'disabled'}")
+            
+            return {"success": True, "voice_enabled": request.voice_enabled}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[VOICE-SETTINGS-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update voice settings: {str(e)}")
+
+
 class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None
@@ -1352,6 +1406,7 @@ class CreateCharacterRequest(BaseModel):
     breast_size: str
     butt_size: str
     extra_prompt: str
+    voice_id: Optional[str] = None  # ElevenLabs voice ID for custom voice
 
 
 class CreateCustomStoryRequest(BaseModel):
@@ -1559,13 +1614,14 @@ async def create_character(
                 key=None
             )
             
-            # Update with additional fields (image_prompt, small_description, emoji)
+            # Update with additional fields (image_prompt, small_description, emoji, voice_id)
             persona = crud.update_persona(
                 db,
                 persona.id,
                 image_prompt=character_dna,
                 small_description="Your custom character",
-                emoji="💝"
+                emoji="💝",
+                voice_id=request.voice_id  # Custom voice selection
             )
             
             print(f"[CREATE-CHARACTER] Created persona {persona.id} for user {user_id}")
