@@ -328,15 +328,18 @@ def build_voice_button_keyboard(message_id: int, language: str = "en", is_free: 
     # Choose button text based on whether this is a free voice
     button_text_key = "voice.create_button_free" if is_free else "voice.create_button"
     
+    # Both buttons in one row
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=get_ui_text(button_text_key, language=language),
-            callback_data=f"create_voice:{message_id}"
-        )],
-        [InlineKeyboardButton(
-            text=get_ui_text("voice.hide_button", language=language),
-            callback_data="hide_voice_buttons"
-        )]
+        [
+            InlineKeyboardButton(
+                text=get_ui_text(button_text_key, language=language),
+                callback_data=f"create_voice:{message_id}"
+            ),
+            InlineKeyboardButton(
+                text=get_ui_text("voice.hide_button", language=language),
+                callback_data="hide_voice_buttons"
+            )
+        ]
     ])
 
 
