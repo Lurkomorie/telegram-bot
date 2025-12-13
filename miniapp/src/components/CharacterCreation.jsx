@@ -1,4 +1,5 @@
 import WebApp from '@twa-dev/sdk';
+import { Mic } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createCharacter } from '../api';
@@ -238,7 +239,8 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
       4: t('characterCreation.eyeColor.title'),
       5: t('characterCreation.bodyType.title'),
       6: t('characterCreation.proportions.title'),
-      7: t('characterCreation.final.title')
+      7: t('characterCreation.voice.title'),
+      8: t('characterCreation.final.title')
     };
     return titles[currentPage];
   };
@@ -557,7 +559,7 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
               <div className="wizard-page">
                 <div className="voice-selection-section">
                   <div className="voice-hint">{t('characterCreation.voice.tapToPreview')}</div>
-                  <div className="voice-options-grid">
+                  <div className="voice-options-list">
                     {VOICE_OPTIONS.map((voice) => (
                       <button
                         key={voice.value}
@@ -578,7 +580,9 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
                         }}
                         disabled={isCreating}
                       >
-                        <span className="voice-icon">🎤</span>
+                        <div className="voice-icon-wrapper">
+                          <Mic size={22} />
+                        </div>
                         <span className="voice-label">{t(`characterCreation.voice.${voice.labelKey}`)}</span>
                         {selections.voice_id === voice.value && <span className="voice-check">✓</span>}
                       </button>

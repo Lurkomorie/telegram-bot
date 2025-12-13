@@ -946,7 +946,7 @@
 .voice-selection-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding: 0 16px;
 }
 
@@ -954,25 +954,24 @@
   text-align: center;
   color: rgba(255, 255, 255, 0.5);
   font-size: 13px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
-.voice-options-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+.voice-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .voice-option {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 14px;
+  padding: 16px 18px;
   background: rgba(255, 255, 255, 0.05);
   border: 2px solid transparent;
-  border-radius: 16px;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -983,25 +982,37 @@
 }
 
 .voice-option.selected {
-  background: rgba(255, 107, 157, 0.15);
-  border-color: #ff6b9d;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(249, 115, 22, 0.15));
+  border-color: #F97316;
 }
 
-.voice-icon {
-  font-size: 28px;
+.voice-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.2));
+  border-radius: 10px;
+  color: #F97316;
+  flex-shrink: 0;
+}
+
+.voice-option.selected .voice-icon-wrapper {
+  background: linear-gradient(135deg, #EF4444, #F97316);
+  color: #ffffff;
 }
 
 .voice-label {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: #ffffff;
-  text-align: center;
+  flex: 1;
+  text-align: left;
 }
 
 .voice-check {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  font-size: 16px;
-  color: #ff6b9d;
+  font-size: 18px;
+  font-weight: 700;
+  color: #F97316;
 }
