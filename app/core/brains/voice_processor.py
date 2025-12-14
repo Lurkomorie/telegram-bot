@@ -121,6 +121,12 @@ async def process_text_for_voice(
             
             result = response.strip()
             
+            # Clean up markdown code fences that some models add erroneously
+            if result.endswith("```"):
+                result = result[:-3].strip()
+            if result.startswith("```"):
+                result = result[3:].strip()
+            
             if _is_valid_response(result):
                 log_always(f"[VOICE-PROC] ✅ Added audio tags ({len(result)} chars)")
                 log_verbose(f"[VOICE-PROC]    Result preview: {result[:150]}...")

@@ -275,7 +275,7 @@ async def get_user_energy(
     """
     # Validate and extract user ID from init data
     if not x_telegram_init_data:
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
     
     try:
         # Parse init data to get user ID
@@ -306,6 +306,9 @@ async def get_user_energy(
             # Calculate total energy (temp_energy + regular energy)
             total_tokens = (user.temp_energy or 0) + user.energy
             
+            # Get voice setting (inverted: voice_buttons_hidden=True means voice_enabled=False)
+            voice_enabled = not user.settings.get("voice_buttons_hidden", False)
+            
             return {
                 "tokens": total_tokens,
                 "premium_tier": premium_info["tier"],
@@ -313,12 +316,13 @@ async def get_user_energy(
                 "can_claim_daily_bonus": bonus_info["can_claim"],
                 "next_bonus_in_seconds": bonus_info["next_claim_seconds"],
                 "daily_bonus_streak": user.daily_bonus_streak or 0,
-                "char_created": user.char_created or False
+                "char_created": user.char_created or False,
+                "voice_enabled": voice_enabled
             }
     
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
 
 
 @router.get("/user/language")

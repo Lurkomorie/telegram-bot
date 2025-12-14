@@ -15,7 +15,8 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  */
 export default function SettingsPage({ tokens, onNavigate }) {
   const { t, language } = useTranslation();
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  // Initialize from tokens.voice_enabled (defaults to true if not set)
+  const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? true);
   const [isLoadingVoice, setIsLoadingVoice] = useState(false);
 
   // Update voice setting on toggle

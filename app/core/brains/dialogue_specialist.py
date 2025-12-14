@@ -226,6 +226,12 @@ You are reaching out after a period of silence. Follow these rules:
             # Validate response
             response_text = response.strip()
             
+            # Clean up markdown code fences that some models add erroneously
+            if response_text.endswith("```"):
+                response_text = response_text[:-3].strip()
+            if response_text.startswith("```"):
+                response_text = response_text[3:].strip()
+            
             # Development-only: Log full response
             if is_development():
                 log_dev_response(

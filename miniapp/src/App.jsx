@@ -45,7 +45,7 @@ function App() {
   const [selectedPersona, setSelectedPersona] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [histories, setHistories] = useState([]);
-  const [tokens, setTokens] = useState({ tokens: 100, premium_tier: 'free', is_premium: false, can_claim_daily_bonus: false, next_bonus_in_seconds: 0, daily_bonus_streak: 0 });
+  const [tokens, setTokens] = useState({ tokens: 100, premium_tier: 'free', is_premium: false, can_claim_daily_bonus: false, next_bonus_in_seconds: 0, daily_bonus_streak: 0, voice_enabled: true });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistories, setIsLoadingHistories] = useState(false);
   const [error, setError] = useState(null);
