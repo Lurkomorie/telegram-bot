@@ -222,7 +222,7 @@
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: var(--gradient-primary);
+  background-color: var(--color-red);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
