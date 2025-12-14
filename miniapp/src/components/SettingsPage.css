@@ -184,7 +184,10 @@
   display: inline-block;
   width: 50px;
   height: 28px;
+  min-height: 28px;
+  max-height: 28px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .toggle-switch input {
@@ -198,8 +201,8 @@
   cursor: pointer;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 50px;
+  height: 28px;
   background-color: rgba(255, 255, 255, 0.2);
   transition: background-color 0.3s;
   border-radius: 28px;
