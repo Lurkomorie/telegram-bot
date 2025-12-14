@@ -1,4 +1,5 @@
 import WebApp from '@twa-dev/sdk';
+import { Mic } from 'lucide-react';
 import { useState } from 'react';
 import giftIcon from '../assets/gift.webp';
 import lightningIcon from '../assets/lightning.webp';
@@ -91,6 +92,19 @@ export default function SettingsPage({ tokens, onNavigate }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+        <div className={`settings-action-button voice-button ${isLoadingVoice ? 'loading' : ''}`}>
+          <Mic size={24} className="button-icon mic-icon" />
+          <span className="button-text">{t('settings.voice.title')}</span>
+          <label className={`toggle-switch ${isLoadingVoice ? 'loading' : ''}`}>
+            <input
+              type="checkbox"
+              checked={voiceEnabled}
+              onChange={handleVoiceToggle}
+              disabled={isLoadingVoice}
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
       </div>
 
       {/* Language Section */}
@@ -104,25 +118,6 @@ export default function SettingsPage({ tokens, onNavigate }) {
         </button>
       </div>
 
-      {/* Voice Settings Section */}
-      <div className="settings-section">
-        <h3 className="section-title">
-          <span className="section-title-emoji">🎤</span>
-          {t('settings.voice.title')}
-        </h3>
-        <div className="voice-toggle-row">
-          <span className="voice-description">{t('settings.voice.description')}</span>
-          <label className={`toggle-switch ${isLoadingVoice ? 'loading' : ''}`}>
-            <input
-              type="checkbox"
-              checked={voiceEnabled}
-              onChange={handleVoiceToggle}
-              disabled={isLoadingVoice}
-            />
-            <span className="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
     </div>
   );
 }
