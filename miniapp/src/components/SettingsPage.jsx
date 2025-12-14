@@ -1,6 +1,6 @@
 import WebApp from '@twa-dev/sdk';
 import { Mic } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import giftIcon from '../assets/gift.webp';
 import lightningIcon from '../assets/lightning.webp';
 import premiumIcon from '../assets/premium.webp';
@@ -16,33 +16,29 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  */
 export default function SettingsPage({ tokens, onNavigate }) {
   const { t, language } = useTranslation();
-  // Initialize from tokens.voice_enabled (defaults to true if not set)
   const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? true);
-  const [isLoadingVoice, setIsLoadingVoice] = useState(false);
-
-  // Update voice setting on toggle
-  const handleVoiceToggle = async () => {
-    const newValue = !voiceEnabled;
-    setIsLoadingVoice(true);
-    
-    try {
-      const response = await fetch(`${API_BASE}/api/miniapp/user/update-voice-settings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Telegram-Init-Data': WebApp.initData,
-        },
-        body: JSON.stringify({ voice_enabled: newValue }),
-      });
-      
-      if (response.ok) {
-        setVoiceEnabled(newValue);
-      }
-    } catch (error) {
-      console.error('Failed to update voice settings:', error);
-    } finally {
-      setIsLoadingVoice(false);
+  
+  // Sync with tokens when it changes (e.g., after API loads)
+  useEffect(() => {
+    if (tokens?.voice_enabled !== undefined) {
+      setVoiceEnabled(tokens.voice_enabled);
     }
+  }, [tokens?.voice_enabled]);
+
+  // Optimistic toggle - update UI immediately, sync in background
+  const handleVoiceToggle = () => {
+    const newValue = !voiceEnabled;
+    setVoiceEnabled(newValue);
+    
+    // Fire and forget - sync with server in background
+    fetch(`${API_BASE}/api/miniapp/user/update-voice-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': WebApp.initData,
+      },
+      body: JSON.stringify({ voice_enabled: newValue }),
+    }).catch(err => console.error('Failed to sync voice settings:', err));
   };
 
   // Map tier to display name
@@ -92,18 +88,15 @@ export default function SettingsPage({ tokens, onNavigate }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
-        <div className={`settings-action-button voice-button ${isLoadingVoice ? 'loading' : ''}`}>
-          <Mic size={24} className="button-icon mic-icon" />
-          <span className="button-text">{t('settings.voice.title')}</span>
-          <label className={`toggle-switch ${isLoadingVoice ? 'loading' : ''}`}>
-            <input
-              type="checkbox"
-              checked={voiceEnabled}
-              onChange={handleVoiceToggle}
-              disabled={isLoadingVoice}
-            />
-            <span className="toggle-slider"></span>
-          </label>
+        <div className="voice-row">
+          <Mic size={20} className="voice-icon" />
+          <span className="voice-label">{t('settings.voice.title')}</span>
+          <div 
+            className={`toggle ${voiceEnabled ? 'on' : 'off'}`}
+            onClick={handleVoiceToggle}
+          >
+            <div className="toggle-knob" />
+          </div>
         </div>
       </div>
 
