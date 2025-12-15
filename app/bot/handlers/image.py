@@ -226,7 +226,8 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
             f"{get_ui_text('tokens.outOfTokensPremium.balance', user_language, tokens=tokens)}\n\n"
             f"<b>{get_ui_text('tokens.outOfTokensPremium.costs', user_language)}</b>\n"
             f"{get_ui_text('tokens.outOfTokensPremium.message', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.image', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.image', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokensPremium.voice', user_language)}\n\n"
             f"{get_ui_text('tokens.outOfTokensPremium.buyMore', user_language)}"
         )
     else:
@@ -238,7 +239,8 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
             f"{get_ui_text('tokens.outOfTokens.waiting', user_language)}\n\n"
             f"<b>{get_ui_text('tokens.outOfTokens.costs', user_language)}</b>\n"
             f"{get_ui_text('tokens.outOfTokens.messageBack', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n\n"
+            f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.generateVoice', user_language)}\n\n"
             f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
             f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
             f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"

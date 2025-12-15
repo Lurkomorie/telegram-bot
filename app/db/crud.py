@@ -1371,8 +1371,8 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
         tier_temp_energy = {
             "plus": 50,
             "premium": 75,
-            "pro": 100,
-            "legendary": 200
+            "pro": 75,
+            "legendary": 100
         }
         temp_energy = tier_temp_energy.get(tier, 0)
         if temp_energy > 0:
@@ -1395,8 +1395,8 @@ def add_daily_tokens_by_tier(db: Session) -> int:
     TIER_DAILY_TEMP_ENERGY = {
         "plus": 50,
         "premium": 75,
-        "pro": 100,
-        "legendary": 200
+        "pro": 75,
+        "legendary": 100
     }
     
     # Get all premium tier users whose subscription hasn't expired

@@ -599,12 +599,12 @@
     "pro": {
       "feature1": "Everything in Plus, plus",
       "feature2": "+750 bonus tokens on purchase",
-      "feature3": "Free 100 tokens every day"
+      "feature3": "Free 75 tokens every day"
     },
     "legendary": {
       "feature1": "Everything in Pro, plus",
       "feature2": "+1,000 bonus tokens on purchase",
-      "feature3": "Free 200 tokens every day"
+      "feature3": "Free 100 tokens every day"
     }
   },
   "prompts": {
@@ -743,6 +743,7 @@
       "costs": "Costs:",
       "messageBack": "• Message her back → 1 token",
       "generateImage": "• Generate an image → 5 tokens (Premium: 3)",
+      "generateVoice": "• Voice message → 15 tokens",
       "fixNow": "Fix this now:",
       "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
       "premiumBenefits": "💎 Premium = daily refills + huge discounts",
@@ -754,6 +755,7 @@
       "costs": "Token costs:",
       "message": "• Message → 1 token",
       "image": "• Image → 3 tokens (40% Premium discount)",
+      "voice": "• Voice message → 15 tokens",
       "buyMore": "💎 Buy more tokens to continue"
     }
   },

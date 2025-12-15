@@ -371,9 +371,8 @@ async def handle_create_voice(callback: types.CallbackQuery):
         if not is_free:
             if not crud.check_user_energy(db, user_id, required=15):
                 log_always(f"[VOICE] ⚠️  User {user_id} has insufficient energy for voice")
-                await callback.message.answer(
-                    get_ui_text("voice.insufficient_energy", language=user_language)
-                )
+                from app.bot.handlers.image import show_energy_upsell_message
+                await show_energy_upsell_message(callback.message, user_id)
                 return
             
             # Deduct 15 energy
