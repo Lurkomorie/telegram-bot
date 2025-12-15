@@ -651,6 +651,7 @@ function App() {
           <SettingsPage
             tokens={tokens}
             onNavigate={handleNavigate}
+            hasVoiceSupport={personas.some(p => p.has_voice)}
           />
         ) : currentPage === 'language' ? (
           <LanguagePage />

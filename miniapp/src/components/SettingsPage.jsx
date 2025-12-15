@@ -14,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  * SettingsPage Component
  * Shows current plan status, language selector button, and upgrade button
  */
-export default function SettingsPage({ tokens, onNavigate }) {
+export default function SettingsPage({ tokens, onNavigate, hasVoiceSupport = false }) {
   const { t, language } = useTranslation();
   const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? true);
   
@@ -88,16 +88,18 @@ export default function SettingsPage({ tokens, onNavigate }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
-        <div className="voice-row">
-          <Mic size={20} className="voice-icon" />
-          <span className="voice-label">{t('settings.voice.title')}</span>
-          <div 
-            className={`toggle ${voiceEnabled ? 'on' : 'off'}`}
-            onClick={handleVoiceToggle}
-          >
-            <div className="toggle-knob" />
+        {hasVoiceSupport && (
+          <div className="voice-row">
+            <Mic size={20} className="voice-icon" />
+            <span className="voice-label">{t('settings.voice.title')}</span>
+            <div 
+              className={`toggle ${voiceEnabled ? 'on' : 'off'}`}
+              onClick={handleVoiceToggle}
+            >
+              <div className="toggle-knob" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Language Section */}

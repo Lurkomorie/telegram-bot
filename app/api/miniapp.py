@@ -143,6 +143,7 @@ async def get_personas(
                     "avatar_url": up.avatar_url,
                     "is_custom": True,
                     "owner_user_id": user_id,
+                    "has_voice": up.voice_id is not None,
                 })
     
     # Then add public personas
@@ -168,6 +169,7 @@ async def get_personas(
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
             "is_custom": False,
+            "has_voice": persona.get("voice_id") is not None,
         })
     
     return result
