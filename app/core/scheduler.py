@@ -219,8 +219,22 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
                 # But to be safe against "infinite loop" bugs, let's cap it.
                 if assistant_streak >= 2:
                     print(f"[SCHEDULER] ⚠️  Skipping auto-message for chat {chat_id}: Last {assistant_streak} messages are from assistant.")
-                    # Update timestamp to prevent immediate retry
+                    # Update timestamp AND count to prevent immediate retry and allow next tier to pick up later
                     chat_obj.last_auto_message_at = datetime.utcnow()
+                    
+                    # Update auto_message_count based on type so next scheduler tier can work
+                    skip_count = 1
+                    if followup_type == "24h":
+                        skip_count = 2
+                    elif followup_type == "3day":
+                        skip_count = 3
+                    
+                    if chat_obj.ext is None:
+                        chat_obj.ext = {}
+                    ext_copy = dict(chat_obj.ext)
+                    ext_copy['auto_message_count'] = skip_count
+                    chat_obj.ext = ext_copy
+                    
                     db.commit()
                     return
 
@@ -244,6 +258,9 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
         chat_obj.ext = ext_copy
         
         db.commit()
+        
+        # Store the count we just set for potential rollback on error
+        committed_count = new_count
     
     # Create varied, context-aware follow-up prompts
     import random
@@ -279,22 +296,36 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
     except Exception as e:
         print(f"[SCHEDULER] ❌ Failed to send auto-follow-up: {e}")
         
-        # Handle blocked users by archiving the chat
+        # Handle blocked users by archiving the chat and marking user as blocked
         error_str = str(e)
         if "Forbidden: bot was blocked" in error_str or "user is deactivated" in error_str:
-            print(f"[SCHEDULER] 🚫 User {user_id} blocked the bot. Archiving chat {chat_id}.")
+            print(f"[SCHEDULER] 🚫 User {user_id} blocked the bot. Archiving chat {chat_id} and marking user as blocked.")
             with get_db() as db:
                 chat_obj = crud.get_chat_by_id(db, chat_id)
                 if chat_obj:
                     chat_obj.status = "archived"
                     db.commit()
+                # Mark user as blocked so we don't try to send them messages anymore
+                crud.mark_user_bot_blocked(db, user_id)
         else:
-            # Clear the auto-message timestamp so we can try again later (only if not blocked)
+            # Reset both timestamp AND count so we can try again later (only if not blocked)
+            # We need to rollback to the previous count value to allow the same scheduler to retry
             with get_db() as db:
                 chat_obj = crud.get_chat_by_id(db, chat_id)
                 if chat_obj:
                     chat_obj.last_auto_message_at = None
+                    
+                    # Rollback auto_message_count to allow retry
+                    # committed_count was set before the pipeline call
+                    previous_count = committed_count - 1 if committed_count > 0 else 0
+                    if chat_obj.ext is None:
+                        chat_obj.ext = {}
+                    ext_copy = dict(chat_obj.ext)
+                    ext_copy['auto_message_count'] = previous_count
+                    chat_obj.ext = ext_copy
+                    
                     db.commit()
+                    print(f"[SCHEDULER] ↩️  Reset auto_message_count to {previous_count} for retry")
 
 
 async def check_scheduled_messages():

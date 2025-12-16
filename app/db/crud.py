@@ -160,6 +160,24 @@ def update_user_age_verified(db: Session, telegram_id: int) -> User:
     return user
 
 
+def mark_user_bot_blocked(db: Session, telegram_id: int) -> Optional[User]:
+    """Mark user as having blocked the bot
+    
+    Args:
+        telegram_id: Telegram user ID
+    
+    Returns:
+        Updated User object or None if not found
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user:
+        user.bot_blocked = True
+        user.bot_blocked_at = datetime.utcnow()
+        db.commit()
+        db.refresh(user)
+    return user
+
+
 def save_pending_deep_link(db: Session, telegram_id: int, deep_link: str):
     """Save deep link to user settings to execute after age verification
     
@@ -838,7 +856,7 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
         test_user_ids: Optional list of user IDs to restrict results to (for testing)
     """
     from datetime import timedelta
-    from sqlalchemy import or_, and_, cast, Integer
+    from sqlalchemy import or_, and_, cast, Integer, func
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     query = db.query(Chat).filter(
@@ -858,10 +876,11 @@ def get_inactive_chats(db: Session, minutes: int = 5, test_user_ids: Optional[Li
             )
         ),
         # EXCLUDE if auto_message_count >= 1 (prevent infinite loop if timestamp check fails)
-        or_(
-            Chat.ext.op('->')('auto_message_count') == None,
-            Chat.ext['auto_message_count'].astext.cast(Integer) == 0
-        )
+        # Use COALESCE to handle NULL ext or missing key - treat as 0
+        func.coalesce(
+            Chat.ext['auto_message_count'].astext.cast(Integer),
+            0
+        ) == 0
     )
     
     # Filter by test users if whitelist is provided
@@ -891,7 +910,7 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
         required_count: Optional required auto_message_count (1 for 24h check, 2 for 3day check)
     """
     from datetime import timedelta
-    from sqlalchemy import or_, cast, Integer
+    from sqlalchemy import or_, cast, Integer, func
     threshold = datetime.utcnow() - timedelta(minutes=minutes)
     
     filters = [
@@ -913,17 +932,22 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
     ]
     
     # Filter by auto_message_count if required
+    # Use COALESCE to handle NULL ext or missing key - treat as 0
     if required_count is not None:
         if required_count == 1:
             # For count 1, we also accept missing key or null (legacy behavior)
+            # COALESCE treats NULL as 0, so we check for == 1 OR == 0 (legacy)
             filters.append(
                 or_(
-                    Chat.ext['auto_message_count'].astext.cast(Integer) == 1,
-                    Chat.ext.op('->')('auto_message_count') == None
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 1,
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 0
                 )
             )
         else:
-            filters.append(Chat.ext['auto_message_count'].astext.cast(Integer) == required_count)
+            # For count > 1, we require exact match
+            filters.append(
+                func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == required_count
+            )
             
     query = db.query(Chat).filter(*filters)
     
