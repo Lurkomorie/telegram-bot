@@ -408,6 +408,10 @@ async def handle_create_voice(callback: types.CallbackQuery):
         persona_name = persona.name if persona else "AI"
         # Get persona's voice_id if available (for custom characters)
         persona_voice_id = getattr(persona, 'voice_id', None) if persona else None
+        
+        # Save IDs before session closes (to avoid DetachedInstanceError)
+        persona_id = persona.id if persona else None
+        chat_id = chat.id if chat else None
     
     log_verbose(f"[VOICE]    Message text: {message_text[:100]}...")
     log_verbose(f"[VOICE]    Persona: {persona_name}")
@@ -457,9 +461,9 @@ async def handle_create_voice(callback: types.CallbackQuery):
         from app.core import analytics_service_tg
         analytics_service_tg.track_voice_generated(
             client_id=user_id,
-            persona_id=persona.id if persona else None,
+            persona_id=persona_id,
             persona_name=persona_name,
-            chat_id=chat.id if chat else None,
+            chat_id=chat_id,
             message_length=len(message_text),
             characters_used=len(tagged_text),  # Characters billed by ElevenLabs
             is_free=is_free
