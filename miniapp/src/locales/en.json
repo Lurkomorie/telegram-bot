@@ -272,10 +272,10 @@
     },
     "voice": {
       "title": "Choose Voice",
-      "softGentle": "Soft & Gentle",
-      "playfulFlirty": "Playful & Flirty",
-      "confidentBold": "Confident & Bold",
-      "sweetInnocent": "Sweet & Innocent",
+      "voice1": "Voice 1",
+      "voice2": "Voice 2",
+      "voice3": "Voice 3",
+      "voice4": "Voice 4",
       "tapToPreview": "Tap to preview"
     },
     "final": {

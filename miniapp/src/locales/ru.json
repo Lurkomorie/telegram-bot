@@ -272,10 +272,10 @@
     },
     "voice": {
       "title": "Выберите голос",
-      "softGentle": "Мягкий и нежный",
-      "playfulFlirty": "Игривый и кокетливый",
-      "confidentBold": "Уверенный и смелый",
-      "sweetInnocent": "Милый и невинный",
+      "voice1": "Голос 1",
+      "voice2": "Голос 2",
+      "voice3": "Голос 3",
+      "voice4": "Голос 4",
       "tapToPreview": "Нажмите для прослушивания"
     },
     "final": {

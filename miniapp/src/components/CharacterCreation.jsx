@@ -38,6 +38,24 @@ import typeDemonImg from '../assets/type-demon-1.webp';
 import typeElfImg from '../assets/type-elf-1.webp';
 import typeLatinImg from '../assets/type-latin-american-1.webp';
 
+// Voice preview audio files
+import eve1En from '../assets/eve-1-en.mp3';
+import eve1Ru from '../assets/eve-1-ru.mp3';
+import kuon2En from '../assets/kuon-2-en.mp3';
+import kuon2Ru from '../assets/kuon-2-ru.mp3';
+import priyanka3En from '../assets/priyanka-3-en.mp3';
+import priyanka3Ru from '../assets/priyanka-3-ru.mp3';
+import arabella4En from '../assets/arabella-4-en.mp3';
+import arabella4Ru from '../assets/arabella-4-ru.mp3';
+
+// Voice audio map by previewKey and language
+const VOICE_AUDIO_MAP = {
+  'eve-1': { en: eve1En, ru: eve1Ru },
+  'kuon-2': { en: kuon2En, ru: kuon2Ru },
+  'priyanka-3': { en: priyanka3En, ru: priyanka3Ru },
+  'arabella-4': { en: arabella4En, ru: arabella4Ru },
+};
+
 const HAIR_STYLE_IMAGES = {
   'long_straight': longStraightImg,
   'long_wavy': longWavyImg,
@@ -72,7 +90,7 @@ const FANTASY_RACE_COST = 250;
  * CharacterCreation Component
  */
 function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [currentPage, setCurrentPage] = useState(1);
   const [slideDirection, setSlideDirection] = useState('forward');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -571,12 +589,16 @@ function CharacterCreation({ onClose, onCreated, tokens, onNavigateToTokens }) {
                             audioRef.current.pause();
                             audioRef.current.currentTime = 0;
                           }
-                          const audio = new Audio(voice.preview);
-                          audioRef.current = audio;
-                          audio.play().catch(() => {
-                            // Audio might not be available yet
-                            console.log('Audio preview not available');
-                          });
+                          // Get audio file based on language (fallback to 'en' if language not found)
+                          const audioMap = VOICE_AUDIO_MAP[voice.previewKey];
+                          const audioSrc = audioMap?.[language] || audioMap?.en;
+                          if (audioSrc) {
+                            const audio = new Audio(audioSrc);
+                            audioRef.current = audio;
+                            audio.play().catch(() => {
+                              console.log('Audio preview not available');
+                            });
+                          }
                         }}
                         disabled={isCreating}
                       >

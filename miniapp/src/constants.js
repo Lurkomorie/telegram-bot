@@ -65,28 +65,28 @@ export const BUTT_SIZES = [
 ];
 
 // Voice options for character creation
-// NOTE: Replace voice IDs with actual ElevenLabs voice IDs
-// Preview files should be placed in miniapp/public/assets/voices/
+// Voice IDs are ElevenLabs voice IDs
+// Audio preview files are in miniapp/src/assets/{previewKey}-{lang}.mp3
 export const VOICE_OPTIONS = [
   { 
-    value: "BpjGufoPiobT79j2vtj4",  // Priyanka (default)
-    labelKey: "softGentle",
-    preview: "/assets/voices/soft-gentle.mp3"
+    value: "BZgkqPqms7Kj9ulSkVzn",  // Eve
+    labelKey: "voice1",
+    previewKey: "eve-1"
   },
   { 
-    value: "voice_playful_id",  // TODO: Replace with actual voice ID
-    labelKey: "playfulFlirty",
-    preview: "/assets/voices/playful-flirty.mp3"
+    value: "B8gJV1IhpuegLxdpXFOE",  // Kuon
+    labelKey: "voice2",
+    previewKey: "kuon-2"
   },
   { 
-    value: "voice_confident_id",  // TODO: Replace with actual voice ID
-    labelKey: "confidentBold",
-    preview: "/assets/voices/confident-bold.mp3"
+    value: "BpjGufoPiobT79j2vtj4",  // Priyanka
+    labelKey: "voice3",
+    previewKey: "priyanka-3"
   },
   { 
-    value: "voice_sweet_id",  // TODO: Replace with actual voice ID
-    labelKey: "sweetInnocent",
-    preview: "/assets/voices/sweet-innocent.mp3"
+    value: "Z3R5wn05IrDiVCyEkUrK",  // Arabella
+    labelKey: "voice4",
+    previewKey: "arabella-4"
   },
 ];
 
