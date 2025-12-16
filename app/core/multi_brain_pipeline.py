@@ -249,7 +249,8 @@ async def _process_single_batch(
                 "id": persona.id,
                 "name": persona.name,
                 "prompt": persona.prompt or "",
-                "image_prompt": persona.image_prompt or ""
+                "image_prompt": persona.image_prompt or "",
+                "voice_id": persona.voice_id  # ElevenLabs voice ID for TTS
             }
             
             # Get message count for image decision
@@ -488,10 +489,11 @@ async def _process_single_batch(
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             
-            # Build voice button keyboard if ElevenLabs is configured and not hidden by user
+            # Build voice button keyboard if ElevenLabs is configured, persona has voice, and not hidden by user
             from app.settings import settings
             voice_keyboard = None
-            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden:
+            persona_voice_id = persona_data.get("voice_id")
+            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id:
                 from app.bot.keyboards.inline import build_voice_button_keyboard
                 voice_keyboard = build_voice_button_keyboard(
                     message_id=assistant_message_id,
@@ -501,6 +503,8 @@ async def _process_single_batch(
                 log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
             elif voice_buttons_hidden:
                 log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
+            elif not persona_voice_id:
+                log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
             
             await bot.send_message(
                 tg_chat_id, 
