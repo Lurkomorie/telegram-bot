@@ -45,6 +45,26 @@ export async function fetchPersonaHistories(personaId, initData) {
 }
 
 /**
+ * Check if user has an active chat with a persona
+ * @param {string} personaId - Persona ID
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Object {hasActiveChat: bool, chatId: string|null}
+ */
+export async function fetchActiveChat(personaId, initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/personas/${personaId}/active-chat`, {
+    headers: {
+      'X-Telegram-Init-Data': initData || '',
+    },
+  });
+  
+  if (!response.ok) {
+    return { hasActiveChat: false, chatId: null };
+  }
+  
+  return response.json();
+}
+
+/**
  * Fetch user token balance and premium tier
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Token object {tokens, premium_tier, is_premium, can_claim_daily_bonus, next_bonus_in_seconds}
@@ -150,9 +170,10 @@ export async function verifyAge(initData) {
  * @param {string|null} historyId - History ID (optional)
  * @param {string} initData - Telegram WebApp initData for authentication
  * @param {string|null} location - Location key for custom characters (optional)
+ * @param {boolean} continueExisting - Continue existing chat instead of starting new (optional)
  * @returns {Promise<Object>} Result object {success, message}
  */
-export async function selectScenario(personaId, historyId, initData, location = null) {
+export async function selectScenario(personaId, historyId, initData, location = null, continueExisting = false) {
   const response = await fetch(`${API_BASE}/api/miniapp/select-scenario`, {
     method: 'POST',
     headers: {
@@ -163,6 +184,7 @@ export async function selectScenario(personaId, historyId, initData, location = 
       persona_id: personaId,
       history_id: historyId,
       location: location,
+      continue_existing: continueExisting,
     }),
   });
   

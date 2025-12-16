@@ -625,6 +625,14 @@ def get_chat_by_tg_chat_id(db: Session, tg_chat_id: int) -> Optional[Chat]:
     ).order_by(desc(Chat.updated_at)).first()
 
 
+def get_user_chat_with_persona(db: Session, user_id: int, persona_id: UUID) -> Optional[Chat]:
+    """Get most recent chat for a user with a specific persona (any tg_chat_id)"""
+    return db.query(Chat).filter(
+        Chat.user_id == user_id,
+        Chat.persona_id == persona_id
+    ).order_by(desc(Chat.updated_at)).first()
+
+
 def update_chat_state(db: Session, chat_id: UUID, state_snapshot: dict):
     """Update chat state snapshot"""
     chat = db.query(Chat).filter(Chat.id == chat_id).first()

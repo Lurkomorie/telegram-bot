@@ -1,6 +1,6 @@
 import WebApp from '@twa-dev/sdk';
 import { useCallback, useEffect, useState } from 'react';
-import { checkAgeVerification, claimDailyBonus, fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, trackEvent, verifyAge } from './api';
+import { checkAgeVerification, claimDailyBonus, fetchActiveChat, fetchPersonaHistories, fetchPersonas, fetchUserEnergy, selectScenario, trackEvent, verifyAge } from './api';
 import './App.css';
 import clockIcon from './assets/clock.svg';
 import giftIcon from './assets/gift.webp';
@@ -48,6 +48,7 @@ function App() {
   const [tokens, setTokens] = useState({ tokens: 100, premium_tier: 'free', is_premium: false, can_claim_daily_bonus: false, next_bonus_in_seconds: 0, daily_bonus_streak: 0, voice_enabled: true });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistories, setIsLoadingHistories] = useState(false);
+  const [hasActiveChat, setHasActiveChat] = useState(false);
   const [error, setError] = useState(null);
   const [showAgeVerification, setShowAgeVerification] = useState(false);
   const [isVerifyingAge, setIsVerifyingAge] = useState(false);
@@ -251,14 +252,21 @@ function App() {
     setSelectedPersona(persona);
     setCurrentPage('history');
     setIsLoadingHistories(true);
+    setHasActiveChat(false);
     
     try {
       const initData = WebApp.initData;
-      const data = await fetchPersonaHistories(persona.id, initData);
-      setHistories(data);
+      // Fetch histories and active chat status in parallel
+      const [historiesData, activeChatData] = await Promise.all([
+        fetchPersonaHistories(persona.id, initData),
+        fetchActiveChat(persona.id, initData)
+      ]);
+      setHistories(historiesData);
+      setHasActiveChat(activeChatData.hasActiveChat || false);
     } catch (err) {
       console.error('Failed to load histories:', err);
       setHistories([]);
+      setHasActiveChat(false);
     } finally {
       setIsLoadingHistories(false);
     }
@@ -273,11 +281,14 @@ function App() {
       const initData = WebApp.initData;
       // Extract location if present (for custom character location selection)
       const location = history?.location || null;
+      // Check if this is a "continue existing" action
+      const continueExisting = history?.continueExisting || false;
       selectScenario(
         selectedPersona.id,
         history ? history.id : null,
         initData,
-        location
+        location,
+        continueExisting
       ).catch(err => {
         console.error('Failed to select scenario:', err);
       });
@@ -631,6 +642,7 @@ function App() {
           <HistorySelection
             persona={selectedPersona}
             histories={histories}
+            hasActiveChat={hasActiveChat}
             onHistoryClick={handleHistoryClick}
             onBack={handleBackToGallery}
             isLoading={isLoadingHistories}

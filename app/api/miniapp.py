@@ -175,6 +175,43 @@ async def get_personas(
     return result
 
 
+@router.get("/personas/{persona_id}/active-chat")
+async def get_persona_active_chat(
+    persona_id: str,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Check if user has an existing chat with this persona
+    
+    Returns:
+    - hasActiveChat: boolean
+    - chatId: string (if exists)
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Validate persona_id format
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    
+    # Get user ID
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        return {"hasActiveChat": False, "chatId": None}
+    
+    # Check for existing chat
+    with get_db() as db:
+        chat = crud.get_user_chat_with_persona(db, user_id, persona_uuid)
+        if chat:
+            return {"hasActiveChat": True, "chatId": str(chat.id)}
+    
+    return {"hasActiveChat": False, "chatId": None}
+
+
 @router.get("/personas/{persona_id}/histories")
 async def get_persona_histories(
     persona_id: str,
@@ -553,6 +590,7 @@ class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None
     location: Optional[str] = None  # For custom character location selection
+    continue_existing: Optional[bool] = False  # Continue existing chat instead of starting new
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -624,12 +662,13 @@ async def select_scenario(
         user_id=user_id,
         persona_uuid=persona_uuid,
         history_uuid=history_uuid,
-        location=request.location
+        location=request.location,
+        continue_existing=request.continue_existing
     ))
     
     return {
         "success": True,
-        "message": "Chat creation started"
+        "message": "Chat continuation started" if request.continue_existing else "Chat creation started"
     }
 
 
@@ -637,7 +676,8 @@ async def _process_scenario_selection(
     user_id: int,
     persona_uuid,
     history_uuid: Optional,
-    location: Optional[str] = None
+    location: Optional[str] = None,
+    continue_existing: bool = False
 ):
     """Background task to process scenario selection"""
     from app.bot.loader import bot
@@ -717,6 +757,13 @@ async def _process_scenario_selection(
                 user_id=user_id,
                 persona_id=str(persona_uuid)
             )
+            
+            # Handle continue_existing - just activate the chat without creating new one
+            if continue_existing and existing_chat:
+                print(f"[MINIAPP-SELECT] ▶️  Continuing existing chat {existing_chat.id}")
+                crud.activate_chat(db, existing_chat.id, user_id)
+                # Just return - no greeting needed, user continues from where they left off
+                return
             
             # If chat exists, delete it to start fresh (using proper deletion that handles image_jobs)
             if existing_chat:
