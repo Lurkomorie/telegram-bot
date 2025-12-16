@@ -45,6 +45,7 @@ def load_cache():
                 "owner_user_id": persona.owner_user_id,
                 "order": persona.order if persona.order is not None else 999,
                 "main_menu": persona.main_menu if persona.main_menu is not None else True,
+                "voice_id": persona.voice_id,  # ElevenLabs voice ID for TTS
             }
             
             preset_list.append(persona_dict)

@@ -59,6 +59,10 @@ class User(Base):
     # Character creation tracking
     char_created = Column(Boolean, default=False, nullable=False)  # Whether user has created their first character (first is free)
     
+    # Bot blocking tracking
+    bot_blocked = Column(Boolean, default=False, nullable=False)  # True if user has blocked the bot
+    bot_blocked_at = Column(DateTime, nullable=True)  # When the user blocked the bot
+    
     # Relationships
     chats = relationship("Chat", back_populates="user")
     personas = relationship("Persona", back_populates="owner")
@@ -88,6 +92,7 @@ class Persona(Base):
     emoji = Column(String(10), nullable=True)  # Emoji for persona (e.g., "💕", "🌟")
     intro = Column(Text, nullable=True)  # Introduction message
     avatar_url = Column(Text, nullable=True)  # Avatar image for gallery display
+    voice_id = Column(String(100), nullable=True)  # ElevenLabs voice ID for TTS
     
     # Ordering and menu visibility
     order = Column(BigInteger, nullable=True, default=999)  # Sort order (lower appears first)

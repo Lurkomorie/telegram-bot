@@ -10,7 +10,7 @@ import './HistorySelection.css';
  * For custom characters: shows locations grid and custom story option
  * For preset characters: shows existing histories
  */
-export default function HistorySelection({ persona, histories, onHistoryClick, isLoading, onNavigateToCustomStory, onCharacterDeleted }) {
+export default function HistorySelection({ persona, histories, hasActiveChat, onHistoryClick, isLoading, onNavigateToCustomStory, onCharacterDeleted }) {
   const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -107,6 +107,16 @@ export default function HistorySelection({ persona, histories, onHistoryClick, i
             )}
           </div>
         </div>
+
+        {/* Continue Chat Button - shown if user has an existing chat with this character */}
+        {hasActiveChat && (
+          <button 
+            className="continue-chat-button"
+            onClick={() => onHistoryClick({ id: null, continueExisting: true })}
+          >
+            {t('characterPage.continueChat')}
+          </button>
+        )}
 
         {/* Location Selection */}
         <div className="locations-section">

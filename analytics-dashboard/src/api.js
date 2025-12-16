@@ -112,6 +112,17 @@ export const api = {
     return response.json();
   },
 
+  async getVoicesOverTime(period = '7d', startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams({ period });
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/voices-over-time?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch voices over time');
+    return response.json();
+  },
+
   async getEngagementHeatmap(startDate = null, endDate = null, acquisitionSource = null) {
     let url = `${API_BASE}/api/analytics/engagement-heatmap`;
     const params = new URLSearchParams();

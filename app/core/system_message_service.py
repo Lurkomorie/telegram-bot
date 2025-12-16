@@ -274,9 +274,15 @@ async def send_system_message(message_id: UUID) -> dict:
 
 
 async def _get_target_users(db, target_type: str, target_user_ids: List[int], target_group: Optional[str], ext: Optional[dict] = None) -> List[int]:
-    """Resolve target user list based on target_type"""
+    """Resolve target user list based on target_type
+    
+    Always excludes users who have blocked the bot (bot_blocked=True)
+    """
     if target_type == "all":
         query = db.query(User)
+        
+        # Exclude users who blocked the bot
+        query = query.filter(User.bot_blocked == False)
         
         # Handle exclusion of specific acquisition source
         exclude_source = ext.get("exclude_acquisition_source") if ext else None
@@ -290,17 +296,24 @@ async def _get_target_users(db, target_type: str, target_user_ids: List[int], ta
     
     elif target_type == "user":
         if target_user_ids and len(target_user_ids) > 0:
-            return [target_user_ids[0]]
+            # Check if user has blocked the bot
+            user = db.query(User).filter(User.id == target_user_ids[0], User.bot_blocked == False).first()
+            return [user.id] if user else []
         return []
     
     elif target_type == "users":
-        return target_user_ids or []
+        if not target_user_ids:
+            return []
+        # Filter out users who blocked the bot
+        users = db.query(User).filter(User.id.in_(target_user_ids), User.bot_blocked == False).all()
+        return [user.id for user in users]
     
     elif target_type == "group":
         if not target_group:
             return []
         users = crud.get_users_by_group(db, target_group)
-        return [user.id for user in users]
+        # Filter out users who blocked the bot
+        return [user.id for user in users if not user.bot_blocked]
     
     return []
 
@@ -462,15 +475,15 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
         ).all()
         delivery_map = {d.user_id: d.id for d in deliveries}
     
-    # Rate limiting: 10 messages per minute
-    batch_size = 10
+    # Rate limiting: 30 messages per minute (batch of 30, wait 60 seconds)
+    batch_size = 30
     batch_interval_seconds = 60  # Wait 60 seconds between batches
     
     logger.info(f"Starting bulk send", extra={
         "message_id": str(message_id),
         "total_recipients": len(user_ids),
         "batch_size": batch_size,
-        "rate_limit": "10 per minute"
+        "rate_limit": "30 per minute"
     })
     
     last_send_times = {}  # Track per-user send times for 1 msg/sec limit
@@ -539,6 +552,12 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
                         if error == "blocked":
                             delivery.status = "blocked"
                             stats["blocked"] += 1
+                            # Mark user as blocked in DB so we don't send them messages anymore
+                            crud.mark_user_bot_blocked(db, user_id)
+                            logger.info(f"Marked user as bot_blocked", extra={
+                                "user_id": user_id,
+                                "message_id": str(message_id)
+                            })
                         else:
                             delivery.status = "failed"
                             delivery.error = error
@@ -643,6 +662,12 @@ async def retry_failed_deliveries(system_message_id: Optional[UUID] = None) -> d
                     delivery.error = error
                     if error == "blocked":
                         delivery.status = "blocked"
+                        # Mark user as blocked in DB so we don't send them messages anymore
+                        crud.mark_user_bot_blocked(db, user_id)
+                        logger.info(f"Marked user as bot_blocked", extra={
+                            "user_id": user_id,
+                            "delivery_id": str(delivery_id)
+                        })
                     elif retry_count + 1 >= max_retries:
                         delivery.status = "failed"
                     stats["failed"] += 1

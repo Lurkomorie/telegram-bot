@@ -249,7 +249,8 @@ async def _process_single_batch(
                 "id": persona.id,
                 "name": persona.name,
                 "prompt": persona.prompt or "",
-                "image_prompt": persona.image_prompt or ""
+                "image_prompt": persona.image_prompt or "",
+                "voice_id": persona.voice_id  # ElevenLabs voice ID for TTS
             }
             
             # Get message count for image decision
@@ -391,7 +392,20 @@ async def _process_single_batch(
         
         # 4. Save batch messages & response to DB + Clear refresh button
         log_always(f"[BATCH] 💾 Saving batch to database...")
+        assistant_message_id = None
+        user_language = 'en'
+        voice_buttons_hidden = False
+        voice_free_available = True
         with get_db() as db:
+            # Get user language and voice settings for UI elements
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                user_language = user.locale or 'en'
+                # Check voice settings
+                if user.settings:
+                    voice_buttons_hidden = user.settings.get("voice_buttons_hidden", False)
+                    voice_free_available = not user.settings.get("voice_free_used", False)
+            
             # Save ALL user messages from batch (mark as processed)
             # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
             messages_to_save = [
@@ -404,8 +418,8 @@ async def _process_single_batch(
             else:
                 log_verbose(f"[BATCH]    No user messages to save")
             
-            # Save assistant message with state
-            crud.create_message_with_state(
+            # Save assistant message with state and capture the ID for voice button
+            assistant_message = crud.create_message_with_state(
                 db, 
                 chat_id, 
                 "assistant", 
@@ -413,6 +427,8 @@ async def _process_single_batch(
                 state_snapshot={"state": new_state},
                 is_processed=True
             )
+            assistant_message_id = assistant_message.id
+            log_verbose(f"[BATCH]    Assistant message ID: {assistant_message_id}")
             
             # Update chat state and timestamps
             crud.update_chat_state(db, chat_id, {"state": new_state})
@@ -472,7 +488,30 @@ async def _process_single_batch(
             log_always(f"[BATCH] ⏳ Delaying text message send - will be sent as image caption (24h followup)")
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
-            await bot.send_message(tg_chat_id, escaped_response, parse_mode="MarkdownV2")
+            
+            # Build voice button keyboard if ElevenLabs is configured, persona has voice, and not hidden by user
+            from app.settings import settings
+            voice_keyboard = None
+            persona_voice_id = persona_data.get("voice_id")
+            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id:
+                from app.bot.keyboards.inline import build_voice_button_keyboard
+                voice_keyboard = build_voice_button_keyboard(
+                    message_id=assistant_message_id,
+                    language=user_language,
+                    is_free=voice_free_available
+                )
+                log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
+            elif voice_buttons_hidden:
+                log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
+            elif not persona_voice_id:
+                log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
+            
+            await bot.send_message(
+                tg_chat_id, 
+                escaped_response, 
+                parse_mode="MarkdownV2",
+                reply_markup=voice_keyboard
+            )
             log_always(f"[BATCH] ✅ Response sent to user")
             log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
         

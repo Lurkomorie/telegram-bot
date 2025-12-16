@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     RUNPOD_API_KEY_POD: str
     RUNPOD_ENDPOINT: str
     
+    # ElevenLabs TTS
+    ELEVENLABS_API_KEY: Optional[str] = None
+    ELEVENLABS_VOICE_ID: str = "BpjGufoPiobT79j2vtj4"  # Priyanka voice
+    ELEVENLABS_MODEL_ID: str = "eleven_v3"
+    
     # Security
     IMAGE_CALLBACK_SECRET: str
     

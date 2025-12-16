@@ -143,6 +143,7 @@ async def get_personas(
                     "avatar_url": up.avatar_url,
                     "is_custom": True,
                     "owner_user_id": user_id,
+                    "has_voice": up.voice_id is not None,
                 })
     
     # Then add public personas
@@ -168,9 +169,47 @@ async def get_personas(
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
             "is_custom": False,
+            "has_voice": persona.get("voice_id") is not None,
         })
     
     return result
+
+
+@router.get("/personas/{persona_id}/active-chat")
+async def get_persona_active_chat(
+    persona_id: str,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Check if user has an existing chat with this persona
+    
+    Returns:
+    - hasActiveChat: boolean
+    - chatId: string (if exists)
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    # Validate persona_id format
+    try:
+        from uuid import UUID
+        persona_uuid = UUID(persona_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid persona ID format")
+    
+    # Get user ID
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        return {"hasActiveChat": False, "chatId": None}
+    
+    # Check for existing chat
+    with get_db() as db:
+        chat = crud.get_user_chat_with_persona(db, user_id, persona_uuid)
+        if chat:
+            return {"hasActiveChat": True, "chatId": str(chat.id)}
+    
+    return {"hasActiveChat": False, "chatId": None}
 
 
 @router.get("/personas/{persona_id}/histories")
@@ -275,7 +314,7 @@ async def get_user_energy(
     """
     # Validate and extract user ID from init data
     if not x_telegram_init_data:
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
     
     try:
         # Parse init data to get user ID
@@ -306,6 +345,9 @@ async def get_user_energy(
             # Calculate total energy (temp_energy + regular energy)
             total_tokens = (user.temp_energy or 0) + user.energy
             
+            # Get voice setting (inverted: voice_buttons_hidden=True means voice_enabled=False)
+            voice_enabled = not user.settings.get("voice_buttons_hidden", False)
+            
             return {
                 "tokens": total_tokens,
                 "premium_tier": premium_info["tier"],
@@ -313,12 +355,13 @@ async def get_user_energy(
                 "can_claim_daily_bonus": bonus_info["can_claim"],
                 "next_bonus_in_seconds": bonus_info["next_claim_seconds"],
                 "daily_bonus_streak": user.daily_bonus_streak or 0,
-                "char_created": user.char_created or False
+                "char_created": user.char_created or False,
+                "voice_enabled": voice_enabled
             }
     
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
 
 
 @router.get("/user/language")
@@ -489,10 +532,65 @@ async def update_user_language(
         raise HTTPException(status_code=500, detail=f"Failed to update language: {str(e)}")
 
 
+class UpdateVoiceSettingsRequest(BaseModel):
+    voice_enabled: bool  # True = show voice buttons, False = hide them
+
+
+@router.post("/user/update-voice-settings")
+async def update_user_voice_settings(
+    request: UpdateVoiceSettingsRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Update user's voice button visibility preference
+    
+    Returns: {success: bool, voice_enabled: bool}
+    """
+    # Validate and extract user ID from init data
+    if not x_telegram_init_data:
+        raise HTTPException(status_code=400, detail="No init data provided")
+    
+    try:
+        # Parse init data to get user ID
+        parsed = dict(parse_qsl(x_telegram_init_data))
+        import json
+        user_data = json.loads(parsed.get('user', '{}'))
+        user_id = user_data.get('id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID not found in init data")
+        
+        with get_db() as db:
+            from app.db.models import User
+            from sqlalchemy.orm.attributes import flag_modified
+            
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Update voice_buttons_hidden setting (inverted logic: enabled=True means hidden=False)
+            if user.settings is None:
+                user.settings = {}
+            user.settings["voice_buttons_hidden"] = not request.voice_enabled
+            flag_modified(user, "settings")
+            db.commit()
+            
+            print(f"[VOICE-SETTINGS-API] ✅ User {user_id} voice buttons {'enabled' if request.voice_enabled else 'disabled'}")
+            
+            return {"success": True, "voice_enabled": request.voice_enabled}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[VOICE-SETTINGS-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update voice settings: {str(e)}")
+
+
 class SelectScenarioRequest(BaseModel):
     persona_id: str
     history_id: Optional[str] = None
     location: Optional[str] = None  # For custom character location selection
+    continue_existing: Optional[bool] = False  # Continue existing chat instead of starting new
 
 
 class CreateInvoiceRequest(BaseModel):
@@ -564,12 +662,13 @@ async def select_scenario(
         user_id=user_id,
         persona_uuid=persona_uuid,
         history_uuid=history_uuid,
-        location=request.location
+        location=request.location,
+        continue_existing=request.continue_existing
     ))
     
     return {
         "success": True,
-        "message": "Chat creation started"
+        "message": "Chat continuation started" if request.continue_existing else "Chat creation started"
     }
 
 
@@ -577,7 +676,8 @@ async def _process_scenario_selection(
     user_id: int,
     persona_uuid,
     history_uuid: Optional,
-    location: Optional[str] = None
+    location: Optional[str] = None,
+    continue_existing: bool = False
 ):
     """Background task to process scenario selection"""
     from app.bot.loader import bot
@@ -657,6 +757,36 @@ async def _process_scenario_selection(
                 user_id=user_id,
                 persona_id=str(persona_uuid)
             )
+            
+            # Handle continue_existing - just activate the chat without creating new one
+            if continue_existing and existing_chat:
+                print(f"[MINIAPP-SELECT] ▶️  Continuing existing chat {existing_chat.id}")
+                crud.activate_chat(db, existing_chat.id, user_id)
+                
+                # Send "returned to chat" message
+                from app.bot.loader import bot
+                from app.core.ui_texts import get_ui_text
+                
+                user_language = crud.get_user_language(db, user_id)
+                
+                # Get persona name
+                db_persona = crud.get_persona_by_id(db, persona_uuid)
+                persona_name_for_msg = db_persona.name if db_persona else "Unknown"
+                
+                # Send notification message
+                return_text = get_ui_text("system.returned_to_chat", language=user_language)
+                return_text = return_text.replace("{name}", persona_name_for_msg)
+                
+                try:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=return_text
+                    )
+                    print(f"[MINIAPP-SELECT] 📨 Sent 'returned to chat' message for {persona_name_for_msg}")
+                except Exception as e:
+                    print(f"[MINIAPP-SELECT] ⚠️ Failed to send return message: {e}")
+                
+                return
             
             # If chat exists, delete it to start fresh (using proper deletion that handles image_jobs)
             if existing_chat:
@@ -1352,6 +1482,7 @@ class CreateCharacterRequest(BaseModel):
     breast_size: str
     butt_size: str
     extra_prompt: str
+    voice_id: Optional[str] = None  # ElevenLabs voice ID for custom voice
 
 
 class CreateCustomStoryRequest(BaseModel):
@@ -1559,13 +1690,14 @@ async def create_character(
                 key=None
             )
             
-            # Update with additional fields (image_prompt, small_description, emoji)
+            # Update with additional fields (image_prompt, small_description, emoji, voice_id)
             persona = crud.update_persona(
                 db,
                 persona.id,
                 image_prompt=character_dna,
                 small_description="Your custom character",
-                emoji="💝"
+                emoji="💝",
+                voice_id=request.voice_id  # Custom voice selection
             )
             
             print(f"[CREATE-CHARACTER] Created persona {persona.id} for user {user_id}")

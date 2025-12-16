@@ -68,6 +68,10 @@ export default function Statistics() {
   const [imagesData, setImagesData] = useState([]);
   const [imagesLoading, setImagesLoading] = useState(true);
 
+  const [voicesPeriod, setVoicesPeriod] = useState('7d');
+  const [voicesData, setVoicesData] = useState([]);
+  const [voicesLoading, setVoicesLoading] = useState(true);
+
   const [heatmapData, setHeatmapData] = useState([]);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
 
@@ -100,6 +104,10 @@ export default function Statistics() {
   useEffect(() => {
     fetchImagesData();
   }, [imagesPeriod, startDate, endDate]);
+
+  useEffect(() => {
+    fetchVoicesData();
+  }, [voicesPeriod, startDate, endDate]);
 
   useEffect(() => {
     fetchImageWaitingData();
@@ -190,6 +198,18 @@ export default function Statistics() {
     }
   };
 
+  const fetchVoicesData = async () => {
+    try {
+      setVoicesLoading(true);
+      const data = await api.getVoicesOverTime(voicesPeriod, startDate, endDate);
+      setVoicesData(data);
+    } catch (err) {
+      console.error('Error fetching voices data:', err);
+    } finally {
+      setVoicesLoading(false);
+    }
+  };
+
   const fetchHeatmapData = async () => {
     try {
       setHeatmapLoading(true);
@@ -241,10 +261,20 @@ export default function Statistics() {
     return `${hours.toFixed(1)}h`;
   };
 
+  // Format characters count for display (e.g., 1.2M, 500K)
+  const formatCharacters = (chars) => {
+    if (chars === 0) return '0';
+    if (chars >= 1000000) return `${(chars / 1000000).toFixed(1)}M`;
+    if (chars >= 1000) return `${(chars / 1000).toFixed(1)}K`;
+    return chars.toString();
+  };
+
   const statCards = [
     { label: 'Total Users', value: stats.total_users, icon: '👥', color: 'blue' },
     { label: 'Total Messages', value: stats.total_messages, icon: '💬', color: 'green' },
     { label: 'Total Images', value: stats.total_images, icon: '🖼️', color: 'purple' },
+    { label: 'Total Voices', value: stats.total_voices, icon: '🎤', color: 'orange' },
+    { label: 'Voice Characters', value: formatCharacters(stats.total_voice_characters || 0), icon: '📝', color: 'cyan', tooltip: 'ElevenLabs billed characters' },
     { label: 'Active Users (7d)', value: stats.active_users_7d, icon: '⚡', color: 'yellow' },
     { label: 'Total Events', value: stats.total_events, icon: '📊', color: 'indigo' },
     { label: 'Avg Messages/User', value: stats.avg_messages_per_user.toFixed(1), icon: '📈', color: 'pink' },
@@ -270,13 +300,16 @@ export default function Statistics() {
       {/* Overview Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {statCards.map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg shadow p-6">
+          <div key={index} className="bg-white rounded-lg shadow p-6" title={stat.tooltip || ''}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-500 text-sm font-medium">{stat.label}</p>
                 <p className="text-3xl font-bold text-gray-800 mt-2">
                   {formatNumber(stat.value)}
                 </p>
+                {stat.tooltip && (
+                  <p className="text-xs text-gray-400 mt-1">{stat.tooltip}</p>
+                )}
               </div>
               <div className={`text-4xl bg-${stat.color}-100 p-3 rounded-lg`}>
                 {stat.icon}
@@ -352,8 +385,8 @@ export default function Statistics() {
         </div>
       </div>
 
-      {/* Active Users and Images - Side by Side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      {/* Active Users, Images and Voices */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Active Users Over Time */}
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
@@ -391,6 +424,26 @@ export default function Statistics() {
             </div>
           ) : (
             <TimeSeriesChart data={imagesData} title="" color="#8b5cf6" height={250} />
+          )}
+        </div>
+
+        {/* Voices Over Time */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-gray-800">Voice Messages Over Time</h3>
+            <TimeRangeSelector
+              value={voicesPeriod}
+              onChange={setVoicesPeriod}
+              options={PERIOD_OPTIONS}
+              label="Period"
+            />
+          </div>
+          {voicesLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-gray-400">Loading...</div>
+            </div>
+          ) : (
+            <TimeSeriesChart data={voicesData} title="" color="#f97316" height={250} />
           )}
         </div>
       </div>

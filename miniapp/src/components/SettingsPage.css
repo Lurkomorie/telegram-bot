@@ -118,6 +118,25 @@
   border-color: rgba(245, 158, 11, 0.3);
 }
 
+/* Voice Row */
+.voice-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.voice-icon {
+  color: var(--color-red);
+  flex-shrink: 0;
+}
+
+.voice-label {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
 .button-icon {
   width: 24px;
   height: 24px;
@@ -163,7 +182,33 @@
   flex-shrink: 0;
 }
 
+/* Simple Toggle */
+.toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 2px;
+  box-sizing: border-box;
+}
 
+.toggle.on {
+  background: var(--color-red);
+}
 
+.toggle-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transition: margin-left 0.2s ease;
+  margin-left: 0;
+}
 
+.toggle.on .toggle-knob {
+  margin-left: 20px;
+}
 

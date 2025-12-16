@@ -1,15 +1,45 @@
+import WebApp from '@twa-dev/sdk';
+import { Mic } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import giftIcon from '../assets/gift.webp';
 import lightningIcon from '../assets/lightning.webp';
 import premiumIcon from '../assets/premium.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './SettingsPage.css';
 
+// API base URL
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 /**
  * SettingsPage Component
  * Shows current plan status, language selector button, and upgrade button
  */
-export default function SettingsPage({ tokens, onNavigate }) {
+export default function SettingsPage({ tokens, onNavigate, hasVoiceSupport = false }) {
   const { t, language } = useTranslation();
+  const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? true);
+  
+  // Sync with tokens when it changes (e.g., after API loads)
+  useEffect(() => {
+    if (tokens?.voice_enabled !== undefined) {
+      setVoiceEnabled(tokens.voice_enabled);
+    }
+  }, [tokens?.voice_enabled]);
+
+  // Optimistic toggle - update UI immediately, sync in background
+  const handleVoiceToggle = () => {
+    const newValue = !voiceEnabled;
+    setVoiceEnabled(newValue);
+    
+    // Fire and forget - sync with server in background
+    fetch(`${API_BASE}/api/miniapp/user/update-voice-settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': WebApp.initData,
+      },
+      body: JSON.stringify({ voice_enabled: newValue }),
+    }).catch(err => console.error('Failed to sync voice settings:', err));
+  };
 
   // Map tier to display name
   const tierNames = {
@@ -58,6 +88,18 @@ export default function SettingsPage({ tokens, onNavigate }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+        {hasVoiceSupport && (
+          <div className="voice-row">
+            <Mic size={20} className="voice-icon" />
+            <span className="voice-label">{t('settings.voice.title')}</span>
+            <div 
+              className={`toggle ${voiceEnabled ? 'on' : 'off'}`}
+              onClick={handleVoiceToggle}
+            >
+              <div className="toggle-knob" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Language Section */}
@@ -70,6 +112,7 @@ export default function SettingsPage({ tokens, onNavigate }) {
           </svg>
         </button>
       </div>
+
     </div>
   );
 }

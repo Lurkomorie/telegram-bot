@@ -390,5 +390,37 @@ def track_referral_completed(referrer_id: int, new_user_id: int, tokens_awarded:
     )
 
 
+def track_voice_generated(
+    client_id: int,
+    persona_id: Optional[UUID] = None,
+    persona_name: Optional[str] = None,
+    chat_id: Optional[UUID] = None,
+    message_length: int = 0,
+    characters_used: int = 0,
+    is_free: bool = False
+):
+    """Track voice message generation
+    
+    Args:
+        client_id: Telegram user ID
+        persona_id: Persona UUID
+        persona_name: Persona name
+        chat_id: Chat UUID
+        message_length: Original message length
+        characters_used: Characters sent to ElevenLabs API (billed characters)
+        is_free: Whether this was a free voice generation
+    """
+    track_event_tg(
+        client_id=client_id,
+        event_name="voice_generated",
+        persona_id=persona_id,
+        persona_name=persona_name,
+        meta={
+            "chat_id": str(chat_id) if chat_id else None,
+            "message_length": message_length,
+            "characters_used": characters_used,
+            "is_free": is_free
+        }
+    )
 
 

@@ -28,6 +28,7 @@
   },
   "characterPage": {
     "selectLocation": "Choose where to start",
+    "continueChat": "Continue chat 💬",
     "locations": {
       "home": "Home",
       "office": "Office",
@@ -174,7 +175,11 @@
     },
     "premiumSubscriptions": "Premium Subscriptions",
     "friends": "Friends",
-    "buyEnergy": "Buy Energy"
+    "buyEnergy": "Buy Energy",
+    "voice": {
+      "title": "Voice Messages",
+      "description": "Show voice creation buttons on AI messages"
+    }
   },
   "checkout": {
     "paymentMethod": "PAYMENT METHOD",
@@ -264,6 +269,14 @@
       "medium": "Medium",
       "large": "Large",
       "nextButton": "NEXT"
+    },
+    "voice": {
+      "title": "Choose Voice",
+      "voice1": "Voice 1",
+      "voice2": "Voice 2",
+      "voice3": "Voice 3",
+      "voice4": "Voice 4",
+      "tapToPreview": "Tap to preview"
     },
     "final": {
       "title": "Final Details",

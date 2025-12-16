@@ -94,3 +94,13 @@ settings:
 age_verification:
   message: '🔞 You must be 18 years or older to continue using this bot. By continuing, you agree to the <a href="https://telegra.ph/Sexsplicit-Terms-of-Service-and-Privacy-Policy-12-06">Terms of Service and Privacy Policy</a>.'
   confirm_button: "🔞 I am over 18 years old"
+
+# Voice Messages
+voice:
+  create_button: "🎤 Create Voice"
+  create_button_free: "🎤 Create Voice (Free)"
+  generating: "🎙️ Generating voice message..."
+  failed: "❌ Voice generation failed. Please try again."
+  hide_button: "🔇 Hide voice buttons"
+  hidden_popup: "Voice buttons are now hidden. You can enable them in the app Settings."
+  insufficient_energy: "⚡ You need 15 energy to create a voice message."

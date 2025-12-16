@@ -64,3 +64,29 @@ export const BUTT_SIZES = [
   { value: "large", label: "Large" },
 ];
 
+// Voice options for character creation
+// Voice IDs are ElevenLabs voice IDs
+// Audio preview files are in miniapp/src/assets/{previewKey}-{lang}.mp3
+export const VOICE_OPTIONS = [
+  { 
+    value: "BZgkqPqms7Kj9ulSkVzn",  // Eve
+    labelKey: "voice1",
+    previewKey: "eve-1"
+  },
+  { 
+    value: "B8gJV1IhpuegLxdpXFOE",  // Kuon
+    labelKey: "voice2",
+    previewKey: "kuon-2"
+  },
+  { 
+    value: "BpjGufoPiobT79j2vtj4",  // Priyanka
+    labelKey: "voice3",
+    previewKey: "priyanka-3"
+  },
+  { 
+    value: "Z3R5wn05IrDiVCyEkUrK",  // Arabella
+    labelKey: "voice4",
+    previewKey: "arabella-4"
+  },
+];
+
