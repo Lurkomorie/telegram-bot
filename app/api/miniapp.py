@@ -762,7 +762,30 @@ async def _process_scenario_selection(
             if continue_existing and existing_chat:
                 print(f"[MINIAPP-SELECT] ▶️  Continuing existing chat {existing_chat.id}")
                 crud.activate_chat(db, existing_chat.id, user_id)
-                # Just return - no greeting needed, user continues from where they left off
+                
+                # Send "returned to chat" message
+                from app.bot.loader import bot
+                from app.core.ui_texts import get_ui_text
+                
+                user_language = crud.get_user_language(db, user_id)
+                
+                # Get persona name
+                db_persona = crud.get_persona_by_id(db, persona_uuid)
+                persona_name_for_msg = db_persona.name if db_persona else "Unknown"
+                
+                # Send notification message
+                return_text = get_ui_text("system.returned_to_chat", language=user_language)
+                return_text = return_text.replace("{name}", persona_name_for_msg)
+                
+                try:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=return_text
+                    )
+                    print(f"[MINIAPP-SELECT] 📨 Sent 'returned to chat' message for {persona_name_for_msg}")
+                except Exception as e:
+                    print(f"[MINIAPP-SELECT] ⚠️ Failed to send return message: {e}")
+                
                 return
             
             # If chat exists, delete it to start fresh (using proper deletion that handles image_jobs)

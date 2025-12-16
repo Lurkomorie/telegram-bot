@@ -725,6 +725,7 @@
   "system": {
     "creating_chat": "Creating new conversation...",
     "loading": "Loading...",
+    "returned_to_chat": "💡 You returned to chat with {name}",
     "service_unavailable": "🛠 <b>Temporary Maintenance</b>\n\nWe're currently performing system maintenance to improve your experience. Our service will be back online shortly.\n\nThank you for your patience! 💙",
     "switching_persona": "Switching to {persona_name}..."
   },
