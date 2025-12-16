@@ -135,6 +135,7 @@
   },
   "characterPage": {
     "selectLocation": "Choose where to start",
+    "continueChat": "Continue chat 💬",
     "locations": {
       "home": "Home",
       "office": "Office",

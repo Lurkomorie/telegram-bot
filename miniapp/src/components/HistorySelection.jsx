@@ -108,6 +108,16 @@ export default function HistorySelection({ persona, histories, onHistoryClick, i
           </div>
         </div>
 
+        {/* Continue Chat Button - shown if there's an existing history */}
+        {histories && histories.length > 0 && (
+          <button 
+            className="continue-chat-button"
+            onClick={() => onHistoryClick(histories[0])}
+          >
+            {t('characterPage.continueChat')}
+          </button>
+        )}
+
         {/* Location Selection */}
         <div className="locations-section">
           <h3 className="section-title">{t('characterPage.selectLocation')}</h3>

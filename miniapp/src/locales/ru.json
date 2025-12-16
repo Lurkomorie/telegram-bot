@@ -15,6 +15,7 @@
   },
   "characterPage": {
     "selectLocation": "Выберите место",
+    "continueChat": "Продолжить чат 💬",
     "locations": {
       "home": "Дома",
       "office": "Офис",
