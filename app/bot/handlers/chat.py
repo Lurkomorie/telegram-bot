@@ -453,6 +453,18 @@ async def handle_create_voice(callback: types.CallbackQuery):
         
         log_always(f"[VOICE] ✅ Voice message sent to user {user_id}")
         
+        # Track voice generation analytics
+        from app.core import analytics_service_tg
+        analytics_service_tg.track_voice_generated(
+            client_id=user_id,
+            persona_id=persona.id if persona else None,
+            persona_name=persona_name,
+            chat_id=chat.id if chat else None,
+            message_length=len(message_text),
+            characters_used=len(tagged_text),  # Characters billed by ElevenLabs
+            is_free=is_free
+        )
+        
     except Exception as e:
         log_always(f"[VOICE] ❌ Error: {type(e).__name__}: {e}")
         try:

@@ -479,6 +479,46 @@ async def get_images_over_time(
         raise HTTPException(status_code=500, detail=f"Error fetching images over time: {str(e)}")
 
 
+@router.get("/voices-over-time")
+async def get_voices_over_time(
+    period: str = "7d",
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> List[Dict[str, Any]]:
+    """
+    Get daily voice generation counts
+    
+    Args:
+        period: Time period (7d, 30d, 90d)
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+    
+    Returns:
+        List of {date, count} dictionaries
+    """
+    try:
+        period_map = {
+            "7d": 7,
+            "30d": 30,
+            "90d": 90
+        }
+        
+        if period not in period_map:
+            raise HTTPException(status_code=400, detail=f"Invalid period. Must be one of: {', '.join(period_map.keys())}")
+        
+        days = period_map[period]
+        
+        with get_db() as db:
+            data = crud.get_voices_over_time(db, days, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
+            return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching voices over time: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching voices over time: {str(e)}")
+
+
 @router.get("/image-waiting-time")
 async def get_image_waiting_time(
     interval: str = "1h",

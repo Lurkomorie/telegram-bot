@@ -1688,6 +1688,31 @@ def get_analytics_stats(db: Session, start_date: Optional[str] = None, end_date:
     total_images = apply_acquisition_source_filter(db, total_images, acquisition_source)
     total_images = total_images.scalar()
     
+    # Total voice generations
+    total_voices = db.query(func.count(TgAnalyticsEvent.id)).filter(
+        TgAnalyticsEvent.event_name == 'voice_generated'
+    )
+    total_voices = apply_date_filter(total_voices, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_voices = apply_acquisition_source_filter(db, total_voices, acquisition_source)
+    total_voices = total_voices.scalar()
+    
+    # Total voice characters used (ElevenLabs billing)
+    from sqlalchemy import cast, Integer
+    from sqlalchemy.dialects.postgresql import JSONB
+    total_voice_characters_query = db.query(
+        func.coalesce(
+            func.sum(
+                cast(TgAnalyticsEvent.meta['characters_used'].astext, Integer)
+            ), 0
+        )
+    ).filter(
+        TgAnalyticsEvent.event_name == 'voice_generated',
+        TgAnalyticsEvent.meta['characters_used'].isnot(None)
+    )
+    total_voice_characters_query = apply_date_filter(total_voice_characters_query, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_voice_characters_query = apply_acquisition_source_filter(db, total_voice_characters_query, acquisition_source)
+    total_voice_characters = total_voice_characters_query.scalar() or 0
+    
     # Active users (last 7 days)
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
     active_users = db.query(func.count(distinct(TgAnalyticsEvent.client_id))).filter(
@@ -1723,6 +1748,8 @@ def get_analytics_stats(db: Session, start_date: Optional[str] = None, end_date:
         'total_events': total_events or 0,
         'total_messages': total_messages or 0,
         'total_images': total_images or 0,
+        'total_voices': total_voices or 0,
+        'total_voice_characters': total_voice_characters,
         'active_users_7d': active_users or 0,
         'avg_messages_per_user': round(avg_messages_per_user, 2),
         'avg_image_waiting_time': round(avg_image_waiting_time, 2),
@@ -2551,6 +2578,62 @@ def get_images_over_time(db: Session, days: int = 7, start_date: Optional[str] =
         func.count(TgAnalyticsEvent.id).label('count')
     ).filter(
         TgAnalyticsEvent.event_name == 'image_generated',
+        cast(TgAnalyticsEvent.created_at, Date) >= start_date_calc,
+        cast(TgAnalyticsEvent.created_at, Date) <= end_date_calc
+    )
+    
+    query = apply_acquisition_source_filter(db, query, acquisition_source)
+    results = query.group_by('date').order_by('date').all()
+    
+    # Create a dict for quick lookup
+    counts_dict = {row.date: row.count for row in results}
+    
+    # Fill in missing days with 0
+    result_list = []
+    current_date = start_date_calc
+    for _ in range(days):
+        count = counts_dict.get(current_date, 0)
+        result_list.append({
+            'date': current_date.isoformat(),
+            'count': count
+        })
+        current_date += timedelta(days=1)
+    
+    return result_list
+
+
+def get_voices_over_time(db: Session, days: int = 7, start_date: Optional[str] = None, end_date: Optional[str] = None, acquisition_source: Optional[str] = None) -> List[dict]:
+    """
+    Get daily voice generation counts
+    
+    Args:
+        start_date: Filter from this date onwards (YYYY-MM-DD)
+        end_date: Filter up to this date (YYYY-MM-DD)
+        acquisition_source: Filter by acquisition source
+        db: Database session
+        days: Number of days to fetch (7, 30, or 90) - only used if start_date/end_date not provided
+    
+    Returns:
+        List of {date, count} dictionaries
+    """
+    from sqlalchemy import func, cast, Date
+    from datetime import datetime, timedelta
+    
+    # Use provided dates or calculate from days parameter
+    if start_date and end_date:
+        start_date_calc = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date_calc = datetime.strptime(end_date, '%Y-%m-%d').date()
+        days = (end_date_calc - start_date_calc).days + 1
+    else:
+        end_date_calc = datetime.utcnow().date()
+        start_date_calc = end_date_calc - timedelta(days=days - 1)
+    
+    # Query voice generations per day
+    query = db.query(
+        cast(TgAnalyticsEvent.created_at, Date).label('date'),
+        func.count(TgAnalyticsEvent.id).label('count')
+    ).filter(
+        TgAnalyticsEvent.event_name == 'voice_generated',
         cast(TgAnalyticsEvent.created_at, Date) >= start_date_calc,
         cast(TgAnalyticsEvent.created_at, Date) <= end_date_calc
     )
