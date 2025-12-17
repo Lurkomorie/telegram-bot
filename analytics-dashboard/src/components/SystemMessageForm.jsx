@@ -11,6 +11,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
     text: '',
     media_type: 'none',
     media_url: '',
+    audio_url: '',
     buttons: [],
     target_type: 'all',
     target_user_ids: [],
@@ -20,6 +21,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
     scheduled_at: '',
     parse_mode: 'HTML',
     disable_web_page_preview: false,
+    show_hide_button: false,
     template_id: null
   });
   const [templates, setTemplates] = useState([]);
@@ -101,6 +103,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
         text: text,
         media_type: message.media_type || 'none',
         media_url: message.media_url || '',
+        audio_url: message.audio_url || '',
         buttons: message.buttons || [],
         target_type: message.target_type || 'all',
         target_user_ids: message.target_user_ids || [],
@@ -110,6 +113,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
         scheduled_at: message.scheduled_at ? new Date(message.scheduled_at).toISOString().slice(0, 16) : '',
         parse_mode: message.ext?.parse_mode || 'HTML',
         disable_web_page_preview: message.ext?.disable_web_page_preview || false,
+        show_hide_button: message.ext?.show_hide_button || false,
         template_id: message.template_id
       });
     }
@@ -197,6 +201,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
         text: formData.text,
         media_type: formData.media_type,
         media_url: formData.media_url,
+        audio_url: formData.audio_url || undefined,
         buttons: formData.buttons.length > 0 ? formData.buttons : undefined
       });
       setShowTemplateDialog(false);
@@ -309,6 +314,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                           title: formData.title || template.title,
                           media_type: formData.media_type === 'none' ? template.media_type : formData.media_type,
                           media_url: formData.media_url || template.media_url,
+                          audio_url: formData.audio_url || template.audio_url || '',
                           buttons: formData.buttons.length === 0 ? (template.buttons || []) : formData.buttons
                         });
                       }
@@ -388,6 +394,53 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                   />
                 </div>
               )}
+
+              {/* Audio URL (Voice Message) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Voice Message (OGG) - optional</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    value={formData.audio_url}
+                    onChange={(e) => setFormData({ ...formData, audio_url: e.target.value })}
+                    className="flex-1 border rounded px-3 py-2"
+                    placeholder="URL or upload file below"
+                  />
+                  {formData.audio_url && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, audio_url: '' })}
+                      className="px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                      title="Clear"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 flex items-center justify-center px-4 py-3 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                    <input
+                      type="file"
+                      accept=".ogg,.mp3,.wav,.m4a,audio/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const result = await api.uploadFile(file, 'audio');
+                            setFormData({ ...formData, audio_url: result.url });
+                          } catch (error) {
+                            alert('Failed to upload audio: ' + error.message);
+                          }
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    <span className="text-gray-600">📁 Upload audio file (OGG, MP3, WAV)</span>
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Audio will be sent as a voice message after the main message</p>
+              </div>
 
               {/* Buttons */}
               <div>
@@ -668,7 +721,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
               </div>
 
               {/* Options */}
-              <div>
+              <div className="space-y-2">
                 <label className="flex items-center">
                   <input
                     type="checkbox"
@@ -677,6 +730,15 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                     className="mr-2"
                   />
                   Disable web page preview
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.show_hide_button}
+                    onChange={(e) => setFormData({ ...formData, show_hide_button: e.target.checked })}
+                    className="mr-2"
+                  />
+                  Show "Hide" button (allows users to dismiss the message)
                 </label>
               </div>
 

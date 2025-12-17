@@ -3336,6 +3336,7 @@ def create_system_message(
     text: str = None,
     media_type: str = "none",
     media_url: str = None,
+    audio_url: str = None,
     buttons: dict = None,
     target_type: str = None,
     target_user_ids: List[int] = None,
@@ -3360,6 +3361,7 @@ def create_system_message(
         text=text,
         media_type=media_type,
         media_url=media_url,
+        audio_url=audio_url,
         buttons=buttons or [],
         target_type=target_type,
         target_user_ids=target_user_ids,
@@ -3422,6 +3424,7 @@ def update_system_message(
     text: str = None,
     media_type: str = None,
     media_url: str = None,
+    audio_url: str = None,
     buttons: dict = None,
     target_type: str = None,
     target_user_ids: List[int] = None,
@@ -3446,6 +3449,8 @@ def update_system_message(
         message.media_type = media_type
     if media_url is not None:
         message.media_url = media_url
+    if audio_url is not None:
+        message.audio_url = audio_url
     if buttons is not None:
         message.buttons = buttons
     if target_type is not None:
@@ -3654,6 +3659,7 @@ def create_template(
     text: str = None,
     media_type: str = "none",
     media_url: str = None,
+    audio_url: str = None,
     buttons: dict = None,
     created_by: str = None
 ) -> SystemMessageTemplate:
@@ -3664,6 +3670,7 @@ def create_template(
         text=text,
         media_type=media_type,
         media_url=media_url,
+        audio_url=audio_url,
         buttons=buttons or [],
         created_by=created_by
     )
@@ -3715,6 +3722,7 @@ def update_template(
     text: str = None,
     media_type: str = None,
     media_url: str = None,
+    audio_url: str = None,
     buttons: dict = None,
     is_active: bool = None
 ) -> Optional[SystemMessageTemplate]:
@@ -3733,6 +3741,8 @@ def update_template(
         template.media_type = media_type
     if media_url is not None:
         template.media_url = media_url
+    if audio_url is not None:
+        template.audio_url = audio_url
     if buttons is not None:
         template.buttons = buttons
     if is_active is not None:

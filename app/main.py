@@ -185,6 +185,12 @@ if analytics_build_path.exists():
 else:
     print(f"⚠️  Analytics Dashboard build not found at {analytics_build_path}")
 
+# Mount uploads directory for serving uploaded files
+uploads_path = Path(__file__).parent.parent / "uploads"
+uploads_path.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+print(f"✅ Uploads directory mounted at /uploads")
+
 
 @app.get("/")
 async def root():

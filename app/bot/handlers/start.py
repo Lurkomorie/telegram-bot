@@ -1317,3 +1317,15 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(lambda c: c.data == "sysmsg_hide")
+async def hide_system_message_callback(callback: types.CallbackQuery):
+    """Handle 'Hide' button click on system messages - deletes the message"""
+    try:
+        await callback.message.delete()
+        await callback.answer()
+    except Exception as e:
+        # Message might already be deleted or too old
+        print(f"[SYSMSG] ⚠️ Could not delete system message: {e}")
+        await callback.answer("Message already hidden", show_alert=False)
+
+

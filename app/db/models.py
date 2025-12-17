@@ -423,6 +423,7 @@ class SystemMessageTemplate(Base):
         nullable=False
     )
     media_url = Column(Text, nullable=True)
+    audio_url = Column(Text, nullable=True)  # OGG audio to send as voice message after the main message
     buttons = Column(JSONB, default=[], nullable=True)
     created_by = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -452,6 +453,7 @@ class SystemMessage(Base):
         nullable=False
     )
     media_url = Column(Text, nullable=True)
+    audio_url = Column(Text, nullable=True)  # OGG audio to send as voice message after the main message
     buttons = Column(JSONB, default=[], nullable=True)
     target_type = Column(
         String(20),

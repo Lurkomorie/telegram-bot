@@ -15,7 +15,7 @@ from app.db.base import get_db
 from app.db import crud
 from app.db.models import User, SystemMessageDelivery
 from app.bot.loader import bot
-from app.settings import settings
+from app.settings import settings, get_ui_text
 
 # Setup structured logging
 logger = logging.getLogger(__name__)
@@ -149,11 +149,15 @@ def _extract_message_data(message) -> Dict[str, Any]:
         logger.error(f"Error extracting target_user_ids: {e}", exc_info=True)
         target_user_ids_val = []
     
+    # Extract audio_url
+    msg_audio_url = str(message.audio_url) if message.audio_url else None
+    
     return {
         "id": msg_id,
         "text": msg_text,
         "media_type": msg_media_type,
         "media_url": msg_media_url,
+        "audio_url": msg_audio_url,
         "buttons": buttons_val,
         "ext": ext_val,
         "target_type": msg_target_type,
@@ -318,35 +322,48 @@ async def _get_target_users(db, target_type: str, target_user_ids: List[int], ta
     return []
 
 
-def _build_keyboard(buttons: Optional[List[dict]]) -> Optional[InlineKeyboardMarkup]:
-    """Convert button configs to aiogram InlineKeyboardMarkup"""
-    if not buttons or (isinstance(buttons, list) and len(buttons) == 0):
-        return None
+def _build_keyboard(buttons: Optional[List[dict]], show_hide_button: bool = False, language: str = "en") -> Optional[InlineKeyboardMarkup]:
+    """Convert button configs to aiogram InlineKeyboardMarkup
     
-    # Handle case where buttons might be stored as dict instead of list
-    if isinstance(buttons, dict):
-        buttons = [buttons]
+    Args:
+        buttons: List of button configurations
+        show_hide_button: If True, adds a "Hide" button at the end
+        language: User's language code for translations
     
-    keyboard_buttons = []
-    for btn in buttons:
-        if not isinstance(btn, dict):
-            continue
-        if btn.get("url"):
-            keyboard_buttons.append([InlineKeyboardButton(text=btn["text"], url=btn["url"])])
-        elif btn.get("callback_data"):
-            keyboard_buttons.append([InlineKeyboardButton(text=btn["text"], callback_data=btn["callback_data"])])
-        elif btn.get("web_app"):
-            web_app = btn["web_app"]
-            if isinstance(web_app, dict) and web_app.get("url"):
-                web_app_url = web_app["url"]
-                # Convert relative URLs to absolute URLs using public_url
-                if web_app_url.startswith("/"):
-                    web_app_url = f"{settings.public_url}{web_app_url}"
-                web_app_info = WebAppInfo(url=web_app_url)
-                keyboard_buttons.append([InlineKeyboardButton(text=btn["text"], web_app=web_app_info)])
+    All buttons (including hide) are placed on a single row.
+    """
+    row_buttons = []
     
-    if keyboard_buttons:
-        return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    # Process custom buttons if provided
+    if buttons:
+        # Handle case where buttons might be stored as dict instead of list
+        if isinstance(buttons, dict):
+            buttons = [buttons]
+        
+        for btn in buttons:
+            if not isinstance(btn, dict):
+                continue
+            if btn.get("url"):
+                row_buttons.append(InlineKeyboardButton(text=btn["text"], url=btn["url"]))
+            elif btn.get("callback_data"):
+                row_buttons.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["callback_data"]))
+            elif btn.get("web_app"):
+                web_app = btn["web_app"]
+                if isinstance(web_app, dict) and web_app.get("url"):
+                    web_app_url = web_app["url"]
+                    # Convert relative URLs to absolute URLs using public_url
+                    if web_app_url.startswith("/"):
+                        web_app_url = f"{settings.public_url}{web_app_url}"
+                    web_app_info = WebAppInfo(url=web_app_url)
+                    row_buttons.append(InlineKeyboardButton(text=btn["text"], web_app=web_app_info))
+    
+    # Add hide button if requested (translated)
+    if show_hide_button:
+        hide_text = get_ui_text("system.hide_button", language=language)
+        row_buttons.append(InlineKeyboardButton(text=hide_text, callback_data="sysmsg_hide"))
+    
+    if row_buttons:
+        return InlineKeyboardMarkup(inline_keyboard=[row_buttons])
     return None
 
 
@@ -362,7 +379,15 @@ async def _send_to_user(
     Returns:
         (success, error_message, telegram_message_id)
     """
-    keyboard = _build_keyboard(message_data.get("buttons"))
+    # Get user language for translations
+    user_language = "en"
+    with get_db() as db:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.locale:
+            user_language = user.locale
+    
+    show_hide_button = message_data.get("ext", {}).get("show_hide_button", False)
+    keyboard = _build_keyboard(message_data.get("buttons"), show_hide_button=show_hide_button, language=user_language)
     parse_mode_value = parse_mode if parse_mode in ("HTML", "MarkdownV2") else "HTML"
     disable_web_page_preview = message_data.get("ext", {}).get("disable_web_page_preview", False)
     
@@ -382,7 +407,7 @@ async def _send_to_user(
                 parse_mode=parse_mode_value
                 # Note: disable_web_page_preview is not valid for send_photo
             )
-            return (True, None, sent_msg.message_id)
+            main_message_id = sent_msg.message_id
         
         elif message_data.get("media_type") == "video" and message_data.get("media_url"):
             sent_msg = await bot.send_video(
@@ -393,7 +418,7 @@ async def _send_to_user(
                 parse_mode=parse_mode_value
                 # Note: disable_web_page_preview is not valid for send_video
             )
-            return (True, None, sent_msg.message_id)
+            main_message_id = sent_msg.message_id
         
         elif message_data.get("media_type") == "animation" and message_data.get("media_url"):
             sent_msg = await bot.send_animation(
@@ -404,7 +429,7 @@ async def _send_to_user(
                 parse_mode=parse_mode_value
                 # Note: disable_web_page_preview is not valid for send_animation
             )
-            return (True, None, sent_msg.message_id)
+            main_message_id = sent_msg.message_id
         
         else:
             # Text only - disable_web_page_preview is ONLY valid here
@@ -415,7 +440,28 @@ async def _send_to_user(
                 parse_mode=parse_mode_value,
                 disable_web_page_preview=disable_web_page_preview
             )
-            return (True, None, sent_msg.message_id)
+            main_message_id = sent_msg.message_id
+        
+        # Send audio voice message right after the main message if audio_url is provided
+        if message_data.get("audio_url"):
+            try:
+                await bot.send_voice(
+                    chat_id=user_id,
+                    voice=message_data["audio_url"]
+                )
+                logger.debug(f"Voice message sent", extra={
+                    "user_id": user_id,
+                    "audio_url": message_data["audio_url"]
+                })
+            except Exception as audio_error:
+                # Log audio error but don't fail the entire delivery
+                logger.warning(f"Failed to send voice message", extra={
+                    "user_id": user_id,
+                    "audio_url": message_data["audio_url"],
+                    "error": str(audio_error)
+                })
+        
+        return (True, None, main_message_id)
     
     except TelegramBadRequest as e:
         error_msg = str(e)
