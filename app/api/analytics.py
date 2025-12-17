@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, validator
 from datetime import datetime, date
 from uuid import UUID, uuid4
 import asyncio
+import io
 import os
 from pathlib import Path
 import logging
@@ -1896,6 +1897,41 @@ ALLOWED_AUDIO_EXTENSIONS = {'.ogg', '.mp3', '.wav', '.m4a'}
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
+
+def _convert_audio_to_ogg_opus(audio_bytes: bytes, file_ext: str) -> bytes:
+    """
+    Convert audio bytes to OGG Opus format for Telegram voice messages.
+    
+    Telegram requires OGG with Opus codec for voice messages to display properly.
+    Uses pydub + ffmpeg for conversion.
+    """
+    from pydub import AudioSegment
+    
+    # Determine format from extension
+    format_map = {
+        '.mp3': 'mp3',
+        '.wav': 'wav',
+        '.m4a': 'mp4',
+        '.ogg': 'ogg'
+    }
+    input_format = format_map.get(file_ext, 'mp3')
+    
+    # Load audio from bytes
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format=input_format)
+    
+    # Export as OGG Opus
+    ogg_buffer = io.BytesIO()
+    audio.export(
+        ogg_buffer,
+        format="ogg",
+        codec="libopus",
+        parameters=["-application", "voip"]  # Optimized for voice
+    )
+    
+    ogg_buffer.seek(0)
+    return ogg_buffer.read()
+
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), file_type: str = Query("audio", regex="^(audio|image)$")):
     """
@@ -1926,6 +1962,11 @@ async def upload_file(file: UploadFile = File(...), file_type: str = Query("audi
         # Check file size
         if len(content) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB")
+        
+        # Convert audio files to OGG Opus format for Telegram voice messages
+        if file_type == "audio":
+            content = _convert_audio_to_ogg_opus(content, file_ext)
+            file_ext = ".ogg"  # Always save as .ogg after conversion
         
         # Generate unique filename
         unique_filename = f"{uuid4()}{file_ext}"
