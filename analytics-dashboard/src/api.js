@@ -489,5 +489,22 @@ export const api = {
     const response = await fetch(`${API_BASE}/api/analytics/users/search?query=${encodeURIComponent(query)}&limit=${limit}`);
     if (!response.ok) throw new Error('Failed to search users');
     return response.json();
+  },
+
+  // ========== FILE UPLOAD ==========
+
+  async uploadFile(file, fileType = 'audio') {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/upload?file_type=${fileType}`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to upload file');
+    }
+    return response.json();
   }
 };

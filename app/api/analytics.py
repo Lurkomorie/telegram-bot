@@ -1,12 +1,15 @@
 """
 Analytics API endpoints for viewing statistics and user event timelines
 """
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, UploadFile, File
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, date
-from uuid import UUID
+from uuid import UUID, uuid4
 import asyncio
+import io
+import os
+from pathlib import Path
 import logging
 from app.db.base import get_db
 from app.db import crud
@@ -1885,6 +1888,107 @@ async def get_translation_by_key(key: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Error fetching translation: {str(e)}")
 
 
+# ========== FILE UPLOAD ENDPOINT ==========
+
+UPLOADS_DIR = Path(__file__).parent.parent.parent / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
+
+ALLOWED_AUDIO_EXTENSIONS = {'.ogg', '.mp3', '.wav', '.m4a'}
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+def _convert_audio_to_ogg_opus(audio_bytes: bytes, file_ext: str) -> bytes:
+    """
+    Convert audio bytes to OGG Opus format for Telegram voice messages.
+    
+    Telegram requires OGG with Opus codec for voice messages to display properly.
+    Uses pydub + ffmpeg for conversion.
+    """
+    from pydub import AudioSegment
+    
+    # Determine format from extension
+    format_map = {
+        '.mp3': 'mp3',
+        '.wav': 'wav',
+        '.m4a': 'mp4',
+        '.ogg': 'ogg'
+    }
+    input_format = format_map.get(file_ext, 'mp3')
+    
+    # Load audio from bytes
+    audio = AudioSegment.from_file(io.BytesIO(audio_bytes), format=input_format)
+    
+    # Export as OGG Opus
+    ogg_buffer = io.BytesIO()
+    audio.export(
+        ogg_buffer,
+        format="ogg",
+        codec="libopus",
+        parameters=["-application", "voip"]  # Optimized for voice
+    )
+    
+    ogg_buffer.seek(0)
+    return ogg_buffer.read()
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...), file_type: str = Query("audio", regex="^(audio|image)$")):
+    """
+    Upload a file (audio or image) and return its URL
+    
+    Args:
+        file: The file to upload
+        file_type: Type of file - 'audio' or 'image'
+    
+    Returns:
+        dict with file URL
+    """
+    try:
+        # Get file extension
+        file_ext = Path(file.filename).suffix.lower() if file.filename else ''
+        
+        # Validate file type
+        if file_type == "audio":
+            if file_ext not in ALLOWED_AUDIO_EXTENSIONS:
+                raise HTTPException(status_code=400, detail=f"Invalid audio format. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}")
+        elif file_type == "image":
+            if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+                raise HTTPException(status_code=400, detail=f"Invalid image format. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}")
+        
+        # Read file content
+        content = await file.read()
+        
+        # Check file size
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB")
+        
+        # Convert audio files to OGG Opus format for Telegram voice messages
+        if file_type == "audio":
+            content = _convert_audio_to_ogg_opus(content, file_ext)
+            file_ext = ".ogg"  # Always save as .ogg after conversion
+        
+        # Generate unique filename
+        unique_filename = f"{uuid4()}{file_ext}"
+        file_path = UPLOADS_DIR / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Return URL
+        from app.settings import settings
+        file_url = f"{settings.public_url}/uploads/{unique_filename}"
+        
+        return {"url": file_url, "filename": unique_filename}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+
+
 # ========== SYSTEM MESSAGES ENDPOINTS ==========
 
 @router.post("/system-messages", response_model=SystemMessageResponse)
@@ -1896,10 +2000,11 @@ async def create_system_message(data: SystemMessageCreate, background_tasks: Bac
         if data.buttons:
             buttons_list = [btn.model_dump() for btn in data.buttons]
         
-        # Store parse_mode, disable_web_page_preview, and exclude_acquisition_source in ext
+        # Store parse_mode, disable_web_page_preview, show_hide_button, and exclude_acquisition_source in ext
         ext = {
             "parse_mode": data.parse_mode,
-            "disable_web_page_preview": data.disable_web_page_preview
+            "disable_web_page_preview": data.disable_web_page_preview,
+            "show_hide_button": data.show_hide_button
         }
         if data.exclude_acquisition_source:
             ext["exclude_acquisition_source"] = data.exclude_acquisition_source
@@ -1911,6 +2016,7 @@ async def create_system_message(data: SystemMessageCreate, background_tasks: Bac
                 text=data.text,
                 media_type=data.media_type,
                 media_url=data.media_url,
+                audio_url=data.audio_url,
                 buttons=buttons_list,
                 target_type=data.target_type,
                 target_user_ids=data.target_user_ids,
@@ -2003,6 +2109,8 @@ async def update_system_message(message_id: UUID, data: SystemMessageUpdate):
             ext["parse_mode"] = data.parse_mode
         if data.disable_web_page_preview is not None:
             ext["disable_web_page_preview"] = data.disable_web_page_preview
+        if data.show_hide_button is not None:
+            ext["show_hide_button"] = data.show_hide_button
         if data.exclude_acquisition_source is not None:
             ext["exclude_acquisition_source"] = data.exclude_acquisition_source
         
@@ -2014,6 +2122,7 @@ async def update_system_message(message_id: UUID, data: SystemMessageUpdate):
                 text=data.text,
                 media_type=data.media_type,
                 media_url=data.media_url,
+                audio_url=data.audio_url,
                 buttons=buttons_list,
                 target_type=data.target_type,
                 target_user_ids=data.target_user_ids,
@@ -2182,6 +2291,7 @@ async def create_template(data: SystemMessageTemplateCreate):
                 text=data.text,
                 media_type=data.media_type,
                 media_url=data.media_url,
+                audio_url=data.audio_url,
                 buttons=buttons_list
             )
             return SystemMessageTemplateResponse.model_validate(template)
@@ -2246,6 +2356,7 @@ async def update_template(template_id: UUID, data: SystemMessageTemplateUpdate):
                 text=data.text,
                 media_type=data.media_type,
                 media_url=data.media_url,
+                audio_url=data.audio_url,
                 buttons=buttons_list,
                 is_active=data.is_active
             )
@@ -2308,6 +2419,7 @@ async def create_message_from_template(
                 text=data.text or template.text,
                 media_type=data.media_type if data.media_type != "none" else template.media_type,
                 media_url=data.media_url or template.media_url,
+                audio_url=data.audio_url or template.audio_url,
                 buttons=buttons_list,
                 target_type=data.target_type,
                 target_user_ids=data.target_user_ids,

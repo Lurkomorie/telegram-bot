@@ -75,6 +75,7 @@ system:
   creating_chat: "Creating new conversation..."
   loading: "Loading..."
   service_unavailable: "🛠 <b>Temporary Maintenance</b>\n\nWe're currently performing system maintenance to improve your experience. Our service will be back online shortly.\n\nThank you for your patience! 💙"
+  hide_button: "❌ Hide"
 
 # Premium/Subscription
 premium:

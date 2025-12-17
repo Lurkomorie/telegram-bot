@@ -61,6 +61,7 @@ class SystemMessageCreate(BaseModel):
     text: str
     media_type: Literal['none', 'photo', 'video', 'animation'] = 'none'
     media_url: Optional[str] = None
+    audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[SystemMessageButton]] = None
     target_type: Literal['all', 'user', 'users', 'group']
     target_user_ids: Optional[List[int]] = None
@@ -70,6 +71,7 @@ class SystemMessageCreate(BaseModel):
     scheduled_at: Optional[datetime] = None
     parse_mode: Literal['HTML', 'MarkdownV2'] = 'HTML'
     disable_web_page_preview: bool = False
+    show_hide_button: bool = False  # Add a "Hide" button to allow users to dismiss the message
     template_id: Optional[UUID] = None
 
 
@@ -79,6 +81,7 @@ class SystemMessageUpdate(BaseModel):
     text: Optional[str] = None
     media_type: Optional[Literal['none', 'photo', 'video', 'animation']] = None
     media_url: Optional[str] = None
+    audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[SystemMessageButton]] = None
     target_type: Optional[Literal['all', 'user', 'users', 'group']] = None
     target_user_ids: Optional[List[int]] = None
@@ -88,6 +91,7 @@ class SystemMessageUpdate(BaseModel):
     scheduled_at: Optional[datetime] = None
     parse_mode: Optional[Literal['HTML', 'MarkdownV2']] = None
     disable_web_page_preview: Optional[bool] = None
+    show_hide_button: Optional[bool] = None  # Add a "Hide" button to allow users to dismiss the message
 
 
 class SystemMessageResponse(BaseModel):
@@ -97,6 +101,7 @@ class SystemMessageResponse(BaseModel):
     text: str
     media_type: str
     media_url: Optional[str]
+    audio_url: Optional[str]  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[dict]]
     target_type: str
     target_user_ids: Optional[List[int]]
@@ -122,6 +127,7 @@ class SystemMessageTemplateCreate(BaseModel):
     text: str
     media_type: Literal['none', 'photo', 'video', 'animation'] = 'none'
     media_url: Optional[str] = None
+    audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[SystemMessageButton]] = None
 
 
@@ -132,6 +138,7 @@ class SystemMessageTemplateUpdate(BaseModel):
     text: Optional[str] = None
     media_type: Optional[Literal['none', 'photo', 'video', 'animation']] = None
     media_url: Optional[str] = None
+    audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[SystemMessageButton]] = None
     is_active: Optional[bool] = None
 
@@ -144,6 +151,7 @@ class SystemMessageTemplateResponse(BaseModel):
     text: str
     media_type: str
     media_url: Optional[str]
+    audio_url: Optional[str]  # OGG audio URL to send as voice message after the main message
     buttons: Optional[List[dict]]
     created_by: Optional[str]
     is_active: bool
