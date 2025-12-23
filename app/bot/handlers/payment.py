@@ -7,38 +7,49 @@ from app.bot.loader import router
 from app.db.base import get_db
 from app.db import crud
 
+# ============================================
+# 🎄 NEW YEAR SALE - 20% OFF ALL PRICES! 🎄
+# ============================================
+# To disable sale: change NEW_YEAR_DISCOUNT to 0
+NEW_YEAR_DISCOUNT = 0.20  # 20% off
+
+def apply_discount(price: int) -> int:
+    """Apply New Year discount to price"""
+    return round(price * (1 - NEW_YEAR_DISCOUNT))
+
 # Payment products: token packages and tier subscriptions
+# Prices with 20% New Year discount applied
 PAYMENT_PRODUCTS = {
-    # Token packages (one-time purchases) - exact pricing from screenshot
-    "tokens_50": {"type": "tokens", "amount": 50, "stars": 35},
-    "tokens_100": {"type": "tokens", "amount": 100, "stars": 70},
-    "tokens_250": {"type": "tokens", "amount": 250, "stars": 175},
-    "tokens_500": {"type": "tokens", "amount": 500, "stars": 350},
-    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": 700},
-    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": 1750},
-    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": 3500},
-    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": 7000},
-    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": 17500},
+    # Token packages (one-time purchases) - 20% OFF
+    "tokens_50": {"type": "tokens", "amount": 50, "stars": apply_discount(35)},      # 35 → 28
+    "tokens_100": {"type": "tokens", "amount": 100, "stars": apply_discount(70)},    # 70 → 56
+    "tokens_250": {"type": "tokens", "amount": 250, "stars": apply_discount(175)},   # 175 → 140
+    "tokens_500": {"type": "tokens", "amount": 500, "stars": apply_discount(350)},   # 350 → 280
+    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": apply_discount(700)}, # 700 → 560
+    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": apply_discount(1750)}, # 1750 → 1400
+    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": apply_discount(3500)}, # 3500 → 2800
+    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": apply_discount(7000)}, # 7000 → 5600
+    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(17500)}, # 17500 → 14000
     
-    # Tier subscriptions (30 days)
-    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": 450, "daily_tokens": 50},
-    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": 700, "daily_tokens": 75},
-    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": 900, "daily_tokens": 100},
+    # Tier subscriptions (30 days) - 20% OFF
+    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": apply_discount(450), "daily_tokens": 50},       # 450 → 360
+    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": apply_discount(700), "daily_tokens": 75},         # 700 → 560
+    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": apply_discount(900), "daily_tokens": 100}, # 900 → 720
     
-    # Tier subscriptions (90 days) - 10% discount
-    "plus_3months": {"type": "tier", "tier": "plus", "duration": 90, "stars": 1215, "daily_tokens": 50},
-    "pro_3months": {"type": "tier", "tier": "pro", "duration": 90, "stars": 1890, "daily_tokens": 75},
-    "legendary_3months": {"type": "tier", "tier": "legendary", "duration": 90, "stars": 2430, "daily_tokens": 100},
+    # Tier subscriptions (90 days) - 20% OFF (stacks with duration discount)
+    "plus_3months": {"type": "tier", "tier": "plus", "duration": 90, "stars": apply_discount(1215), "daily_tokens": 50},
+    "pro_3months": {"type": "tier", "tier": "pro", "duration": 90, "stars": apply_discount(1890), "daily_tokens": 75},
+    "legendary_3months": {"type": "tier", "tier": "legendary", "duration": 90, "stars": apply_discount(2430), "daily_tokens": 100},
     
-    # Tier subscriptions (180 days) - 30% discount
-    "plus_6months": {"type": "tier", "tier": "plus", "duration": 180, "stars": 1890, "daily_tokens": 50},
-    "pro_6months": {"type": "tier", "tier": "pro", "duration": 180, "stars": 2940, "daily_tokens": 75},
-    "legendary_6months": {"type": "tier", "tier": "legendary", "duration": 180, "stars": 3780, "daily_tokens": 100},
+    # Tier subscriptions (180 days) - 20% OFF (stacks with duration discount)
+    "plus_6months": {"type": "tier", "tier": "plus", "duration": 180, "stars": apply_discount(1890), "daily_tokens": 50},
+    "pro_6months": {"type": "tier", "tier": "pro", "duration": 180, "stars": apply_discount(2940), "daily_tokens": 75},
+    "legendary_6months": {"type": "tier", "tier": "legendary", "duration": 180, "stars": apply_discount(3780), "daily_tokens": 100},
     
-    # Tier subscriptions (365 days) - 30% discount
-    "plus_year": {"type": "tier", "tier": "plus", "duration": 365, "stars": 3780, "daily_tokens": 50},
-    "pro_year": {"type": "tier", "tier": "pro", "duration": 365, "stars": 5880, "daily_tokens": 75},
-    "legendary_year": {"type": "tier", "tier": "legendary", "duration": 365, "stars": 7560, "daily_tokens": 100},
+    # Tier subscriptions (365 days) - 20% OFF (stacks with duration discount)
+    "plus_year": {"type": "tier", "tier": "plus", "duration": 365, "stars": apply_discount(3780), "daily_tokens": 50},
+    "pro_year": {"type": "tier", "tier": "pro", "duration": 365, "stars": apply_discount(5880), "daily_tokens": 75},
+    "legendary_year": {"type": "tier", "tier": "legendary", "duration": 365, "stars": apply_discount(7560), "daily_tokens": 100},
 }
 
 
