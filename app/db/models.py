@@ -446,6 +446,7 @@ class SystemMessage(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     title = Column(String(255), nullable=True)
     text = Column(Text, nullable=False)
+    text_ru = Column(Text, nullable=True)  # Russian version of the message
     media_type = Column(
         String(20),
         CheckConstraint("media_type IN ('none', 'photo', 'video', 'animation')"),

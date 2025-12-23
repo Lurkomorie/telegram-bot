@@ -4,6 +4,227 @@
   padding-top: 0;
 }
 
+/* ===== New Year Sale Styles ===== */
+
+.sale-banner {
+  position: relative;
+  margin: 0 0 20px 0;
+  padding: 20px;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sale-banner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+}
+
+.sale-banner-snow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sale-banner-snow .snowflake {
+  position: absolute;
+  top: -20px;
+  color: white;
+  opacity: 0;
+  font-size: 14px;
+  animation: banner-snow linear infinite;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+
+@keyframes banner-snow {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) translateX(0);
+  }
+  10% {
+    opacity: 0.9;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(80px) translateX(10px);
+  }
+}
+
+.sale-banner-snow .snowflake:nth-child(1) { left: 5%; animation-duration: 3s; animation-delay: 0s; font-size: 10px; }
+.sale-banner-snow .snowflake:nth-child(2) { left: 15%; animation-duration: 4s; animation-delay: 0.5s; font-size: 14px; }
+.sale-banner-snow .snowflake:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1s; font-size: 12px; }
+.sale-banner-snow .snowflake:nth-child(4) { left: 35%; animation-duration: 4.5s; animation-delay: 0.3s; font-size: 16px; }
+.sale-banner-snow .snowflake:nth-child(5) { left: 45%; animation-duration: 3.2s; animation-delay: 0.8s; font-size: 10px; }
+.sale-banner-snow .snowflake:nth-child(6) { left: 55%; animation-duration: 4.2s; animation-delay: 0.2s; font-size: 14px; }
+.sale-banner-snow .snowflake:nth-child(7) { left: 65%; animation-duration: 3.8s; animation-delay: 1.2s; font-size: 12px; }
+.sale-banner-snow .snowflake:nth-child(8) { left: 75%; animation-duration: 4.8s; animation-delay: 0.6s; font-size: 16px; }
+.sale-banner-snow .snowflake:nth-child(9) { left: 85%; animation-duration: 3.3s; animation-delay: 1.5s; font-size: 10px; }
+.sale-banner-snow .snowflake:nth-child(10) { left: 95%; animation-duration: 4.3s; animation-delay: 0.4s; font-size: 14px; }
+.sale-banner-snow .snowflake:nth-child(11) { left: 10%; animation-duration: 5s; animation-delay: 2s; font-size: 8px; }
+.sale-banner-snow .snowflake:nth-child(12) { left: 90%; animation-duration: 5.5s; animation-delay: 2.5s; font-size: 12px; }
+
+.sale-banner-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.sale-banner-emoji {
+  font-size: 24px;
+  animation: emoji-bounce 2s ease-in-out infinite;
+}
+
+.sale-banner-emoji:last-child {
+  animation-delay: 0.3s;
+}
+
+@keyframes emoji-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.1);
+  }
+}
+
+.sale-banner-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sale-banner-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  text-shadow: 
+    0 0 10px rgba(255, 100, 100, 0.8),
+    0 0 20px rgba(255, 100, 100, 0.5),
+    0 0 30px rgba(255, 100, 100, 0.3);
+  animation: text-glow 2s ease-in-out infinite;
+}
+
+.sale-banner-discount {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes text-glow {
+  0%, 100% {
+    text-shadow: 
+      0 0 10px rgba(255, 100, 100, 0.8),
+      0 0 20px rgba(255, 100, 100, 0.5),
+      0 0 30px rgba(255, 100, 100, 0.3);
+  }
+  50% {
+    text-shadow: 
+      0 0 15px rgba(255, 120, 120, 1),
+      0 0 30px rgba(255, 100, 100, 0.7),
+      0 0 45px rgba(255, 100, 100, 0.5);
+  }
+}
+
+.sale-tag {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
+  animation: pop-in 0.3s ease-out;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.package-price-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.original-price {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.original-price .star-icon-inline {
+  width: 10px;
+  height: 10px;
+  opacity: 0.6;
+}
+
+.discounted-price {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4ade80;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.discounted-price .star-icon-inline {
+  width: 12px;
+  height: 12px;
+  filter: hue-rotate(90deg) saturate(1.5);
+}
+
+/* Tier price container */
+.tier-price-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
 .plans-tabs {
   display: flex;
   gap: 0;

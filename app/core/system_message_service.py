@@ -109,6 +109,7 @@ def _extract_message_data(message) -> Dict[str, Any]:
     # Force materialization of all attributes immediately
     msg_id = message.id
     msg_text = str(message.text) if message.text else ""
+    msg_text_ru = str(message.text_ru) if message.text_ru else None
     msg_media_type = str(message.media_type) if message.media_type else "none"
     msg_media_url = str(message.media_url) if message.media_url else None
     msg_target_type = str(message.target_type) if message.target_type else "all"
@@ -155,6 +156,7 @@ def _extract_message_data(message) -> Dict[str, Any]:
     return {
         "id": msg_id,
         "text": msg_text,
+        "text_ru": msg_text_ru,
         "media_type": msg_media_type,
         "media_url": msg_media_url,
         "audio_url": msg_audio_url,
@@ -391,8 +393,14 @@ async def _send_to_user(
     parse_mode_value = parse_mode if parse_mode in ("HTML", "MarkdownV2") else "HTML"
     disable_web_page_preview = message_data.get("ext", {}).get("disable_web_page_preview", False)
     
+    # Select message text based on user's language
+    # Use Russian text if user's language is "ru" and Russian text is available
+    if user_language == "ru" and message_data.get("text_ru"):
+        message_text = message_data["text_ru"]
+    else:
+        message_text = message_data["text"]
+    
     # Sanitize HTML for Telegram if using HTML parse mode
-    message_text = message_data["text"]
     if parse_mode_value == "HTML" and message_text:
         message_text = _sanitize_html_for_telegram(message_text)
     

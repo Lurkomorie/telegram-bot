@@ -2,6 +2,7 @@ import WebApp from '@twa-dev/sdk';
 import { useEffect } from 'react';
 import { trackEvent } from '../api';
 import starIcon from '../assets/star.webp';
+import christmasBg from '../assets/christmas-bg.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
 
@@ -20,7 +21,11 @@ export default function PremiumPage({ onNavigateToCheckout }) {
     });
   }, []);
 
-  // Premium tiers with translation keys
+  // New Year Sale - 20% off all prices!
+  const DISCOUNT_PERCENT = 20;
+  const calcDiscount = (price) => Math.round(price * (1 - DISCOUNT_PERCENT / 100));
+
+  // Premium tiers with translation keys (original + discounted)
   const tiers = [
     {
       id: 'plus_month',
@@ -28,7 +33,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '❄️',
       daily: 50,
       bonus: 500,
-      stars: 450,
+      originalStars: 450,
+      stars: calcDiscount(450),
       featureKeys: [
         'premium.plus.feature1',
         'premium.plus.feature2',
@@ -45,7 +51,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '🔥',
       daily: 75,
       bonus: 750,
-      stars: 700,
+      originalStars: 700,
+      stars: calcDiscount(700),
       featureKeys: [
         'premium.pro.feature1',
         'premium.pro.feature2',
@@ -58,7 +65,8 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       icon: '🏆',
       daily: 100,
       bonus: 1000,
-      stars: 900,
+      originalStars: 900,
+      stars: calcDiscount(900),
       featureKeys: [
         'premium.legendary.feature1',
         'premium.legendary.feature2',
@@ -73,15 +81,38 @@ export default function PremiumPage({ onNavigateToCheckout }) {
 
   return (
     <div className="premium-page">
+      {/* New Year Sale Banner */}
+      <div className="sale-banner" style={{ backgroundImage: `url(${christmasBg})` }}>
+        <div className="sale-banner-overlay"></div>
+        <div className="sale-banner-snow">
+          {[...Array(12)].map((_, i) => (
+            <span key={i} className="snowflake">❄</span>
+          ))}
+        </div>
+        <div className="sale-banner-content">
+          <span className="sale-banner-emoji">🎄</span>
+          <div className="sale-banner-text-group">
+            <span className="sale-banner-title">NEW YEAR SALE</span>
+            <span className="sale-banner-discount">{DISCOUNT_PERCENT}% OFF PREMIUM</span>
+          </div>
+          <span className="sale-banner-emoji">🎁</span>
+        </div>
+      </div>
+
       {tiers.map((tier) => (
         <div key={tier.id} className="premium-card">
+          <div className="sale-tag-corner">-{DISCOUNT_PERCENT}%</div>
           <div className="premium-card-header">
             <div className="premium-card-title">
               <span className="tier-icon-large">{tier.icon}</span>
               <span className="tier-name-large">{tier.name}</span>
             </div>
             <div className="premium-card-price">
-              <div className="price-amount">
+              <div className="price-original">
+                <img src={starIcon} alt="star" className="star-icon-small" />
+                <span className="original-stars">{tier.originalStars}</span>
+              </div>
+              <div className="price-amount discounted">
                 <img src={starIcon} alt="star" className="star-icon" />
                 {tier.stars}
               </div>

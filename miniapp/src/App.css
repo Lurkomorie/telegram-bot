@@ -18,7 +18,7 @@ body {
   min-height: 100vh;
   background: var(--bg-primary);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* Красивый размытый красный blob на фоне */

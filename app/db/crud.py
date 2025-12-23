@@ -3334,6 +3334,7 @@ def create_system_message(
     db: Session,
     title: str = None,
     text: str = None,
+    text_ru: str = None,
     media_type: str = "none",
     media_url: str = None,
     audio_url: str = None,
@@ -3359,6 +3360,7 @@ def create_system_message(
     message = SystemMessage(
         title=title,
         text=text,
+        text_ru=text_ru,
         media_type=media_type,
         media_url=media_url,
         audio_url=audio_url,
@@ -3422,6 +3424,7 @@ def update_system_message(
     message_id: UUID,
     title: str = None,
     text: str = None,
+    text_ru: str = None,
     media_type: str = None,
     media_url: str = None,
     audio_url: str = None,
@@ -3445,6 +3448,8 @@ def update_system_message(
         message.title = title
     if text is not None:
         message.text = text
+    if text_ru is not None:
+        message.text_ru = text_ru
     if media_type is not None:
         message.media_type = media_type
     if media_url is not None:

@@ -59,6 +59,7 @@ class SystemMessageCreate(BaseModel):
     """Input schema for creating system messages"""
     title: Optional[str] = None
     text: str
+    text_ru: Optional[str] = None  # Russian version of the message
     media_type: Literal['none', 'photo', 'video', 'animation'] = 'none'
     media_url: Optional[str] = None
     audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
@@ -79,6 +80,7 @@ class SystemMessageUpdate(BaseModel):
     """Input schema for updating system messages"""
     title: Optional[str] = None
     text: Optional[str] = None
+    text_ru: Optional[str] = None  # Russian version of the message
     media_type: Optional[Literal['none', 'photo', 'video', 'animation']] = None
     media_url: Optional[str] = None
     audio_url: Optional[str] = None  # OGG audio URL to send as voice message after the main message
@@ -99,6 +101,7 @@ class SystemMessageResponse(BaseModel):
     id: UUID
     title: Optional[str]
     text: str
+    text_ru: Optional[str]  # Russian version of the message
     media_type: str
     media_url: Optional[str]
     audio_url: Optional[str]  # OGG audio URL to send as voice message after the main message

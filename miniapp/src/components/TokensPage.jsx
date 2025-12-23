@@ -5,6 +5,7 @@ import { useTranslation } from '../i18n/TranslationContext';
 import './TokensPage.css';
 import lightningIcon from '../assets/lightning.webp';
 import starIcon from '../assets/star.webp';
+import christmasBg from '../assets/christmas-bg.webp';
 
 /**
  * TokensPage Component
@@ -23,17 +24,21 @@ export default function TokensPage({ tokens }) {
     });
   }, []);
 
-  // Token packages from screenshot
+  // New Year Sale - 20% off all prices!
+  const DISCOUNT_PERCENT = 20;
+  const calcDiscount = (price) => Math.round(price * (1 - DISCOUNT_PERCENT / 100));
+
+  // Token packages with original + discounted prices
   const packages = [
-    { id: 'tokens_50', amount: 50, stars: 35 },
-    { id: 'tokens_100', amount: 100, stars: 70 },
-    { id: 'tokens_250', amount: 250, stars: 175 },
-    { id: 'tokens_500', amount: 500, stars: 350 },
-    { id: 'tokens_1000', amount: 1000, stars: 700 },
-    { id: 'tokens_2500', amount: 2500, stars: 1750 },
-    { id: 'tokens_5000', amount: 5000, stars: 3500 },
-    { id: 'tokens_10000', amount: 10000, stars: 7000 },
-    { id: 'tokens_25000', amount: 25000, stars: 17500 }
+    { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },
+    { id: 'tokens_100', amount: 100, originalStars: 70, stars: calcDiscount(70) },
+    { id: 'tokens_250', amount: 250, originalStars: 175, stars: calcDiscount(175) },
+    { id: 'tokens_500', amount: 500, originalStars: 350, stars: calcDiscount(350) },
+    { id: 'tokens_1000', amount: 1000, originalStars: 700, stars: calcDiscount(700) },
+    { id: 'tokens_2500', amount: 2500, originalStars: 1750, stars: calcDiscount(1750) },
+    { id: 'tokens_5000', amount: 5000, originalStars: 3500, stars: calcDiscount(3500) },
+    { id: 'tokens_10000', amount: 10000, originalStars: 7000, stars: calcDiscount(7000) },
+    { id: 'tokens_25000', amount: 25000, originalStars: 17500, stars: calcDiscount(17500) }
   ];
 
   const handlePurchase = async () => {
@@ -79,6 +84,24 @@ export default function TokensPage({ tokens }) {
 
   return (
     <div className="tokens-page">
+      {/* New Year Sale Banner */}
+      <div className="sale-banner" style={{ backgroundImage: `url(${christmasBg})` }}>
+        <div className="sale-banner-overlay"></div>
+        <div className="sale-banner-snow">
+          {[...Array(12)].map((_, i) => (
+            <span key={i} className="snowflake">❄</span>
+          ))}
+        </div>
+        <div className="sale-banner-content">
+          <span className="sale-banner-emoji">🎄</span>
+          <div className="sale-banner-text-group">
+            <span className="sale-banner-title">NEW YEAR SALE</span>
+            <span className="sale-banner-discount">{DISCOUNT_PERCENT}% OFF ALL TOKENS</span>
+          </div>
+          <span className="sale-banner-emoji">🎁</span>
+        </div>
+      </div>
+
       <div className="packages-list">
         {packages.map((pkg) => (
           <div
@@ -96,10 +119,17 @@ export default function TokensPage({ tokens }) {
               </div>
             </div>
             <div className="package-right">
-              <div className="package-price-stars">
-                <img src={starIcon} alt="star" className="star-icon" />
-                {pkg.stars.toLocaleString()}
+              <div className="package-price-sale">
+                <span className="original-price-inline">
+                  <img src={starIcon} alt="star" className="star-icon" />
+                  {pkg.originalStars.toLocaleString()}
+                </span>
+                <span className="discounted-price-inline">
+                  <img src={starIcon} alt="star" className="star-icon" />
+                  {pkg.stars.toLocaleString()}
+                </span>
               </div>
+              <div className="sale-tag-small">-{DISCOUNT_PERCENT}%</div>
             </div>
           </div>
         ))}

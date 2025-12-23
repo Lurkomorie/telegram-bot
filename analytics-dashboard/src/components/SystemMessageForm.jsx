@@ -9,6 +9,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
   const [formData, setFormData] = useState({
     title: '',
     text: '',
+    text_ru: '',
     media_type: 'none',
     media_url: '',
     audio_url: '',
@@ -101,6 +102,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
       setFormData({
         title: message.title || '',
         text: text,
+        text_ru: message.text_ru || '',
         media_type: message.media_type || 'none',
         media_url: message.media_url || '',
         audio_url: message.audio_url || '',
@@ -269,7 +271,9 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
       const submitData = {
         ...formData,
         scheduled_at: formData.scheduled_at ? new Date(formData.scheduled_at).toISOString() : null,
-        buttons: formData.buttons.length > 0 ? formData.buttons : undefined
+        buttons: formData.buttons.length > 0 ? formData.buttons : undefined,
+        // Send null if text_ru is empty or just whitespace/empty HTML
+        text_ru: formData.text_ru && formData.text_ru.replace(/<[^>]*>/g, '').trim() ? formData.text_ru : null
       };
 
       if (message) {
@@ -344,7 +348,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
 
               {/* Text with WYSIWYG Editor */}
               <div>
-                <label className="block text-sm font-medium mb-1">Message Text *</label>
+                <label className="block text-sm font-medium mb-1">Message Text (English) *</label>
                 <ReactQuill
                   ref={quillRef}
                   theme="snow"
@@ -363,6 +367,28 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                   style={{ minHeight: '200px', marginBottom: '50px' }}
                 />
                 <p className="text-xs text-gray-500 mt-1">Supports HTML formatting, emojis, and links</p>
+              </div>
+
+              {/* Russian Text */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Message Text (Russian) - optional</label>
+                <ReactQuill
+                  theme="snow"
+                  value={formData.text_ru}
+                  onChange={(content) => setFormData({ ...formData, text_ru: content })}
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      [{ 'color': [] }, { 'background': [] }],
+                      ['link'],
+                      ['clean']
+                    ]
+                  }}
+                  style={{ minHeight: '200px', marginBottom: '50px' }}
+                />
+                <p className="text-xs text-gray-500 mt-1">Russian version for users with Russian language. If empty, English text will be used.</p>
               </div>
 
               {/* Media Type */}

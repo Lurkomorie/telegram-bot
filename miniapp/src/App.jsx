@@ -637,6 +637,7 @@ function App() {
             tokens={tokens}
             onRefresh={() => loadPersonas(true)}
             onNavigateToTokens={() => setCurrentPage('tokens')}
+            onNavigateToPremium={() => setCurrentPage('premium')}
           />
         ) : currentPage === 'history' ? (
           <HistorySelection

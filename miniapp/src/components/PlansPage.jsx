@@ -4,6 +4,7 @@ import { createInvoice, trackEvent } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PlansPage.css';
 import starIcon from '../assets/star.webp';
+import christmasBg from '../assets/christmas-bg.webp';
 
 /**
  * PlansPage Component
@@ -23,24 +24,28 @@ export default function PlansPage() {
     });
   }, []);
 
-  // Token packages with exact pricing
+  // New Year Sale - 20% off all prices!
+  const DISCOUNT_PERCENT = 20;
+  const calcDiscount = (price) => Math.round(price * (1 - DISCOUNT_PERCENT / 100));
+
+  // Token packages with exact pricing (original + discounted)
   const tokenPackages = [
-    { id: 'tokens_50', amount: 50, stars: 35 },
-    { id: 'tokens_100', amount: 100, stars: 70 },
-    { id: 'tokens_250', amount: 250, stars: 175 },
-    { id: 'tokens_500', amount: 500, stars: 350 },
-    { id: 'tokens_1000', amount: 1000, stars: 700, popular: true },
-    { id: 'tokens_2500', amount: 2500, stars: 1750 },
-    { id: 'tokens_5000', amount: 5000, stars: 3500 },
-    { id: 'tokens_10000', amount: 10000, stars: 7000 },
-    { id: 'tokens_25000', amount: 25000, stars: 17500, bestValue: true },
+    { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },
+    { id: 'tokens_100', amount: 100, originalStars: 70, stars: calcDiscount(70) },
+    { id: 'tokens_250', amount: 250, originalStars: 175, stars: calcDiscount(175) },
+    { id: 'tokens_500', amount: 500, originalStars: 350, stars: calcDiscount(350) },
+    { id: 'tokens_1000', amount: 1000, originalStars: 700, stars: calcDiscount(700), popular: true },
+    { id: 'tokens_2500', amount: 2500, originalStars: 1750, stars: calcDiscount(1750) },
+    { id: 'tokens_5000', amount: 5000, originalStars: 3500, stars: calcDiscount(3500) },
+    { id: 'tokens_10000', amount: 10000, originalStars: 7000, stars: calcDiscount(7000) },
+    { id: 'tokens_25000', amount: 25000, originalStars: 17500, stars: calcDiscount(17500), bestValue: true },
   ];
 
-  // Premium tiers
+  // Premium tiers (original + discounted)
   const premiumTiers = [
-    { id: 'plus_month', name: 'Plus', daily: 50, stars: 450 },
-    { id: 'pro_month', name: 'Pro', daily: 75, stars: 700, popular: true },
-    { id: 'legendary_month', name: 'Legendary', daily: 100, stars: 900 },
+    { id: 'plus_month', name: 'Plus', daily: 50, originalStars: 450, stars: calcDiscount(450) },
+    { id: 'pro_month', name: 'Pro', daily: 75, originalStars: 700, stars: calcDiscount(700), popular: true },
+    { id: 'legendary_month', name: 'Legendary', daily: 100, originalStars: 900, stars: calcDiscount(900) },
   ];
 
   const handlePurchase = async () => {
@@ -101,6 +106,24 @@ export default function PlansPage() {
         </button>
       </div>
 
+      {/* New Year Sale Banner */}
+      <div className="sale-banner" style={{ backgroundImage: `url(${christmasBg})` }}>
+        <div className="sale-banner-overlay"></div>
+        <div className="sale-banner-snow">
+          {[...Array(12)].map((_, i) => (
+            <span key={i} className="snowflake">❄</span>
+          ))}
+        </div>
+        <div className="sale-banner-content">
+          <span className="sale-banner-emoji">🎄</span>
+          <div className="sale-banner-text-group">
+            <span className="sale-banner-title">NEW YEAR SALE</span>
+            <span className="sale-banner-discount">{DISCOUNT_PERCENT}% OFF ALL PLANS</span>
+          </div>
+          <span className="sale-banner-emoji">🎁</span>
+        </div>
+      </div>
+
       {activeTab === 'tokens' ? (
         <div className="tokens-section">
           <div className="section-description">
@@ -113,12 +136,19 @@ export default function PlansPage() {
                 className={`token-package ${selectedProduct === pkg.id ? 'selected' : ''}`}
                 onClick={() => setSelectedProduct(pkg.id)}
               >
+                <div className="sale-tag">-{DISCOUNT_PERCENT}%</div>
                 {pkg.popular && <div className="badge popular">Popular</div>}
                 {pkg.bestValue && <div className="badge best-value">Best Value</div>}
                 <div className="package-amount">🪙 {pkg.amount.toLocaleString()}</div>
-                <div className="package-price">
-                  <img src={starIcon} alt="star" className="star-icon-inline" />
-                  {pkg.stars.toLocaleString()} stars
+                <div className="package-price-container">
+                  <span className="original-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {pkg.originalStars.toLocaleString()}
+                  </span>
+                  <span className="discounted-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {pkg.stars.toLocaleString()}
+                  </span>
                 </div>
                 {selectedProduct === pkg.id && (
                   <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -141,12 +171,19 @@ export default function PlansPage() {
                 className={`tier-card ${selectedProduct === tier.id ? 'selected' : ''}`}
                 onClick={() => setSelectedProduct(tier.id)}
               >
+                <div className="sale-tag">-{DISCOUNT_PERCENT}%</div>
                 {tier.popular && <div className="badge popular">Popular</div>}
                 <div className="tier-name">{tier.name}</div>
                 <div className="tier-daily">+{tier.daily} tokens/day</div>
-                <div className="tier-price">
-                  <img src={starIcon} alt="star" className="star-icon-inline" />
-                  {tier.stars} stars/month
+                <div className="tier-price-container">
+                  <span className="original-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {tier.originalStars}
+                  </span>
+                  <span className="discounted-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {tier.stars}/mo
+                  </span>
                 </div>
                 <div className="tier-total">{tier.daily * 30} tokens total</div>
                 {selectedProduct === tier.id && (

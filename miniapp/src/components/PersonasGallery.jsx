@@ -2,6 +2,7 @@ import WebApp from '@twa-dev/sdk';
 import { useEffect, useRef, useState } from 'react';
 import { deleteCharacter } from '../api';
 import { useTranslation } from '../i18n/TranslationContext';
+import christmasBg from '../assets/christmas-bg.webp';
 import CharacterCreation from './CharacterCreation';
 import './PersonasGallery.css';
 
@@ -10,7 +11,7 @@ import './PersonasGallery.css';
  * Displays a 2-column grid of AI persona cards with images, names, and descriptions
  * Includes "Create Character" card and custom character management
  */
-export default function PersonasGallery({ personas, onPersonaClick, isLoading, tokens, onRefresh, onNavigateToTokens }) {
+export default function PersonasGallery({ personas, onPersonaClick, isLoading, tokens, onRefresh, onNavigateToTokens, onNavigateToPremium }) {
   const { t } = useTranslation();
   const [showCreation, setShowCreation] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -124,6 +125,28 @@ export default function PersonasGallery({ personas, onPersonaClick, isLoading, t
 
   return (
     <>
+      {/* New Year Sale Banner */}
+      <div 
+        className="sale-banner-gallery" 
+        style={{ backgroundImage: `url(${christmasBg})` }}
+        onClick={onNavigateToPremium}
+      >
+        <div className="sale-banner-overlay"></div>
+        <div className="sale-banner-snow">
+          {[...Array(12)].map((_, i) => (
+            <span key={i} className="snowflake">❄</span>
+          ))}
+        </div>
+        <div className="sale-banner-content">
+          <span className="sale-banner-emoji">🎄</span>
+          <div className="sale-banner-text-group">
+            <span className="sale-banner-title">NEW YEAR SALE</span>
+            <span className="sale-banner-discount">20% OFF ALL PLANS</span>
+          </div>
+          <span className="sale-banner-emoji">🎁</span>
+        </div>
+      </div>
+
       <div className="personas-gallery">
         <div className="personas-grid">
           {/* First two personas */}
