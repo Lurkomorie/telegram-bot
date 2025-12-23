@@ -736,3 +736,148 @@ async def retry_failed_deliveries(system_message_id: Optional[UUID] = None) -> d
     logger.info(f"Retry completed", extra={"stats": stats})
     return stats
 
+
+async def resume_system_message(message_id: UUID) -> dict:
+    """
+    Resume sending a system message to users who haven't received it yet.
+    
+    This is useful when a scheduled job was interrupted (e.g., during redeployment).
+    It will:
+    1. Get all target users for the message
+    2. Exclude users who already have a delivery record with status "sent" or "blocked"
+    3. Create new delivery records for remaining users
+    4. Send to those users
+    
+    Args:
+        message_id: System message UUID
+        
+    Returns:
+        dict with resume statistics
+    """
+    logger.info(f"Resuming system message", extra={
+        "message_id": str(message_id),
+        "action": "resume_system_message_start"
+    })
+    
+    with get_db() as db:
+        message = crud.get_system_message(db, message_id)
+        if not message:
+            logger.error(f"Message not found", extra={"message_id": str(message_id)})
+            return {"error": "Message not found"}
+        
+        # Check message status - allow resuming for sending, failed, or completed states
+        if message.status not in ("sending", "failed", "completed"):
+            logger.warning(f"Cannot resume message with status {message.status}", extra={
+                "message_id": str(message_id),
+                "status": message.status
+            })
+            return {"error": f"Cannot resume message with status '{message.status}'"}
+        
+        # Extract message data
+        message_data = _extract_message_data(message)
+        
+        # Get all target users
+        all_target_users = await _get_target_users(
+            db,
+            message_data["target_type"],
+            message_data["target_user_ids"],
+            message_data["target_group"],
+            message_data["ext"]
+        )
+        
+        if not all_target_users:
+            logger.error(f"No target users found", extra={"message_id": str(message_id)})
+            return {"error": "No target users found"}
+        
+        # Get users who already received the message (sent or blocked)
+        from app.db.models import SystemMessageDelivery
+        already_delivered = db.query(SystemMessageDelivery.user_id).filter(
+            SystemMessageDelivery.system_message_id == message_id,
+            SystemMessageDelivery.status.in_(["sent", "blocked"])
+        ).all()
+        already_delivered_ids = {d.user_id for d in already_delivered}
+        
+        # Filter out users who already received the message
+        remaining_users = [uid for uid in all_target_users if uid not in already_delivered_ids]
+        
+        if not remaining_users:
+            logger.info(f"All users already received the message", extra={
+                "message_id": str(message_id),
+                "total_users": len(all_target_users),
+                "already_delivered": len(already_delivered_ids)
+            })
+            # Mark as completed since everyone got it
+            message.status = "completed"
+            db.commit()
+            return {
+                "success": True,
+                "message": "All users already received the message",
+                "total_users": len(all_target_users),
+                "already_delivered": len(already_delivered_ids),
+                "remaining": 0
+            }
+        
+        # Update status to sending
+        message.status = "sending"
+        db.commit()
+        
+        # Create delivery records for remaining users
+        deliveries = crud.create_delivery_records(db, message_id, remaining_users)
+        
+        logger.info(f"Resuming send to {len(remaining_users)} remaining users", extra={
+            "message_id": str(message_id),
+            "total_users": len(all_target_users),
+            "already_delivered": len(already_delivered_ids),
+            "remaining": len(remaining_users)
+        })
+    
+    # Send messages with rate limiting
+    try:
+        stats = await _send_bulk(message_data, message_id, remaining_users)
+        
+        # Update message status
+        with get_db() as db:
+            message = crud.get_system_message(db, message_id)
+            if message:
+                current_status = message.status
+                if current_status == "cancelled":
+                    logger.warning(f"Message cancelled during resume", extra={
+                        "message_id": str(message_id),
+                        "stats": stats
+                    })
+                    return {"error": "Message was cancelled during resume", **stats}
+                
+                # Mark as completed if all sent successfully
+                if stats.get('failed', 0) == 0:
+                    message.status = "completed"
+                else:
+                    message.status = "failed"
+                message.sent_at = datetime.utcnow()
+                db.commit()
+        
+        stats["already_delivered"] = len(already_delivered_ids)
+        stats["resumed_users"] = len(remaining_users)
+        
+        logger.info(f"Resume completed", extra={
+            "message_id": str(message_id),
+            "stats": stats
+        })
+        return stats
+    except Exception as e:
+        logger.error(f"Error resuming message", extra={
+            "message_id": str(message_id),
+            "error": str(e)
+        }, exc_info=True)
+        try:
+            with get_db() as db:
+                message = crud.get_system_message(db, message_id)
+                if message:
+                    message.status = "failed"
+                    db.commit()
+        except Exception as db_error:
+            logger.error(f"Error updating status to failed", extra={
+                "message_id": str(message_id),
+                "error": str(db_error)
+            })
+        return {"error": str(e)}
+

@@ -82,6 +82,17 @@ export default function SystemMessages() {
     setShowStats(true);
   };
 
+  const handleResume = async (id) => {
+    if (!confirm('Resume sending to users who haven\'t received this message yet?')) return;
+    try {
+      await api.resumeSystemMessage(id);
+      alert('Resume started - sending to remaining users');
+      loadMessages();
+    } catch (error) {
+      alert('Failed to resume message: ' + error.message);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const configs = {
       draft: {
@@ -288,15 +299,23 @@ export default function SystemMessages() {
                           <button onClick={() => handleViewStats(msg)} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md hover:shadow-lg">
                             📊 Stats
                           </button>
+                          <button onClick={() => handleResume(msg.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-md hover:shadow-lg">
+                            ▶️ Resume
+                          </button>
                           <button onClick={() => handleCancel(msg.id)} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg">
                             ⊗ Cancel
                           </button>
                         </>
                       )}
                       {(msg.status === 'completed' || msg.status === 'failed') && (
-                        <button onClick={() => handleViewStats(msg)} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md hover:shadow-lg">
-                          📊 View Stats
-                        </button>
+                        <>
+                          <button onClick={() => handleViewStats(msg)} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-md hover:shadow-lg">
+                            📊 View Stats
+                          </button>
+                          <button onClick={() => handleResume(msg.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-md hover:shadow-lg">
+                            ▶️ Resume
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

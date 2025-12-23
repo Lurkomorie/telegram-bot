@@ -421,6 +421,14 @@ export const api = {
     return response.json();
   },
 
+  async resumeSystemMessage(id) {
+    const response = await fetch(`${API_BASE}/api/analytics/system-messages/${id}/resume`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to resume message');
+    return response.json();
+  },
+
   // ========== SYSTEM MESSAGE TEMPLATES ==========
 
   async createTemplate(data) {

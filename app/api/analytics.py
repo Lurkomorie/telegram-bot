@@ -2275,6 +2275,39 @@ async def retry_failed_deliveries(message_id: UUID, background_tasks: Background
         raise HTTPException(status_code=500, detail=f"Error retrying deliveries: {str(e)}")
 
 
+@router.post("/system-messages/{message_id}/resume", response_model=Dict[str, Any])
+async def resume_system_message(message_id: UUID, background_tasks: BackgroundTasks):
+    """Resume sending a system message to users who haven't received it yet.
+    
+    Useful when a scheduled job was interrupted during redeployment.
+    Will only send to users who don't have a delivery record with status 'sent' or 'blocked'.
+    """
+    try:
+        with get_db() as db:
+            message = crud.get_system_message(db, message_id)
+            if not message:
+                raise HTTPException(status_code=404, detail="System message not found")
+            
+            if message.status not in ("sending", "failed", "completed"):
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Cannot resume message with status '{message.status}'. Only 'sending', 'failed', or 'completed' messages can be resumed."
+                )
+        
+        # Trigger resume in background with monitoring
+        _create_monitored_task(
+            system_message_service.resume_system_message(message_id),
+            task_name="resume_system_message",
+            context={"message_id": str(message_id), "trigger": "manual_resume"}
+        )
+        return {"success": True, "message": "Resume started - sending to users who haven't received the message yet"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error resuming system message: {e}")
+        raise HTTPException(status_code=500, detail=f"Error resuming system message: {str(e)}")
+
+
 # ========== SYSTEM MESSAGE TEMPLATE ENDPOINTS ==========
 
 @router.post("/system-message-templates", response_model=SystemMessageTemplateResponse)
