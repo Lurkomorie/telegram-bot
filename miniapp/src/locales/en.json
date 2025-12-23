@@ -93,12 +93,12 @@
     "pro": {
       "feature1": "Everything in Plus, plus",
       "feature2": "+750 bonus tokens on purchase",
-      "feature3": "Free 100 tokens every day"
+      "feature3": "Free 75 tokens every day"
     },
     "legendary": {
       "feature1": "Everything in Pro, plus",
       "feature2": "+1,000 bonus tokens on purchase",
-      "feature3": "Free 200 tokens every day"
+      "feature3": "Free 100 tokens every day"
     }
   },
   "app": {
