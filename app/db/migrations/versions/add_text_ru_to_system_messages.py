@@ -1,7 +1,7 @@
 """Add text_ru column to system_messages table
 
 Revision ID: add_text_ru_col
-Revises: 
+Revises: c7a3e9f12b4d
 Create Date: 2024-12-23
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_text_ru_col'
-down_revision = None
+down_revision = 'c7a3e9f12b4d'
 branch_labels = None
 depends_on = None
 
