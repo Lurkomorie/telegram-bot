@@ -3,9 +3,10 @@ Payment handlers for Telegram Stars
 """
 from aiogram import types
 from aiogram.filters import Command
-from app.bot.loader import router
+from app.bot.loader import router, bot
 from app.db.base import get_db
 from app.db import crud
+from app.settings import settings
 
 # ============================================
 # 🎄 NEW YEAR SALE - 20% OFF ALL PRICES! 🎄
@@ -16,6 +17,49 @@ NEW_YEAR_DISCOUNT = 0.20  # 20% off
 def apply_discount(price: int) -> int:
     """Apply New Year discount to price"""
     return round(price * (1 - NEW_YEAR_DISCOUNT))
+
+
+async def send_payment_notification(user: types.User, product_id: str, product: dict):
+    """
+    Send payment notification to the configured Telegram group/channel
+    """
+    if not settings.PAYMENT_NOTIFICATION_CHAT_ID:
+        return
+    
+    try:
+        # Build user info
+        user_link = f"<a href='tg://user?id={user.id}'>{user.full_name}</a>"
+        username = f"@{user.username}" if user.username else "no username"
+        
+        # Build product info
+        product_type = product["type"]
+        stars_amount = product["stars"]
+        
+        if product_type == "tokens":
+            product_desc = f"🪙 {product['amount']} tokens"
+        else:
+            tier = product["tier"].capitalize()
+            duration = product["duration"]
+            product_desc = f"👑 {tier} ({duration} days)"
+        
+        message = (
+            f"💰 <b>New Payment Received!</b>\n\n"
+            f"👤 User: {user_link}\n"
+            f"🆔 ID: <code>{user.id}</code>\n"
+            f"📛 Username: {username}\n\n"
+            f"📦 Product: {product_desc}\n"
+            f"⭐ Amount: <b>{stars_amount} Stars</b>\n"
+            f"🏷️ Product ID: <code>{product_id}</code>"
+        )
+        
+        await bot.send_message(
+            chat_id=settings.PAYMENT_NOTIFICATION_CHAT_ID,
+            text=message,
+            parse_mode="HTML"
+        )
+        print(f"[PAYMENT] ✅ Notification sent to group {settings.PAYMENT_NOTIFICATION_CHAT_ID}")
+    except Exception as e:
+        print(f"[PAYMENT] ⚠️ Failed to send payment notification: {e}")
 
 # Payment products: token packages and tier subscriptions
 # Prices with 20% New Year discount applied
@@ -200,6 +244,14 @@ async def successful_payment_handler(message: types.Message):
         if result["success"]:
             await message.answer(result["message"])
             print(f"[PAYMENT] ✅ Payment processed successfully for user {user_id}")
+            
+            # Send notification to payment group
+            if product_id in PAYMENT_PRODUCTS:
+                await send_payment_notification(
+                    user=message.from_user,
+                    product_id=product_id,
+                    product=PAYMENT_PRODUCTS[product_id]
+                )
         else:
             await message.answer(f"❌ {result['message']}")
             print(f"[PAYMENT] ❌ Payment processing failed for user {user_id}: {result.get('error')}")

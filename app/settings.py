@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_IMAGES_PER_USER: int = 2  # Maximum number of images a user can generate simultaneously
     SIMULATE_PAYMENTS: bool = False  # Set to True to simulate successful payments in development (no real Telegram Stars charged)
     
+    # Notifications
+    PAYMENT_NOTIFICATION_CHAT_ID: Optional[int] = None  # Telegram group/channel ID for payment notifications
+    
     # Testing/Development
     FOLLOWUP_TEST_USERS: Optional[str] = None  # Comma-separated user IDs to restrict followups to (e.g., "123456,789012")
     
