@@ -521,11 +521,13 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
     parse_mode = message_data.get("ext", {}).get("parse_mode", "HTML")
     
     # Get delivery records and extract IDs before session closes
+    # Only get "pending" records to avoid picking up old sent/failed records
     delivery_map = {}  # user_id -> delivery_id
     with get_db() as db:
         deliveries = db.query(SystemMessageDelivery).filter(
             SystemMessageDelivery.system_message_id == message_id,
-            SystemMessageDelivery.user_id.in_(user_ids)
+            SystemMessageDelivery.user_id.in_(user_ids),
+            SystemMessageDelivery.status == "pending"
         ).all()
         delivery_map = {d.user_id: d.id for d in deliveries}
     
@@ -745,8 +747,9 @@ async def resume_system_message(message_id: UUID) -> dict:
     It will:
     1. Get all target users for the message
     2. Exclude users who already have a delivery record with status "sent" or "blocked"
-    3. Create new delivery records for remaining users
-    4. Send to those users
+    3. For users with existing "pending"/"failed" records - reset them to pending
+    4. For users without any record - create new delivery records
+    5. Send to those users
     
     Args:
         message_id: System message UUID
@@ -789,22 +792,34 @@ async def resume_system_message(message_id: UUID) -> dict:
             logger.error(f"No target users found", extra={"message_id": str(message_id)})
             return {"error": "No target users found"}
         
-        # Get users who already received the message (sent or blocked)
+        # Get ALL existing delivery records for this message
         from app.db.models import SystemMessageDelivery
-        already_delivered = db.query(SystemMessageDelivery.user_id).filter(
-            SystemMessageDelivery.system_message_id == message_id,
-            SystemMessageDelivery.status.in_(["sent", "blocked"])
+        existing_deliveries = db.query(SystemMessageDelivery).filter(
+            SystemMessageDelivery.system_message_id == message_id
         ).all()
-        already_delivered_ids = {d.user_id for d in already_delivered}
         
-        # Filter out users who already received the message
-        remaining_users = [uid for uid in all_target_users if uid not in already_delivered_ids]
+        # Categorize users
+        already_sent_ids = set()
+        pending_or_failed_ids = set()
+        for d in existing_deliveries:
+            if d.status in ("sent", "blocked"):
+                already_sent_ids.add(d.user_id)
+            else:
+                # pending or failed - can be retried
+                pending_or_failed_ids.add(d.user_id)
+        
+        # Users that need delivery records created (no existing record at all)
+        all_target_set = set(all_target_users)
+        users_needing_new_records = all_target_set - already_sent_ids - pending_or_failed_ids
+        
+        # Users to send to = (users with pending/failed records) + (new users) - already sent
+        remaining_users = list((pending_or_failed_ids | users_needing_new_records) & all_target_set)
         
         if not remaining_users:
             logger.info(f"All users already received the message", extra={
                 "message_id": str(message_id),
                 "total_users": len(all_target_users),
-                "already_delivered": len(already_delivered_ids)
+                "already_delivered": len(already_sent_ids)
             })
             # Mark as completed since everyone got it
             message.status = "completed"
@@ -813,21 +828,37 @@ async def resume_system_message(message_id: UUID) -> dict:
                 "success": True,
                 "message": "All users already received the message",
                 "total_users": len(all_target_users),
-                "already_delivered": len(already_delivered_ids),
+                "already_delivered": len(already_sent_ids),
                 "remaining": 0
             }
+        
+        # Reset existing pending/failed deliveries to pending status
+        reset_count = 0
+        for d in existing_deliveries:
+            if d.user_id in pending_or_failed_ids and d.user_id in all_target_set:
+                d.status = "pending"
+                d.error = None
+                d.retry_count = 0
+                reset_count += 1
         
         # Update status to sending
         message.status = "sending"
         db.commit()
         
-        # Create delivery records for remaining users
-        deliveries = crud.create_delivery_records(db, message_id, remaining_users)
+        # Create delivery records ONLY for users who don't have any record
+        if users_needing_new_records:
+            new_user_list = list(users_needing_new_records)
+            crud.create_delivery_records(db, message_id, new_user_list)
+            logger.info(f"Created {len(new_user_list)} new delivery records", extra={
+                "message_id": str(message_id)
+            })
         
         logger.info(f"Resuming send to {len(remaining_users)} remaining users", extra={
             "message_id": str(message_id),
             "total_users": len(all_target_users),
-            "already_delivered": len(already_delivered_ids),
+            "already_delivered": len(already_sent_ids),
+            "reset_records": reset_count,
+            "new_records": len(users_needing_new_records),
             "remaining": len(remaining_users)
         })
     
@@ -855,7 +886,7 @@ async def resume_system_message(message_id: UUID) -> dict:
                 message.sent_at = datetime.utcnow()
                 db.commit()
         
-        stats["already_delivered"] = len(already_delivered_ids)
+        stats["already_delivered"] = len(already_sent_ids)
         stats["resumed_users"] = len(remaining_users)
         
         logger.info(f"Resume completed", extra={
