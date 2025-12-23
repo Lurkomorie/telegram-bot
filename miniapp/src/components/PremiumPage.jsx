@@ -1,8 +1,8 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect } from 'react';
 import { trackEvent } from '../api';
-import starIcon from '../assets/star.webp';
 import christmasBg from '../assets/christmas-bg.webp';
+import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
 
@@ -49,7 +49,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       id: 'pro_month',
       name: 'Pro',
       icon: '🔥',
-      daily: 75,
+      daily: 100,
       bonus: 750,
       originalStars: 700,
       stars: calcDiscount(700),
@@ -63,7 +63,7 @@ export default function PremiumPage({ onNavigateToCheckout }) {
       id: 'legendary_month',
       name: 'Legendary',
       icon: '🏆',
-      daily: 100,
+      daily: 150,
       bonus: 1000,
       originalStars: 900,
       stars: calcDiscount(900),

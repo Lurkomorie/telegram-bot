@@ -42,7 +42,7 @@ def grant_tokens_to_premium_users(dry_run: bool = False):
         "plus": 50,
         "premium": 75,
         "pro": 100,
-        "legendary": 200,
+        "legendary": 150,
         "free": 0
     }
     
