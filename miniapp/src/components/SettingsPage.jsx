@@ -16,7 +16,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  */
 export default function SettingsPage({ tokens, onNavigate, hasVoiceSupport = false }) {
   const { t, language } = useTranslation();
-  const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? true);
+  const [voiceEnabled, setVoiceEnabled] = useState(tokens?.voice_enabled ?? false);
   
   // Sync with tokens when it changes (e.g., after API loads)
   useEffect(() => {

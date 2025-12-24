@@ -110,7 +110,8 @@ def get_or_create_user(
             locale=normalized_locale or 'en',
             locale_manually_set=False,  # Default to Telegram language
             acquisition_source=acquisition_source if acquisition_source else None,
-            acquisition_timestamp=datetime.utcnow() if acquisition_source else None
+            acquisition_timestamp=datetime.utcnow() if acquisition_source else None,
+            settings={"voice_buttons_hidden": True}  # Voice disabled by default for new users
         )
         db.add(user)
         db.commit()

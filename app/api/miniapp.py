@@ -314,7 +314,7 @@ async def get_user_energy(
     """
     # Validate and extract user ID from init data
     if not x_telegram_init_data:
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": False}
     
     try:
         # Parse init data to get user ID
@@ -346,7 +346,8 @@ async def get_user_energy(
             total_tokens = (user.temp_energy or 0) + user.energy
             
             # Get voice setting (inverted: voice_buttons_hidden=True means voice_enabled=False)
-            voice_enabled = not user.settings.get("voice_buttons_hidden", False)
+            # Default to True (hidden) so new users have voice disabled by default
+            voice_enabled = not user.settings.get("voice_buttons_hidden", True)
             
             return {
                 "tokens": total_tokens,
@@ -361,7 +362,7 @@ async def get_user_energy(
     
     except Exception as e:
         print(f"[ENERGY-API] Error: {e}")
-        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": True}
+        return {"tokens": 100, "premium_tier": "free", "is_premium": False, "can_claim_daily_bonus": False, "next_bonus_in_seconds": 86400, "daily_bonus_streak": 0, "char_created": False, "voice_enabled": False}
 
 
 @router.get("/user/language")
