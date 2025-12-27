@@ -47,16 +47,15 @@ async def submit_image_job(
         print(f"[RUNPOD] Using provided seed: {seed}")
     
     # Build Runpod request payload
+    # NOTE: "webhook" must be at top-level for RunPod to call back after job completion
     payload = {
         "input": {
-            "job_id": job_id_str,
-            "webhook_url": webhook_url,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
             "steps": img_config["steps"],
             "seed": seed,  # Must be >= 0
-            "queuePriority": queue_priority
-        }
+        },
+        "webhook": webhook_url  # RunPod will POST job result to this URL
     }
     
     print(f"[RUNPOD] Queue priority: {queue_priority}")

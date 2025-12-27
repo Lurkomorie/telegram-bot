@@ -343,23 +343,37 @@ async def image_callback(request: Request):
     
     # Handle different content types
     if "application/json" in content_type:
-        # JSON response with status/URLs
+        # JSON response with status/URLs or base64 data
         try:
             body = await request.body()
             payload = json.loads(body)
-            print(f"[IMAGE-CALLBACK] JSON payload: {json.dumps(payload, indent=2)}")
+            print(f"[IMAGE-CALLBACK] JSON payload keys: {list(payload.keys())}")
             
             status = payload.get("status", "").upper()
             output = payload.get("output", {})
             error = payload.get("error")
             
-            # Check for image URLs in output
+            # Check for images in output
             images = output.get("images", [])
             if images:
-                image_url = images[0]
-                print(f"[IMAGE-CALLBACK] Got image URL from JSON: {image_url}")
+                first_image = images[0]
+                
+                # Handle base64 format from ComfyUI handler: {"filename": "...", "type": "base64", "data": "..."}
+                if isinstance(first_image, dict) and first_image.get("type") == "base64":
+                    import base64 as b64
+                    image_data = b64.b64decode(first_image.get("data", ""))
+                    print(f"[IMAGE-CALLBACK] Decoded base64 image: {len(image_data)} bytes")
+                    status = "COMPLETED"
+                elif isinstance(first_image, str):
+                    # URL format
+                    image_url = first_image
+                    print(f"[IMAGE-CALLBACK] Got image URL from JSON: {image_url}")
+                else:
+                    print(f"[IMAGE-CALLBACK] Unknown image format: {type(first_image)}")
         except Exception as e:
             print(f"[IMAGE-CALLBACK] Failed to parse JSON: {e}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
     
     elif "multipart/form-data" in content_type:
