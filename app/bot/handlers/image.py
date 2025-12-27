@@ -245,6 +245,7 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
             f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
             f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
             f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"
+            f"{get_ui_text('tokens.outOfTokens.memoryBenefit', user_language)}\n"
             f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
         )
     

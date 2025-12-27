@@ -311,7 +311,13 @@
     "prompt_request": "✍️ <b>Describe the image you want!</b>\n\n💡 <i>Example: wearing a red dress, at the beach, sunset lighting, smiling at camera</i>\n\n<b>{persona_name}</b> will create a custom photo based on your description. What would you like to see?",
     "another_prompt": "🎨 <b>Create another image?</b>\n\nYour description: <i>{prompt}</i>\n\nWould you like to generate this image with <b>{persona_name}</b>?",
     "confirm_another": "✅ Yes, create image",
-    "cancel_another": "❌ Cancel"
+    "cancel_another": "❌ Cancel",
+    "promoMessage": "💡 Want to improve image quality and speed?",
+    "insufficientEnergy": {
+      "title": "✨ She wanted to send you a photo...",
+      "message": "Not enough tokens for an image. Get premium for faster, better photos!",
+      "unblurButton": "👀 Unblur"
+    }
   },
   "no_active_chat": {
     "message": "💬 <b>No active conversation</b>\n\nYou don't have an active chat. Choose a character to start chatting!",
@@ -750,6 +756,7 @@
       "fixNow": "Fix this now:",
       "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
       "premiumBenefits": "💎 Premium = daily refills + huge discounts",
+      "memoryBenefit": "🧠 Memory system — she will remember you",
       "instantTokens": "🛍️ Instant tokens → continue immediately"
     },
     "outOfTokensPremium": {

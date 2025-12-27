@@ -343,3 +343,39 @@ def build_voice_button_keyboard(message_id: int, language: str = "en", is_free: 
     ])
 
 
+def build_promo_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard for promotional message (premium / hide)"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=get_ui_text("miniapp.premium_button", language=language),
+                web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+            ),
+            InlineKeyboardButton(
+                text=get_ui_text("system.hide_button", language=language),
+                callback_data="hide_promo"
+            )
+        ]
+    ])
+
+
+def build_blurred_image_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
+    """Build keyboard for blurred image placeholder (unblur / premium / hide)"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("image.insufficientEnergy.unblurButton", language=language),
+            web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+        )],
+        [
+            InlineKeyboardButton(
+                text=get_ui_text("miniapp.premium_button", language=language),
+                web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+            ),
+            InlineKeyboardButton(
+                text=get_ui_text("system.hide_button", language=language),
+                callback_data="hide_blurred_image"
+            )
+        ]
+    ])
+
+
