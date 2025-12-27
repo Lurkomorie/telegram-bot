@@ -613,12 +613,13 @@ async def _background_image_generation(
     try:
         from app.settings import settings
         
-        # Check concurrent image limit
-        current_count = await redis_queue.get_user_image_count(user_id)
-        if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
-            log_always(f"[IMAGE-BG] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
-            await action_mgr.stop()
-            return
+        # Check concurrent image limit (if enabled)
+        if settings.CONCURRENT_IMAGE_LIMIT_ENABLED:
+            current_count = await redis_queue.get_user_image_count(user_id)
+            if current_count >= settings.CONCURRENT_IMAGE_LIMIT_NUMBER:
+                log_always(f"[IMAGE-BG] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.CONCURRENT_IMAGE_LIMIT_NUMBER}) - skipping")
+                await action_mgr.stop()
+                return
         
         # Check if user is premium (premium users pay 3 energy, free users pay 5)
         with get_db() as db:

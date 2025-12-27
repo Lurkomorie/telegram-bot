@@ -87,13 +87,14 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         await message.answer(ERROR_MESSAGES["rate_limit_image"])
         return
     
-    # Check concurrent image limit
+    # Check concurrent image limit (if enabled)
     from app.core import redis_queue
     from app.settings import settings
-    current_count = await redis_queue.get_user_image_count(user_id)
-    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
-        print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
-        return
+    if settings.CONCURRENT_IMAGE_LIMIT_ENABLED:
+        current_count = await redis_queue.get_user_image_count(user_id)
+        if current_count >= settings.CONCURRENT_IMAGE_LIMIT_NUMBER:
+            print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.CONCURRENT_IMAGE_LIMIT_NUMBER}) - skipping")
+            return
     
     with get_db() as db:
         # Deduct energy (3 for premium, 5 for free users)
@@ -277,13 +278,14 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         await bot.send_message(tg_chat_id, ERROR_MESSAGES["rate_limit_image"])
         return
     
-    # Check concurrent image limit
+    # Check concurrent image limit (if enabled)
     from app.core import redis_queue
     from app.settings import settings
-    current_count = await redis_queue.get_user_image_count(user_id)
-    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
-        print(f"[REFRESH-IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
-        return
+    if settings.CONCURRENT_IMAGE_LIMIT_ENABLED:
+        current_count = await redis_queue.get_user_image_count(user_id)
+        if current_count >= settings.CONCURRENT_IMAGE_LIMIT_NUMBER:
+            print(f"[REFRESH-IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.CONCURRENT_IMAGE_LIMIT_NUMBER}) - skipping")
+            return
     
     # Check if user is premium for priority determination
     with get_db() as db:
@@ -641,13 +643,14 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         await message.answer(ERROR_MESSAGES["rate_limit_image"])
         return
     
-    # Check concurrent image limit
+    # Check concurrent image limit (if enabled)
     from app.core import redis_queue
     from app.settings import settings
-    current_count = await redis_queue.get_user_image_count(user_id)
-    if current_count >= settings.MAX_CONCURRENT_IMAGES_PER_USER:
-        print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.MAX_CONCURRENT_IMAGES_PER_USER}) - skipping")
-        return
+    if settings.CONCURRENT_IMAGE_LIMIT_ENABLED:
+        current_count = await redis_queue.get_user_image_count(user_id)
+        if current_count >= settings.CONCURRENT_IMAGE_LIMIT_NUMBER:
+            print(f"[IMAGE] ⏭️  User {user_id} has reached concurrent image limit ({current_count}/{settings.CONCURRENT_IMAGE_LIMIT_NUMBER}) - skipping")
+            return
     
     # Get persona from cache
     persona = get_persona_by_id(persona_id)
