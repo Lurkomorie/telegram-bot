@@ -197,10 +197,12 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
 
 
 async def show_energy_upsell_message(message: types.Message = None, user_id: int = None, tg_chat_id: int = None):
-    """Show energy upsell message with button to open premium page.
+    """Show energy upsell message with A/B test variants.
     
+    Randomly selects one of 4 message variants and tracks which was shown.
     Can be called either with a message object (from handler) or with tg_chat_id (from background task).
     """
+    import random
     from app.bot.keyboards.inline import build_energy_upsell_keyboard
     from app.settings import settings, get_ui_text
     
@@ -222,40 +224,28 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
             except Exception:
                 pass
     
-    # Send new upsell message
+    # Randomly select a variant (1-4)
+    variant = random.randint(1, 4)
+    
+    # Get variant message text
+    variant_key = f"tokens.outOfTokens.variant{variant}"
+    message_text = get_ui_text(variant_key, user_language)
+    
+    # Build keyboard with variant tracking
     miniapp_url = f"{settings.public_url}/miniapp"
-    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language)
+    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language, variant=variant, is_premium=is_premium)
     
-    tokens = user_energy['tokens']
-    
-    # Different message for premium users
-    if is_premium:
-        message_text = (
-            f"<b>{get_ui_text('tokens.outOfTokensPremium.title', user_language)}</b>\n\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.balance', user_language, tokens=tokens)}\n\n"
-            f"<b>{get_ui_text('tokens.outOfTokensPremium.costs', user_language)}</b>\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.message', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.image', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.voice', user_language)}\n\n"
-            f"{get_ui_text('tokens.outOfTokensPremium.buyMore', user_language)}"
-        )
-    else:
-        # Emotional message for free users
-        message_text = (
-            f"<b>{get_ui_text('tokens.outOfTokens.title', user_language)}</b>\n\n"
-            f"{get_ui_text('tokens.outOfTokens.subtitle', user_language)}\n\n"
-            f"{get_ui_text('tokens.outOfTokens.balance', user_language, tokens=tokens)}\n\n"
-            f"{get_ui_text('tokens.outOfTokens.waiting', user_language)}\n\n"
-            f"<b>{get_ui_text('tokens.outOfTokens.costs', user_language)}</b>\n"
-            f"{get_ui_text('tokens.outOfTokens.messageBack', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.generateImage', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.generateVoice', user_language)}\n\n"
-            f"<b>{get_ui_text('tokens.outOfTokens.fixNow', user_language)}</b>\n"
-            f"{get_ui_text('tokens.outOfTokens.claimDaily', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.premiumBenefits', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.memoryBenefit', user_language)}\n"
-            f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
-        )
+    # Track which variant was shown
+    with get_db() as db:
+        try:
+            crud.create_analytics_event(
+                db=db,
+                client_id=user_id,
+                event_name="energy_upsell_shown",
+                meta={"variant": variant, "is_premium": is_premium, "language": user_language}
+            )
+        except Exception as e:
+            log_always(f"[IMAGE] Failed to track upsell variant: {e}")
     
     # Send via message.answer() if available, otherwise use bot.send_message()
     if message:
@@ -804,4 +794,56 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
             ERROR_MESSAGES["image_failed"]
         )
 
+
+@router.callback_query(lambda c: c.data.startswith("upsell_click:"))
+async def upsell_click_callback(callback: types.CallbackQuery):
+    """Handle energy upsell button clicks - track conversion and open miniapp.
+    
+    Callback data format: upsell_click:{variant}:{button_type}
+    - variant: 1-4 (which A/B test variant)
+    - button_type: 'refill' or 'unlock'
+    """
+    from app.settings import settings
+    
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        await callback.answer()
+        return
+    
+    variant = int(parts[1])
+    button_type = parts[2]  # 'refill' or 'unlock'
+    user_id = callback.from_user.id
+    
+    # Track the click for conversion analytics
+    with get_db() as db:
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+        user_language = crud.get_user_language(db, user_id)
+        
+        try:
+            crud.create_analytics_event(
+                db=db,
+                client_id=user_id,
+                event_name="energy_upsell_click",
+                meta={
+                    "variant": variant,
+                    "button": button_type,
+                    "is_premium": is_premium,
+                    "language": user_language
+                }
+            )
+        except Exception as e:
+            log_always(f"[IMAGE] Failed to track upsell click: {e}")
+    
+    # Delete the upsell message
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    
+    # Build miniapp URL
+    target_page = "tokens" if is_premium else "premium"
+    miniapp_url = f"{settings.public_url}/miniapp?page={target_page}"
+    
+    # Answer callback with URL to open
+    await callback.answer(url=miniapp_url)
 

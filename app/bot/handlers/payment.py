@@ -19,9 +19,19 @@ def apply_discount(price: int) -> int:
     return round(price * (1 - NEW_YEAR_DISCOUNT))
 
 
-async def send_payment_notification(user: types.User, product_id: str, product: dict):
+STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
+
+
+async def send_payment_notification(user: types.User, product_id: str, product: dict, db_user=None, purchase_count: int = 0):
     """
     Send payment notification to the configured Telegram group/channel
+    
+    Args:
+        user: Telegram user object
+        product_id: Product ID
+        product: Product details dict
+        db_user: Database user object with acquisition_source
+        purchase_count: Total number of purchases by this user
     """
     if not settings.PAYMENT_NOTIFICATION_CHAT_ID:
         return
@@ -34,6 +44,7 @@ async def send_payment_notification(user: types.User, product_id: str, product: 
         # Build product info
         product_type = product["type"]
         stars_amount = product["stars"]
+        usd_amount = round(stars_amount * STARS_TO_USD, 2)
         
         if product_type == "tokens":
             product_desc = f"🪙 {product['amount']} tokens"
@@ -42,14 +53,19 @@ async def send_payment_notification(user: types.User, product_id: str, product: 
             duration = product["duration"]
             product_desc = f"👑 {tier} ({duration} days)"
         
+        # Build acquisition source info
+        acquisition_source = db_user.acquisition_source if db_user and db_user.acquisition_source else "direct"
+        
         message = (
             f"💰 <b>New Payment Received!</b>\n\n"
             f"👤 User: {user_link}\n"
             f"🆔 ID: <code>{user.id}</code>\n"
             f"📛 Username: {username}\n\n"
             f"📦 Product: {product_desc}\n"
-            f"⭐ Amount: <b>{stars_amount} Stars</b>\n"
-            f"🏷️ Product ID: <code>{product_id}</code>"
+            f"⭐ Amount: <b>{stars_amount} Stars</b> (~${usd_amount})\n"
+            f"🏷️ Product ID: <code>{product_id}</code>\n\n"
+            f"📊 Source: <b>{acquisition_source}</b>\n"
+            f"🛒 Purchase #: <b>{purchase_count}</b>"
         )
         
         await bot.send_message(
@@ -247,10 +263,16 @@ async def successful_payment_handler(message: types.Message):
             
             # Send notification to payment group
             if product_id in PAYMENT_PRODUCTS:
+                # Get user and purchase count for notification
+                db_user = crud.get_or_create_user(db, user_id)
+                purchase_count = crud.get_user_purchase_count(db, user_id)
+                
                 await send_payment_notification(
                     user=message.from_user,
                     product_id=product_id,
-                    product=PAYMENT_PRODUCTS[product_id]
+                    product=PAYMENT_PRODUCTS[product_id],
+                    db_user=db_user,
+                    purchase_count=purchase_count
                 )
         else:
             await message.answer(f"❌ {result['message']}")

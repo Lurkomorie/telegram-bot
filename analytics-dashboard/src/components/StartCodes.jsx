@@ -13,7 +13,8 @@ export default function StartCodes() {
     description: '',
     persona_id: '',
     history_id: '',
-    is_active: true
+    is_active: true,
+    ad_price: ''
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -45,7 +46,8 @@ export default function StartCodes() {
       description: '',
       persona_id: '',
       history_id: '',
-      is_active: true
+      is_active: true,
+      ad_price: ''
     });
     setFormErrors({});
     setShowModal(true);
@@ -58,7 +60,8 @@ export default function StartCodes() {
       description: code.description || '',
       persona_id: code.persona_id || '',
       history_id: code.history_id || '',
-      is_active: code.is_active
+      is_active: code.is_active,
+      ad_price: code.ad_price !== null && code.ad_price !== undefined ? code.ad_price.toString() : ''
     });
     setFormErrors({});
     setShowModal(true);
@@ -72,7 +75,8 @@ export default function StartCodes() {
       description: '',
       persona_id: '',
       history_id: '',
-      is_active: true
+      is_active: true,
+      ad_price: ''
     });
     setFormErrors({});
   };
@@ -110,7 +114,8 @@ export default function StartCodes() {
         description: formData.description || null,
         persona_id: formData.persona_id || null,
         history_id: formData.history_id || null,
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        ad_price: formData.ad_price ? parseFloat(formData.ad_price) : null
       };
       
       if (editingCode) {
@@ -217,6 +222,9 @@ export default function StartCodes() {
                 Persona / History
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Ad Price
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -250,6 +258,13 @@ export default function StartCodes() {
                     </div>
                   ) : (
                     <span className="text-sm text-gray-400 italic">Default selection</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {code.ad_price !== null && code.ad_price !== undefined ? (
+                    <span className="text-sm font-medium text-green-600">${code.ad_price.toFixed(2)}</span>
+                  ) : (
+                    <span className="text-sm text-gray-400">—</span>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -381,6 +396,26 @@ export default function StartCodes() {
                 {formErrors.history_id && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.history_id}</p>
                 )}
+              </div>
+
+              {/* Ad Price */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Ad Price (USD)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.ad_price}
+                    onChange={(e) => setFormData({ ...formData, ad_price: e.target.value })}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="mt-1 text-sm text-gray-500">Advertisement spend for ROI calculations</p>
               </div>
 
               {/* Active Status */}

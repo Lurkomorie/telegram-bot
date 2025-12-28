@@ -638,50 +638,30 @@ async def _background_image_generation(
         # Deduct energy (3 for premium, 5 for free users)
         energy_cost = 3 if is_premium else 5
         with get_db() as db:
-            # Check if user has enough energy
+            # Check user's current energy
             user_energy_info = crud.get_user_energy(db, user_id)
             current_energy = user_energy_info.get('tokens', 0)
             
-            if current_energy < energy_cost:
-                log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image ({current_energy}/{energy_cost})")
+            if current_energy == 0:
+                # User has 0 energy - show upsell message and don't generate
+                log_always(f"[IMAGE-BG] 💎 User {user_id} has 0 energy, showing upsell")
                 await action_mgr.stop()
-                
-                # Get user settings to check if we already showed the warning
                 user = db.query(User).filter(User.id == user_id).first()
-                user_language = user.locale if user else 'en'
-                
-                if current_energy > 0:
-                    # User has some energy but not enough for image - show blurred placeholder ONCE
-                    warning_shown = user.settings.get("image_energy_warning_shown", False) if user and user.settings else False
-                    
-                    if not warning_shown:
-                        success = await _send_blurred_image_placeholder(tg_chat_id, user_id, user_language)
-                        
-                        # Mark warning as shown so we don't spam
-                        if success and user:
-                            from sqlalchemy.orm.attributes import flag_modified
-                            if user.settings is None:
-                                user.settings = {}
-                            user.settings["image_energy_warning_shown"] = True
-                            flag_modified(user, "settings")
-                            db.commit()
-                            log_always(f"[IMAGE-BG] 📸 Marked energy warning as shown for user {user_id}")
-                    else:
-                        log_always(f"[IMAGE-BG] ℹ️ Energy warning already shown for user {user_id}, skipping")
-                else:
-                    # User has 0 energy - ALWAYS show full upsell message
-                    log_always(f"[IMAGE-BG] 💎 Showing full energy upsell for user {user_id} (0 energy)")
-                    from app.bot.handlers.image import show_energy_upsell_message
-                    await show_energy_upsell_message(message=None, user_id=user_id, tg_chat_id=tg_chat_id)
-                
+                from app.bot.handlers.image import show_energy_upsell_message
+                await show_energy_upsell_message(message=None, user_id=user_id, tg_chat_id=tg_chat_id)
                 return
             
-            # Deduct energy
-            if not crud.deduct_user_energy(db, user_id, amount=energy_cost):
+            # User has some energy - deduct what we can and generate anyway
+            actual_deduction = min(current_energy, energy_cost)
+            if not crud.deduct_user_energy(db, user_id, amount=actual_deduction):
                 log_always(f"[IMAGE-BG] ⚠️ Failed to deduct energy from user {user_id}")
                 await action_mgr.stop()
                 return
-            log_always(f"[IMAGE-BG] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
+            
+            if actual_deduction < energy_cost:
+                log_always(f"[IMAGE-BG] ⚡ User {user_id} had only {current_energy} energy, deducted all (needed {energy_cost})")
+            else:
+                log_always(f"[IMAGE-BG] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
         
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")
@@ -810,53 +790,4 @@ async def _background_image_generation(
         # Stop action on exception
         from app.core.action_registry import stop_and_remove_action
         await stop_and_remove_action(tg_chat_id)
-
-
-async def _send_blurred_image_placeholder(tg_chat_id: int, user_id: int, language: str = "en") -> bool:
-    """Send a blurred placeholder image when user doesn't have enough energy for image generation.
-    Returns True if message was sent successfully, False otherwise."""
-    import os
-    from aiogram.types import FSInputFile
-    from app.bot.keyboards.inline import build_blurred_image_keyboard
-    from app.settings import settings, get_ui_text
-    
-    try:
-        # Build message text
-        title = get_ui_text("image.insufficientEnergy.title", language=language)
-        message_text = get_ui_text("image.insufficientEnergy.message", language=language)
-        caption = f"{title}\n\n{message_text}"
-        
-        # Build keyboard
-        miniapp_url = f"{settings.public_url}/miniapp"
-        keyboard = build_blurred_image_keyboard(miniapp_url, language=language)
-        
-        # Get the blurred placeholder image path
-        placeholder_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "blurred_placeholder.png")
-        placeholder_path = os.path.normpath(placeholder_path)
-        
-        if os.path.exists(placeholder_path):
-            # Send the blurred image with caption
-            photo = FSInputFile(placeholder_path)
-            await bot.send_photo(
-                chat_id=tg_chat_id,
-                photo=photo,
-                caption=caption,
-                reply_markup=keyboard
-            )
-            log_always(f"[IMAGE-BG] ✅ Sent blurred placeholder image to user {user_id}")
-        else:
-            # Fallback: send text message without image
-            log_always(f"[IMAGE-BG] ⚠️ Blurred placeholder not found, sending text only")
-            await bot.send_message(
-                chat_id=tg_chat_id,
-                text=caption,
-                reply_markup=keyboard
-            )
-            log_always(f"[IMAGE-BG] ✅ Sent energy warning message to user {user_id}")
-        
-        return True
-        
-    except Exception as e:
-        log_always(f"[IMAGE-BG] ❌ Error sending blurred placeholder: {e}")
-        return False
 

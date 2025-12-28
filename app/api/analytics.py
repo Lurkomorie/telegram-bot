@@ -4,7 +4,7 @@ Analytics API endpoints for viewing statistics and user event timelines
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, UploadFile, File
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, validator
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from uuid import UUID, uuid4
 import asyncio
 import io
@@ -672,6 +672,7 @@ class CreateStartCodeRequest(BaseModel):
     persona_id: Optional[str] = None
     history_id: Optional[str] = None
     is_active: bool = True
+    ad_price: Optional[float] = Field(None, ge=0, description="Advertisement price in USD")
     
     @validator('code')
     def validate_code(cls, v):
@@ -685,6 +686,7 @@ class UpdateStartCodeRequest(BaseModel):
     persona_id: Optional[str] = None
     history_id: Optional[str] = None
     is_active: Optional[bool] = None
+    ad_price: Optional[float] = Field(None, ge=0, description="Advertisement price in USD")
 
 
 @router.get("/start-codes")
@@ -722,6 +724,7 @@ async def get_start_codes() -> List[Dict[str, Any]]:
                     "history_id": str(sc.history_id) if sc.history_id else None,
                     "history_name": sc.history.name if sc.history else None,
                     "is_active": sc.is_active,
+                    "ad_price": float(sc.ad_price) if sc.ad_price else None,
                     "user_count": user_counts.get(sc.code, 0),
                     "created_at": sc.created_at.isoformat(),
                     "updated_at": sc.updated_at.isoformat() if sc.updated_at else None
@@ -777,7 +780,8 @@ async def create_start_code(request: CreateStartCodeRequest) -> Dict[str, Any]:
                 description=request.description,
                 persona_id=request.persona_id,
                 history_id=request.history_id,
-                is_active=request.is_active
+                is_active=request.is_active,
+                ad_price=request.ad_price
             )
             
             # Reload cache to include new code
@@ -790,6 +794,7 @@ async def create_start_code(request: CreateStartCodeRequest) -> Dict[str, Any]:
                 "persona_id": str(start_code.persona_id) if start_code.persona_id else None,
                 "history_id": str(start_code.history_id) if start_code.history_id else None,
                 "is_active": start_code.is_active,
+                "ad_price": float(start_code.ad_price) if start_code.ad_price else None,
                 "created_at": start_code.created_at.isoformat()
             }
     except HTTPException:
@@ -843,7 +848,8 @@ async def update_start_code(code: str, request: UpdateStartCodeRequest) -> Dict[
                 description=request.description,
                 persona_id=request.persona_id,
                 history_id=request.history_id,
-                is_active=request.is_active
+                is_active=request.is_active,
+                ad_price=request.ad_price
             )
             
             if not start_code:
@@ -859,6 +865,7 @@ async def update_start_code(code: str, request: UpdateStartCodeRequest) -> Dict[
                 "persona_id": str(start_code.persona_id) if start_code.persona_id else None,
                 "history_id": str(start_code.history_id) if start_code.history_id else None,
                 "is_active": start_code.is_active,
+                "ad_price": float(start_code.ad_price) if start_code.ad_price else None,
                 "updated_at": start_code.updated_at.isoformat() if start_code.updated_at else None
             }
     except HTTPException:
@@ -994,6 +1001,427 @@ async def get_premium_stats(
     except Exception as e:
         print(f"[ANALYTICS-API] Error fetching premium stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching premium stats: {str(e)}")
+
+
+@router.get("/premium-purchases")
+async def get_premium_purchases(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0)
+) -> Dict[str, Any]:
+    """
+    Get all premium purchases with detailed user info
+    
+    Returns:
+        List of purchases with user info, acquisition source, and purchase history
+    """
+    from app.db.models import PaymentTransaction, User
+    from sqlalchemy import func, desc
+    
+    try:
+        with get_db() as db:
+            # Build base query for purchases
+            query = db.query(
+                PaymentTransaction,
+                User.id.label('user_id'),
+                User.username,
+                User.first_name,
+                User.last_name,
+                User.acquisition_source,
+                User.acquisition_timestamp,
+                User.is_premium,
+                User.premium_until
+            ).join(
+                User, PaymentTransaction.user_id == User.id
+            ).filter(
+                PaymentTransaction.status == 'completed'
+            )
+            
+            # Apply date filters
+            if start_date:
+                query = query.filter(PaymentTransaction.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                query = query.filter(PaymentTransaction.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            # Get total count
+            total_count = query.count()
+            
+            # Get purchases with pagination
+            purchases = query.order_by(desc(PaymentTransaction.created_at)).offset(offset).limit(limit).all()
+            
+            # Get purchase counts per user
+            user_ids = list(set([p.user_id for p in purchases]))
+            user_purchase_counts = {}
+            if user_ids:
+                counts = db.query(
+                    PaymentTransaction.user_id,
+                    func.count(PaymentTransaction.id).label('count'),
+                    func.sum(PaymentTransaction.amount_stars).label('total_stars')
+                ).filter(
+                    PaymentTransaction.user_id.in_(user_ids),
+                    PaymentTransaction.status == 'completed'
+                ).group_by(PaymentTransaction.user_id).all()
+                
+                for c in counts:
+                    user_purchase_counts[c.user_id] = {
+                        'purchase_count': c.count,
+                        'total_stars': int(c.total_stars) if c.total_stars else 0
+                    }
+            
+            result = []
+            for p in purchases:
+                tx = p.PaymentTransaction
+                user_stats = user_purchase_counts.get(p.user_id, {'purchase_count': 0, 'total_stars': 0})
+                result.append({
+                    'id': str(tx.id),
+                    'created_at': tx.created_at.isoformat(),
+                    'transaction_type': tx.transaction_type,
+                    'product_id': tx.product_id,
+                    'amount_stars': tx.amount_stars,
+                    'tokens_received': tx.tokens_received,
+                    'tier_granted': tx.tier_granted,
+                    'subscription_days': tx.subscription_days,
+                    'user': {
+                        'id': p.user_id,
+                        'username': p.username,
+                        'first_name': p.first_name,
+                        'last_name': p.last_name,
+                        'acquisition_source': p.acquisition_source,
+                        'acquisition_timestamp': p.acquisition_timestamp.isoformat() if p.acquisition_timestamp else None,
+                        'is_premium': p.is_premium,
+                        'premium_until': p.premium_until.isoformat() if p.premium_until else None,
+                        'purchase_count': user_stats['purchase_count'],
+                        'total_stars_spent': user_stats['total_stars']
+                    }
+                })
+            
+            return {
+                'purchases': result,
+                'total': total_count,
+                'limit': limit,
+                'offset': offset
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching premium purchases: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching premium purchases: {str(e)}")
+
+
+@router.get("/conversions")
+async def get_conversions_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+) -> Dict[str, Any]:
+    """
+    Get conversion and ROI statistics by acquisition source
+    
+    Costs:
+        - $0.00703 per user-message
+        - $0.00465 per image
+    
+    Returns:
+        Dictionary with conversion stats, revenue, costs, and ROI per acquisition source
+    """
+    from app.db.models import PaymentTransaction, User, Message, ImageJob, StartCode
+    from sqlalchemy import func, distinct, case
+    
+    # Cost constants
+    COST_PER_MESSAGE = 0.00703
+    COST_PER_IMAGE = 0.00465
+    STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
+    
+    try:
+        with get_db() as db:
+            # Get all start codes with their ad prices
+            start_codes = db.query(StartCode).all()
+            start_code_prices = {sc.code: float(sc.ad_price) if sc.ad_price else 0 for sc in start_codes}
+            
+            # Get users grouped by acquisition source
+            users_query = db.query(
+                User.acquisition_source,
+                func.count(User.id).label('total_users'),
+                func.count(case([(User.is_premium == True, 1)])).label('premium_users'),
+                func.count(case([((PaymentTransaction.id != None), 1)])).label('paying_users')
+            ).outerjoin(
+                PaymentTransaction,
+                (PaymentTransaction.user_id == User.id) & (PaymentTransaction.status == 'completed')
+            ).filter(
+                User.acquisition_source.isnot(None)
+            ).group_by(User.acquisition_source)
+            
+            if start_date:
+                users_query = users_query.filter(User.acquisition_timestamp >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                users_query = users_query.filter(User.acquisition_timestamp < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            users_data = users_query.all()
+            
+            # Get message counts by acquisition source (from users)
+            messages_query = db.query(
+                User.acquisition_source,
+                func.count(Message.id).label('message_count')
+            ).join(
+                Message, Message.user_id == User.id
+            ).filter(
+                User.acquisition_source.isnot(None),
+                Message.role == 'user'
+            ).group_by(User.acquisition_source)
+            
+            if start_date:
+                messages_query = messages_query.filter(Message.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                messages_query = messages_query.filter(Message.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            messages_data = {m.acquisition_source: m.message_count for m in messages_query.all()}
+            
+            # Get image counts by acquisition source
+            images_query = db.query(
+                User.acquisition_source,
+                func.count(ImageJob.id).label('image_count')
+            ).join(
+                ImageJob, ImageJob.user_id == User.id
+            ).filter(
+                User.acquisition_source.isnot(None),
+                ImageJob.status == 'completed'
+            ).group_by(User.acquisition_source)
+            
+            if start_date:
+                images_query = images_query.filter(ImageJob.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                images_query = images_query.filter(ImageJob.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            images_data = {i.acquisition_source: i.image_count for i in images_query.all()}
+            
+            # Get revenue by acquisition source
+            revenue_query = db.query(
+                User.acquisition_source,
+                func.sum(PaymentTransaction.amount_stars).label('total_stars'),
+                func.count(PaymentTransaction.id).label('purchase_count')
+            ).join(
+                PaymentTransaction, PaymentTransaction.user_id == User.id
+            ).filter(
+                User.acquisition_source.isnot(None),
+                PaymentTransaction.status == 'completed'
+            ).group_by(User.acquisition_source)
+            
+            if start_date:
+                revenue_query = revenue_query.filter(PaymentTransaction.created_at >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                revenue_query = revenue_query.filter(PaymentTransaction.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            revenue_data = {r.acquisition_source: {'stars': int(r.total_stars) if r.total_stars else 0, 'purchases': r.purchase_count} for r in revenue_query.all()}
+            
+            # Build result for each acquisition source
+            sources = []
+            totals = {
+                'total_users': 0,
+                'premium_users': 0,
+                'paying_users': 0,
+                'messages': 0,
+                'images': 0,
+                'revenue_stars': 0,
+                'revenue_usd': 0,
+                'ad_spend': 0,
+                'llm_cost': 0,
+                'image_cost': 0,
+                'total_cost': 0,
+                'net_profit': 0,
+                'purchases': 0
+            }
+            
+            for u in users_data:
+                source = u.acquisition_source
+                messages = messages_data.get(source, 0)
+                images = images_data.get(source, 0)
+                rev = revenue_data.get(source, {'stars': 0, 'purchases': 0})
+                ad_price = start_code_prices.get(source, 0)
+                
+                llm_cost = messages * COST_PER_MESSAGE
+                image_cost = images * COST_PER_IMAGE
+                revenue_usd = rev['stars'] * STARS_TO_USD
+                total_cost = ad_price + llm_cost + image_cost
+                net_profit = revenue_usd - total_cost
+                
+                conversion_rate = (u.paying_users / u.total_users * 100) if u.total_users > 0 else 0
+                roi = ((revenue_usd - total_cost) / total_cost * 100) if total_cost > 0 else 0
+                
+                sources.append({
+                    'source': source,
+                    'ad_price': ad_price,
+                    'total_users': u.total_users,
+                    'premium_users': u.premium_users,
+                    'paying_users': u.paying_users,
+                    'conversion_rate': round(conversion_rate, 2),
+                    'messages': messages,
+                    'images': images,
+                    'purchases': rev['purchases'],
+                    'revenue_stars': rev['stars'],
+                    'revenue_usd': round(revenue_usd, 2),
+                    'llm_cost': round(llm_cost, 2),
+                    'image_cost': round(image_cost, 2),
+                    'total_cost': round(total_cost, 2),
+                    'net_profit': round(net_profit, 2),
+                    'roi': round(roi, 2),
+                    'cost_per_user': round(total_cost / u.total_users, 4) if u.total_users > 0 else 0,
+                    'revenue_per_user': round(revenue_usd / u.total_users, 4) if u.total_users > 0 else 0
+                })
+                
+                # Update totals
+                totals['total_users'] += u.total_users
+                totals['premium_users'] += u.premium_users
+                totals['paying_users'] += u.paying_users
+                totals['messages'] += messages
+                totals['images'] += images
+                totals['revenue_stars'] += rev['stars']
+                totals['revenue_usd'] += revenue_usd
+                totals['ad_spend'] += ad_price
+                totals['llm_cost'] += llm_cost
+                totals['image_cost'] += image_cost
+                totals['total_cost'] += total_cost
+                totals['net_profit'] += net_profit
+                totals['purchases'] += rev['purchases']
+            
+            # Round totals
+            totals['revenue_usd'] = round(totals['revenue_usd'], 2)
+            totals['ad_spend'] = round(totals['ad_spend'], 2)
+            totals['llm_cost'] = round(totals['llm_cost'], 2)
+            totals['image_cost'] = round(totals['image_cost'], 2)
+            totals['total_cost'] = round(totals['total_cost'], 2)
+            totals['net_profit'] = round(totals['net_profit'], 2)
+            totals['overall_roi'] = round((totals['net_profit'] / totals['total_cost'] * 100) if totals['total_cost'] > 0 else 0, 2)
+            totals['overall_conversion'] = round((totals['paying_users'] / totals['total_users'] * 100) if totals['total_users'] > 0 else 0, 2)
+            
+            # Sort sources by revenue
+            sources.sort(key=lambda x: x['revenue_usd'], reverse=True)
+            
+            return {
+                'sources': sources,
+                'totals': totals,
+                'cost_per_message': COST_PER_MESSAGE,
+                'cost_per_image': COST_PER_IMAGE,
+                'stars_to_usd': STARS_TO_USD
+            }
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching conversions: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching conversions: {str(e)}")
+
+
+@router.get("/upsell-ab-test")
+async def get_upsell_ab_test_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+) -> Dict[str, Any]:
+    """
+    Get A/B test statistics for energy upsell message variants.
+    
+    Returns:
+        Dictionary with:
+        - variants: List of variant stats with impressions, clicks, and conversion rate
+        - buttons: Click stats by button type (refill vs unlock)
+        - total_impressions: Total number of times upsell was shown
+        - total_clicks: Total number of button clicks
+        - overall_conversion: Overall conversion rate
+    """
+    from app.db.models import TgAnalyticsEvent
+    from sqlalchemy import func, cast, Integer
+    
+    try:
+        with get_db() as db:
+            # Base query for impressions (shown events)
+            impressions_query = db.query(
+                cast(TgAnalyticsEvent.meta['variant'].astext, Integer).label('variant'),
+                func.count(TgAnalyticsEvent.id).label('impressions'),
+                func.count(func.distinct(TgAnalyticsEvent.client_id)).label('unique_users')
+            ).filter(
+                TgAnalyticsEvent.event_name == 'energy_upsell_shown'
+            )
+            
+            # Apply date filters
+            if start_date:
+                impressions_query = impressions_query.filter(
+                    TgAnalyticsEvent.created_at >= datetime.strptime(start_date, '%Y-%m-%d')
+                )
+            if end_date:
+                impressions_query = impressions_query.filter(
+                    TgAnalyticsEvent.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+                )
+            
+            impressions = impressions_query.group_by('variant').all()
+            
+            # Query for clicks
+            clicks_query = db.query(
+                cast(TgAnalyticsEvent.meta['variant'].astext, Integer).label('variant'),
+                TgAnalyticsEvent.meta['button'].astext.label('button'),
+                func.count(TgAnalyticsEvent.id).label('clicks'),
+                func.count(func.distinct(TgAnalyticsEvent.client_id)).label('unique_clickers')
+            ).filter(
+                TgAnalyticsEvent.event_name == 'energy_upsell_click'
+            )
+            
+            # Apply date filters
+            if start_date:
+                clicks_query = clicks_query.filter(
+                    TgAnalyticsEvent.created_at >= datetime.strptime(start_date, '%Y-%m-%d')
+                )
+            if end_date:
+                clicks_query = clicks_query.filter(
+                    TgAnalyticsEvent.created_at < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
+                )
+            
+            clicks = clicks_query.group_by('variant', 'button').all()
+            
+            # Aggregate data
+            variant_stats = {}
+            for row in impressions:
+                variant_stats[row.variant] = {
+                    'variant': row.variant,
+                    'impressions': row.impressions,
+                    'unique_users': row.unique_users,
+                    'clicks': 0,
+                    'unique_clickers': 0,
+                    'conversion_rate': 0.0,
+                    'clicks_by_button': {'refill': 0, 'unlock': 0}
+                }
+            
+            button_totals = {'refill': 0, 'unlock': 0}
+            for row in clicks:
+                if row.variant in variant_stats:
+                    variant_stats[row.variant]['clicks'] += row.clicks
+                    variant_stats[row.variant]['unique_clickers'] = max(
+                        variant_stats[row.variant]['unique_clickers'],
+                        row.unique_clickers
+                    )
+                    if row.button in button_totals:
+                        variant_stats[row.variant]['clicks_by_button'][row.button] = row.clicks
+                        button_totals[row.button] += row.clicks
+            
+            # Calculate conversion rates
+            for variant in variant_stats.values():
+                if variant['impressions'] > 0:
+                    variant['conversion_rate'] = round(
+                        (variant['clicks'] / variant['impressions']) * 100, 2
+                    )
+            
+            # Total stats
+            total_impressions = sum(v['impressions'] for v in variant_stats.values())
+            total_clicks = sum(v['clicks'] for v in variant_stats.values())
+            overall_conversion = round((total_clicks / total_impressions * 100), 2) if total_impressions > 0 else 0.0
+            
+            return {
+                'variants': sorted(variant_stats.values(), key=lambda x: x['variant']),
+                'buttons': button_totals,
+                'total_impressions': total_impressions,
+                'total_clicks': total_clicks,
+                'overall_conversion': overall_conversion
+            }
+            
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching upsell A/B test stats: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching upsell A/B test stats: {str(e)}")
 
 
 # ========== PERSONA MANAGEMENT ENDPOINTS ==========

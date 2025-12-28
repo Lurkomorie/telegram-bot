@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { formatNumber } from '../utils';
 import DateRangeFilter from './DateRangeFilter';
@@ -17,11 +18,18 @@ export default function PremiumStatistics() {
   const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState(getDefaultEndDate());
   const [stats, setStats] = useState(null);
+  const [purchases, setPurchases] = useState([]);
+  const [purchasesTotal, setPurchasesTotal] = useState(0);
+  const [purchasesPage, setPurchasesPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [purchasesLoading, setPurchasesLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const PURCHASES_PER_PAGE = 50;
 
   useEffect(() => {
     fetchStats();
+    fetchPurchases(0);
   }, [startDate, endDate]);
 
   const fetchStats = async () => {
@@ -34,6 +42,25 @@ export default function PremiumStatistics() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPurchases = async (page) => {
+    try {
+      setPurchasesLoading(true);
+      const data = await api.getPremiumPurchases(
+        startDate, 
+        endDate, 
+        PURCHASES_PER_PAGE, 
+        page * PURCHASES_PER_PAGE
+      );
+      setPurchases(data.purchases);
+      setPurchasesTotal(data.total);
+      setPurchasesPage(page);
+    } catch (err) {
+      console.error('Failed to fetch purchases:', err);
+    } finally {
+      setPurchasesLoading(false);
     }
   };
 
@@ -192,7 +219,7 @@ export default function PremiumStatistics() {
 
       {/* Product Breakdown Table */}
       {stats.packages_breakdown && stats.packages_breakdown.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h3 className="text-xl font-bold text-gray-800 mb-4">Product Breakdown</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -249,6 +276,125 @@ export default function PremiumStatistics() {
           </div>
         </div>
       )}
+
+      {/* All Purchases List */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold text-gray-800">All Purchases</h3>
+          <span className="text-sm text-gray-500">
+            {purchasesTotal} total purchases
+          </span>
+        </div>
+        
+        {purchasesLoading ? (
+          <div className="text-center py-8 text-gray-500">Loading purchases...</div>
+        ) : purchases.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">No purchases in this period</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase">User</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase">Source</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 uppercase">Product</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase">Stars</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase">User Purchases</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium text-gray-500 uppercase">User Total Stars</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {purchases.map((purchase) => (
+                    <tr key={purchase.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {new Date(purchase.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        <Link 
+                          to={`/users/${purchase.user.id}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          <div className="font-medium">
+                            {purchase.user.username ? `@${purchase.user.username}` : purchase.user.first_name || `User ${purchase.user.id}`}
+                          </div>
+                          <div className="text-xs text-gray-400">ID: {purchase.user.id}</div>
+                        </Link>
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        {purchase.user.acquisition_source ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {purchase.user.acquisition_source}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 italic">organic</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        <div className="font-medium text-gray-800">{purchase.product_id}</div>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          purchase.transaction_type === 'token_package' 
+                            ? 'bg-purple-100 text-purple-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {purchase.transaction_type === 'token_package' ? 'Tokens' : 'Subscription'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right font-medium text-gray-800">
+                        ⭐ {formatNumber(purchase.amount_stars)}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          purchase.user.purchase_count > 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {purchase.user.purchase_count}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right font-medium text-gray-600">
+                        ⭐ {formatNumber(purchase.user.total_stars_spent)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Pagination */}
+            {purchasesTotal > PURCHASES_PER_PAGE && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <div className="text-sm text-gray-500">
+                  Showing {purchasesPage * PURCHASES_PER_PAGE + 1} - {Math.min((purchasesPage + 1) * PURCHASES_PER_PAGE, purchasesTotal)} of {purchasesTotal}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fetchPurchases(purchasesPage - 1)}
+                    disabled={purchasesPage === 0}
+                    className={`px-3 py-1 rounded text-sm ${
+                      purchasesPage === 0 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => fetchPurchases(purchasesPage + 1)}
+                    disabled={(purchasesPage + 1) * PURCHASES_PER_PAGE >= purchasesTotal}
+                    className={`px-3 py-1 rounded text-sm ${
+                      (purchasesPage + 1) * PURCHASES_PER_PAGE >= purchasesTotal
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

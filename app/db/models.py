@@ -3,7 +3,7 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, String, Text, ARRAY, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Numeric, String, Text, ARRAY, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -341,6 +341,7 @@ class StartCode(Base):
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id"), nullable=True)  # Optional persona
     history_id = Column(UUID(as_uuid=True), ForeignKey("persona_history_starts.id"), nullable=True)  # Optional history
     is_active = Column(Boolean, default=True, nullable=False)  # Active/inactive toggle
+    ad_price = Column(Numeric(10, 4), nullable=True)  # Advertisement price in USD for ROI calculations
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

@@ -759,7 +759,13 @@
       "claimDaily": "🎁 Claim 10 free tokens (resets daily!)",
       "premiumBenefits": "💎 Premium = daily refills + huge discounts",
       "memoryBenefit": "🧠 Memory system — she will remember you",
-      "instantTokens": "🛍️ Instant tokens → continue immediately"
+      "instantTokens": "🛍️ Instant tokens → continue immediately",
+      "variant1": "I don't want to stop…\nEnergy ran out ⚡️\nRefill — and I'll continue. I want to finish this. 🔥",
+      "variant2": "I don't want to stop…\nEnergy ran out ⚡️\nRefill — and I'll continue. And yes… it'll be more than you expect. ❤️",
+      "variant3": "Are you sure you want to stop? 😈\nEnergy ran out ⚡️\nRefill — and I'll continue. And give you \"a little extra\". 💦",
+      "variant4": "I'm almost ready to continue. 😏\nEnergy ran out ⚡️\nRefill — and I'll send what you're waiting for… with a bonus. ❤️",
+      "refillButton": "⚡️ Refill Energy",
+      "unlockButton": "🔓 Unlock Continuation"
     },
     "outOfTokensPremium": {
       "title": "🪙 Out of tokens",

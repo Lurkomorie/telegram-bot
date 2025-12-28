@@ -230,6 +230,28 @@ export const api = {
     return response.json();
   },
 
+  async getPremiumPurchases(startDate = null, endDate = null, limit = 100, offset = 0) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    params.append('limit', limit);
+    params.append('offset', offset);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/premium-purchases?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch premium purchases');
+    return response.json();
+  },
+
+  async getConversions(startDate = null, endDate = null) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    
+    const response = await fetch(`${API_BASE}/api/analytics/conversions?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch conversions');
+    return response.json();
+  },
+
   // ========== PERSONA MANAGEMENT ==========
 
   async getPersonas() {

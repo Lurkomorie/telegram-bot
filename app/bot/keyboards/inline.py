@@ -163,12 +163,23 @@ def build_image_refresh_keyboard(image_job_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
-    """Build keyboard with button to open premium page in Mini App"""
+def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en", variant: int = 0, is_premium: bool = False) -> InlineKeyboardMarkup:
+    """Build keyboard with two buttons for energy upsell A/B test.
+    
+    Both buttons lead to premium page (if not premium) or tokens page (if premium).
+    Variant is included in callback data for tracking.
+    """
+    # Target page based on premium status
+    target_page = "tokens" if is_premium else "premium"
+    
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("miniapp.premium_button", language=language),
-            web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+            text=get_ui_text("tokens.outOfTokens.refillButton", language=language),
+            callback_data=f"upsell_click:{variant}:refill"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("tokens.outOfTokens.unlockButton", language=language),
+            callback_data=f"upsell_click:{variant}:unlock"
         )]
     ])
 
@@ -354,26 +365,6 @@ def build_promo_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboa
             InlineKeyboardButton(
                 text=get_ui_text("system.hide_button", language=language),
                 callback_data="hide_promo"
-            )
-        ]
-    ])
-
-
-def build_blurred_image_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
-    """Build keyboard for blurred image placeholder (unblur / premium / hide)"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=get_ui_text("image.insufficientEnergy.unblurButton", language=language),
-            web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
-        )],
-        [
-            InlineKeyboardButton(
-                text=get_ui_text("miniapp.premium_button", language=language),
-                web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
-            ),
-            InlineKeyboardButton(
-                text=get_ui_text("system.hide_button", language=language),
-                callback_data="hide_blurred_image"
             )
         ]
     ])

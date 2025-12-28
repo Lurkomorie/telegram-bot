@@ -1634,6 +1634,20 @@ def get_user_transactions(db: Session, user_id: int, limit: int = 50) -> list:
     return transactions
 
 
+def get_user_purchase_count(db: Session, user_id: int) -> int:
+    """
+    Get the total number of completed purchases for a user
+    """
+    from app.db.models import PaymentTransaction
+    
+    count = db.query(PaymentTransaction).filter(
+        PaymentTransaction.user_id == user_id,
+        PaymentTransaction.status == 'completed'
+    ).count()
+    
+    return count
+
+
 # ========== ANALYTICS OPERATIONS ==========
 
 def create_analytics_event(
@@ -3239,7 +3253,8 @@ def create_start_code(
     description: str = None,
     persona_id: str = None,
     history_id: str = None,
-    is_active: bool = True
+    is_active: bool = True,
+    ad_price: float = None
 ) -> StartCode:
     """Create new start code
     
@@ -3250,6 +3265,7 @@ def create_start_code(
         persona_id: Optional persona UUID
         history_id: Optional history UUID
         is_active: Whether code is active
+        ad_price: Advertisement price in USD for ROI calculations
     
     Returns:
         Created StartCode object
@@ -3262,7 +3278,8 @@ def create_start_code(
         description=description,
         persona_id=UUID(persona_id) if persona_id else None,
         history_id=UUID(history_id) if history_id else None,
-        is_active=is_active
+        is_active=is_active,
+        ad_price=ad_price
     )
     db.add(start_code)
     db.commit()
@@ -3276,7 +3293,8 @@ def update_start_code(
     description: str = None,
     persona_id: str = None,
     history_id: str = None,
-    is_active: bool = None
+    is_active: bool = None,
+    ad_price: float = None
 ) -> Optional[StartCode]:
     """Update start code
     
@@ -3287,6 +3305,7 @@ def update_start_code(
         persona_id: Optional persona UUID (None to clear)
         history_id: Optional history UUID (None to clear)
         is_active: Whether code is active
+        ad_price: Advertisement price in USD for ROI calculations
     
     Returns:
         Updated StartCode object or None if not found
@@ -3303,6 +3322,8 @@ def update_start_code(
         start_code.history_id = UUID(history_id) if history_id else None
     if is_active is not None:
         start_code.is_active = is_active
+    if ad_price is not None:
+        start_code.ad_price = ad_price if ad_price > 0 else None
     
     start_code.updated_at = datetime.utcnow()
     db.commit()
