@@ -658,17 +658,17 @@ async def _background_image_generation(
                     
                     if not warning_shown:
                         # Show blurred image placeholder with upsell
-                        await _send_blurred_image_placeholder(tg_chat_id, user_id, user_language)
+                        success = await _send_blurred_image_placeholder(tg_chat_id, user_id, user_language)
                         
-                        # Mark warning as shown
-                        if user:
+                        # Only mark warning as shown if it was actually sent
+                        if success and user:
                             from sqlalchemy.orm.attributes import flag_modified
                             if user.settings is None:
                                 user.settings = {}
                             user.settings["image_energy_warning_shown"] = True
                             flag_modified(user, "settings")
                             db.commit()
-                            log_always(f"[IMAGE-BG] 📸 Showed blurred placeholder to user {user_id}")
+                            log_always(f"[IMAGE-BG] 📸 Marked energy warning as shown for user {user_id}")
                 
                 return
             
@@ -808,22 +808,15 @@ async def _background_image_generation(
         await stop_and_remove_action(tg_chat_id)
 
 
-async def _send_blurred_image_placeholder(tg_chat_id: int, user_id: int, language: str = "en"):
-    """Send a blurred placeholder image when user doesn't have enough energy for image generation"""
+async def _send_blurred_image_placeholder(tg_chat_id: int, user_id: int, language: str = "en") -> bool:
+    """Send a blurred placeholder image when user doesn't have enough energy for image generation.
+    Returns True if message was sent successfully, False otherwise."""
     import os
     from aiogram.types import FSInputFile
     from app.bot.keyboards.inline import build_blurred_image_keyboard
     from app.settings import settings, get_ui_text
     
     try:
-        # Get the blurred placeholder image path
-        placeholder_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "blurred_placeholder.png")
-        placeholder_path = os.path.normpath(placeholder_path)
-        
-        if not os.path.exists(placeholder_path):
-            log_always(f"[IMAGE-BG] ⚠️ Blurred placeholder not found at {placeholder_path}")
-            return
-        
         # Build message text
         title = get_ui_text("image.insufficientEnergy.title", language=language)
         message_text = get_ui_text("image.insufficientEnergy.message", language=language)
@@ -833,17 +826,33 @@ async def _send_blurred_image_placeholder(tg_chat_id: int, user_id: int, languag
         miniapp_url = f"{settings.public_url}/miniapp"
         keyboard = build_blurred_image_keyboard(miniapp_url, language=language)
         
-        # Send the blurred image with caption
-        photo = FSInputFile(placeholder_path)
-        await bot.send_photo(
-            chat_id=tg_chat_id,
-            photo=photo,
-            caption=caption,
-            reply_markup=keyboard
-        )
+        # Get the blurred placeholder image path
+        placeholder_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "blurred_placeholder.png")
+        placeholder_path = os.path.normpath(placeholder_path)
         
-        log_always(f"[IMAGE-BG] ✅ Sent blurred placeholder to user {user_id}")
+        if os.path.exists(placeholder_path):
+            # Send the blurred image with caption
+            photo = FSInputFile(placeholder_path)
+            await bot.send_photo(
+                chat_id=tg_chat_id,
+                photo=photo,
+                caption=caption,
+                reply_markup=keyboard
+            )
+            log_always(f"[IMAGE-BG] ✅ Sent blurred placeholder image to user {user_id}")
+        else:
+            # Fallback: send text message without image
+            log_always(f"[IMAGE-BG] ⚠️ Blurred placeholder not found, sending text only")
+            await bot.send_message(
+                chat_id=tg_chat_id,
+                text=caption,
+                reply_markup=keyboard
+            )
+            log_always(f"[IMAGE-BG] ✅ Sent energy warning message to user {user_id}")
+        
+        return True
         
     except Exception as e:
         log_always(f"[IMAGE-BG] ❌ Error sending blurred placeholder: {e}")
+        return False
 
