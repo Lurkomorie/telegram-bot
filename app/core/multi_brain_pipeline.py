@@ -640,7 +640,7 @@ async def _background_image_generation(
         with get_db() as db:
             # Check if user has enough energy
             user_energy_info = crud.get_user_energy(db, user_id)
-            current_energy = user_energy_info.get('energy', 0)
+            current_energy = user_energy_info.get('tokens', 0)
             
             if current_energy < energy_cost:
                 log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image ({current_energy}/{energy_cost})")

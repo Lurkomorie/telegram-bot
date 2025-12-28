@@ -454,7 +454,8 @@
       "features": {
         "ai": "Our most advanced AI engines",
         "energy": "Infinite energy",
-        "photos": "Unlimited photo generation"
+        "photos": "Unlimited photo generation",
+        "memory": "Memory system — she will remember you"
       },
       "getButton": "Get {name}",
       "legendary": {
@@ -488,6 +489,7 @@
         "feature10": "Increased limit to 4,000 characters in character description",
         "feature11": "Send voice messages up to 30 seconds",
         "feature12": "Create group chats",
+        "feature13": "🧠 Memory system — she remembers your conversations",
         "feature2": "Enhanced AI model",
         "feature3": "Cheap photo generation",
         "feature4": "Photo downloads",

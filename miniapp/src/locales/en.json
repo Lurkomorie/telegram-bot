@@ -74,7 +74,8 @@
     "features": {
       "energy": "Infinite energy",
       "ai": "Our most advanced AI engines",
-      "photos": "Unlimited photo generation"
+      "photos": "Unlimited photo generation",
+      "memory": "Memory system — she will remember you"
     },
     "upgradeButton": "Get Premium 💎",
     "processing": "Processing...",
@@ -88,7 +89,8 @@
       "feature4": "Cheaper photo generation",
       "feature5": "No limitations",
       "feature6": "Cheaper character creation",
-      "feature7": "Increased limit to 4,000 characters in character description"
+      "feature7": "Increased limit to 4,000 characters in character description",
+      "feature8": "🧠 Memory system — she remembers your conversations"
     },
     "pro": {
       "feature1": "Everything in Plus, plus",
