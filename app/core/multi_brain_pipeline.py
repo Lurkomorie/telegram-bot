@@ -650,28 +650,29 @@ async def _background_image_generation(
                 user = db.query(User).filter(User.id == user_id).first()
                 user_language = user.locale if user else 'en'
                 
-                # Check if we already showed this warning recently
-                warning_shown = user.settings.get("image_energy_warning_shown", False) if user and user.settings else False
-                
-                if not warning_shown:
-                    if current_energy > 0:
-                        # User has some energy but not enough for image - show blurred placeholder
-                        success = await _send_blurred_image_placeholder(tg_chat_id, user_id, user_language)
-                    else:
-                        # User has 0 energy - show full upsell message
-                        from app.bot.handlers.image import show_energy_upsell_message
-                        await show_energy_upsell_message(message=None, user_id=user_id, tg_chat_id=tg_chat_id)
-                        success = True
+                if current_energy > 0:
+                    # User has some energy but not enough for image - show blurred placeholder ONCE
+                    warning_shown = user.settings.get("image_energy_warning_shown", False) if user and user.settings else False
                     
-                    # Only mark warning as shown if it was actually sent
-                    if success and user:
-                        from sqlalchemy.orm.attributes import flag_modified
-                        if user.settings is None:
-                            user.settings = {}
-                        user.settings["image_energy_warning_shown"] = True
-                        flag_modified(user, "settings")
-                        db.commit()
-                        log_always(f"[IMAGE-BG] 📸 Marked energy warning as shown for user {user_id}")
+                    if not warning_shown:
+                        success = await _send_blurred_image_placeholder(tg_chat_id, user_id, user_language)
+                        
+                        # Mark warning as shown so we don't spam
+                        if success and user:
+                            from sqlalchemy.orm.attributes import flag_modified
+                            if user.settings is None:
+                                user.settings = {}
+                            user.settings["image_energy_warning_shown"] = True
+                            flag_modified(user, "settings")
+                            db.commit()
+                            log_always(f"[IMAGE-BG] 📸 Marked energy warning as shown for user {user_id}")
+                    else:
+                        log_always(f"[IMAGE-BG] ℹ️ Energy warning already shown for user {user_id}, skipping")
+                else:
+                    # User has 0 energy - ALWAYS show full upsell message
+                    log_always(f"[IMAGE-BG] 💎 Showing full energy upsell for user {user_id} (0 energy)")
+                    from app.bot.handlers.image import show_energy_upsell_message
+                    await show_energy_upsell_message(message=None, user_id=user_id, tg_chat_id=tg_chat_id)
                 
                 return
             

@@ -196,10 +196,18 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         )
 
 
-async def show_energy_upsell_message(message: types.Message, user_id: int):
-    """Show energy upsell message with button to open premium page"""
+async def show_energy_upsell_message(message: types.Message = None, user_id: int = None, tg_chat_id: int = None):
+    """Show energy upsell message with button to open premium page.
+    
+    Can be called either with a message object (from handler) or with tg_chat_id (from background task).
+    """
     from app.bot.keyboards.inline import build_energy_upsell_keyboard
     from app.settings import settings, get_ui_text
+    
+    # Determine chat_id from message or parameter
+    chat_id = tg_chat_id if tg_chat_id else (message.chat.id if message else None)
+    if not chat_id:
+        return
     
     with get_db() as db:
         user_energy = crud.get_user_energy(db, user_id)
@@ -249,14 +257,22 @@ async def show_energy_upsell_message(message: types.Message, user_id: int):
             f"{get_ui_text('tokens.outOfTokens.instantTokens', user_language)}"
         )
     
-    sent_msg = await message.answer(
-        message_text,
-        reply_markup=keyboard
-    )
+    # Send via message.answer() if available, otherwise use bot.send_message()
+    if message:
+        sent_msg = await message.answer(
+            message_text,
+            reply_markup=keyboard
+        )
+    else:
+        sent_msg = await bot.send_message(
+            chat_id=chat_id,
+            text=message_text,
+            reply_markup=keyboard
+        )
     
     # Save this message ID for later deletion
     with get_db() as db:
-        crud.save_energy_upsell_message(db, user_id, sent_msg.message_id, message.chat.id)
+        crud.save_energy_upsell_message(db, user_id, sent_msg.message_id, chat_id)
 
 
 async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
