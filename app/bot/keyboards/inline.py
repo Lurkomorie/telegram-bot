@@ -163,27 +163,47 @@ def build_image_refresh_keyboard(image_job_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en", message_variant: int = 1, button_variant: int = 1) -> InlineKeyboardMarkup:
-    """Build keyboard with single button for energy upsell A/B test.
+def build_energy_upsell_keyboard(
+    miniapp_url: str, 
+    language: str = "en", 
+    message_variant: int = 1, 
+    button_variant: int = 1,
+    button_count: int = 1,
+    button2_variant: int = 2
+) -> InlineKeyboardMarkup:
+    """Build keyboard with one or two buttons for energy upsell A/B test.
     
-    Button leads to premium page. Both message and button variants are included in callback data for tracking.
+    Button leads to premium page. All variants are included in callback data for tracking.
     
     Args:
         miniapp_url: Base miniapp URL
         language: User language code
         message_variant: Which message variant was shown (1-4)
-        button_variant: Which button text to show (1-4)
+        button_variant: Which button text to show for first button (1-4)
+        button_count: How many buttons to show (1 or 2)
+        button2_variant: Which button text for second button (1-4), used when button_count=2
     """
-    # Get button text based on variant
+    # Get first button text based on variant
     button_key = f"tokens.outOfTokens.button{button_variant}"
     button_text = get_ui_text(button_key, language=language)
     
-    return InlineKeyboardMarkup(inline_keyboard=[
+    buttons = [
         [InlineKeyboardButton(
             text=button_text,
-            callback_data=f"upsell_click:{message_variant}:{button_variant}"
+            callback_data=f"upsell_click:{message_variant}:{button_variant}:{button_count}"
         )]
-    ])
+    ]
+    
+    # Add second button if button_count is 2
+    if button_count == 2:
+        button2_key = f"tokens.outOfTokens.button{button2_variant}"
+        button2_text = get_ui_text(button2_key, language=language)
+        buttons.append([InlineKeyboardButton(
+            text=button2_text,
+            callback_data=f"upsell_click:{message_variant}:{button2_variant}:{button_count}"
+        )])
+    
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def build_persona_gallery_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:

@@ -226,9 +226,13 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
             except Exception:
                 pass
     
-    # Randomly select message variant (1-4) and button variant (1-4)
+    # Randomly select message variant (1-4), button variant (1-4), and button count (1 or 2)
     message_variant = random.randint(1, 4)
     button_variant = random.randint(1, 4)
+    button_count = random.randint(1, 2)
+    
+    # For second button, pick a different variant than the first
+    button2_variant = random.choice([v for v in [1, 2, 3, 4] if v != button_variant])
     
     # Get variant message text
     variant_key = f"tokens.outOfTokens.variant{message_variant}"
@@ -236,7 +240,14 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
     
     # Build keyboard with variant tracking
     miniapp_url = f"{settings.public_url}/miniapp"
-    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language, message_variant=message_variant, button_variant=button_variant)
+    keyboard = build_energy_upsell_keyboard(
+        miniapp_url, 
+        language=user_language, 
+        message_variant=message_variant, 
+        button_variant=button_variant,
+        button_count=button_count,
+        button2_variant=button2_variant
+    )
     
     # Track which variants were shown
     with get_db() as db:
@@ -248,6 +259,8 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
                 meta={
                     "message_variant": message_variant,
                     "button_variant": button_variant,
+                    "button_count": button_count,
+                    "button2_variant": button2_variant if button_count == 2 else None,
                     "is_premium": is_premium,
                     "language": user_language
                 }
@@ -807,19 +820,21 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
 async def upsell_click_callback(callback: types.CallbackQuery):
     """Handle energy upsell button clicks - track conversion and open miniapp.
     
-    Callback data format: upsell_click:{message_variant}:{button_variant}
+    Callback data format: upsell_click:{message_variant}:{button_variant}:{button_count}
     - message_variant: 1-4 (which message A/B test variant)
-    - button_variant: 1-4 (which button A/B test variant)
+    - button_variant: 1-4 (which button was clicked)
+    - button_count: 1 or 2 (how many buttons were shown)
     """
     from app.settings import settings
     
     parts = callback.data.split(":")
-    if len(parts) != 3:
+    if len(parts) < 3:
         await callback.answer()
         return
     
     message_variant = int(parts[1])
     button_variant = int(parts[2])
+    button_count = int(parts[3]) if len(parts) > 3 else 1
     user_id = callback.from_user.id
     
     # Track the click for conversion analytics
@@ -835,6 +850,7 @@ async def upsell_click_callback(callback: types.CallbackQuery):
                 meta={
                     "message_variant": message_variant,
                     "button_variant": button_variant,
+                    "button_count": button_count,
                     "is_premium": is_premium,
                     "language": user_language
                 }

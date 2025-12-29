@@ -89,7 +89,7 @@ PAYMENT_PRODUCTS = {
     "tokens_2500": {"type": "tokens", "amount": 2500, "stars": apply_discount(1400)},
     "tokens_5000": {"type": "tokens", "amount": 5000, "stars": apply_discount(2700)},
     "tokens_10000": {"type": "tokens", "amount": 10000, "stars": apply_discount(5000)},
-    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(12000)}
+    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(12000)},
     
     # Tier subscriptions (30 days) - 20% OFF
     "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": apply_discount(450), "daily_tokens": 50},       # 450 → 360
