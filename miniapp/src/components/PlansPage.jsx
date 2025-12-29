@@ -30,15 +30,15 @@ export default function PlansPage() {
 
   // Token packages with bulk discounts (cheaper per token for larger packages)
   const tokenPackages = [
-    { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },       // 0.70/token
-pri    { id: 'tokens_100', amount: 100, originalStars: 68, stars: calcDiscount(68) },     // 0.68/token
-    { id: 'tokens_250', amount: 250, originalStars: 165, stars: calcDiscount(165) },   // 0.66/token
-    { id: 'tokens_500', amount: 500, originalStars: 320, stars: calcDiscount(320) },   // 0.64/token
-    { id: 'tokens_1000', amount: 1000, originalStars: 620, stars: calcDiscount(620), popular: true },  // 0.62/token
-    { id: 'tokens_2500', amount: 2500, originalStars: 1500, stars: calcDiscount(1500) }, // 0.60/token
-    { id: 'tokens_5000', amount: 5000, originalStars: 2900, stars: calcDiscount(2900) }, // 0.58/token
-    { id: 'tokens_10000', amount: 10000, originalStars: 5600, stars: calcDiscount(5600) }, // 0.56/token
-    { id: 'tokens_25000', amount: 25000, originalStars: 13500, stars: calcDiscount(13500), bestValue: true },  // 0.54/token
+    { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },
+    { id: 'tokens_100', amount: 100, originalStars: 65, stars: calcDiscount(65) },
+    { id: 'tokens_250', amount: 250, originalStars: 150, stars: calcDiscount(150) },
+    { id: 'tokens_500', amount: 500, originalStars: 300, stars: calcDiscount(300) },
+    { id: 'tokens_1000', amount: 1000, originalStars: 600, stars: calcDiscount(600), popular: true },
+    { id: 'tokens_2500', amount: 2500, originalStars: 1400, stars: calcDiscount(1400) },
+    { id: 'tokens_5000', amount: 5000, originalStars: 2700, stars: calcDiscount(2700) },
+    { id: 'tokens_10000', amount: 10000, originalStars: 5000, stars: calcDiscount(5000) },
+    { id: 'tokens_25000', amount: 25000, originalStars: 12000, stars: calcDiscount(12000), bestValue: true },
   ];
 
   // Premium tiers (original + discounted)
