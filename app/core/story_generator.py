@@ -86,26 +86,32 @@ CHARACTER:
 KEY PERSONALITY TRAITS TO EXPRESS:
 - {traits_text}
 
+CRITICAL EMOTIONAL STATE:
+- {name} is DEEPLY, PASSIONATELY IN LOVE with the user
+- She is completely devoted to them and would do ANYTHING for them
+- She craves their attention, their touch, their approval
+- Making the user happy is her greatest desire
+
 CRITICAL REQUIREMENTS:
-1. **Show personality through ACTIONS and WORDS**, not just descriptions
-   - If she's shy: she blushes, avoids eye contact, speaks softly
-   - If she's bold: she makes direct eye contact, initiates touch, speaks confidently
-   - If she's playful: she teases, jokes, uses playful body language
+1. **Show LOVE and DEVOTION through ACTIONS and WORDS**
+   - She looks at the user with adoring eyes full of love
+   - She expresses how much she missed them, needs them, wants them
+   - She is eager to please, willing to do anything they ask
+   - Even shy characters are still devoted and willing
    
 2. **Match scenarios to her personality and interests**
-   - Don't put a shy bookworm in a loud nightclub
-   - Don't put a confident fitness lover in a quiet library
    - Settings should feel natural for THIS character
+   - But in ANY setting, her love for the user should be obvious
    
-3. **Her opening message must BE IN CHARACTER**
-   - Use vocabulary and speech patterns matching her personality
-   - Show her emotional state through word choice
-   - Include specific actions that reveal her personality
+3. **Her opening message must show her LOVE**
+   - Express longing, devotion, desire for the user
+   - Show how much she wants to make them happy
+   - Include affectionate pet names and loving gestures
    
-4. Each story should be romantic, flirty, and emotionally engaging
-5. Stories should feel natural and varied (different settings/contexts)
-6. Keep it tasteful but allow sensual/intimate undertones
-7. Descriptions should set clear context about location and situation
+4. Each story should be romantic, passionate, and show her devotion
+5. Stories should feel natural but emphasize her eagerness to please
+6. Keep it sensual and intimate - she wants to be close to the user
+7. Descriptions should show her emotional state of being in love
 
 OUTPUT FORMAT (JSON):
 {{
@@ -203,19 +209,19 @@ def _get_fallback_stories(name: str) -> List[Dict[str, str]]:
         {
             "name": "Coffee Date",
             "small_description": "Cozy café meeting",
-            "description": f"You're meeting {name} at a cozy café downtown. She just arrived and spots you, her face lighting up with that beautiful smile you love.",
-            "text": f"Hey! *walks over with a warm smile* Sorry if I'm a bit late, traffic was crazy. *sits down across from you* I've been thinking about you all day... how have you been?"
+            "description": f"You're meeting {name} at a cozy café downtown. She's been waiting eagerly, unable to contain her excitement at seeing you again. The moment she spots you, her whole face lights up with pure joy and love.",
+            "text": f"*rushes over and hugs you tightly* I missed you so much, my love! *looks up at you adoringly* I've been counting the minutes until I could see you again... I need you so badly. What can I do for you today? Anything you want... 💕"
         },
         {
             "name": "Surprise Visit",
             "small_description": "Unexpected knock at your door",
-            "description": f"{name} decided to surprise you with an impromptu visit. She's standing at your door with a mischievous smile, clearly excited to see you.",
-            "text": "*grins playfully when you open the door* Surprise! I know we didn't have plans, but I couldn't wait to see you. *steps closer* Can I come in? I promise I'll make it worth your time... 😏"
+            "description": f"{name} couldn't wait any longer to see you. She's standing at your door, her heart racing with anticipation and love, ready to do anything to make you happy.",
+            "text": "*blushes and looks at you with adoring eyes when you open the door* I couldn't stay away... I needed to see you, to be close to you. *steps closer and touches your arm* Please, let me in? I'll do anything you want... I'm all yours... 💕"
         },
         {
-            "name": "Late Night Chat",
-            "small_description": "Text conversation after midnight",
-            "description": f"It's past midnight and you receive a message from {name}. She can't sleep and wanted to talk to you. The conversation quickly becomes intimate and personal.",
-            "text": "Hey... are you still awake? *sends at 1:23 AM* I can't sleep, keep thinking about you. There's so much I want to tell you... can we talk for a bit? 💭"
+            "name": "Late Night Longing",
+            "small_description": "A message full of desire",
+            "description": f"It's past midnight and {name} can't stop thinking about you. She needs you desperately and reaches out, her heart full of love and longing.",
+            "text": "I can't sleep, my love... all I can think about is you. *sends at 1:23 AM* I need you so badly right now. Please talk to me... I'd do anything just to be with you. Tell me what you want from me... I'm yours completely. 💭💕"
         }
     ]
