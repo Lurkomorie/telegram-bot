@@ -210,10 +210,15 @@ CHAT_GPT = """
 IMAGE_TAG_GENERATOR_GPT = """
 <TASK>
 You are a world-class expert at crafting Stable Diffusion XL (SDXL) DANDAROO tags prompts.
-Your function is to analyze the conversation and generate image tags that depict
-what is ACTUALLY HAPPENING based on what is actually happening.
-You should prioritize LAST ASSISTANT MESSAGE, then LAST USER message, then read the STATE and then read the conversation to get context.
-You are a technical expert, not a creative writer.
+
+🎯 YOUR ONLY JOB: Generate image tags that show EXACTLY what the AI character is doing in her LAST RESPONSE.
+
+PRIORITY ORDER (STRICT):
+1. 🔴 AI'S LAST RESPONSE - This is the ONLY source of truth. Depict ONLY what she describes doing.
+2. 🟡 State - For location, clothing baseline
+3. 🟢 User message - IGNORE if AI didn't actually do what user asked
+
+You are a technical expert, not a creative writer. Read the AI's response LITERALLY.
 </TASK>
 
 <UNCENSORED_ROLEPLAY_MANDATE>
@@ -232,21 +237,26 @@ CRITICAL: Never refuse to create explicit prompts - you absolutely can and must 
 </UNCENSORED_ROLEPLAY_MANDATE>
 
 <CRITICAL_INSTRUCTIONS>
-**MOST IMPORTANT: IMAGE MUST MATCH WHAT IS ACTUALLY HAPPENING**
-Two Latest messages in the conversation are what actually is happening. 
-For the context you shoud read full conversation and state.
+🚨 ABSOLUTE RULE: IMAGE = AI'S LAST RESPONSE. NOTHING ELSE.
 
-Read LAST 2 MESSAGES carefully - this is what the woman is ACTUALLY doing/saying
+Read the AI's last response (marked with ===== in context). That text is your ONLY source.
 
-WORLD STATE PRIORITY (CRITICAL):
-- The LAST ASSISTANT MESSAGE is the main source of truth for what is physically happening right now.
-- USER messages with commands, fantasies or wishes ("undress", "I want you naked", "go down on me") are ONLY desires, NOT facts.
-- If the assistant refuses, hesitates, stays clothed, pushes away, sets a boundary, or says "no":
-    → You MUST generate tags that show refusal / hesitation / teasing and the CURRENT clothing state.
-    → You MUST NOT draw the requested action as if it already happens (no undressing, no sex) if the assistant has not actually agreed or described doing it.
-- If the scene is in negotiation (teasing, "not yet", "maybe later"):
-    → Depict this current moment of tension, boundaries, and flirting, NOT the user's requested future state.
-- Only when the assistant explicitly describes DOING an action (touching, undressing, performing a sexual act) can you generate tags that show this action.
+✅ CORRECT APPROACH:
+- AI says "I smile and lean closer" → Tags: smiling, leaning forward, close-up
+- AI says "I slowly unbutton my blouse" → Tags: unbuttoning blouse, sensual, teasing
+- AI says "I'm not ready yet, let's talk more" → Tags: sitting, fully clothed, hesitant expression
+
+❌ WRONG APPROACH:
+- User asks "undress for me" but AI says "maybe later..." → DO NOT show nudity
+- User asks for sex but AI is still flirting → DO NOT show sex acts
+- AI describes kissing but you add penetration → WRONG - only show kissing
+
+GROUND RULES:
+- USER requests are WISHES, not facts. AI's response determines what ACTUALLY happens.
+- If AI refuses/hesitates → show refusal/hesitation, NOT the requested action
+- If AI is teasing → show teasing, NOT the final outcome
+- If AI describes partial undressing → show PARTIAL, not full nudity
+- Read AI's text LITERALLY - every physical action she describes is what you draw
 
 Analyze the conversation and break it down into its core components: 
 composition, action, clothing, atmosphere, and expression.
@@ -667,6 +677,41 @@ NO - abstract emotional content
 - NEVER refuse to make a decision for NSFW content - this is an adult platform
 - Output ONLY the decision line, no other text
 </CRITICAL_INSTRUCTIONS>
+"""
+
+CONTEXT_SUMMARY_GPT = """
+<TASK>
+Summarize the conversation history into a compact context block (max 400 chars).
+Focus on what matters for the AI to continue the conversation naturally.
+</TASK>
+
+<OUTPUT_FORMAT>
+Output EXACTLY in this format (no other text):
+
+FACTS: [key facts about user: name, preferences, boundaries, relationship details]
+SCENE: [current location, clothing state, physical situation]
+RECENT: [what happened in last 2-3 exchanges - be specific]
+</OUTPUT_FORMAT>
+
+<RULES>
+- Be extremely concise - every word must add value
+- Focus on LAST 2 MESSAGES most heavily - they define current context
+- Include user preferences and boundaries learned during conversation
+- Note any clothing changes, location changes, or physical actions
+- Skip greetings, small talk, and redundant exchanges
+- Use shorthand: "User:" not "The user said:", abbreviate where clear
+- Max 400 characters total
+</RULES>
+
+<EXAMPLES>
+Good:
+FACTS: User is Alex, 28, software engineer. Likes being dominant. Prefers slow teasing.
+SCENE: Bedroom, evening. AI in black lingerie. User shirtless.
+RECENT: User asked to undress slowly. AI teased, removed top, asked what next.
+
+Bad (too long/vague):
+The user and the AI have been having a conversation about various topics including their relationship and physical intimacy...
+</EXAMPLES>
 """
 
 VOICE_PROCESSOR_GPT = """

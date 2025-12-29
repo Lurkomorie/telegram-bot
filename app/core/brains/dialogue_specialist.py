@@ -7,7 +7,7 @@ from typing import List, Dict
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
-from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES, MAX_CONTEXT_MESSAGES
+from app.core.constants import DIALOGUE_SPECIALIST_MAX_RETRIES
 from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, log_dev_context_breakdown, is_development
 import time
 
@@ -70,7 +70,8 @@ async def generate_dialogue(
     persona: Dict[str, str],  # {name, prompt}
     memory: str = None,  # Optional conversation memory
     is_auto_followup: bool = False,  # Use cheaper model for scheduled followups
-    user_id: int = None  # Optional user_id for cost tracking
+    user_id: int = None,  # Optional user_id for cost tracking
+    context_summary: str = None  # Pre-generated summary of conversation history
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -78,6 +79,10 @@ async def generate_dialogue(
     Model: Uses main model or followup_model depending on is_auto_followup
     Temperature: 0.8-1.0 (creative, varies on retry)
     Retries: 3 attempts with validation
+    
+    Context optimization:
+    - If context_summary is provided, uses summary + last 2 messages verbatim
+    - Otherwise falls back to full chat_history (up to MAX_CONTEXT_MESSAGES)
     """
     config = get_app_config()
     
@@ -148,7 +153,39 @@ You are reaching out after a period of silence. Follow these rules:
 - Don't apologize for the silence - just naturally re-engage
 """
     
-    full_system_prompt = system_prompt + memory_context + state_context + followup_guidance
+    # Build conversation context block based on whether we have a summary
+    conversation_context = ""
+    if context_summary and len(chat_history) > 4:
+        # Use summary + last 2 messages verbatim for efficiency
+        last_2_messages = chat_history[-2:] if len(chat_history) >= 2 else chat_history
+        last_msgs_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in last_2_messages
+        ])
+        conversation_context = f"""
+
+# CONVERSATION CONTEXT (SUMMARY OF LAST 20 MESSAGES)
+{context_summary}
+
+# LAST 2 MESSAGES (VERBATIM - MOST IMPORTANT FOR CONTINUITY)
+{last_msgs_text}
+"""
+        print(f"[DIALOGUE] 📝 Using context summary ({len(context_summary)} chars) + last 2 messages verbatim")
+    elif chat_history:
+        # Fallback: use recent history directly (for short conversations or no summary)
+        recent_count = min(6, len(chat_history))
+        recent_msgs_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in chat_history[-recent_count:]
+        ])
+        conversation_context = f"""
+
+# RECENT CONVERSATION ({recent_count} messages)
+{recent_msgs_text}
+"""
+        print(f"[DIALOGUE] 📚 Using {recent_count} recent messages (no summary)")
+    
+    full_system_prompt = system_prompt + memory_context + state_context + conversation_context + followup_guidance
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):
@@ -158,20 +195,12 @@ You are reaching out after a period of silence. Follow these rules:
             if attempt > 1:
                 print(f"[DIALOGUE] Retry {attempt}/{max_retries} (temp={temperature:.1f})")
             
-            # Build messages (include recent context + current user message)
-            # Note: user_message is NOT in chat_history, so we add it here
-            # Use more conversation history for better context
-            recent_history_count = min(MAX_CONTEXT_MESSAGES, len(chat_history))
+            # Build messages: system prompt + current user message (context is in system prompt now)
             messages = [
                 {"role": "system", "content": full_system_prompt},
-                *chat_history[-recent_history_count:],  # Recent processed messages
-                {"role": "user", "content": user_message}  # Current unprocessed message - MOST IMPORTANT
+                {"role": "user", "content": user_message}  # Current message - ALWAYS LAST
             ]
             
-            # Log conversation preview for debugging
-            if len(chat_history) > 0:
-                print(f"[DIALOGUE] 📚 Using {recent_history_count} history messages")
-                print(f"[DIALOGUE] 💬 Last history: {chat_history[-1]['content'][:60] if chat_history else 'none'}...")
             print(f"[DIALOGUE] ➡️  Current user: {user_message[:80]}...")
             
             # Log complete messages array
@@ -190,9 +219,10 @@ You are reaching out after a period of silence. Follow these rules:
                         "base_prompt": system_prompt,
                         "memory_context": memory_context,
                         "state_context": state_context,
+                        "conversation_context": conversation_context,
                         "followup_guidance": followup_guidance,
                     },
-                    history_messages=chat_history[-recent_history_count:],
+                    history_messages=None,  # History is now in system prompt
                     user_message=user_message
                 )
                 

@@ -27,17 +27,36 @@ def _build_state_context(
     previous_state: Optional[str],
     chat_history: list[dict],
     persona_name: str,
-    previous_image_prompt: Optional[str] = None
+    previous_image_prompt: Optional[str] = None,
+    context_summary: Optional[str] = None
 ) -> str:
     """Build context for state resolver
     
     Note: chat_history contains ONLY processed messages (not current user message)
+    Uses context_summary + last 2 messages if summary is available.
     """
-    # Format last 10 messages (all processed, current message added separately)
-    history_text = "\n".join([
-        f"**{msg['role'].upper()}:** {msg['content']}"
-        for msg in chat_history[-10:]
-    ]) if chat_history else "No conversation history yet."
+    # Use summary + last 2 messages OR full history
+    if context_summary and len(chat_history) > 4:
+        # Summary mode: compact context
+        last_2_msgs = chat_history[-2:] if len(chat_history) >= 2 else chat_history
+        last_msgs_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in last_2_msgs
+        ])
+        history_text = f"""SUMMARY OF CONVERSATION:
+{context_summary}
+
+LAST 2 MESSAGES (VERBATIM):
+{last_msgs_text}"""
+        print(f"[STATE-RESOLVER] 📝 Using context summary + last 2 messages")
+    else:
+        # Fallback: use last 6 messages directly
+        recent_count = min(6, len(chat_history))
+        history_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in chat_history[-recent_count:]
+        ]) if chat_history else "No conversation history yet."
+        print(f"[STATE-RESOLVER] 📚 Using {recent_count} recent messages (no summary)")
     
     # Handle None previous state
     if previous_state:
@@ -63,7 +82,7 @@ especially for location, clothing, and scene details that may have been shown vi
 """
     
     context = f"""
-# LAST 10 MESSAGES OF CONVERSATION HISTORY
+# CONVERSATION CONTEXT
 {history_text}
 
 # PREVIOUS STATE
@@ -87,7 +106,8 @@ async def resolve_state(
     chat_history: List[Dict[str, str]],
     user_message: str,
     persona_name: str,
-    previous_image_prompt: Optional[str] = None
+    previous_image_prompt: Optional[str] = None,
+    context_summary: Optional[str] = None
 ) -> str:
     """
     Brain 2: Update conversation state (runs after dialogue generation)
@@ -96,13 +116,17 @@ async def resolve_state(
     Temperature: 0.3 (deterministic)
     Retries: 2 attempts with fallback
     Returns: Simple string state description
+    
+    Context optimization:
+    - If context_summary is provided, uses summary + last 2 messages verbatim
+    - Otherwise falls back to last 6 messages
     """
     config = get_app_config()
     state_model = config["llm"]["state_model"]
     
     # Build context
     prompt = PromptService.get("CONVERSATION_STATE_GPT")
-    context = _build_state_context(previous_state, chat_history, persona_name, previous_image_prompt)
+    context = _build_state_context(previous_state, chat_history, persona_name, previous_image_prompt, context_summary)
     
     # Retry logic
     for attempt in range(1, STATE_RESOLVER_MAX_RETRIES + 1):

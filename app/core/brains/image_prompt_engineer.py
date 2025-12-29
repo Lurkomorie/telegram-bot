@@ -18,14 +18,33 @@ def _build_image_context(
     user_message: str,
     persona: dict,
     chat_history: list[dict],
-    previous_image_prompt: str = None
+    previous_image_prompt: str = None,
+    context_summary: str = None
 ) -> str:
-    """Build context for image prompt generation"""
-    # Format conversation history
-    history_text = "\n".join([
-        f"**{msg['role'].upper()}:** {msg['content']}"
-        for msg in chat_history[-10:]
-    ]) if chat_history else "No conversation history yet."
+    """Build context for image prompt generation
+    
+    Uses context_summary + last 2 messages if summary is available.
+    """
+    # Use summary + last 2 messages OR recent history
+    if context_summary and len(chat_history) > 4:
+        last_2_msgs = chat_history[-2:] if len(chat_history) >= 2 else chat_history
+        last_msgs_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in last_2_msgs
+        ])
+        history_text = f"""SUMMARY:
+{context_summary}
+
+LAST 2 MESSAGES:
+{last_msgs_text}"""
+        print(f"[IMAGE-PLAN] 📝 Using context summary + last 2 messages")
+    else:
+        # Fallback: use last 6 messages
+        recent_count = min(6, len(chat_history))
+        history_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in chat_history[-recent_count:]
+        ]) if chat_history else "No conversation history yet."
     
     # Add previous image prompt if available
     image_context = ""
@@ -39,20 +58,23 @@ def _build_image_context(
     """
     
     context = f"""
-    # CONVERSATION HISTORY (LAST 10 MESSAGES)
-    {history_text}
-
-    # LAST DIALOGUE RESPONSE (WHAT IS ACTUALLY HAPPENING)
+    =====================================================
+    🎯 MOST IMPORTANT - AI'S LAST RESPONSE (GENERATE IMAGE BASED ON THIS):
+    =====================================================
     {dialogue_response}
+    =====================================================
+    
+    ⚠️ CRITICAL: The image MUST depict EXACTLY what the AI is doing/saying ABOVE.
+    Do NOT invent actions. Do NOT show what the user requested if the AI didn't actually do it.
+    The AI's response is the ONLY source of truth for what is happening RIGHT NOW.
 
-    # USER'S REQUEST
-    {user_message}
-
-    # CURRENT STATE
-    {state}
+    # BACKGROUND CONTEXT (for reference only)
+    State: {state}
+    User's message: {user_message}
+    
+    # CONVERSATION HISTORY (for continuity only)
+    {history_text}
 {image_context}
-
-    REMINDER: Generate image tags based on what the assistant is ACTUALLY doing/saying in the DIALOGUE RESPONSE.
     """
     return context
 
@@ -63,7 +85,8 @@ async def generate_image_plan(
     user_message: str,
     persona: Dict[str, str],
     chat_history: list[dict],
-    previous_image_prompt: str = None
+    previous_image_prompt: str = None,
+    context_summary: str = None
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -72,12 +95,16 @@ async def generate_image_plan(
     Temperature: 0.8
     Retries: 3 attempts with exponential backoff
     Returns: Simple string prompt
+    
+    Context optimization:
+    - If context_summary is provided, uses summary + last 2 messages
+    - Otherwise falls back to last 6 messages
     """
     config = get_app_config()
     model = config["llm"]["image_model"]
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
-    context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt)
+    context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt, context_summary)
     
     # Retry with exponential backoff
     for attempt in range(1, IMAGE_ENGINEER_MAX_RETRIES + 1):

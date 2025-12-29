@@ -6,6 +6,7 @@ llm:
   image_model: moonshotai/kimi-k2:nitro # Image tag generation
   memory_model: x-ai/grok-4-fast # Memory extraction - uncensored, cheap, decent quality with good prompt
   decision_model: mistralai/ministral-3b # Fast, uncensored model for image decisions
+  summary_model: mistralai/ministral-3b # Fast, cheap model for context summarization
   temperature: 0.7
   max_tokens: 512
   timeout_sec: 40

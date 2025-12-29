@@ -40,17 +40,36 @@ def _build_decision_context(
     previous_state: str,
     user_message: str,
     chat_history: list[dict],
-    persona_name: str
+    persona_name: str,
+    context_summary: str = None
 ) -> str:
-    """Build context for image generation decision"""
+    """Build context for image generation decision
+    
+    Uses context_summary + last 2 messages if summary is available.
+    """
     # Extract location from previous state
     previous_location = _extract_location_from_state(previous_state)
     
-    # Format recent conversation history (last 5 messages for context)
-    history_text = "\n".join([
-        f"**{msg['role'].upper()}:** {msg['content']}"
-        for msg in chat_history[-5:]
-    ]) if chat_history else "No conversation history yet."
+    # Use summary + last 2 messages OR recent history
+    if context_summary and len(chat_history) > 4:
+        last_2_msgs = chat_history[-2:] if len(chat_history) >= 2 else chat_history
+        last_msgs_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in last_2_msgs
+        ])
+        history_text = f"""SUMMARY:
+{context_summary}
+
+LAST 2 MESSAGES:
+{last_msgs_text}"""
+        print(f"[IMAGE-DECISION] 📝 Using context summary + last 2 messages")
+    else:
+        # Fallback: use last 4 messages directly
+        recent_count = min(4, len(chat_history))
+        history_text = "\n".join([
+            f"**{msg['role'].upper()}:** {msg['content']}"
+            for msg in chat_history[-recent_count:]
+        ]) if chat_history else "No conversation history yet."
     
     context = f"""
 # PREVIOUS STATE
@@ -59,7 +78,7 @@ def _build_decision_context(
 # PREVIOUS LOCATION
 {previous_location}
 
-# RECENT CONVERSATION (LAST 5 MESSAGES)
+# CONVERSATION CONTEXT
 {history_text}
 
 # CURRENT USER MESSAGE
@@ -77,7 +96,8 @@ async def should_generate_image(
     previous_state: str,
     user_message: str,
     chat_history: list[dict],
-    persona_name: str
+    persona_name: str,
+    context_summary: str = None
 ) -> Tuple[bool, str]:
     """
     Brain 4: Decide whether to generate an image
@@ -86,12 +106,16 @@ async def should_generate_image(
     Temperature: 0.3 (deterministic decision-making)
     Retries: 2 attempts
     Returns: (should_generate: bool, reason: str)
+    
+    Context optimization:
+    - If context_summary is provided, uses summary + last 2 messages
+    - Otherwise falls back to last 4 messages
     """
     config = get_app_config()
     decision_model = config["llm"]["decision_model"]
     
     prompt = PromptService.get("IMAGE_DECISION_GPT")
-    context = _build_decision_context(previous_state, user_message, chat_history, persona_name)
+    context = _build_decision_context(previous_state, user_message, chat_history, persona_name, context_summary)
     
     # Retry logic
     for attempt in range(1, IMAGE_DECISION_MAX_RETRIES + 1):

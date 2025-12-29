@@ -13,6 +13,7 @@ from app.core.chat_actions import ChatActionManager
 from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
+from app.core.context_summarizer import generate_context_summary
 from app.db.base import get_db
 from app.db import crud
 from app.db.models import User
@@ -239,10 +240,15 @@ async def _process_single_batch(
             # Extract memory
             memory = chat.memory
             
-            # Build chat history (all existing processed messages)
+            # Extract context summary from chat.ext (persisted from previous messages)
+            context_summary = None
+            if chat.ext and isinstance(chat.ext, dict):
+                context_summary = chat.ext.get("context_summary")
+            
+            # Build chat history (all existing processed messages - up to 20 for summary)
             chat_history = [
                 {"role": m.role, "content": m.text} 
-                for m in messages[-10:] 
+                for m in messages[-20:] 
                 if m.text
             ]
             
@@ -266,6 +272,7 @@ async def _process_single_batch(
         log_verbose(f"[BATCH]    History: {len(chat_history)} messages")
         log_verbose(f"[BATCH]    Previous state: {'Found' if previous_state else 'None (creating new)'}")
         log_verbose(f"[BATCH]    Memory: {len(memory) if memory else 0} chars")
+        log_verbose(f"[BATCH]    Context summary: {'Found (' + str(len(context_summary)) + ' chars)' if context_summary else 'None'}")
         log_verbose(f"[BATCH]    Message count: {current_message_count}")
         
         # Log conversation history for debugging
@@ -305,14 +312,16 @@ async def _process_single_batch(
                 previous_state=previous_state or "",
                 user_message=batched_text,
                 chat_history=chat_history,
-                persona_name=persona_data["name"]
+                persona_name=persona_data["name"],
+                context_summary=context_summary
             )
             
             should_generate_image_flag, decision_reason = await should_generate_image(
                 previous_state=previous_state or "",
                 user_message=batched_text,
                 chat_history=chat_history,
-                persona_name=persona_data["name"]
+                persona_name=persona_data["name"],
+                context_summary=context_summary
             )
             log_always(f"[BATCH] ✅ Brain 4: Decision = {'YES' if should_generate_image_flag else 'NO'} - {decision_reason}")
         
@@ -350,7 +359,8 @@ async def _process_single_batch(
             user_message=user_message_for_ai,
             persona=persona_data,
             memory=memory,
-            is_auto_followup=is_auto_followup
+            is_auto_followup=is_auto_followup,
+            context_summary=context_summary
         )
         
         dialogue_response = await generate_dialogue(
@@ -360,7 +370,8 @@ async def _process_single_batch(
             persona=persona_data,
             memory=memory,  # Pass conversation memory
             is_auto_followup=is_auto_followup,  # Use cheaper model with enhanced prompt for followups
-            user_id=user_id
+            user_id=user_id,
+            context_summary=context_summary  # Use summary for context efficiency
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -378,7 +389,8 @@ async def _process_single_batch(
             chat_history=chat_history,
             user_message=batched_text,
             persona_name=persona_data["name"],
-            previous_image_prompt=previous_image_prompt
+            previous_image_prompt=previous_image_prompt,
+            context_summary=context_summary
         )
 
         new_state = await resolve_state(
@@ -386,7 +398,8 @@ async def _process_single_batch(
             chat_history=chat_history,
             user_message=batched_text,
             persona_name=persona_data["name"],
-            previous_image_prompt=previous_image_prompt
+            previous_image_prompt=previous_image_prompt,
+            context_summary=context_summary
         )
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
@@ -548,6 +561,16 @@ async def _process_single_batch(
         else:
             log_verbose(f"[BATCH] ⏭️ Memory update skipped (free user - premium feature)")
         
+        # 5.6. Trigger background context summary update (fire and forget)
+        # Update summary with new messages for next round
+        asyncio.create_task(_update_context_summary(
+            chat_id=chat_id,
+            chat_history=chat_history,
+            user_message=batched_text,
+            ai_message=dialogue_response,
+            persona_name=persona_data["name"]
+        ))
+        
         pipeline_timer.end_stage()
         
         # 7. Start background image generation based on AI decision
@@ -568,7 +591,8 @@ async def _process_single_batch(
                 previous_image_prompt=previous_image_prompt,
                 is_auto_followup=is_auto_followup,
                 followup_type=followup_type,
-                should_send_as_caption=should_wait_for_image  # Pass flag to send text with image
+                should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
+                context_summary=context_summary  # Pass summary for efficient context
             ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
@@ -613,7 +637,8 @@ async def _background_image_generation(
     previous_image_prompt: str = None,  # Add previous image prompt parameter
     is_auto_followup: bool = False,  # Track if image is from scheduler
     followup_type: str = None,  # Type of followup ("30min" or "24h")
-    should_send_as_caption: bool = False  # If True, send dialogue_response as photo caption
+    should_send_as_caption: bool = False,  # If True, send dialogue_response as photo caption
+    context_summary: str = None  # Pre-generated context summary for efficiency
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -684,7 +709,8 @@ async def _background_image_generation(
             user_message=batched_text,
             persona=persona,
             chat_history=chat_history,
-            previous_image_prompt=previous_image_prompt
+            previous_image_prompt=previous_image_prompt,
+            context_summary=context_summary
         )
         
         image_prompt = await generate_image_plan(
@@ -693,7 +719,8 @@ async def _background_image_generation(
             user_message=batched_text,
             persona=persona,
             chat_history=chat_history,
-            previous_image_prompt=previous_image_prompt
+            previous_image_prompt=previous_image_prompt,
+            context_summary=context_summary
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
@@ -790,4 +817,58 @@ async def _background_image_generation(
         # Stop action on exception
         from app.core.action_registry import stop_and_remove_action
         await stop_and_remove_action(tg_chat_id)
+
+
+async def _update_context_summary(
+    chat_id: UUID,
+    chat_history: list[dict],
+    user_message: str,
+    ai_message: str,
+    persona_name: str
+):
+    """
+    Background task to update context summary after each message exchange.
+    Generates new summary and saves to chat.ext["context_summary"].
+    """
+    try:
+        # Build full history including the new messages
+        full_history = chat_history + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": ai_message}
+        ]
+        
+        # Only generate summary if we have enough messages
+        if len(full_history) < 5:
+            log_verbose(f"[CONTEXT-SUMMARY] ⏭️ Skipping - only {len(full_history)} messages (need 5+)")
+            return
+        
+        log_verbose(f"[CONTEXT-SUMMARY] 🧠 Generating summary for {len(full_history)} messages...")
+        
+        # Generate new summary
+        new_summary = await generate_context_summary(
+            chat_history=full_history[-20:],  # Last 20 messages
+            persona_name=persona_name
+        )
+        
+        if not new_summary:
+            log_verbose(f"[CONTEXT-SUMMARY] ⚠️ Empty summary generated, skipping save")
+            return
+        
+        # Save to database
+        with get_db() as db:
+            from sqlalchemy.orm.attributes import flag_modified
+            chat = crud.get_chat_by_id(db, chat_id)
+            if chat:
+                if not chat.ext:
+                    chat.ext = {}
+                chat.ext["context_summary"] = new_summary
+                flag_modified(chat, "ext")
+                db.commit()
+                log_always(f"[CONTEXT-SUMMARY] ✅ Summary saved ({len(new_summary)} chars)")
+            else:
+                log_verbose(f"[CONTEXT-SUMMARY] ⚠️ Chat {chat_id} not found")
+                
+    except Exception as e:
+        log_always(f"[CONTEXT-SUMMARY] ❌ Error updating summary: {e}")
+        # Non-critical - don't raise, just log
 
