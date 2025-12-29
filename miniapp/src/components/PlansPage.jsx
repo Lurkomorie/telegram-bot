@@ -31,7 +31,7 @@ export default function PlansPage() {
   // Token packages with bulk discounts (cheaper per token for larger packages)
   const tokenPackages = [
     { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },       // 0.70/token
-    { id: 'tokens_100', amount: 100, originalStars: 68, stars: calcDiscount(68) },     // 0.68/token
+pri    { id: 'tokens_100', amount: 100, originalStars: 68, stars: calcDiscount(68) },     // 0.68/token
     { id: 'tokens_250', amount: 250, originalStars: 165, stars: calcDiscount(165) },   // 0.66/token
     { id: 'tokens_500', amount: 500, originalStars: 320, stars: calcDiscount(320) },   // 0.64/token
     { id: 'tokens_1000', amount: 1000, originalStars: 620, stars: calcDiscount(620), popular: true },  // 0.62/token
