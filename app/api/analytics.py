@@ -1122,7 +1122,7 @@ async def get_conversions_stats(
     Returns:
         Dictionary with conversion stats, revenue, costs, and ROI per acquisition source
     """
-    from app.db.models import PaymentTransaction, User, Message, ImageJob, StartCode
+    from app.db.models import PaymentTransaction, User, Message, ImageJob, StartCode, Chat
     from sqlalchemy import func, distinct, case
     
     # Cost constants
@@ -1140,8 +1140,8 @@ async def get_conversions_stats(
             users_query = db.query(
                 User.acquisition_source,
                 func.count(User.id).label('total_users'),
-                func.count(case([(User.is_premium == True, 1)])).label('premium_users'),
-                func.count(case([((PaymentTransaction.id != None), 1)])).label('paying_users')
+                func.count(case((User.is_premium == True, 1))).label('premium_users'),
+                func.count(case((PaymentTransaction.id != None, 1))).label('paying_users')
             ).outerjoin(
                 PaymentTransaction,
                 (PaymentTransaction.user_id == User.id) & (PaymentTransaction.status == 'completed')
@@ -1161,7 +1161,9 @@ async def get_conversions_stats(
                 User.acquisition_source,
                 func.count(Message.id).label('message_count')
             ).join(
-                Message, Message.user_id == User.id
+                Chat, Chat.user_id == User.id
+            ).join(
+                Message, Message.chat_id == Chat.id
             ).filter(
                 User.acquisition_source.isnot(None),
                 Message.role == 'user'
