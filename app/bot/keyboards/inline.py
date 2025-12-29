@@ -163,23 +163,25 @@ def build_image_refresh_keyboard(image_job_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en", variant: int = 0, is_premium: bool = False) -> InlineKeyboardMarkup:
-    """Build keyboard with two buttons for energy upsell A/B test.
+def build_energy_upsell_keyboard(miniapp_url: str, language: str = "en", message_variant: int = 1, button_variant: int = 1) -> InlineKeyboardMarkup:
+    """Build keyboard with single button for energy upsell A/B test.
     
-    Both buttons lead to premium page (if not premium) or tokens page (if premium).
-    Variant is included in callback data for tracking.
+    Button leads to premium page. Both message and button variants are included in callback data for tracking.
+    
+    Args:
+        miniapp_url: Base miniapp URL
+        language: User language code
+        message_variant: Which message variant was shown (1-4)
+        button_variant: Which button text to show (1-4)
     """
-    # Target page based on premium status
-    target_page = "tokens" if is_premium else "premium"
+    # Get button text based on variant
+    button_key = f"tokens.outOfTokens.button{button_variant}"
+    button_text = get_ui_text(button_key, language=language)
     
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=get_ui_text("tokens.outOfTokens.refillButton", language=language),
-            callback_data=f"upsell_click:{variant}:refill"
-        )],
-        [InlineKeyboardButton(
-            text=get_ui_text("tokens.outOfTokens.unlockButton", language=language),
-            callback_data=f"upsell_click:{variant}:unlock"
+            text=button_text,
+            callback_data=f"upsell_click:{message_variant}:{button_variant}"
         )]
     ])
 

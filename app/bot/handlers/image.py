@@ -19,6 +19,7 @@ from app.core.img_runpod import submit_image_job
 from app.core.constants import ERROR_MESSAGES
 from app.core import analytics_service_tg
 from app.core.persona_cache import get_persona_by_id, get_persona_field
+from app.core.logging_utils import log_always
 import random
 
 
@@ -225,25 +226,31 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
             except Exception:
                 pass
     
-    # Randomly select a variant (1-4)
-    variant = random.randint(1, 4)
+    # Randomly select message variant (1-4) and button variant (1-4)
+    message_variant = random.randint(1, 4)
+    button_variant = random.randint(1, 4)
     
     # Get variant message text
-    variant_key = f"tokens.outOfTokens.variant{variant}"
+    variant_key = f"tokens.outOfTokens.variant{message_variant}"
     message_text = get_ui_text(variant_key, user_language)
     
     # Build keyboard with variant tracking
     miniapp_url = f"{settings.public_url}/miniapp"
-    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language, variant=variant, is_premium=is_premium)
+    keyboard = build_energy_upsell_keyboard(miniapp_url, language=user_language, message_variant=message_variant, button_variant=button_variant)
     
-    # Track which variant was shown
+    # Track which variants were shown
     with get_db() as db:
         try:
             crud.create_analytics_event(
                 db=db,
                 client_id=user_id,
                 event_name="energy_upsell_shown",
-                meta={"variant": variant, "is_premium": is_premium, "language": user_language}
+                meta={
+                    "message_variant": message_variant,
+                    "button_variant": button_variant,
+                    "is_premium": is_premium,
+                    "language": user_language
+                }
             )
         except Exception as e:
             log_always(f"[IMAGE] Failed to track upsell variant: {e}")
@@ -800,9 +807,9 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
 async def upsell_click_callback(callback: types.CallbackQuery):
     """Handle energy upsell button clicks - track conversion and open miniapp.
     
-    Callback data format: upsell_click:{variant}:{button_type}
-    - variant: 1-4 (which A/B test variant)
-    - button_type: 'refill' or 'unlock'
+    Callback data format: upsell_click:{message_variant}:{button_variant}
+    - message_variant: 1-4 (which message A/B test variant)
+    - button_variant: 1-4 (which button A/B test variant)
     """
     from app.settings import settings
     
@@ -811,8 +818,8 @@ async def upsell_click_callback(callback: types.CallbackQuery):
         await callback.answer()
         return
     
-    variant = int(parts[1])
-    button_type = parts[2]  # 'refill' or 'unlock'
+    message_variant = int(parts[1])
+    button_variant = int(parts[2])
     user_id = callback.from_user.id
     
     # Track the click for conversion analytics
@@ -826,8 +833,8 @@ async def upsell_click_callback(callback: types.CallbackQuery):
                 client_id=user_id,
                 event_name="energy_upsell_click",
                 meta={
-                    "variant": variant,
-                    "button": button_type,
+                    "message_variant": message_variant,
+                    "button_variant": button_variant,
                     "is_premium": is_premium,
                     "language": user_language
                 }
@@ -835,12 +842,12 @@ async def upsell_click_callback(callback: types.CallbackQuery):
         except Exception as e:
             log_always(f"[IMAGE] Failed to track upsell click: {e}")
     
-    # Build miniapp URL
-    target_page = "tokens" if is_premium else "premium"
-    miniapp_url = f"{settings.public_url}/miniapp?page={target_page}"
+    # Build miniapp URL - always go to premium page
+    miniapp_url = f"{settings.public_url}/miniapp?page=premium"
     
     # Edit message to show WebApp button (callback.answer with URL only works for games)
-    button_text = get_ui_text("tokens.outOfTokens.refillButton" if button_type == "refill" else "tokens.outOfTokens.unlockButton", language=user_language)
+    button_key = f"tokens.outOfTokens.button{button_variant}"
+    button_text = get_ui_text(button_key, language=user_language)
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
