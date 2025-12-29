@@ -39,10 +39,13 @@ export default function PremiumPage({ onNavigateToCheckout }) {
         'premium.plus.feature1',
         'premium.plus.feature2',
         'premium.plus.feature3',
+        'premium.plus.feature8',
+        'premium.plus.feature9',
         'premium.plus.feature4',
         'premium.plus.feature5',
         'premium.plus.feature6',
-        'premium.plus.feature7'
+        'premium.plus.feature7',
+        
       ]
     },
     {
