@@ -78,18 +78,18 @@ async def send_payment_notification(user: types.User, product_id: str, product: 
         print(f"[PAYMENT] ⚠️ Failed to send payment notification: {e}")
 
 # Payment products: token packages and tier subscriptions
-# Prices with 20% New Year discount applied
+# Prices with 20% New Year discount applied + modest bulk discounts
 PAYMENT_PRODUCTS = {
-    # Token packages (one-time purchases) - 20% OFF
-    "tokens_50": {"type": "tokens", "amount": 50, "stars": apply_discount(35)},      # 35 → 28
-    "tokens_100": {"type": "tokens", "amount": 100, "stars": apply_discount(70)},    # 70 → 56
-    "tokens_250": {"type": "tokens", "amount": 250, "stars": apply_discount(175)},   # 175 → 140
-    "tokens_500": {"type": "tokens", "amount": 500, "stars": apply_discount(350)},   # 350 → 280
-    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": apply_discount(700)}, # 700 → 560
-    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": apply_discount(1750)}, # 1750 → 1400
-    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": apply_discount(3500)}, # 3500 → 2800
-    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": apply_discount(7000)}, # 7000 → 5600
-    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(17500)}, # 17500 → 14000
+    # Token packages (one-time purchases) - 20% OFF + bulk discounts
+    "tokens_50": {"type": "tokens", "amount": 50, "stars": apply_discount(35)},        # 0.70/token → 28
+    "tokens_100": {"type": "tokens", "amount": 100, "stars": apply_discount(68)},      # 0.68/token → 54
+    "tokens_250": {"type": "tokens", "amount": 250, "stars": apply_discount(165)},     # 0.66/token → 132
+    "tokens_500": {"type": "tokens", "amount": 500, "stars": apply_discount(320)},     # 0.64/token → 256
+    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": apply_discount(620)},   # 0.62/token → 496
+    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": apply_discount(1500)},  # 0.60/token → 1200
+    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": apply_discount(2900)},  # 0.58/token → 2320
+    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": apply_discount(5600)}, # 0.56/token → 4480
+    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(13500)}, # 0.54/token → 10800
     
     # Tier subscriptions (30 days) - 20% OFF
     "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": apply_discount(450), "daily_tokens": 50},       # 450 → 360
