@@ -262,6 +262,95 @@ export default function Conversions() {
         </div>
       )}
 
+      {/* Purchase Statistics Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden mt-8">
+        <div className="p-6 border-b">
+          <h3 className="text-xl font-bold text-gray-800">Purchase Statistics</h3>
+          <p className="text-sm text-gray-500 mt-1">Total purchases vs unique paying users (repeat purchase analysis)</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Users</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unique Buyers</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conv %</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Purchases</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Purchases/Buyer</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Repeat Rate</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {sources.map((source) => {
+                const avgPurchasesPerBuyer = source.paying_users > 0 
+                  ? (source.total_purchases / source.paying_users).toFixed(2) 
+                  : '0.00';
+                const repeatRate = source.paying_users > 0 && source.total_purchases > source.paying_users
+                  ? (((source.total_purchases - source.paying_users) / source.paying_users) * 100).toFixed(1)
+                  : '0.0';
+                return (
+                  <tr key={source.source} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {source.source}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-800">
+                      {formatNumber(source.total_users)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-600">
+                      {formatNumber(source.paying_users)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        source.conversion_rate >= 5 ? 'bg-green-100 text-green-800' :
+                        source.conversion_rate >= 2 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {source.conversion_rate}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-indigo-600">
+                      {formatNumber(source.total_purchases || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm text-gray-600">
+                      {avgPurchasesPerBuyer}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        parseFloat(repeatRate) >= 50 ? 'bg-emerald-100 text-emerald-800' :
+                        parseFloat(repeatRate) >= 20 ? 'bg-green-100 text-green-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {repeatRate}%
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="bg-gray-100 font-bold">
+              <tr>
+                <td className="px-4 py-3 text-sm text-gray-800">TOTALS</td>
+                <td className="px-4 py-3 text-right text-sm text-gray-800">{formatNumber(totals.total_users)}</td>
+                <td className="px-4 py-3 text-right text-sm text-gray-800">{formatNumber(totals.paying_users)}</td>
+                <td className="px-4 py-3 text-right text-sm text-gray-800">{totals.overall_conversion}%</td>
+                <td className="px-4 py-3 text-right text-sm text-indigo-700">{formatNumber(totals.total_purchases || 0)}</td>
+                <td className="px-4 py-3 text-right text-sm text-gray-800">
+                  {totals.paying_users > 0 ? ((totals.total_purchases || 0) / totals.paying_users).toFixed(2) : '0.00'}
+                </td>
+                <td className="px-4 py-3 text-right text-sm text-gray-800">
+                  {totals.paying_users > 0 && (totals.total_purchases || 0) > totals.paying_users
+                    ? ((((totals.total_purchases || 0) - totals.paying_users) / totals.paying_users) * 100).toFixed(1)
+                    : '0.0'}%
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
       {/* Unit Economics */}
       <div className="mt-8 bg-white rounded-lg shadow p-6">
         <h3 className="text-xl font-bold text-gray-800 mb-4">Unit Economics</h3>

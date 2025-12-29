@@ -1137,11 +1137,13 @@ async def get_conversions_stats(
             start_code_prices = {sc.code: float(sc.ad_price) if sc.ad_price else 0 for sc in start_codes}
             
             # Get users grouped by acquisition source
+            # Using DISTINCT to count unique users correctly (not inflated by multiple transactions)
             users_query = db.query(
                 User.acquisition_source,
-                func.count(User.id).label('total_users'),
-                func.count(case((User.is_premium == True, 1))).label('premium_users'),
-                func.count(case((PaymentTransaction.id != None, 1))).label('paying_users')
+                func.count(distinct(User.id)).label('total_users'),
+                func.count(distinct(case((User.is_premium == True, User.id)))).label('premium_users'),
+                func.count(distinct(case((PaymentTransaction.id != None, User.id)))).label('paying_users'),
+                func.count(PaymentTransaction.id).label('total_purchases')
             ).outerjoin(
                 PaymentTransaction,
                 (PaymentTransaction.user_id == User.id) & (PaymentTransaction.status == 'completed')
@@ -1219,6 +1221,7 @@ async def get_conversions_stats(
                 'total_users': 0,
                 'premium_users': 0,
                 'paying_users': 0,
+                'total_purchases': 0,
                 'messages': 0,
                 'images': 0,
                 'revenue_stars': 0,
@@ -1253,6 +1256,7 @@ async def get_conversions_stats(
                     'total_users': u.total_users,
                     'premium_users': u.premium_users,
                     'paying_users': u.paying_users,
+                    'total_purchases': u.total_purchases,
                     'conversion_rate': round(conversion_rate, 2),
                     'messages': messages,
                     'images': images,
@@ -1272,6 +1276,7 @@ async def get_conversions_stats(
                 totals['total_users'] += u.total_users
                 totals['premium_users'] += u.premium_users
                 totals['paying_users'] += u.paying_users
+                totals['total_purchases'] += u.total_purchases
                 totals['messages'] += messages
                 totals['images'] += images
                 totals['revenue_stars'] += rev['stars']
