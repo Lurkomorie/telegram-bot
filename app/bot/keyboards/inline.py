@@ -332,21 +332,31 @@ def build_another_image_keyboard(language: str = "en") -> InlineKeyboardMarkup:
 
 
 def build_age_verification_keyboard(deep_link: str = None, language: str = "en") -> InlineKeyboardMarkup:
-    """Build keyboard for age verification confirmation
+    """Build keyboard for age verification with language selection
     
     Args:
         deep_link: Optional deep link to pass through callback (e.g., "telegram_ads_kiki3")
     """
-    callback_data = "confirm_age_18"
+    # Build callback data with optional deep link
+    en_callback = "confirm_age_lang:en"
+    ru_callback = "confirm_age_lang:ru"
+    
     if deep_link:
         # Encode deep link in callback data (max 64 bytes for callback_data)
-        callback_data = f"confirm_age_18:{deep_link}"
+        en_callback = f"confirm_age_lang:en:{deep_link}"
+        ru_callback = f"confirm_age_lang:ru:{deep_link}"
     
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=get_ui_text("age_verification.confirm_button", language=language),
-            callback_data=callback_data
-        )]
+        [
+            InlineKeyboardButton(
+                text="🇬🇧 English",
+                callback_data=en_callback
+            ),
+            InlineKeyboardButton(
+                text="🇷🇺 Русский",
+                callback_data=ru_callback
+            )
+        ]
     ])
 
 

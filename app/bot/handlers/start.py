@@ -82,8 +82,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         
         # Check if user has verified their age
         if not user.age_verified:
-            # Show age verification message with deep link encoded in callback
-            age_verification_text = get_ui_text("age_verification.message", language=user_language)
+            # Show age verification message in both languages since user hasn't chosen yet
+            en_text = get_ui_text("age_verification.message", language="en")
+            ru_text = get_ui_text("age_verification.message", language="ru")
+            age_verification_text = f"{en_text}\n\n{ru_text}"
+            
             keyboard = build_age_verification_keyboard(deep_link=deep_link_param, language=user_language)
             
             if deep_link_param:
@@ -1117,28 +1120,27 @@ async def new_chat_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(lambda c: c.data and c.data.startswith("confirm_age_18"))
+@router.callback_query(lambda c: c.data and c.data.startswith("confirm_age_lang:"))
 async def confirm_age_callback(callback: types.CallbackQuery):
-    """Handle age verification confirmation"""
+    """Handle age verification with language selection"""
     import re
     
-    # Extract deep link from callback data if present
-    # Format: "confirm_age_18" or "confirm_age_18:<deep_link>"
-    callback_deep_link = None
-    if ":" in callback.data:
-        parts = callback.data.split(":", 1)
-        if len(parts) == 2:
-            callback_deep_link = parts[1]
+    # Extract language and deep link from callback data
+    # Format: "confirm_age_lang:en" or "confirm_age_lang:ru:<deep_link>"
+    parts = callback.data.split(":", 2)
+    selected_language = parts[1] if len(parts) >= 2 else "en"
+    callback_deep_link = parts[2] if len(parts) >= 3 else None
     
-    # Update user's age_verified status
+    # Update user's age_verified status and set their chosen language
     with get_db() as db:
         crud.update_user_age_verified(db, callback.from_user.id)
+        crud.set_user_locale(db, callback.from_user.id, selected_language)
         db_deep_link = crud.get_and_clear_pending_deep_link(db, callback.from_user.id)
         # Prefer DB value, fallback to callback data
         pending_deep_link = db_deep_link or callback_deep_link
         
-        # Get user language for UI texts
-        user_language = get_and_update_user_language(db, callback.from_user)
+        # Use the selected language
+        user_language = selected_language
     
     # Delete the age verification message
     try:

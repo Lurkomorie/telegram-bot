@@ -161,6 +161,25 @@ def update_user_age_verified(db: Session, telegram_id: int) -> User:
     return user
 
 
+def set_user_locale(db: Session, telegram_id: int, locale: str) -> User:
+    """Set user's locale preference manually
+    
+    Args:
+        telegram_id: Telegram user ID
+        locale: Language code (e.g., 'en', 'ru')
+    
+    Returns:
+        Updated User object
+    """
+    user = db.query(User).filter(User.id == telegram_id).first()
+    if user:
+        user.locale = locale
+        user.locale_manually_set = True
+        db.commit()
+        db.refresh(user)
+    return user
+
+
 def mark_user_bot_blocked(db: Session, telegram_id: int) -> Optional[User]:
     """Mark user as having blocked the bot
     
