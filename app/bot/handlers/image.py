@@ -5,6 +5,7 @@ from aiogram import types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from app.bot.loader import router, bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from app.bot.keyboards.inline import build_image_prompt_keyboard
 from app.bot.states import ImageGeneration
 from app.db.base import get_db
@@ -834,16 +835,24 @@ async def upsell_click_callback(callback: types.CallbackQuery):
         except Exception as e:
             log_always(f"[IMAGE] Failed to track upsell click: {e}")
     
-    # Delete the upsell message
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    
     # Build miniapp URL
     target_page = "tokens" if is_premium else "premium"
     miniapp_url = f"{settings.public_url}/miniapp?page={target_page}"
     
-    # Answer callback with URL to open
-    await callback.answer(url=miniapp_url)
+    # Edit message to show WebApp button (callback.answer with URL only works for games)
+    button_text = get_ui_text("tokens.outOfTokens.refillButton" if button_type == "refill" else "tokens.outOfTokens.unlockButton", language=user_language)
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=button_text,
+            web_app=WebAppInfo(url=miniapp_url)
+        )]
+    ])
+    
+    try:
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    except Exception:
+        pass
+    
+    await callback.answer()
 
