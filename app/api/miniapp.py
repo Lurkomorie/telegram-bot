@@ -766,7 +766,7 @@ async def _process_scenario_selection(
                 
                 # Send "returned to chat" message
                 from app.bot.loader import bot
-                from app.core.ui_texts import get_ui_text
+                from app.settings import get_ui_text
                 
                 user_language = crud.get_user_language(db, user_id)
                 

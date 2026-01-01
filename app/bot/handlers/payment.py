@@ -77,6 +77,74 @@ async def send_payment_notification(user: types.User, product_id: str, product: 
     except Exception as e:
         print(f"[PAYMENT] ⚠️ Failed to send payment notification: {e}")
 
+
+async def send_payment_error_notification(
+    user: types.User, 
+    product_id: str, 
+    charge_id: str,
+    error_type: str,
+    error_message: str,
+    amount: int = None
+):
+    """
+    Send payment ERROR notification to the configured Telegram group/channel
+    
+    Args:
+        user: Telegram user object
+        product_id: Product ID
+        charge_id: Telegram payment charge ID
+        error_type: Type of error (e.g., 'processing_failed', 'exception', 'user_not_found')
+        error_message: Detailed error message
+        amount: Payment amount in stars (optional)
+    """
+    if not settings.PAYMENT_NOTIFICATION_CHAT_ID:
+        return
+    
+    try:
+        # Build user info
+        user_link = f"<a href='tg://user?id={user.id}'>{user.full_name}</a>"
+        username = f"@{user.username}" if user.username else "no username"
+        
+        # Get product info if available
+        product = PAYMENT_PRODUCTS.get(product_id)
+        if product:
+            stars_amount = product["stars"]
+            usd_amount = round(stars_amount * STARS_TO_USD, 2)
+            if product["type"] == "tokens":
+                product_desc = f"🪙 {product['amount']} tokens"
+            else:
+                tier = product["tier"].capitalize()
+                duration = product["duration"]
+                product_desc = f"👑 {tier} ({duration} days)"
+        else:
+            stars_amount = amount or "?"
+            usd_amount = round(amount * STARS_TO_USD, 2) if amount else "?"
+            product_desc = f"Unknown product: {product_id}"
+        
+        message = (
+            f"🚨 <b>PAYMENT ERROR!</b> 🚨\n\n"
+            f"👤 User: {user_link}\n"
+            f"🆔 ID: <code>{user.id}</code>\n"
+            f"📛 Username: {username}\n\n"
+            f"📦 Product: {product_desc}\n"
+            f"⭐ Amount: <b>{stars_amount} Stars</b> (~${usd_amount})\n"
+            f"🏷️ Product ID: <code>{product_id}</code>\n"
+            f"🔑 Charge ID: <code>{charge_id}</code>\n\n"
+            f"❌ Error Type: <b>{error_type}</b>\n"
+            f"📝 Details: <code>{error_message[:500]}</code>\n\n"
+            f"⚠️ <b>User paid but may not have received product!</b>\n"
+            f"🔧 <b>Manual intervention required!</b>"
+        )
+        
+        await bot.send_message(
+            chat_id=settings.PAYMENT_NOTIFICATION_CHAT_ID,
+            text=message,
+            parse_mode="HTML"
+        )
+        print(f"[PAYMENT] 🚨 Error notification sent to group {settings.PAYMENT_NOTIFICATION_CHAT_ID}")
+    except Exception as e:
+        print(f"[PAYMENT] ⚠️ Failed to send payment error notification: {e}")
+
 # Payment products: token packages and tier subscriptions
 # Prices with 20% New Year discount applied + bulk discounts
 PAYMENT_PRODUCTS = {
@@ -126,8 +194,11 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
     Returns:
         dict with keys: success (bool), message (str), tokens (int), tier (str), premium_until (str)
     """
+    print(f"[PAYMENT-TX] 🔄 Processing transaction for user {user_id}, product {product_id}")
+    
     # Get product details
     if product_id not in PAYMENT_PRODUCTS:
+        print(f"[PAYMENT-TX] ❌ Invalid product ID: {product_id}")
         return {
             "success": False,
             "message": "Invalid product",
@@ -137,12 +208,25 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
     product = PAYMENT_PRODUCTS[product_id]
     product_type = product["type"]
     
+    # Verify user exists first
+    user = crud.get_user(db, user_id)
+    if not user:
+        print(f"[PAYMENT-TX] ❌ User {user_id} not found in database!")
+        return {
+            "success": False,
+            "message": "User not found. Please contact support.",
+            "error": "user_not_found"
+        }
+    print(f"[PAYMENT-TX] 👤 User found: {user_id}, current tier: {user.premium_tier}, energy: {user.energy}")
+    
     if product_type == "tokens":
         # Token package purchase
         tokens_amount = product["amount"]
+        print(f"[PAYMENT-TX] 🪙 Adding {tokens_amount} tokens to user {user_id}")
         success = crud.add_user_energy(db, user_id, tokens_amount)
         
         if success:
+            print(f"[PAYMENT-TX] ✅ Tokens added successfully")
             # Create transaction record
             crud.create_payment_transaction(
                 db=db,
@@ -153,6 +237,7 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
                 tokens_received=tokens_amount,
                 telegram_payment_charge_id=telegram_payment_charge_id
             )
+            print(f"[PAYMENT-TX] 📝 Transaction record created")
             
             # Get updated balance
             user = crud.get_or_create_user(db, user_id)
@@ -164,6 +249,7 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
                 "tier": None
             }
         else:
+            print(f"[PAYMENT-TX] ❌ Failed to add tokens for user {user_id}")
             return {
                 "success": False,
                 "message": "Failed to add tokens. Please contact support.",
@@ -176,9 +262,11 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
         duration_days = product["duration"]
         daily_tokens = product["daily_tokens"]
         
+        print(f"[PAYMENT-TX] 👑 Activating {tier} tier for {duration_days} days for user {user_id}")
         success = crud.activate_premium(db, user_id, duration_days, tier)
         
         if success:
+            print(f"[PAYMENT-TX] ✅ Premium activated successfully")
             # Create transaction record
             crud.create_payment_transaction(
                 db=db,
@@ -190,9 +278,11 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
                 subscription_days=duration_days,
                 telegram_payment_charge_id=telegram_payment_charge_id
             )
+            print(f"[PAYMENT-TX] 📝 Transaction record created")
             
             # Get updated user info
             user = crud.get_or_create_user(db, user_id)
+            print(f"[PAYMENT-TX] 👤 User updated: premium_until={user.premium_until}, tier={user.premium_tier}")
             premium_until = user.premium_until.strftime("%Y-%m-%d") if user.premium_until else "Forever"
             
             tier_names = {
@@ -211,12 +301,14 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
                 "premium_until": premium_until
             }
         else:
+            print(f"[PAYMENT-TX] ❌ Failed to activate premium for user {user_id}")
             return {
                 "success": False,
                 "message": "Failed to activate subscription. Please contact support.",
                 "error": "activate_premium_failed"
             }
     
+    print(f"[PAYMENT-TX] ❌ Unknown product type: {product_type}")
     return {
         "success": False,
         "message": "Unknown product type",
@@ -240,6 +332,8 @@ async def successful_payment_handler(message: types.Message):
     """
     Handle successful payment - process token package or tier subscription
     """
+    import traceback
+    
     payment = message.successful_payment
     user_id = message.from_user.id
     
@@ -248,35 +342,96 @@ async def successful_payment_handler(message: types.Message):
     
     print(f"[PAYMENT] ✅ Successful payment from user {user_id}, product: {product_id}")
     print(f"[PAYMENT] Amount: {payment.total_amount} {payment.currency}")
+    print(f"[PAYMENT] Telegram charge ID: {payment.telegram_payment_charge_id}")
     
-    with get_db() as db:
-        result = process_payment_transaction(
-            db,
-            user_id,
-            product_id,
-            telegram_payment_charge_id=payment.telegram_payment_charge_id
-        )
-        
-        if result["success"]:
-            await message.answer(result["message"])
-            print(f"[PAYMENT] ✅ Payment processed successfully for user {user_id}")
+    try:
+        with get_db() as db:
+            # CRITICAL: Ensure user exists before processing payment
+            # This handles edge case where user pays via miniapp deep link without /start
+            db_user = crud.get_or_create_user(
+                db, 
+                user_id, 
+                username=message.from_user.username,
+                first_name=message.from_user.first_name
+            )
+            print(f"[PAYMENT] 👤 User ensured in DB: {user_id} (premium_tier: {db_user.premium_tier})")
             
-            # Send notification to payment group
-            if product_id in PAYMENT_PRODUCTS:
-                # Get user and purchase count for notification
-                db_user = crud.get_or_create_user(db, user_id)
-                purchase_count = crud.get_user_purchase_count(db, user_id)
+            result = process_payment_transaction(
+                db,
+                user_id,
+                product_id,
+                telegram_payment_charge_id=payment.telegram_payment_charge_id
+            )
+            
+            if result["success"]:
+                await message.answer(result["message"])
+                print(f"[PAYMENT] ✅ Payment processed successfully for user {user_id}")
                 
-                await send_payment_notification(
+                # Send notification to payment group
+                if product_id in PAYMENT_PRODUCTS:
+                    # Refresh user data for notification
+                    db_user = crud.get_or_create_user(db, user_id)
+                    purchase_count = crud.get_user_purchase_count(db, user_id)
+                    
+                    await send_payment_notification(
+                        user=message.from_user,
+                        product_id=product_id,
+                        product=PAYMENT_PRODUCTS[product_id],
+                        db_user=db_user,
+                        purchase_count=purchase_count
+                    )
+            else:
+                error_msg = result.get('error', 'unknown_error')
+                await message.answer(f"❌ {result['message']}")
+                print(f"[PAYMENT] ❌ Payment processing failed for user {user_id}: {error_msg}")
+                
+                # Log critical payment failure for manual intervention
+                print(f"[PAYMENT] ⚠️ CRITICAL: User {user_id} paid but processing failed!")
+                print(f"[PAYMENT] ⚠️ Product: {product_id}, Charge ID: {payment.telegram_payment_charge_id}")
+                print(f"[PAYMENT] ⚠️ Error: {error_msg}")
+                
+                # Send error notification to payment group
+                await send_payment_error_notification(
                     user=message.from_user,
                     product_id=product_id,
-                    product=PAYMENT_PRODUCTS[product_id],
-                    db_user=db_user,
-                    purchase_count=purchase_count
+                    charge_id=payment.telegram_payment_charge_id or "N/A",
+                    error_type="processing_failed",
+                    error_message=error_msg,
+                    amount=payment.total_amount
                 )
-        else:
-            await message.answer(f"❌ {result['message']}")
-            print(f"[PAYMENT] ❌ Payment processing failed for user {user_id}: {result.get('error')}")
+                
+    except Exception as e:
+        # CRITICAL: Log full traceback for payment failures
+        print(f"[PAYMENT] ❌❌ EXCEPTION processing payment for user {user_id}!")
+        print(f"[PAYMENT] ❌❌ Product: {product_id}, Charge ID: {payment.telegram_payment_charge_id}")
+        print(f"[PAYMENT] ❌❌ Exception: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        
+        # Send error notification to payment group
+        try:
+            await send_payment_error_notification(
+                user=message.from_user,
+                product_id=product_id,
+                charge_id=payment.telegram_payment_charge_id or "N/A",
+                error_type="exception",
+                error_message=f"{type(e).__name__}: {e}",
+                amount=payment.total_amount
+            )
+        except Exception as notify_err:
+            print(f"[PAYMENT] ⚠️ Failed to send error notification: {notify_err}")
+        
+        # Notify user of error
+        try:
+            await message.answer(
+                "❌ There was an error processing your payment. "
+                "Don't worry - your payment was received! "
+                "Please contact support and we'll resolve this immediately."
+            )
+        except:
+            pass
+        
+        # Re-raise to ensure the error is logged at webhook level too
+        raise
 
 
 @router.message(Command("premium_status"))
