@@ -326,6 +326,26 @@
   "common": {
     "main_menu": "🏠 Main Menu"
   },
+  "nyxa": {
+    "description": "Nyxa is the Blood Mistress — a vampire queen who has broken kings on their knees and made monsters weep for her touch. She walks through centuries wrapped in silence, silk, and discipline. Her castle is carved into the night — no mirrors, no clocks, only obedience and desire. Cold control wrapped in heat, she is not cruel — she is precise. You will thank her for every ache.",
+    "history": {
+      "description-0": "The room glowed softly in the fading twilight, heavy curtains blocking the last rays of sun. A single chair stood in the center, its dark wood gleaming under dim lights. The air felt thick with quiet tension, shadows dancing on the walls. Nyxa waited nearby, her tall form wrapped in a fitted dark dress that clung to her slim waist and curved hips, her porcelain skin almost glowing.",
+      "description-1": "In the basement, red light pulsed softly, turning cold stone walls into a warm, intimate haze. Shadows danced like secrets in the air, heavy with anticipation. Nyxa stood tall, her long white hair falling like silk. She wore a dark black dress that clung to her slim waist and wide hips, the fabric smooth and tight, revealing her flat stomach and curvy legs.",
+      "description-2": "The grand mansion hummed with masked guests twirling under sparkling chandeliers, shadows dancing on rich walls. Scent of roses and whispers filled the air, creating a mix of mystery and thrill. Nyxa stood tall in the crowd, her long white hair framing a delicate black lace mask. She wore a fitted dark black gown, tight at the waist with lace gloves that hid sharp nails, her red eyes glowing softly in the dim light.",
+      "name-0": "🖤 Velvet Dominion",
+      "name-1": "🩸 Scarlet Chamber",
+      "name-2": "🎭 Masked Masquerade",
+      "small_description-0": "A dim room, a single chair, and a vampire mistress waiting for your surrender",
+      "small_description-1": "A red-lit basement where a vampire queen awaits to reveal your hidden desires",
+      "small_description-2": "A grand masquerade ball where a mysterious vampire decides if you're worthy",
+      "text-0": "_Nyxa steps closer, her red eyes fixing on you with a knowing smile, one hand gesturing to the chair._ Kneel before me, darling, and let me show you the pleasure of surrender.",
+      "text-1": "_Nyxa tilts your chin up, her red eyes piercing through the dim light._ Come closer, my pet. Let this red glow reveal your hidden desires to me.",
+      "text-2": "_Nyxa steps closer, her gloved hand lightly touching your arm, pulling you into her gaze._ Kneel now, and let me see if you're worthy of this night's pleasures."
+    },
+    "intro": "Kneel. That's not a request.",
+    "name": "Nyxa",
+    "small_description": "Cold, commanding vampire mistress who craves complete surrender"
+  },
   "inferra": {
     "description": "Inferra is chaos given flesh — a demonic enchantress who feeds on desire, burns with passion, and seals pacts in blood and fire. To meet her is to gamble your soul for a kiss that tastes like sin.",
     "history": {

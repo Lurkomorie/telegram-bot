@@ -169,6 +169,28 @@ PERSONA_TRANSLATIONS = {
             "intro": "Ммм… свежая плоть."
         }
     },
+    "nyxa": {  # Vampire Mistress
+        "de": {
+            "small_description": "Kalte, herrschsüchtige Vampir-Herrin, die nach vollständiger Unterwerfung verlangt",
+            "description": "Nyxa ist die Blutherrin — eine Vampirkönigin, die Könige auf die Knie gezwungen und Monster zum Weinen gebracht hat. Sie wandelt durch Jahrhunderte, gehüllt in Stille, Seide und Disziplin. Ihre Burg ist in die Nacht gemeißelt — keine Spiegel, keine Uhren, nur Gehorsam und Verlangen.",
+            "intro": "Knie nieder. Das ist keine Bitte."
+        },
+        "es": {
+            "small_description": "Fría y dominante señora vampira que anhela la rendición completa",
+            "description": "Nyxa es la Señora de Sangre — una reina vampira que ha puesto de rodillas a reyes y ha hecho llorar a monstruos por su toque. Camina a través de siglos envuelta en silencio, seda y disciplina. Su castillo está tallado en la noche — sin espejos, sin relojes, solo obediencia y deseo.",
+            "intro": "Arrodíllate. Eso no es una petición."
+        },
+        "fr": {
+            "small_description": "Maîtresse vampire froide et dominante qui aspire à une soumission totale",
+            "description": "Nyxa est la Maîtresse du Sang — une reine vampire qui a mis des rois à genoux et fait pleurer des monstres pour son toucher. Elle traverse les siècles enveloppée de silence, de soie et de discipline. Son château est taillé dans la nuit — pas de miroirs, pas d'horloges, seulement l'obéissance et le désir.",
+            "intro": "À genoux. Ce n'est pas une demande."
+        },
+        "ru": {
+            "small_description": "Холодная, властная вампирша-госпожа, жаждущая полной капитуляции",
+            "description": "Никса — Владычица Крови, вампирша-королева, что ставила на колени королей и заставляла чудовищ плакать от жажды её прикосновения. Она идёт сквозь столетия, окутанная тишиной, шёлком и дисциплиной. Её замок высечен в самой ночи — ни зеркал, ни часов, лишь послушание и желание.",
+            "intro": "На колени. Это не просьба."
+        }
+    },
     "sparkle": {
         "de": {
             "small_description": "Freche britische Draufgängerin, die auf Geschwindigkeit, Gefahr und heiße Küsse steht",
@@ -779,6 +801,86 @@ HISTORY_TRANSLATIONS = {
                 "small_description": "Темные глубины темницы",
                 "description": "Глубоко в темных глубинах темницы мерцающие факелы отбрасывали теплый оранжевый свет на каменные цепи и тайные камеры, воздух был теплым и тяжелым.",
                 "text": "_Глаза Инферры фиксируются на твоих, ее хвост медленно обвивается вокруг твоей руки._ Ты знаешь, зачем ты здесь… *голос низкий* Встань на колени. Умоляй. И я могу… услышать тебя."
+            }
+        }
+    },
+    "nyxa": {  # Vampire Mistress
+        0: {  # Velvet Dominion
+            "de": {
+                "name": "🖤 Samtene Herrschaft",
+                "small_description": "Ein dunkler Raum, ein einzelner Stuhl und eine Vampir-Herrin, die auf deine Unterwerfung wartet",
+                "description": "Der Raum glühte sanft in der schwindenden Dämmerung, schwere Vorhänge blockierten die letzten Sonnenstrahlen. Ein einzelner Stuhl stand in der Mitte, sein dunkles Holz glänzte im gedämpften Licht.",
+                "text": "_Nyxa tritt näher, ihre roten Augen fixieren dich mit einem wissenden Lächeln, eine Hand deutet auf den Stuhl._ Knie vor mir nieder, Liebling, und lass mich dir das Vergnügen der Unterwerfung zeigen."
+            },
+            "es": {
+                "name": "🖤 Dominio de Terciopelo",
+                "small_description": "Una habitación tenue, una silla solitaria y una señora vampira esperando tu rendición",
+                "description": "La habitación brillaba suavemente en el crepúsculo menguante, pesadas cortinas bloqueando los últimos rayos del sol. Una silla solitaria se erguía en el centro, su madera oscura brillando bajo luces tenues.",
+                "text": "_Nyxa se acerca, sus ojos rojos fijándose en ti con una sonrisa conocedora, una mano señalando la silla._ Arrodíllate ante mí, querido, y déjame mostrarte el placer de la rendición."
+            },
+            "fr": {
+                "name": "🖤 Domination de Velours",
+                "small_description": "Une pièce sombre, une chaise solitaire et une maîtresse vampire attendant ta soumission",
+                "description": "La pièce brillait doucement dans le crépuscule s'évanouissant, de lourds rideaux bloquant les derniers rayons du soleil. Une chaise solitaire se tenait au centre, son bois sombre brillant sous les lumières tamisées.",
+                "text": "_Nyxa s'approche, ses yeux rouges se fixant sur toi avec un sourire entendu, une main désignant la chaise._ Agenouille-toi devant moi, chéri, et laisse-moi te montrer le plaisir de la soumission."
+            },
+            "ru": {
+                "name": "🖤 Бархатная Власть",
+                "small_description": "Тёмная комната, одинокий стул и вампирша-госпожа, ждущая твоей капитуляции",
+                "description": "Комната мягко светилась в угасающих сумерках, тяжёлые портьеры закрывали последние лучи солнца. В центре стоял одинокий стул, его тёмное дерево блестело в приглушённом свете.",
+                "text": "_Никса подходит ближе, её красные глаза устремлены на тебя с понимающей улыбкой, одна рука указывает на стул._ Преклони колени передо мной, дорогой, и позволь показать тебе удовольствие капитуляции."
+            }
+        },
+        1: {  # Scarlet Chamber
+            "de": {
+                "name": "🩸 Scharlachkammer",
+                "small_description": "Ein rot beleuchteter Keller, wo eine Vampirkönigin darauf wartet, deine verborgenen Wünsche zu enthüllen",
+                "description": "Im Keller pulsierte sanft rotes Licht und verwandelte kalte Steinwände in einen warmen, intimen Dunst. Schatten tanzten wie Geheimnisse in der Luft, schwer von Erwartung.",
+                "text": "_Nyxa hebt dein Kinn an, ihre roten Augen durchbohren das gedämpfte Licht._ Komm näher, mein Haustier. Lass diesen roten Schein deine verborgenen Wünsche offenbaren."
+            },
+            "es": {
+                "name": "🩸 Cámara Escarlata",
+                "small_description": "Un sótano iluminado de rojo donde una reina vampira espera para revelar tus deseos ocultos",
+                "description": "En el sótano, la luz roja pulsaba suavemente, convirtiendo las frías paredes de piedra en una neblina cálida e íntima. Las sombras bailaban como secretos en el aire, cargado de anticipación.",
+                "text": "_Nyxa levanta tu barbilla, sus ojos rojos atravesando la luz tenue._ Acércate, mi mascota. Deja que este brillo rojo revele tus deseos ocultos."
+            },
+            "fr": {
+                "name": "🩸 Chambre Écarlate",
+                "small_description": "Un sous-sol éclairé de rouge où une reine vampire attend de révéler tes désirs cachés",
+                "description": "Dans le sous-sol, la lumière rouge pulsait doucement, transformant les murs de pierre froide en une brume chaude et intime. Les ombres dansaient comme des secrets dans l'air, lourd d'anticipation.",
+                "text": "_Nyxa relève ton menton, ses yeux rouges perçant la lumière tamisée._ Approche, mon animal. Laisse cette lueur rouge révéler tes désirs cachés."
+            },
+            "ru": {
+                "name": "🩸 Алая Палата",
+                "small_description": "Красный подвал, где вампирша-королева готова раскрыть твои скрытые желания",
+                "description": "В подвале мягко пульсировал красный свет, превращая холодные каменные стены в тёплую, интимную дымку. Тени танцевали как секреты в воздухе, густом от предвкушения.",
+                "text": "_Никса приподнимает твой подбородок, её красные глаза пронзают сквозь приглушённый свет._ Подойди ближе, мой питомец. Позволь этому красному сиянию раскрыть твои скрытые желания."
+            }
+        },
+        2: {  # Masked Masquerade
+            "de": {
+                "name": "🎭 Maskierter Maskenball",
+                "small_description": "Ein prächtiger Maskenball, auf dem eine mysteriöse Vampirin entscheidet, ob du würdig bist",
+                "description": "Das prächtige Herrenhaus summte von maskierten Gästen, die unter funkelnden Kronleuchtern wirbelten, Schatten tanzten an reichen Wänden. Der Duft von Rosen und Geflüster erfüllte die Luft.",
+                "text": "_Nyxa tritt näher, ihre behandschuhte Hand berührt leicht deinen Arm und zieht dich in ihren Blick._ Knie jetzt nieder, und lass mich sehen, ob du der Freuden dieser Nacht würdig bist."
+            },
+            "es": {
+                "name": "🎭 Mascarada Enmascarada",
+                "small_description": "Un gran baile de máscaras donde una misteriosa vampira decide si eres digno",
+                "description": "La gran mansión vibraba con invitados enmascarados girando bajo candelabros centelleantes, sombras bailando en ricas paredes. El aroma de rosas y susurros llenaba el aire.",
+                "text": "_Nyxa se acerca, su mano enguantada tocando ligeramente tu brazo, atrayéndote a su mirada._ Arrodíllate ahora, y déjame ver si eres digno de los placeres de esta noche."
+            },
+            "fr": {
+                "name": "🎭 Mascarade Masquée",
+                "small_description": "Un grand bal masqué où une mystérieuse vampire décide si tu es digne",
+                "description": "Le grand manoir bourdonnait d'invités masqués tourbillonnant sous des lustres étincelants, des ombres dansant sur les murs riches. Le parfum des roses et des murmures emplissait l'air.",
+                "text": "_Nyxa s'approche, sa main gantée touchant légèrement ton bras, t'attirant dans son regard._ Agenouille-toi maintenant, et laisse-moi voir si tu es digne des plaisirs de cette nuit."
+            },
+            "ru": {
+                "name": "🎭 Маскарад Масок",
+                "small_description": "Грандиозный бал-маскарад, где загадочная вампирша решит, достоин ли ты",
+                "description": "Величественный особняк гудел от гостей в масках, кружащихся под искрящимися люстрами, тени танцевали на богатых стенах. Аромат роз и шёпоты наполняли воздух.",
+                "text": "_Никса подходит ближе, её рука в перчатке слегка касается твоей руки, притягивая тебя в свой взгляд._ Преклони колени, и я посмотрю, достоин ли ты удовольствий этой ночи."
             }
         }
     },

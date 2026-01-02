@@ -27,6 +27,7 @@ PROPER_RU_TRANSLATIONS = {
     "Inferra": "Инферра",
     "Ekaterina": "Екатерина",
     "Eva": "Ева",
+    "Nyxa": "Никса",
 }
 
 
