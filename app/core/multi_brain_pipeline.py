@@ -506,11 +506,13 @@ async def _process_single_batch(
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             
-            # Build voice button keyboard if ElevenLabs is configured, persona has voice, and not hidden by user
+            # Build voice button keyboard if ElevenLabs is configured, persona has voice, not hidden by user, and response is short enough
             from app.settings import settings
             voice_keyboard = None
             persona_voice_id = persona_data.get("voice_id")
-            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id:
+            response_length = len(dialogue_response)
+            max_voice_length = 500
+            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id and response_length < max_voice_length:
                 from app.bot.keyboards.inline import build_voice_button_keyboard
                 voice_keyboard = build_voice_button_keyboard(
                     message_id=assistant_message_id,
@@ -522,6 +524,8 @@ async def _process_single_batch(
                 log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
             elif not persona_voice_id:
                 log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
+            elif response_length >= max_voice_length:
+                log_verbose(f"[BATCH]    Voice button skipped - response too long ({response_length} chars >= {max_voice_length})")
             
             await bot.send_message(
                 tg_chat_id, 

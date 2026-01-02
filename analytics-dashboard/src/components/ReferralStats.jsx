@@ -26,6 +26,11 @@ const PERIOD_OPTIONS = [
   { value: '90d', label: '90 days' },
 ];
 
+// Cost constants (match backend)
+const COST_PER_MESSAGE = 0.00703;
+const COST_PER_IMAGE = 0.00465;
+const STARS_TO_USD = 0.013;
+
 export default function ReferralStats() {
   const { sourceName } = useParams();
 
@@ -45,6 +50,7 @@ export default function ReferralStats() {
 
   const [stats, setStats] = useState(null);
   const [premiumStats, setPremiumStats] = useState(null);
+  const [conversionsData, setConversionsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -84,6 +90,7 @@ export default function ReferralStats() {
     fetchPremiumStats();
     fetchPersonaData();
     fetchHeatmapData();
+    fetchConversionsData();
   }, [startDate, endDate, sourceName]);
 
   useEffect(() => {
@@ -213,6 +220,19 @@ export default function ReferralStats() {
       console.error('Error fetching heatmap data:', err);
     } finally {
       setHeatmapLoading(false);
+    }
+  };
+
+  const fetchConversionsData = async () => {
+    try {
+      const data = await api.getConversions(startDate, endDate);
+      // Find our source in the sources array
+      if (data && data.sources) {
+        const sourceData = data.sources.find(s => s.source === sourceName);
+        setConversionsData(sourceData || null);
+      }
+    } catch (err) {
+      console.error('Error fetching conversions data:', err);
     }
   };
 
@@ -533,107 +553,219 @@ export default function ReferralStats() {
         </div>
       </div>
 
-      {/* Premium Stats Sections */}
+      {/* Conversions & ROI Section */}
+      {conversionsData && (
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-lg shadow-lg p-6 text-white">
+            <h3 className="text-xl font-bold mb-6">💰 Conversions & ROI</h3>
+            
+            {/* Cost Constants */}
+            <div className="flex items-center gap-6 text-sm mb-6 bg-slate-700/50 rounded-lg p-3">
+              <span className="font-medium text-slate-300">Cost Constants:</span>
+              <span>💬 ${COST_PER_MESSAGE}/msg</span>
+              <span>🖼️ ${COST_PER_IMAGE}/img</span>
+              <span>⭐ 1 star ≈ ${STARS_TO_USD}</span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {/* Ad Spend */}
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-slate-300 text-xs font-medium">Ad Spend</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  ${conversionsData.ad_price?.toFixed(2) || '0.00'}
+                </p>
+              </div>
+
+              {/* Paying Users */}
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-slate-300 text-xs font-medium">Paying Users</p>
+                <p className="text-2xl font-bold text-emerald-400 mt-1">
+                  {formatNumber(conversionsData.paying_users || 0)}
+                </p>
+              </div>
+
+              {/* Conversion Rate */}
+              <div className="bg-slate-700/50 rounded-lg p-4">
+                <p className="text-slate-300 text-xs font-medium">Conversion Rate</p>
+                <p className="text-2xl font-bold text-yellow-400 mt-1">
+                  {conversionsData.conversion_rate || 0}%
+                </p>
+              </div>
+
+              {/* Revenue */}
+              <div className="bg-emerald-600/80 rounded-lg p-4">
+                <p className="text-emerald-100 text-xs font-medium">Revenue</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  ${conversionsData.revenue_usd?.toFixed(2) || '0.00'}
+                </p>
+                <p className="text-xs text-emerald-200">⭐ {formatNumber(conversionsData.revenue_stars || 0)}</p>
+              </div>
+
+              {/* Total Costs */}
+              <div className="bg-red-600/60 rounded-lg p-4">
+                <p className="text-red-100 text-xs font-medium">Total Costs</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  ${conversionsData.total_cost?.toFixed(2) || '0.00'}
+                </p>
+                <p className="text-xs text-red-200">
+                  LLM: ${conversionsData.llm_cost?.toFixed(2) || '0'} | Img: ${conversionsData.image_cost?.toFixed(2) || '0'}
+                </p>
+              </div>
+
+              {/* Net Profit / ROI */}
+              <div className={`rounded-lg p-4 ${(conversionsData.net_profit || 0) >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                <p className="text-xs font-medium text-white/80">Net Profit</p>
+                <p className="text-2xl font-bold text-white mt-1">
+                  ${conversionsData.net_profit?.toFixed(2) || '0.00'}
+                </p>
+                <p className="text-xs text-white/80">
+                  ROI: {(conversionsData.roi || 0) >= 0 ? '+' : ''}{conversionsData.roi || 0}%
+                </p>
+              </div>
+            </div>
+
+            {/* Unit Economics */}
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                <p className="text-slate-400 text-xs">Cost per User</p>
+                <p className="text-lg font-bold text-white">
+                  ${conversionsData.total_users > 0 ? (conversionsData.total_cost / conversionsData.total_users).toFixed(4) : '0.00'}
+                </p>
+              </div>
+              <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                <p className="text-slate-400 text-xs">Revenue per User</p>
+                <p className="text-lg font-bold text-emerald-400">
+                  ${conversionsData.total_users > 0 ? (conversionsData.revenue_usd / conversionsData.total_users).toFixed(4) : '0.00'}
+                </p>
+              </div>
+              <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                <p className="text-slate-400 text-xs">LTV per Payer</p>
+                <p className="text-lg font-bold text-purple-400">
+                  ${conversionsData.paying_users > 0 ? (conversionsData.revenue_usd / conversionsData.paying_users).toFixed(2) : '0.00'}
+                </p>
+              </div>
+              <div className="bg-slate-700/30 rounded-lg p-3 text-center">
+                <p className="text-slate-400 text-xs">Cost per Conversion</p>
+                <p className="text-lg font-bold text-orange-400">
+                  ${conversionsData.paying_users > 0 ? (conversionsData.total_cost / conversionsData.paying_users).toFixed(2) : '0.00'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Revenue & Premium Stats */}
       {premiumStats && (
-        <>
-          {/* Premium Users Over Time */}
-          <div className="mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Premium Purchases Over Time (All Time)</h3>
-              {premiumStats.premium_users_over_time && premiumStats.premium_users_over_time.length > 0 ? (
-                <TimeSeriesChart 
-                  data={premiumStats.premium_users_over_time.map(item => ({ timestamp: item.date, count: item.count }))} 
-                  title="" 
-                  color="#f59e0b" 
-                  height={300} 
-                />
-              ) : (
-                <div className="flex items-center justify-center h-64">
-                  <p className="text-gray-400">No data available</p>
-                </div>
-              )}
-            </div>
-          </div>
+        <div className="mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-6">👑 Revenue & Premium</h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {/* Total Revenue */}
+              <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-lg p-4 text-white">
+                <p className="text-yellow-100 text-xs font-medium">Total Revenue</p>
+                <p className="text-2xl font-bold mt-1">{formatNumber(premiumStats.total_stars || 0)}</p>
+                <p className="text-xs text-yellow-100">stars</p>
+              </div>
 
-          {/* Premium vs Free Comparisons */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            {/* Image Generation Comparison */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Image Generation</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600">Premium Users</span>
-                    <span className="text-lg font-bold text-yellow-600">
-                      {formatNumber(premiumStats.premium_vs_free_images.premium)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div 
-                      className="bg-yellow-500 h-3 rounded-full" 
-                      style={{ 
-                        width: `${(premiumStats.premium_vs_free_images.premium / (premiumStats.premium_vs_free_images.premium + premiumStats.premium_vs_free_images.free) * 100)}%` 
-                      }}
-                    ></div>
-                  </div>
+              {/* Total Purchases */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-gray-500 text-xs font-medium">Total Purchases</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">{formatNumber(premiumStats.total_purchases || 0)}</p>
+              </div>
+
+              {/* Unique Paying Users */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-gray-500 text-xs font-medium">Unique Payers</p>
+                <p className="text-2xl font-bold text-gray-800 mt-1">{formatNumber(premiumStats.unique_paying_users || 0)}</p>
+              </div>
+
+              {/* Active Premium */}
+              <div className="bg-yellow-50 rounded-lg p-4">
+                <p className="text-yellow-700 text-xs font-medium">Active Premium</p>
+                <p className="text-2xl font-bold text-yellow-600 mt-1">{formatNumber(premiumStats.total_premium_users || 0)}</p>
+              </div>
+
+              {/* Ever Premium */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <p className="text-purple-700 text-xs font-medium">Ever Premium</p>
+                <p className="text-2xl font-bold text-purple-600 mt-1">{formatNumber(premiumStats.total_ever_premium_users || 0)}</p>
+              </div>
+
+              {/* Conversion Rate */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <p className="text-green-700 text-xs font-medium">Conversion Rate</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{premiumStats.conversion_rate || 0}%</p>
+              </div>
+            </div>
+
+            {/* Revenue Breakdown */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Token Packages */}
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-purple-800">🪙 Token Packages</span>
+                  <span className="text-sm text-purple-600">{formatNumber(premiumStats.token_packages_count || 0)} purchases</span>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600">Free Users</span>
-                    <span className="text-lg font-bold text-blue-600">
-                      {formatNumber(premiumStats.premium_vs_free_images.free)}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div 
-                      className="bg-blue-500 h-3 rounded-full" 
-                      style={{ 
-                        width: `${(premiumStats.premium_vs_free_images.free / (premiumStats.premium_vs_free_images.premium + premiumStats.premium_vs_free_images.free) * 100)}%` 
-                      }}
-                    ></div>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-purple-700">{formatNumber(premiumStats.token_packages_stars || 0)}</span>
+                  <span className="text-gray-500">stars</span>
+                </div>
+                <p className="text-xs text-purple-600 mt-1">{formatNumber(premiumStats.tokens_sold || 0)} tokens sold</p>
+              </div>
+
+              {/* Tier Subscriptions */}
+              <div className="bg-yellow-50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-yellow-800">👑 Tier Subscriptions</span>
+                  <span className="text-sm text-yellow-600">{formatNumber(premiumStats.tier_subscriptions_count || 0)} purchases</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-yellow-700">{formatNumber(premiumStats.tier_subscriptions_stars || 0)}</span>
+                  <span className="text-gray-500">stars</span>
                 </div>
               </div>
             </div>
 
-            {/* Engagement Comparison */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">User Engagement</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="text-sm font-medium text-gray-600 mb-1">Premium Users</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Active Users:</span>
-                    <span className="text-sm font-bold text-yellow-600">
-                      {formatNumber(premiumStats.premium_vs_free_engagement.premium.user_count)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-gray-500">Avg Messages:</span>
-                    <span className="text-sm font-bold text-yellow-600">
-                      {premiumStats.premium_vs_free_engagement.premium.avg_messages.toFixed(1)}
-                    </span>
-                  </div>
-                </div>
-                <div className="border-t pt-4">
-                  <div className="text-sm font-medium text-gray-600 mb-1">Free Users</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Active Users:</span>
-                    <span className="text-sm font-bold text-blue-600">
-                      {formatNumber(premiumStats.premium_vs_free_engagement.free.user_count)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-xs text-gray-500">Avg Messages:</span>
-                    <span className="text-sm font-bold text-blue-600">
-                      {premiumStats.premium_vs_free_engagement.free.avg_messages.toFixed(1)}
-                    </span>
-                  </div>
+            {/* Product Breakdown Table */}
+            {premiumStats.packages_breakdown && premiumStats.packages_breakdown.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Product Breakdown</h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50">
+                        <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Product</th>
+                        <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Type</th>
+                        <th className="text-right py-2 px-3 text-xs font-medium text-gray-500">Count</th>
+                        <th className="text-right py-2 px-3 text-xs font-medium text-gray-500">Stars</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {premiumStats.packages_breakdown.map((pkg, idx) => (
+                        <tr key={idx} className="border-b hover:bg-gray-50">
+                          <td className="py-2 px-3 text-gray-800">{pkg.product_id}</td>
+                          <td className="py-2 px-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              pkg.transaction_type === 'token_package' 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {pkg.transaction_type === 'token_package' ? 'Tokens' : 'Sub'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right text-gray-600">{pkg.count}</td>
+                          <td className="py-2 px-3 text-right font-medium text-gray-800">{formatNumber(pkg.total_stars)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

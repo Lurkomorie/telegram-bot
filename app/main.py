@@ -210,14 +210,27 @@ async def health():
 
 async def process_update_async(update: Update):
     """Process update asynchronously without blocking webhook response"""
+    import traceback
     try:
         await dp.feed_update(bot, update)
     except Exception as e:
-        print(f"[WEBHOOK] Error processing update: {type(e).__name__}: {e}")
-        # Log full traceback in development
-        if settings.ENV == "development" or settings.ENVIRONMENT in ["development", "dev", "local"]:
-            import traceback
-            traceback.print_exc()
+        # ALWAYS log full traceback - critical for debugging production payment issues
+        print(f"[WEBHOOK] ❌ Error processing update: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        
+        # Log update details for debugging
+        try:
+            if update.message:
+                user_id = update.message.from_user.id if update.message.from_user else "unknown"
+                print(f"[WEBHOOK] 📋 Update details: message from user {user_id}")
+                if update.message.successful_payment:
+                    payment = update.message.successful_payment
+                    print(f"[WEBHOOK] 💰 PAYMENT UPDATE - User: {user_id}, Product: {payment.invoice_payload}, Amount: {payment.total_amount}")
+            elif update.pre_checkout_query:
+                user_id = update.pre_checkout_query.from_user.id if update.pre_checkout_query.from_user else "unknown"
+                print(f"[WEBHOOK] 🛒 PRE-CHECKOUT - User: {user_id}")
+        except:
+            pass
         # Don't propagate - already returned 200 to Telegram
 
 
