@@ -515,6 +515,12 @@ export const api = {
     return response.json();
   },
 
+  async getPersonasWithHistories() {
+    const response = await fetch(`${API_BASE}/api/analytics/personas-with-histories`);
+    if (!response.ok) throw new Error('Failed to fetch personas with histories');
+    return response.json();
+  },
+
   async searchUsers(query, limit = 20) {
     const response = await fetch(`${API_BASE}/api/analytics/users/search?query=${encodeURIComponent(query)}&limit=${limit}`);
     if (!response.ok) throw new Error('Failed to search users');

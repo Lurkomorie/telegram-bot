@@ -1331,3 +1331,199 @@ async def hide_system_message_callback(callback: types.CallbackQuery):
         await callback.answer("Message already hidden", show_alert=False)
 
 
+@router.callback_query(lambda c: c.data.startswith("sysmsg_story:"))
+async def sysmsg_story_callback(callback: types.CallbackQuery):
+    """
+    Handle system message button to open a specific character story.
+    Format: sysmsg_story:<persona_id>:<story_id>
+    
+    This creates a new chat with the specified persona and story, then sends the greeting.
+    """
+    import random
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories, get_history_field, _CACHE
+    
+    with get_db() as db:
+        user_language = get_and_update_user_language(db, callback.from_user)
+    
+    parts = callback.data.split(":")
+    if len(parts) < 3:
+        await callback.answer("Invalid story format!", show_alert=True)
+        return
+    
+    persona_id = parts[1]
+    story_id = parts[2]
+    
+    # Get persona from cache
+    persona = get_persona_by_id(persona_id)
+    if not persona:
+        await callback.answer("Character not found!", show_alert=True)
+        return
+    
+    # Find the specific story
+    histories = get_persona_histories(persona_id)
+    history_start = None
+    for h in histories:
+        if h["id"] == story_id:
+            history_start = h
+            break
+    
+    if not history_start:
+        # Story not found - try random story from this persona instead
+        if histories:
+            history_start = random.choice(histories)
+        else:
+            await callback.answer("Story not found!", show_alert=True)
+            return
+    
+    # Track story selection
+    analytics_service_tg.track_story_selected(
+        client_id=callback.from_user.id,
+        persona_id=persona_id,
+        persona_name=persona["name"],
+        story_id=history_start["id"],
+        story_name=history_start.get("name")
+    )
+    
+    # Create new chat
+    with get_db() as db:
+        chat = crud.create_new_chat(
+            db,
+            tg_chat_id=callback.message.chat.id,
+            user_id=callback.from_user.id,
+            persona_id=persona_id
+        )
+        chat_id = chat.id
+        crud.clear_unprocessed_messages(db, chat_id)
+    
+    # Clear Redis queue
+    await redis_queue.clear_batch_messages(chat_id)
+    await redis_queue.set_processing_lock(chat_id, False)
+    
+    # Get translated greeting text
+    greeting_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
+    description_text = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+    
+    # Store history start data in chat
+    history_start_data = {
+        "text": greeting_text,
+        "description": description_text,
+        "image_url": history_start.get("image_url"),
+        "wide_menu_image_url": history_start.get("wide_menu_image_url"),
+        "image_prompt": history_start.get("image_prompt"),
+    }
+    
+    with get_db() as db:
+        crud.update_chat_history_start(db, chat_id, history_start_data)
+        db.commit()
+    
+    # Delete the system message
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    
+    # Send the greeting
+    await callback.answer()
+    await callback.message.answer(f"<i>{description_text}</i>" if description_text else "", parse_mode="HTML")
+    await callback.message.answer(greeting_text)
+
+
+@router.callback_query(lambda c: c.data.startswith("sysmsg_random_story"))
+async def sysmsg_random_story_callback(callback: types.CallbackQuery):
+    """
+    Handle system message button to open a random character story.
+    Formats:
+    - sysmsg_random_story - Random story from any random persona
+    - sysmsg_random_story:<persona_id> - Random story from a specific persona
+    """
+    import random
+    from app.core.persona_cache import get_persona_by_id, get_persona_histories, get_history_field, _CACHE, get_preset_personas
+    
+    with get_db() as db:
+        user_language = get_and_update_user_language(db, callback.from_user)
+    
+    parts = callback.data.split(":")
+    persona_id = parts[1] if len(parts) > 1 else None
+    
+    if persona_id:
+        # Specific persona - get random story from that persona
+        persona = get_persona_by_id(persona_id)
+        if not persona:
+            await callback.answer("Character not found!", show_alert=True)
+            return
+        histories = get_persona_histories(persona_id)
+    else:
+        # Random persona - pick from any preset persona that has stories
+        personas_with_stories = []
+        for pid, histories_list in _CACHE["histories"].items():
+            if histories_list:
+                persona = get_persona_by_id(pid)
+                if persona:
+                    personas_with_stories.append((pid, persona, histories_list))
+        
+        if not personas_with_stories:
+            await callback.answer("No stories available!", show_alert=True)
+            return
+        
+        persona_id, persona, histories = random.choice(personas_with_stories)
+    
+    if not histories:
+        await callback.answer("No stories available for this character!", show_alert=True)
+        return
+    
+    # Pick random story
+    history_start = random.choice(histories)
+    
+    # Track story selection
+    analytics_service_tg.track_story_selected(
+        client_id=callback.from_user.id,
+        persona_id=persona_id,
+        persona_name=persona["name"],
+        story_id=history_start["id"],
+        story_name=history_start.get("name")
+    )
+    
+    # Create new chat
+    with get_db() as db:
+        chat = crud.create_new_chat(
+            db,
+            tg_chat_id=callback.message.chat.id,
+            user_id=callback.from_user.id,
+            persona_id=persona_id
+        )
+        chat_id = chat.id
+        crud.clear_unprocessed_messages(db, chat_id)
+    
+    # Clear Redis queue
+    await redis_queue.clear_batch_messages(chat_id)
+    await redis_queue.set_processing_lock(chat_id, False)
+    
+    # Get translated greeting text
+    greeting_text = get_history_field(history_start, 'text', language=user_language) or history_start["text"]
+    description_text = get_history_field(history_start, 'description', language=user_language) or history_start["description"]
+    
+    # Store history start data in chat
+    history_start_data = {
+        "text": greeting_text,
+        "description": description_text,
+        "image_url": history_start.get("image_url"),
+        "wide_menu_image_url": history_start.get("wide_menu_image_url"),
+        "image_prompt": history_start.get("image_prompt"),
+    }
+    
+    with get_db() as db:
+        crud.update_chat_history_start(db, chat_id, history_start_data)
+        db.commit()
+    
+    # Delete the system message
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    
+    # Send the greeting
+    await callback.answer()
+    await callback.message.answer(f"<i>{description_text}</i>" if description_text else "", parse_mode="HTML")
+    await callback.message.answer(greeting_text)
+
+

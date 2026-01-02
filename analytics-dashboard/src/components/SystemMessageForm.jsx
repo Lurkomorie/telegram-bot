@@ -38,6 +38,10 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
   const [buttonForm, setButtonForm] = useState({ text: '', url: '', callback_data: '', web_app_url: '' });
   const [darkMode, setDarkMode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [personasWithHistories, setPersonasWithHistories] = useState([]);
+  const [showStorySelector, setShowStorySelector] = useState(false);
+  const [selectedPersonaForStory, setSelectedPersonaForStory] = useState('');
+  const [selectedStoryId, setSelectedStoryId] = useState('');
   const quillRef = useRef(null);
   const emojiButtonAdded = useRef(false);
 
@@ -122,6 +126,7 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
     loadTemplates();
     loadUserGroups();
     loadAcquisitionSources();
+    loadPersonasWithHistories();
     
     // Initialize selectedAcquisitionSource if editing existing message
     if (message?.target_group?.startsWith('acquisition_source:')) {
@@ -155,6 +160,15 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
       setAcquisitionSources(data.filter(s => s.source !== 'direct'));
     } catch (error) {
       console.error('Failed to load acquisition sources:', error);
+    }
+  };
+
+  const loadPersonasWithHistories = async () => {
+    try {
+      const data = await api.getPersonasWithHistories();
+      setPersonasWithHistories(data);
+    } catch (error) {
+      console.error('Failed to load personas with histories:', error);
     }
   };
 
@@ -522,7 +536,94 @@ export default function SystemMessageForm({ message, onClose, onSave }) {
                     >
                       Get Energy
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setButtonForm({ text: '🎲 Random Story', url: '', callback_data: 'sysmsg_random_story', web_app_url: '' })}
+                      className="px-3 py-1 text-sm bg-pink-100 text-pink-700 rounded hover:bg-pink-200"
+                    >
+                      🎲 Random Story
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowStorySelector(!showStorySelector)}
+                      className="px-3 py-1 text-sm bg-rose-100 text-rose-700 rounded hover:bg-rose-200"
+                    >
+                      📖 Specific Story...
+                    </button>
                   </div>
+                  
+                  {/* Story Selector */}
+                  {showStorySelector && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded border">
+                      <label className="block text-xs text-gray-500 mb-2">Select Character & Story</label>
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <select
+                          value={selectedPersonaForStory}
+                          onChange={(e) => {
+                            setSelectedPersonaForStory(e.target.value);
+                            setSelectedStoryId('');
+                          }}
+                          className="border rounded px-2 py-1 text-sm"
+                        >
+                          <option value="">Select Character...</option>
+                          {personasWithHistories.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={selectedStoryId}
+                          onChange={(e) => setSelectedStoryId(e.target.value)}
+                          className="border rounded px-2 py-1 text-sm"
+                          disabled={!selectedPersonaForStory}
+                        >
+                          <option value="">Select Story...</option>
+                          {selectedPersonaForStory && personasWithHistories
+                            .find(p => p.id === selectedPersonaForStory)?.histories
+                            .map(h => (
+                              <option key={h.id} value={h.id}>{h.name}</option>
+                            ))
+                          }
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={!selectedPersonaForStory}
+                          onClick={() => {
+                            const persona = personasWithHistories.find(p => p.id === selectedPersonaForStory);
+                            setButtonForm({
+                              text: `🎲 Random ${persona?.name || 'Character'} Story`,
+                              url: '',
+                              callback_data: `sysmsg_random_story:${selectedPersonaForStory}`,
+                              web_app_url: ''
+                            });
+                            setShowStorySelector(false);
+                          }}
+                          className="px-3 py-1 text-sm bg-pink-500 text-white rounded hover:bg-pink-600 disabled:opacity-50"
+                        >
+                          Random from Character
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!selectedPersonaForStory || !selectedStoryId}
+                          onClick={() => {
+                            const persona = personasWithHistories.find(p => p.id === selectedPersonaForStory);
+                            const story = persona?.histories.find(h => h.id === selectedStoryId);
+                            setButtonForm({
+                              text: `📖 ${story?.name || 'Story'}`,
+                              url: '',
+                              callback_data: `sysmsg_story:${selectedPersonaForStory}:${selectedStoryId}`,
+                              web_app_url: ''
+                            });
+                            setShowStorySelector(false);
+                          }}
+                          className="px-3 py-1 text-sm bg-rose-500 text-white rounded hover:bg-rose-600 disabled:opacity-50"
+                        >
+                          Specific Story
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Button Form */}
