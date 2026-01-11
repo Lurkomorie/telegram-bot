@@ -327,7 +327,14 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         user_id = from_user.id if from_user else None
     
     with get_db() as db:
-        user_language = get_and_update_user_language(db, from_user) if from_user else 'en'
+        # When called from callback, message.from_user is the bot, not the user
+        # Use user_id to get the correct language if provided
+        if user_id:
+            user_language = crud.get_user_language(db, user_id)
+        elif from_user:
+            user_language = get_and_update_user_language(db, from_user)
+        else:
+            user_language = 'en'
     
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
