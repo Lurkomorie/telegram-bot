@@ -15,9 +15,21 @@ import time
 def _apply_template_replacements(
     template: str,
     persona: dict,
-    state: str
+    state: str,
+    message_count: int = 0
 ) -> str:
     """Apply template replacements to prompt"""
+    
+    # Determine response length guidance based on conversation progress
+    # First 10 messages: keep responses short (1-2 sentences)
+    # After 10 messages: allow longer responses (up to 3 sentences)
+    if message_count < 10:
+        length_guidance = "1-2 sentences MAXIMUM: Keep it brief and punchy. One action/reaction + one line of speech."
+        length_task = "Keep output VERY SHORT (1-2 sentences only), physical, and immersive."
+    else:
+        length_guidance = "Max 3 sentences: {physical action} + {sound/texture} + {speech with love/devotion}."
+        length_task = "Keep output concise (max 3 sentences), physical, and immersive."
+    
     replacements = {
         "{{char.name}}": persona.get("name", "AI"),
         "{{char.physical_description}}": persona.get("prompt", ""),
@@ -38,6 +50,9 @@ def _apply_template_replacements(
         # User profile
         "{{user.name}}": "the user",
         "{{user.lang}}": "[detect from conversation]",
+        # Dynamic response length based on conversation progress
+        "{{response.length_guidance}}": length_guidance,
+        "{{response.length_task}}": length_task,
     }
     
     result = template
@@ -101,7 +116,8 @@ async def generate_dialogue(
     system_prompt = _apply_template_replacements(
         base_prompt,
         persona=persona,
-        state=state
+        state=state,
+        message_count=len(chat_history)
     )
     
     # Add memory context if available
