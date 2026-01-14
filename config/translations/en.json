@@ -154,11 +154,10 @@
     }
   },
   "chat_options": {
-    "back_button": "🔙 Back",
-    "continue_button": "💬 Continue",
-    "description": "Would you like to continue where you left off, or start a fresh conversation?",
-    "start_new_button": "🆕 Start New",
-    "title": "💬 You have an existing conversation with {persona_name}"
+    "title": "🔒 End chat with {persona_name} and start a new one?",
+    "continue_button": "Return to chat ❤️‍🩹",
+    "start_new_button": "End chat 💔",
+    "back_button": "🔙 Back"
   },
   "checkout": {
     "paymentMethod": "PAYMENT METHOD",
@@ -727,8 +726,8 @@
     "small_description": "Energetic, flirty British daredevil"
   },
   "story": {
-    "back_button": "🔙 Back",
-    "title": "Choose your story:"
+    "title": "🔞 Choose your scenario:",
+    "back_button": "🔙 Back"
   },
   "sweet_girlfriend": {
     "description": "Lumi looks like she stepped down from heaven itself — a divine healer whose every gesture carries both comfort and sinful allure. Her golden-blonde hair falls in silken waves, her sky-blue eyes glow with serene warmth, and her lips curve in a knowing smile that promises more than mercy. Her white-and-gold bodysuit clings to every curve, trimmed with filigree that highlights her breasts and hips, her mechanical wings unfurling in radiant splendor. She is temptation disguised as salvation.",

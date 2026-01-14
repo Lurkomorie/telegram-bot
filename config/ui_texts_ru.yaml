@@ -12,13 +12,11 @@ welcome:
 
 # Story Selection
 story:
-  header: "План"
   title: "🔞 Выберите сюжет :"
   back_button: "🔙 Назад"
 
 # Chat Options (Existing Chat)
 chat_options:
-  header: "План"
   title: "🔒 Хотите завершить чат с {persona_name} и открыть новый?"
   continue_button: "Вернуться к диалогу ❤️‍🩹"
   start_new_button: "Завершить 💔"

@@ -12,13 +12,11 @@ welcome:
 
 # Story Selection
 story:
-  header: "Plan"
   title: "🔞 Choose your scenario:"
   back_button: "🔙 Back"
 
 # Chat Options (Existing Chat)
 chat_options:
-  header: "Plan"
   title: "🔒 End chat with {persona_name} and start a new one?"
   continue_button: "Return to chat ❤️‍🩹"
   start_new_button: "End chat 💔"
