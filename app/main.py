@@ -635,56 +635,62 @@ async def image_callback(request: Request):
                         if should_blur:
                             print(f"[IMAGE-CALLBACK] 🔒 Image will be blurred (tokens={tokens}, counter={blurred_counter})")
             
-            # If should blur, send text first, then blurred placeholder
+            # If should blur, dynamically blur the actual image and send with caption
             if should_blur:
                 import base64
                 from app.bot.keyboards.inline import build_blurred_image_keyboard
-                
-                # If there's pending caption, send text first (before blurred image)
-                if pending_caption:
-                    await bot.send_message(
-                        chat_id=tg_chat_id,
-                        text=pending_caption,
-                        parse_mode="MarkdownV2"
-                    )
-                    print(f"[IMAGE-CALLBACK] 📝 Sent pending caption before blurred image")
-                    pending_caption = None  # Clear so we don't send again
-                
-                # Store original image data in job.ext for unlock
-                with get_db() as db:
-                    job = crud.get_image_job(db, job_id_str)
-                    if job:
-                        if not job.ext:
-                            job.ext = {}
-                        if image_data:
-                            job.ext['blurred_original_data'] = base64.b64encode(image_data).decode('utf-8')
-                        elif image_url:
-                            job.ext['blurred_original_url'] = image_url
-                        from sqlalchemy.orm.attributes import flag_modified
-                        flag_modified(job, "ext")
-                        db.commit()
+                from app.core.image_utils import blur_image_safe
+                from aiogram.types import BufferedInputFile
                 
                 # Get user language for button text
                 with get_db() as db:
                     user_language = crud.get_user_language(db, job_user_id)
                 
-                # Send blurred placeholder
-                from pathlib import Path
-                blurred_path = Path("assets/blurred_placeholder.png")
-                if blurred_path.exists():
-                    from aiogram.types import FSInputFile
-                    blurred_file = FSInputFile(blurred_path)
+                # Get image data if we have URL but no data
+                actual_image_data = image_data
+                if not actual_image_data and image_url:
+                    import httpx
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            resp = await client.get(image_url, timeout=30)
+                            if resp.status_code == 200:
+                                actual_image_data = resp.content
+                    except Exception as e:
+                        print(f"[IMAGE-CALLBACK] ⚠️  Failed to download image for blur: {e}")
+                
+                # Blur the actual image
+                blurred_data = None
+                if actual_image_data:
+                    blurred_data = blur_image_safe(actual_image_data)
+                
+                if blurred_data:
+                    # Store original image data in job.ext for unlock
+                    with get_db() as db:
+                        job = crud.get_image_job(db, job_id_str)
+                        if job:
+                            if not job.ext:
+                                job.ext = {}
+                            job.ext['blurred_original_data'] = base64.b64encode(actual_image_data).decode('utf-8')
+                            from sqlalchemy.orm.attributes import flag_modified
+                            flag_modified(job, "ext")
+                            db.commit()
+                    
+                    # Build keyboard and send blurred image WITH caption
                     miniapp_url = f"{settings.public_url}/miniapp"
                     blurred_keyboard = build_blurred_image_keyboard(job_id_str, miniapp_url, user_language)
                     
+                    blurred_file = BufferedInputFile(blurred_data, filename="blurred.jpg")
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
                         photo=blurred_file,
+                        caption=pending_caption,
+                        parse_mode="MarkdownV2" if pending_caption else None,
                         reply_markup=blurred_keyboard
                     )
+                    pending_caption = None  # Clear so we don't send again below
                     print(f"[IMAGE-CALLBACK] 🔒 Blurred image sent to user {job_user_id}")
                 else:
-                    print(f"[IMAGE-CALLBACK] ⚠️  Blurred placeholder not found, sending original")
+                    print(f"[IMAGE-CALLBACK] ⚠️  Failed to blur image, sending original")
                     should_blur = False  # Fallback to original
             
             if not should_blur:

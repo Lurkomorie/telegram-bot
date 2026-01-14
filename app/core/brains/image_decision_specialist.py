@@ -196,18 +196,19 @@ async def should_generate_image(
                 # Unexpected format, try again
                 print(f"[IMAGE-DECISION] ⚠️ Unexpected format: {result_text}")
                 if attempt == IMAGE_DECISION_MAX_RETRIES:
-                    # Default to YES on parse failure (better UX)
-                    return True, "parse error - defaulting to yes"
+                    # Default to NO on parse failure (conservative approach)
+                    print("[IMAGE-DECISION] 🔄 Using fallback (defaulting to NO)")
+                    return False, "parse error - defaulting to no"
                 continue
             
         except Exception as e:
             print(f"[IMAGE-DECISION] ⚠️ Attempt {attempt}/{IMAGE_DECISION_MAX_RETRIES} failed: {e}")
             if attempt == IMAGE_DECISION_MAX_RETRIES:
-                # Fallback: default to YES (better UX than missing images)
-                print("[IMAGE-DECISION] 🔄 Using fallback (defaulting to YES)")
-                return True, "error - defaulting to yes"
+                # Fallback: default to NO (conservative approach to save costs)
+                print("[IMAGE-DECISION] 🔄 Using fallback (defaulting to NO)")
+                return False, "error - defaulting to no"
             await asyncio.sleep(0.5)  # Brief delay before retry
     
     # Should never reach here due to fallback
-    return True, "fallback - defaulting to yes"
+    return False, "fallback - defaulting to no"
 

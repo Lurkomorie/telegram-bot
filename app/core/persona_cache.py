@@ -65,6 +65,7 @@ def load_cache():
                     "id": str(history.id),
                     "persona_id": str(history.persona_id),
                     "name": history.name or "Untitled Story",
+                    "button_name": history.button_name,  # Short button text
                     "small_description": history.small_description,
                     "description": history.description,
                     "text": history.text,
@@ -174,7 +175,7 @@ def get_history_field(history_dict: Dict[str, Any], field: str, language: str = 
     
     Args:
         history_dict: History dictionary from cache
-        field: Field name (e.g., 'name', 'description', 'small_description', 'text')
+        field: Field name (e.g., 'name', 'button_name', 'description', 'small_description', 'text')
         language: Language code (e.g., 'en', 'ru')
     
     Returns:

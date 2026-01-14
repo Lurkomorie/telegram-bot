@@ -384,7 +384,11 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
     print(f"[STORY-SELECT] Found {len(story_data)} stories for persona {persona_id}")
     
     # Build text with story descriptions
-    story_text = get_ui_text("story.title", language=user_language) + "\n\n"
+    # Format: Header\nTitle\n\nStory1\nStory2\nStory3
+    header = get_ui_text("story.header", language=user_language)
+    title = get_ui_text("story.title", language=user_language)
+    story_text = f"{header}\n{title}\n\n"
+    
     for i, s in enumerate(story_data):
         # Get translated story name and description
         name = get_history_field(s, 'name', language=user_language) or 'Story'
@@ -394,9 +398,9 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         print(f"[STORY-SELECT]   Story {i} has translations: {list(s.get('translations', {}).keys())}")
         
         if desc:
-            story_text += f"<b>{name}</b> – {desc}\n\n"
+            story_text += f"{name} – {desc}\n\n"
         else:
-            story_text += f"<b>{name}</b>\n\n"
+            story_text += f"{name}\n\n"
     
     keyboard = build_story_selection_keyboard(story_data, persona_id, language=user_language)
     
@@ -830,8 +834,9 @@ async def select_persona_callback(callback: types.CallbackQuery):
     # If chat exists, show Continue/Start New options
     if existing_chat:
         keyboard = build_chat_options_keyboard(persona_id, language=user_language)
+        header = get_ui_text("chat_options.header", language=user_language)
         title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
-        description = get_ui_text("chat_options.description", language=user_language)
+        chat_options_text = f"{header}\n{title}"
         
         if is_photo_message:
             # Delete photo message and send new text message
@@ -840,12 +845,12 @@ async def select_persona_callback(callback: types.CallbackQuery):
             except Exception:
                 pass
             await callback.message.answer(
-                f"{title}\n\n{description}",
+                chat_options_text,
                 reply_markup=keyboard
             )
         else:
             await callback.message.edit_text(
-                f"{title}\n\n{description}",
+                chat_options_text,
                 reply_markup=keyboard
             )
         await callback.answer()

@@ -1,10 +1,10 @@
 """
 Image processing utilities
-Handles color profile stripping and image optimization for Telegram
+Handles color profile stripping, blurring, and image optimization for Telegram
 """
 from io import BytesIO
 from typing import Optional
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 def strip_color_profile(image_data: bytes) -> bytes:
@@ -78,6 +78,65 @@ def strip_color_profile_safe(image_data: bytes) -> bytes:
     except Exception as e:
         print(f"[IMAGE-UTILS] ⚠️  Falling back to original image due to error: {e}")
         return image_data
+
+
+def blur_image(image_data: bytes, blur_radius: int = 30) -> bytes:
+    """
+    Apply Gaussian blur to an image for paywall preview.
+    
+    Args:
+        image_data: Raw image bytes (PNG or JPEG)
+        blur_radius: Blur intensity (default 30 for heavy blur)
+    
+    Returns:
+        Blurred image as PNG bytes
+    """
+    try:
+        img = Image.open(BytesIO(image_data))
+        
+        # Convert to RGB if necessary (handle RGBA, P mode, etc.)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            # Create white background for transparency
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Apply strong Gaussian blur
+        blurred = img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+        
+        # Save to bytes
+        output = BytesIO()
+        blurred.save(output, format='JPEG', quality=85)
+        output.seek(0)
+        
+        print(f"[IMAGE-UTILS] 🔒 Image blurred with radius {blur_radius}")
+        return output.read()
+        
+    except Exception as e:
+        print(f"[IMAGE-UTILS] ❌ Failed to blur image: {e}")
+        raise
+
+
+def blur_image_safe(image_data: bytes, blur_radius: int = 30) -> Optional[bytes]:
+    """
+    Safe wrapper that returns None if blurring fails.
+    
+    Args:
+        image_data: Raw image bytes
+        blur_radius: Blur intensity
+    
+    Returns:
+        Blurred image bytes, or None if processing fails
+    """
+    try:
+        return blur_image(image_data, blur_radius)
+    except Exception as e:
+        print(f"[IMAGE-UTILS] ⚠️  Blur failed: {e}")
+        return None
 
 
 

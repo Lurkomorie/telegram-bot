@@ -120,6 +120,7 @@ class PersonaHistoryStart(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     persona_id = Column(UUID(as_uuid=True), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=True)  # Story name (e.g., "The Dairy Queen")
+    button_name = Column(String(50), nullable=True)  # Short button text (e.g., "Бухта 🏖️")
     small_description = Column(Text, nullable=True)  # Short story description for menu
     description = Column(Text, nullable=True)  # Scene-setting description (sent before greeting)
     text = Column(Text, nullable=False)  # Greeting message
@@ -167,6 +168,7 @@ class PersonaHistoryTranslation(Base):
     history_id = Column(UUID(as_uuid=True), ForeignKey("persona_history_starts.id", ondelete="CASCADE"), nullable=False)
     language = Column(String(10), nullable=False)  # 'en', 'ru', 'fr', 'de', 'es'
     name = Column(String(255), nullable=True)  # Story name
+    button_name = Column(String(50), nullable=True)  # Short button text for this language
     small_description = Column(Text, nullable=True)  # Short story description
     description = Column(Text, nullable=True)  # Scene-setting description
     text = Column(Text, nullable=True)  # Greeting message

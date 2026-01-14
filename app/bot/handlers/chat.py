@@ -251,31 +251,6 @@ async def handle_text_message(message: types.Message, state: FSMContext):
             user.global_message_count += 1
             db.commit()
             log_verbose(f"[CHAT] 📊 Global message count: {user.global_message_count}")
-            
-            # Check for 5-message promo (only for free users who haven't seen it)
-            if not is_premium and user.global_message_count == 5:
-                # Check if promo already shown
-                promo_shown = user.settings.get("promo_5_shown", False) if user.settings else False
-                if not promo_shown:
-                    # Show promo message
-                    from app.bot.keyboards.inline import build_promo_keyboard
-                    from app.settings import settings
-                    from sqlalchemy.orm.attributes import flag_modified
-                    
-                    user_language = user.locale or 'en'
-                    miniapp_url = f"{settings.public_url}/miniapp"
-                    promo_text = get_ui_text("image.promoMessage", language=user_language)
-                    promo_keyboard = build_promo_keyboard(miniapp_url, language=user_language)
-                    
-                    await message.answer(promo_text, reply_markup=promo_keyboard)
-                    log_always(f"[CHAT] 💡 Showed 5-message promo to user {user_id}")
-                    
-                    # Mark promo as shown
-                    if user.settings is None:
-                        user.settings = {}
-                    user.settings["promo_5_shown"] = True
-                    flag_modified(user, "settings")
-                    db.commit()
     
     # Always add message to queue first
     log_verbose(f"[CHAT] 📥 Adding '{user_text[:20]}...' to queue")
@@ -538,20 +513,6 @@ async def handle_hide_voice_buttons(callback: types.CallbackQuery):
         get_ui_text("voice.hidden_popup", language=user_language),
         show_alert=True
     )
-
-
-@router.callback_query(F.data == "hide_promo")
-async def handle_hide_promo(callback: types.CallbackQuery):
-    """Handle 'Hide' button click on promotional message"""
-    log_verbose(f"[PROMO] User {callback.from_user.id} dismissed promo message")
-    
-    # Delete the promo message
-    try:
-        await callback.message.delete()
-    except Exception as e:
-        log_verbose(f"[PROMO] ⚠️  Could not delete promo message: {e}")
-    
-    await callback.answer()
 
 
 @router.callback_query(F.data == "hide_blurred_image")

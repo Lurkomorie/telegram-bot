@@ -217,20 +217,15 @@ def build_persona_gallery_keyboard(miniapp_url: str, language: str = "en") -> In
 
 
 def build_chat_options_keyboard(persona_id: str, language: str = "en") -> InlineKeyboardMarkup:
-    """Build Continue/Start New keyboard for existing conversations"""
+    """Build End/Continue/Back keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        # Generate image button temporarily disabled
-        # [InlineKeyboardButton(
-        #     text=get_ui_text("image.generate_button", language=language), 
-        #     callback_data=f"generate_image_for_persona:{persona_id}"
-        # )],
-        [InlineKeyboardButton(
-            text=get_ui_text("chat_options.continue_button", language=language), 
-            callback_data=f"continue_chat:{persona_id}"
-        )],
         [InlineKeyboardButton(
             text=get_ui_text("chat_options.start_new_button", language=language), 
             callback_data=f"new_chat_select:{persona_id}"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("chat_options.continue_button", language=language), 
+            callback_data=f"continue_chat:{persona_id}"
         )],
         [InlineKeyboardButton(
             text=get_ui_text("chat_options.back_button", language=language), 
@@ -240,66 +235,54 @@ def build_chat_options_keyboard(persona_id: str, language: str = "en") -> Inline
 
 
 def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: str = None, language: str = "en") -> InlineKeyboardMarkup:
-    """Build keyboard for story/history selection in 2x2 grid
+    """Build keyboard for story/history selection
     
     Args:
-        stories: List of dicts with 'id', 'name', 'small_description', 'description'
+        stories: List of dicts with 'id', 'name', 'button_name', 'small_description', 'description'
         persona_id: Persona ID for back button
         language: Language code for translations
+    
+    Layout:
+        Row 1: [Story1] [Story2] [Story3]
+        Row 2: [Back]
     """
     from app.core.persona_cache import get_history_field
     
     buttons = []
     
-    # Generate image button temporarily disabled
-    # if persona_id:
-    #     buttons.append([InlineKeyboardButton(
-    #         text=get_ui_text("image.generate_button", language=language),
-    #         callback_data=f"generate_image_for_persona:{persona_id}"
-    #     )])
-    
     # Helper function to create a story button
     def create_story_button(story):
-        # Get translated name if available
-        name = get_history_field(story, 'name', language=language) or story.get('name', 'Story')
-        # Try to extract emoji from the beginning of the name
-        emoji = ""
-        if name and len(name) > 0:
-            # Check if first character is emoji (basic check for common emoji ranges)
-            first_char = name[0]
-            if ord(first_char) > 127:  # Non-ASCII, likely emoji
-                emoji = first_char
-                name = name[1:].strip()
+        # Use button_name if available, otherwise fall back to name
+        button_text = get_history_field(story, 'button_name', language=language)
+        if not button_text:
+            # Fallback to name with emoji extraction
+            name = get_history_field(story, 'name', language=language) or story.get('name', 'Story')
+            emoji = ""
+            if name and len(name) > 0:
+                first_char = name[0]
+                if ord(first_char) > 127:  # Non-ASCII, likely emoji
+                    emoji = first_char
+                    name = name[1:].strip()
+            button_text = f"{emoji} {name}" if emoji else name
         
-        text = f"{emoji} {name}" if emoji else name
         return InlineKeyboardButton(
-            text=text,
+            text=button_text,
             callback_data=f"select_story:{story['id']}"
         )
     
-    # Create 2x2 grid: first row has 2 stories, second row has 1 story + back button
-    # Row 1: Story 1, Story 2
-    row1 = []
-    if len(stories) >= 1:
-        row1.append(create_story_button(stories[0]))
-    if len(stories) >= 2:
-        row1.append(create_story_button(stories[1]))
+    # Row 1: All story buttons in one row
+    story_row = []
+    for story in stories:
+        story_row.append(create_story_button(story))
     
-    if row1:
-        buttons.append(row1)
+    if story_row:
+        buttons.append(story_row)
     
-    # Row 2: Story 3, Back button
-    row2 = []
-    if len(stories) >= 3:
-        row2.append(create_story_button(stories[2]))
-    
-    # Add Back button in second column
-    row2.append(InlineKeyboardButton(
+    # Row 2: Back button alone
+    buttons.append([InlineKeyboardButton(
         text=get_ui_text("story.back_button", language=language), 
         callback_data="show_personas"
-    ))
-    
-    buttons.append(row2)
+    )])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -382,22 +365,6 @@ def build_voice_button_keyboard(message_id: int, language: str = "en", is_free: 
             InlineKeyboardButton(
                 text=get_ui_text("voice.hide_button", language=language),
                 callback_data="hide_voice_buttons"
-            )
-        ]
-    ])
-
-
-def build_promo_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboardMarkup:
-    """Build keyboard for promotional message (premium / hide)"""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text=get_ui_text("miniapp.premium_button", language=language),
-                web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
-            ),
-            InlineKeyboardButton(
-                text=get_ui_text("system.hide_button", language=language),
-                callback_data="hide_promo"
             )
         ]
     ])

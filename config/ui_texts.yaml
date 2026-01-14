@@ -12,15 +12,16 @@ welcome:
 
 # Story Selection
 story:
-  title: "Choose your story:"
+  header: "Plan"
+  title: "🔞 Choose your scenario:"
   back_button: "🔙 Back"
 
 # Chat Options (Existing Chat)
 chat_options:
-  title: "💬 You have an existing conversation with {persona_name}"
-  description: "Would you like to continue where you left off, or start a fresh conversation?"
-  continue_button: "💬 Continue"
-  start_new_button: "🆕 Start New"
+  header: "Plan"
+  title: "🔒 End chat with {persona_name} and start a new one?"
+  continue_button: "Return to chat ❤️‍🩹"
+  start_new_button: "End chat 💔"
   back_button: "🔙 Back"
 
 # Hints & Tips

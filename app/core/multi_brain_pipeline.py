@@ -22,6 +22,141 @@ from app.core import analytics_service_tg
 from app.settings import get_ui_text
 
 
+def _is_explicit_visual_request(text: str) -> bool:
+    """Check if user explicitly requests to see something visual.
+    
+    Supports both English and Russian keywords.
+    """
+    text_lower = text.lower()
+    
+    # English patterns
+    en_patterns = [
+        "show me",
+        "let me see",
+        "can i see",
+        "want to see",
+        "i want to see",
+        "i wanna see",
+        "what do you look like",
+        "how do you look",
+        "send me a pic",
+        "send a pic",
+        "send a photo",
+        "send me a photo",
+        "take a photo",
+        "take a picture",
+        "selfie",
+    ]
+    
+    # Russian patterns
+    ru_patterns = [
+        # Прямые просьбы показать
+        "покажи",
+        "покажись",
+        "покаж",
+        "показывай",
+        "показать",
+        "показала",
+        "показываешь",
+        # Хочу увидеть/посмотреть
+        "хочу увидеть",
+        "хочу посмотреть",
+        "хочу глянуть",
+        "хочу взглянуть",
+        "хотел бы увидеть",
+        "хотел бы посмотреть",
+        "хотелось бы увидеть",
+        "хотелось бы посмотреть",
+        # Дай/можно посмотреть
+        "дай посмотреть",
+        "дай глянуть",
+        "дай взглянуть",
+        "можно посмотреть",
+        "можно глянуть",
+        "можно взглянуть",
+        "можно увидеть",
+        # Как выглядишь
+        "как ты выглядишь",
+        "как выглядишь",
+        "как ты сейчас выглядишь",
+        "выглядишь сейчас",
+        # Фото/фотки
+        "скинь фото",
+        "скинь фотку",
+        "скинь фоточку",
+        "скинь картинку",
+        "скинь пикчу",
+        "скинь пик",
+        "скидывай фото",
+        "скидывай фотку",
+        "кинь фото",
+        "кинь фотку",
+        "кинь фоточку",
+        "кидай фото",
+        "кидай фотку",
+        "пришли фото",
+        "пришли фотку",
+        "пришли фоточку",
+        "присылай фото",
+        "отправь фото",
+        "отправь фотку",
+        # Селфи
+        "сфоткайся",
+        "сфоткай себя",
+        "сфотографируйся",
+        "сфотографируй себя",
+        "сделай фото",
+        "сделай фотку",
+        "сделай фоточку",
+        "сделай селфи",
+        "селфи",
+        "селфак",
+        "селфачок",
+        # Давай посмотрим
+        "давай посмотрю",
+        "давай гляну",
+        "давай взгляну",
+        "ну покажи",
+        "а покажи",
+        "ну давай покажи",
+        # Видеть тебя
+        "вижу тебя",
+        "увидеть тебя",
+        "посмотреть на тебя",
+        "глянуть на тебя",
+        "взглянуть на тебя",
+        # Что на тебе
+        "что на тебе",
+        "что ты носишь",
+        "что ты надела",
+        "что одето",
+        "во что одета",
+        "как одета",
+        # Покажи себя/тело
+        "покажи себя",
+        "покажи тело",
+        "покажи грудь",
+        "покажи попу",
+        "покажи попку",
+        "покажи ножки",
+        "покажи ноги",
+        "покажи киску",
+        "покажи письку",
+        "покажи всё",
+        "покажи все",
+        # Разные формулировки
+        "продемонстрируй",
+        "продемонстрируй себя",
+        "засветись",
+        "засвети",
+        "открой камеру",
+        "включи камеру",
+    ]
+    
+    all_patterns = en_patterns + ru_patterns
+    return any(pattern in text_lower for pattern in all_patterns)
+
+
 def _log_brain_inputs(brain_name: str, **kwargs):
     """Helper to log all inputs sent to a brain"""
     print(f"\n{'='*20} BRAIN INPUT: {brain_name} {'='*20}")
@@ -242,8 +377,10 @@ async def _process_single_batch(
             
             # Extract context summary from chat.ext (persisted from previous messages)
             context_summary = None
+            messages_since_last_image = 0
             if chat.ext and isinstance(chat.ext, dict):
                 context_summary = chat.ext.get("context_summary")
+                messages_since_last_image = chat.ext.get("messages_since_last_image", 0)
             
             # Build chat history (all existing processed messages - up to 20 for summary)
             chat_history = [
@@ -292,6 +429,11 @@ async def _process_single_batch(
         should_generate_image_flag = False
         decision_reason = "not determined"
         
+        # Check if user explicitly requests a visual
+        is_explicit_request = _is_explicit_visual_request(batched_text)
+        
+        log_verbose(f"[BATCH] 📊 Image decision context: messages_since_last_image={messages_since_last_image}, is_explicit_request={is_explicit_request}")
+        
         # Check feature flag to force images always (debug mode)
         if settings.FORCE_IMAGES_ALWAYS:
             should_generate_image_flag = True
@@ -302,10 +444,20 @@ async def _process_single_batch(
             should_generate_image_flag = True
             decision_reason = "first two messages in chat"
             log_always(f"[BATCH] 🎨 Image decision: YES - {decision_reason}")
+        # Explicit visual request from user always gets image
+        elif is_explicit_request:
+            should_generate_image_flag = True
+            decision_reason = "explicit visual request from user"
+            log_always(f"[BATCH] 🎨 Image decision: YES - {decision_reason}")
+        # If less than 2 messages since last image, skip (rate limiting)
+        elif messages_since_last_image < 2:
+            should_generate_image_flag = False
+            decision_reason = f"too soon since last image ({messages_since_last_image} messages)"
+            log_always(f"[BATCH] 🎨 Image decision: NO - {decision_reason}")
         else:
-            # Use AI to decide
+            # Use AI to decide (only for messages 2+ since last image)
             from app.core.brains.image_decision_specialist import should_generate_image
-            log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation...")
+            log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation (messages_since_last_image={messages_since_last_image})...")
             
             _log_brain_inputs(
                 "Brain 4 (Image Decision)",
@@ -616,6 +768,31 @@ async def _process_single_batch(
                 skip_reason = decision_reason
             log_always(f"[BATCH] ⏭️  Skipping image generation (reason: {skip_reason})")
             log_always(f"[BATCH] ✅ Batch complete (text sent, no image)")
+        
+        # Update messages_since_last_image counter
+        # Reset to 0 if generating image, increment if not
+        try:
+            with get_db() as db:
+                chat_for_counter = crud.get_chat_by_id(db, chat_id)
+                if chat_for_counter:
+                    if not chat_for_counter.ext:
+                        chat_for_counter.ext = {}
+                    
+                    if final_should_generate:
+                        # Reset counter when generating an image
+                        chat_for_counter.ext["messages_since_last_image"] = 0
+                        log_verbose(f"[BATCH] 📊 Reset messages_since_last_image to 0 (image generated)")
+                    else:
+                        # Increment counter when not generating an image
+                        current_count = chat_for_counter.ext.get("messages_since_last_image", 0)
+                        chat_for_counter.ext["messages_since_last_image"] = current_count + 1
+                        log_verbose(f"[BATCH] 📊 Incremented messages_since_last_image to {current_count + 1}")
+                    
+                    from sqlalchemy.orm.attributes import flag_modified
+                    flag_modified(chat_for_counter, "ext")
+                    db.commit()
+        except Exception as counter_error:
+            print(f"[BATCH] ⚠️ Failed to update messages_since_last_image: {counter_error}")
         
     except Exception as e:
         print(f"[BATCH] ❌ Batch processing error: {type(e).__name__}: {e}")
