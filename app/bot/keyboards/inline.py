@@ -239,6 +239,7 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     
     Args:
         stories: List of dicts with 'id', 'name', 'button_name', 'small_description', 'description'
+                 (should be pre-filtered to max 3 stories by caller)
         persona_id: Persona ID for back button
         language: Language code for translations
     
@@ -270,7 +271,7 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
             callback_data=f"select_story:{story['id']}"
         )
     
-    # Row 1: All story buttons in one row
+    # Row 1: Story buttons
     story_row = []
     for story in stories:
         story_row.append(create_story_button(story))

@@ -454,8 +454,13 @@ async def _process_single_batch(
             should_generate_image_flag = False
             decision_reason = f"too soon since last image ({messages_since_last_image} messages)"
             log_always(f"[BATCH] 🎨 Image decision: NO - {decision_reason}")
+        # Force image after 3+ messages without one (ensure reasonable frequency)
+        elif messages_since_last_image >= 3:
+            should_generate_image_flag = True
+            decision_reason = f"due for image ({messages_since_last_image} messages since last)"
+            log_always(f"[BATCH] 🎨 Image decision: YES - {decision_reason}")
         else:
-            # Use AI to decide (only for messages 2+ since last image)
+            # Use AI to decide (only for 2 messages since last image)
             from app.core.brains.image_decision_specialist import should_generate_image
             log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation (messages_since_last_image={messages_since_last_image})...")
             

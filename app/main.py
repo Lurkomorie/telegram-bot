@@ -664,13 +664,15 @@ async def image_callback(request: Request):
                     blurred_data = blur_image_safe(actual_image_data)
                 
                 if blurred_data:
-                    # Store original image data in job.ext for unlock
+                    # Store original image data and caption in job.ext for unlock
                     with get_db() as db:
                         job = crud.get_image_job(db, job_id_str)
                         if job:
                             if not job.ext:
                                 job.ext = {}
                             job.ext['blurred_original_data'] = base64.b64encode(actual_image_data).decode('utf-8')
+                            if pending_caption:
+                                job.ext['blurred_caption'] = pending_caption
                             from sqlalchemy.orm.attributes import flag_modified
                             flag_modified(job, "ext")
                             db.commit()

@@ -377,18 +377,26 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         return
     
     # Get histories from cache (already formatted as dicts)
+    import random
     from app.core.persona_cache import get_history_field
     story_data = get_persona_histories(persona_id)
     
     print(f"[STORY-SELECT] User language: {user_language}")
     print(f"[STORY-SELECT] Found {len(story_data)} stories for persona {persona_id}")
     
+    # Limit to max 3 stories, randomly select if more
+    MAX_STORIES = 3
+    if len(story_data) > MAX_STORIES:
+        stories_to_show = random.sample(story_data, MAX_STORIES)
+    else:
+        stories_to_show = story_data
+    
     # Build text with story descriptions
     # Format: Title\n\nStory1\nStory2\nStory3
     title = get_ui_text("story.title", language=user_language)
     story_text = f"{title}\n\n"
     
-    for i, s in enumerate(story_data):
+    for i, s in enumerate(stories_to_show):
         # Get translated story name and description
         name = get_history_field(s, 'name', language=user_language) or 'Story'
         desc = get_history_field(s, 'small_description', language=user_language)
@@ -401,7 +409,7 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         else:
             story_text += f"{name}\n\n"
     
-    keyboard = build_story_selection_keyboard(story_data, persona_id, language=user_language)
+    keyboard = build_story_selection_keyboard(stories_to_show, persona_id, language=user_language)
     
     if edit:
         await message.edit_text(story_text, reply_markup=keyboard, parse_mode="HTML")

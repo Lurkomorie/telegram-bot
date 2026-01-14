@@ -563,9 +563,10 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             await callback.answer("❌ Image not found", show_alert=True)
             return
         
-        # Get stored image data from job.ext
+        # Get stored image data and caption from job.ext
         image_data_b64 = job.ext.get("blurred_original_data") if job.ext else None
         image_url = job.ext.get("blurred_original_url") if job.ext else None
+        stored_caption = job.ext.get("blurred_caption") if job.ext else None
         
         if not image_data_b64 and not image_url:
             await callback.answer("❌ Original image not available", show_alert=True)
@@ -586,7 +587,7 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
     except Exception as e:
         log_verbose(f"[UNLOCK-IMAGE] ⚠️  Could not delete blurred message: {e}")
     
-    # Send the real image
+    # Send the real image with caption
     try:
         refresh_keyboard = build_image_refresh_keyboard(job_id)
         
@@ -598,12 +599,16 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             await bot.send_photo(
                 chat_id=callback.message.chat.id,
                 photo=input_file,
+                caption=stored_caption,
+                parse_mode="MarkdownV2" if stored_caption else None,
                 reply_markup=refresh_keyboard
             )
         elif image_url:
             await bot.send_photo(
                 chat_id=callback.message.chat.id,
                 photo=image_url,
+                caption=stored_caption,
+                parse_mode="MarkdownV2" if stored_caption else None,
                 reply_markup=refresh_keyboard
             )
         
