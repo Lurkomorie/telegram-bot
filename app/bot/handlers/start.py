@@ -329,8 +329,24 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
 
 
-async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False, user_id: int = None):
-    """Show story selection menu for a persona"""
+async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False, user_id: int = None, delete_first: bool = False):
+    """Show story selection menu for a persona
+    
+    Args:
+        message: The message to edit or reply to
+        persona_id: The persona ID
+        edit: Whether to edit the message (vs send new)
+        user_id: The user ID (optional, extracted from message if not provided)
+        delete_first: If True, delete the message first then send new (for photo messages)
+    """
+    # Handle delete_first: delete the message and then send new
+    if delete_first:
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        edit = False  # Force send new message after deletion
+    
     # Get user language
     # Initialize from_user before conditional to avoid UnboundLocalError
     from_user = message.from_user if hasattr(message, 'from_user') else None
@@ -808,20 +824,35 @@ async def select_persona_callback(callback: types.CallbackQuery):
             persona_id=persona_id
         )
     
+    # Check if message is a photo message (menu with image) - need to delete and send new
+    is_photo_message = callback.message.photo is not None
+    
     # If chat exists, show Continue/Start New options
     if existing_chat:
         keyboard = build_chat_options_keyboard(persona_id, language=user_language)
         title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
         description = get_ui_text("chat_options.description", language=user_language)
-        await callback.message.edit_text(
-            f"{title}\n\n{description}",
-            reply_markup=keyboard
-        )
+        
+        if is_photo_message:
+            # Delete photo message and send new text message
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            await callback.message.answer(
+                f"{title}\n\n{description}",
+                reply_markup=keyboard
+            )
+        else:
+            await callback.message.edit_text(
+                f"{title}\n\n{description}",
+                reply_markup=keyboard
+            )
         await callback.answer()
         return
     
     # No existing chat - show story selection
-    await show_story_selection(callback.message, persona_id, edit=True, user_id=callback.from_user.id)
+    await show_story_selection(callback.message, persona_id, edit=not is_photo_message, user_id=callback.from_user.id, delete_first=is_photo_message)
     await callback.answer()
 
 
