@@ -547,8 +547,8 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
         user_language = crud.get_user_language(db, user_id)
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
-        # Check if user has enough energy (10 required)
-        if not crud.check_user_energy(db, user_id, required=10):
+        # Check if user has enough energy (5 required)
+        if not crud.check_user_energy(db, user_id, required=5):
             log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
             # Replace keyboard with only premium button
             miniapp_url = f"{settings.public_url}/miniapp?page=premium"
@@ -580,12 +580,12 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             await callback.answer("❌ Original image not available", show_alert=True)
             return
         
-        # Deduct 10 energy
-        if not crud.deduct_user_energy(db, user_id, amount=10):
+        # Deduct 5 energy
+        if not crud.deduct_user_energy(db, user_id, amount=5):
             await callback.answer("❌ Failed to deduct energy", show_alert=True)
             return
         
-        log_always(f"[UNLOCK-IMAGE] Deducted 10 energy from user {user_id}")
+        log_always(f"[UNLOCK-IMAGE] Deducted 5 energy from user {user_id}")
     
     await callback.answer()
     

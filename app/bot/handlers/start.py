@@ -296,7 +296,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
-    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    welcome_text = "<b>" + get_ui_text("welcome.title", language=user_language) + "</b>\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         # Get translated name and description
@@ -394,7 +394,7 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
     # Build text with story descriptions
     # Format: Title\n\nStory1\nStory2\nStory3
     title = get_ui_text("story.title", language=user_language)
-    story_text = f"{title}\n\n"
+    story_text = f"<b>{title}</b>\n\n"
     
     for i, s in enumerate(stories_to_show):
         # Get translated story name and description
@@ -405,9 +405,9 @@ async def show_story_selection(message: types.Message, persona_id: str, edit: bo
         print(f"[STORY-SELECT]   Story {i} has translations: {list(s.get('translations', {}).keys())}")
         
         if desc:
-            story_text += f"{name} – {desc}\n\n"
+            story_text += f"<b>{name}</b> – {desc}\n\n"
         else:
-            story_text += f"{name}\n\n"
+            story_text += f"<b>{name}</b>\n\n"
     
     keyboard = build_story_selection_keyboard(stories_to_show, persona_id, language=user_language)
     
@@ -695,7 +695,7 @@ async def trigger_start_callback(callback: types.CallbackQuery):
     user_data = []
     
     # Build text with persona descriptions
-    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    welcome_text = "<b>" + get_ui_text("welcome.title", language=user_language) + "</b>\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
@@ -748,7 +748,7 @@ async def show_personas_callback(callback: types.CallbackQuery):
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
-    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    welcome_text = "<b>" + get_ui_text("welcome.title", language=user_language) + "</b>\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         # Get translated name and description
@@ -1396,7 +1396,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
     user_data = []  # User personas disabled
     
     # Build text with persona descriptions
-    welcome_text = get_ui_text("welcome.title", language=user_language) + "\n\n"
+    welcome_text = "<b>" + get_ui_text("welcome.title", language=user_language) + "</b>\n\n"
     for p in preset_data:
         emoji = p.get('emoji', '💕')
         # Get translated name and description

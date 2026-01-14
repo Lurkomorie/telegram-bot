@@ -108,6 +108,6 @@ voice:
 
 # Blurred Image Paywall
 blurred_image:
-  open_button: "Open [ 10 ⚡ ]"
+  open_button: "Open [ 5 ⚡ ]"
   premium_button: "Premium 💘"
-  insufficient_energy: "⚡ Not enough energy! You need 10 energy to unlock this image."
+  insufficient_energy: "⚡ Not enough energy! You need 5 energy to unlock this image."
