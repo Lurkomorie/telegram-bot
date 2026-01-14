@@ -5,6 +5,7 @@ from datetime import datetime
 from aiogram import types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from app.bot.loader import router, bot
 from app.db.base import get_db
 from app.db import crud
@@ -549,12 +550,19 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
         # Check if user has enough energy (10 required)
         if not crud.check_user_energy(db, user_id, required=10):
             log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
-            # Redirect to premium page
+            # Replace keyboard with only premium button
             miniapp_url = f"{settings.public_url}/miniapp?page=premium"
-            await callback.answer(
-                get_ui_text("blurred_image.insufficient_energy", language=user_language),
-                show_alert=True
-            )
+            premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(
+                    text=get_ui_text("blurred_image.premium_button", language=user_language),
+                    web_app=WebAppInfo(url=miniapp_url)
+                )]
+            ])
+            try:
+                await callback.message.edit_reply_markup(reply_markup=premium_keyboard)
+            except Exception:
+                pass
+            await callback.answer()
             return
         
         # Get the image job to retrieve the stored image data
