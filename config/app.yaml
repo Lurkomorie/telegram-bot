@@ -1,7 +1,7 @@
 llm:
   provider: openrouter
-  model: mistralai/mistral-nemo # Main conversational intelligence - uncensored, cheap, good Russian
-  followup_model: mistralai/mistral-nemo # Auto-followup messages (same model)
+  model: deepseek/deepseek-v3.2 # Main conversational intelligence - uncensored, cheap, good Russian
+  followup_model: deepseek/deepseek-v3.2 # Auto-followup messages (same model)
   state_model: mistralai/mistral-nemo # Fast model for state resolution
   image_model: moonshotai/kimi-k2:nitro # Image tag generation
   memory_model: x-ai/grok-4-fast # Memory extraction - uncensored, cheap, decent quality with good prompt

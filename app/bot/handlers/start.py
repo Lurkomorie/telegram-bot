@@ -303,17 +303,30 @@ async def cmd_start(message: types.Message, state: FSMContext):
         name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
-            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+            welcome_text += f"{emoji} <b>{name}</b> — {desc}\n\n"
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
-    await message.answer(
-        welcome_text,
-        reply_markup=keyboard
-    )
+    # Get menu image URL from translation service (if configured)
+    menu_image_url = get_ui_text("welcome.menu_image_url", language=user_language)
+    
+    # Send with image if menu_image_url is configured, otherwise just text
+    if menu_image_url and menu_image_url != "welcome.menu_image_url" and len(menu_image_url) > 10:
+        await message.answer_photo(
+            photo=menu_image_url,
+            caption=welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    else:
+        await message.answer(
+            welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
 
 
 async def show_story_selection(message: types.Message, persona_id: str, edit: bool = False, user_id: int = None):
@@ -661,17 +674,35 @@ async def trigger_start_callback(callback: types.CallbackQuery):
         name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
-            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+            welcome_text += f"{emoji} <b>{name}</b> — {desc}\n\n"
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
-    await callback.message.edit_text(
-        welcome_text,
-        reply_markup=keyboard
-    )
+    # Get menu image URL from translation service (if configured)
+    menu_image_url = get_ui_text("welcome.menu_image_url", language=user_language)
+    
+    # For callback messages (edit), try to edit with media if image is configured
+    if menu_image_url and menu_image_url != "welcome.menu_image_url" and len(menu_image_url) > 10:
+        # Delete old message and send new with photo
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer_photo(
+            photo=menu_image_url,
+            caption=welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    else:
+        await callback.message.edit_text(
+            welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
@@ -697,17 +728,35 @@ async def show_personas_callback(callback: types.CallbackQuery):
         name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
-            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+            welcome_text += f"{emoji} <b>{name}</b> — {desc}\n\n"
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
-    await callback.message.edit_text(
-        welcome_text,
-        reply_markup=keyboard
-    )
+    # Get menu image URL from translation service (if configured)
+    menu_image_url = get_ui_text("welcome.menu_image_url", language=user_language)
+    
+    # For callback messages (edit), try to edit with media if image is configured
+    if menu_image_url and menu_image_url != "welcome.menu_image_url" and len(menu_image_url) > 10:
+        # Delete old message and send new with photo
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer_photo(
+            photo=menu_image_url,
+            caption=welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    else:
+        await callback.message.edit_text(
+            welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
@@ -1312,17 +1361,30 @@ async def confirm_age_callback(callback: types.CallbackQuery):
         name = get_persona_field(p, 'name', language=user_language) or p.get('name', 'Unknown')
         desc = get_persona_field(p, 'small_description', language=user_language)
         if desc:
-            welcome_text += f"{emoji} <b>{name}</b> – {desc}\n\n"
+            welcome_text += f"{emoji} <b>{name}</b> — {desc}\n\n"
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
     miniapp_url = f"{settings.public_url}/miniapp"
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
-    await callback.message.answer(
-        welcome_text,
-        reply_markup=keyboard
-    )
+    # Get menu image URL from translation service (if configured)
+    menu_image_url = get_ui_text("welcome.menu_image_url", language=user_language)
+    
+    # Send with image if menu_image_url is configured, otherwise just text
+    if menu_image_url and menu_image_url != "welcome.menu_image_url" and len(menu_image_url) > 10:
+        await callback.message.answer_photo(
+            photo=menu_image_url,
+            caption=welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    else:
+        await callback.message.answer(
+            welcome_text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     await callback.answer()
 
 
