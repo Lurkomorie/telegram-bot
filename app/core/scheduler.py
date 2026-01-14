@@ -14,8 +14,45 @@ scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
 
 
+async def check_inactive_chats_3min():
+    """Check for chats inactive >3min and send first quick follow-up"""
+    from app.settings import settings
+    
+    print("[SCHEDULER] Checking for inactive chats (3min)...")
+    
+    # Check if test user whitelist is enabled
+    test_user_ids = settings.followup_test_user_ids
+    if test_user_ids:
+        print(f"[SCHEDULER] 🧪 Test mode: Followups restricted to user IDs: {test_user_ids}")
+    
+    try:
+        # Extract chat data while in session context
+        with get_db() as db:
+            inactive_chats = crud.get_inactive_chats(db, minutes=3, test_user_ids=test_user_ids)
+            # Extract needed data before session closes
+            chat_data = [
+                {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
+                for chat in inactive_chats
+            ]
+        
+        if not chat_data:
+            print("[SCHEDULER] No inactive chats found (3min)")
+            return
+        
+        print(f"[SCHEDULER] Found {len(chat_data)} inactive chats (3min)")
+        
+        for data in chat_data:
+            try:
+                await send_auto_message(data["chat_id"], data["tg_chat_id"], followup_type="3min")
+            except Exception as e:
+                print(f"[SCHEDULER] Auto-message error for chat {data['chat_id']}: {e}")
+                
+    except Exception as e:
+        print(f"[SCHEDULER] Error checking inactive chats (3min): {e}")
+
+
 async def check_inactive_chats():
-    """Check for chats inactive >30min and send follow-up"""
+    """Check for chats inactive >30min and send follow-up (after 3min followup)"""
     from app.settings import settings
     
     print("[SCHEDULER] Checking for inactive chats (30min)...")
@@ -28,7 +65,8 @@ async def check_inactive_chats():
     try:
         # Extract chat data while in session context
         with get_db() as db:
-            inactive_chats = crud.get_inactive_chats(db, minutes=30, test_user_ids=test_user_ids)
+            # Use reengagement with required_count=1 (3min followup was sent)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=30, test_user_ids=test_user_ids, required_count=1)
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
@@ -54,7 +92,7 @@ async def check_inactive_chats():
 async def check_inactive_chats_24h():
     """Check for chats inactive >24 hours and send re-engagement follow-up
     
-    This allows sending a second auto-message even if we sent one at 30min
+    This allows sending an auto-message if we sent one at 30min
     and the user still hasn't responded. We only re-engage if it's been
     24 hours since our last auto-message attempt.
     
@@ -75,9 +113,9 @@ async def check_inactive_chats_24h():
         # Extract chat data while in session context
         with get_db() as db:
             # Use the special re-engagement function that allows follow-ups
-            # even if we already sent an auto-message (as long as it was 24h ago)
-            # We check for required_count=1 (meaning they received the 30min message)
-            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440, test_user_ids=test_user_ids, required_count=1)  # 24 hours
+            # We check for required_count=2 (meaning they received the 30min message)
+            # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=1440, test_user_ids=test_user_ids, required_count=2)  # 24 hours
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
@@ -132,8 +170,9 @@ async def check_inactive_chats_3day():
         # Extract chat data while in session context
         with get_db() as db:
             # Use the re-engagement function with 3 days = 72 hours = 4320 minutes
-            # We check for required_count=2 (meaning they received the 24h message)
-            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=4320, test_user_ids=test_user_ids, required_count=2)
+            # We check for required_count=3 (meaning they received the 24h message)
+            # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3) → 3day (count=4)
+            inactive_chats = crud.get_inactive_chats_for_reengagement(db, minutes=4320, test_user_ids=test_user_ids, required_count=3)
             # Extract needed data before session closes
             chat_data = [
                 {"chat_id": chat.id, "tg_chat_id": chat.tg_chat_id, "user_id": chat.user_id}
@@ -223,11 +262,14 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
                     chat_obj.last_auto_message_at = datetime.utcnow()
                     
                     # Update auto_message_count based on type so next scheduler tier can work
+                    # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3) → 3day (count=4)
                     skip_count = 1
-                    if followup_type == "24h":
+                    if followup_type == "30min":
                         skip_count = 2
-                    elif followup_type == "3day":
+                    elif followup_type == "24h":
                         skip_count = 3
+                    elif followup_type == "3day":
+                        skip_count = 4
                     
                     if chat_obj.ext is None:
                         chat_obj.ext = {}
@@ -242,11 +284,14 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
         chat_obj.last_auto_message_at = datetime.utcnow()
         
         # Update auto_message_count based on type to prevent infinite loops
-        new_count = 1
-        if followup_type == "24h":
+        # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3) → 3day (count=4)
+        new_count = 1  # Default for 3min
+        if followup_type == "30min":
             new_count = 2
-        elif followup_type == "3day":
+        elif followup_type == "24h":
             new_count = 3
+        elif followup_type == "3day":
+            new_count = 4
             
         # Initialize ext if None and ensure we update it properly
         if chat_obj.ext is None:
@@ -406,7 +451,10 @@ def start_scheduler():
     
     # Only add followup jobs if enabled
     if settings.ENABLE_FOLLOWUPS:
-        # Check for inactive chats every minute (30min threshold)
+        # Check for inactive chats every minute (3min threshold - first quick followup)
+        scheduler.add_job(check_inactive_chats_3min, 'interval', minutes=1)
+        
+        # Check for inactive chats every minute (30min threshold - after 3min followup)
         scheduler.add_job(check_inactive_chats, 'interval', minutes=1)
         
         # Check for inactive chats every 5 minutes (24h threshold)
@@ -417,7 +465,7 @@ def start_scheduler():
         # Processes max 4 chats per run = 4 low-priority image requests every 10 minutes
         scheduler.add_job(check_inactive_chats_3day, 'interval', minutes=10)
         
-        print("[SCHEDULER] ✅ Followup jobs enabled (30min check every 1min, 24h check every 5min, 3day check every 10min with max 4 chats/run)")
+        print("[SCHEDULER] ✅ Followup jobs enabled (3min, 30min checks every 1min, 24h every 5min, 3day every 10min)")
     else:
         print("[SCHEDULER] ⚠️  Followup jobs disabled (ENABLE_FOLLOWUPS=False)")
     

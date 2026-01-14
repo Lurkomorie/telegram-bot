@@ -494,15 +494,15 @@ async def _process_single_batch(
         
         final_should_generate = should_generate_image_flag and not should_skip_image
         
-        # For 24h and 3day follow-ups with images, send text as caption
-        should_wait_for_image = followup_type in ["24h", "3day"] and final_should_generate
+        # If image will be generated, wait and send text as caption with the image
+        should_wait_for_image = final_should_generate
         
         pipeline_timer.start_stage("Send Response to User")
         
         # 5. Send response to user (with MarkdownV2 formatting preserved)
-        # For 24h follow-ups with images, delay sending text until image is ready
+        # If image will be generated, delay sending text until image is ready (send together)
         if should_wait_for_image:
-            log_always(f"[BATCH] ⏳ Delaying text message send - will be sent as image caption (24h followup)")
+            log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             
@@ -748,10 +748,10 @@ async def _background_image_generation(
             "is_auto_followup": is_auto_followup
         }
         
-        # For 24h follow-ups, store dialogue text to send as caption
+        # Store dialogue text to send as caption with the image
         if should_send_as_caption:
             job_ext["pending_caption"] = dialogue_response
-            log_always(f"[IMAGE-BG] 📝 Storing dialogue text as pending caption (24h followup)")
+            log_always(f"[IMAGE-BG] 📝 Storing dialogue text as pending caption")
         
         # Increment concurrent image counter (track that we incremented for error handling)
         new_count = await redis_queue.increment_user_image_count(user_id)

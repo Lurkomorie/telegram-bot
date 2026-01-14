@@ -219,10 +219,11 @@ def build_persona_gallery_keyboard(miniapp_url: str, language: str = "en") -> In
 def build_chat_options_keyboard(persona_id: str, language: str = "en") -> InlineKeyboardMarkup:
     """Build Continue/Start New keyboard for existing conversations"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=get_ui_text("image.generate_button", language=language), 
-            callback_data=f"generate_image_for_persona:{persona_id}"
-        )],
+        # Generate image button temporarily disabled
+        # [InlineKeyboardButton(
+        #     text=get_ui_text("image.generate_button", language=language), 
+        #     callback_data=f"generate_image_for_persona:{persona_id}"
+        # )],
         [InlineKeyboardButton(
             text=get_ui_text("chat_options.continue_button", language=language), 
             callback_data=f"continue_chat:{persona_id}"
@@ -250,12 +251,12 @@ def build_story_selection_keyboard(stories: List[Dict[str, Any]], persona_id: st
     
     buttons = []
     
-    # First button: Generate Image (full width)
-    if persona_id:
-        buttons.append([InlineKeyboardButton(
-            text=get_ui_text("image.generate_button", language=language),
-            callback_data=f"generate_image_for_persona:{persona_id}"
-        )])
+    # Generate image button temporarily disabled
+    # if persona_id:
+    #     buttons.append([InlineKeyboardButton(
+    #         text=get_ui_text("image.generate_button", language=language),
+    #         callback_data=f"generate_image_for_persona:{persona_id}"
+    #     )])
     
     # Helper function to create a story button
     def create_story_button(story):
@@ -401,4 +402,27 @@ def build_promo_keyboard(miniapp_url: str, language: str = "en") -> InlineKeyboa
         ]
     ])
 
+
+def build_blurred_image_keyboard(
+    job_id: str,
+    miniapp_url: str,
+    language: str = "en"
+) -> InlineKeyboardMarkup:
+    """Build keyboard for blurred image unlock (Open / Premium)
+    
+    Args:
+        job_id: Image job ID for unlock callback
+        miniapp_url: Base miniapp URL for premium button
+        language: User language code
+    """
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=get_ui_text("blurred_image.open_button", language=language),
+            callback_data=f"unlock_blurred_image:{job_id}"
+        )],
+        [InlineKeyboardButton(
+            text=get_ui_text("blurred_image.premium_button", language=language),
+            web_app=WebAppInfo(url=f"{miniapp_url}?page=premium")
+        )]
+    ])
 

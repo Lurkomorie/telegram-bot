@@ -600,31 +600,119 @@ async def image_callback(request: Request):
                 from app.core.telegram_utils import escape_markdown_v2
                 pending_caption = escape_markdown_v2(pending_caption)
             
-            # Send photo - handle both binary data and URL
-            if image_data:
-                # Strip color profile to prevent yellowish tint in Telegram
-                from app.core.image_utils import strip_color_profile_safe
-                image_data = strip_color_profile_safe(image_data)
+            # Check if image should be blurred for non-premium low-token users
+            should_blur = False
+            with get_db() as db:
+                is_premium = crud.check_user_premium(db, job_user_id)["is_premium"]
                 
-                # Send binary image data
-                from aiogram.types import BufferedInputFile
-                input_file = BufferedInputFile(image_data, filename="generated.png")
-                sent_message = await bot.send_photo(
-                    chat_id=tg_chat_id,
-                    photo=input_file,
-                    caption=pending_caption,
-                    parse_mode="MarkdownV2" if pending_caption else None,
-                    reply_markup=refresh_keyboard
-                )
-            else:
-                # Send via URL
-                sent_message = await bot.send_photo(
-                    chat_id=tg_chat_id,
-                    photo=image_url,
-                    caption=pending_caption,
-                    parse_mode="MarkdownV2" if pending_caption else None,
-                    reply_markup=refresh_keyboard
-                )
+                if not is_premium:
+                    user_energy = crud.get_user_energy(db, job_user_id)
+                    tokens = user_energy.get('tokens', 0)
+                    
+                    # Get chat and its image counter
+                    chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                    if chat:
+                        if not chat.ext:
+                            chat.ext = {}
+                        blurred_counter = chat.ext.get('blurred_image_counter', 0)
+                        blurred_counter += 1
+                        
+                        # Decide if should blur based on token count and counter
+                        # <20 tokens: every 2nd photo, <40: every 3rd, <70: every 4th
+                        if tokens < 20 and blurred_counter % 2 == 0:
+                            should_blur = True
+                        elif tokens < 40 and blurred_counter % 3 == 0:
+                            should_blur = True
+                        elif tokens < 70 and blurred_counter % 4 == 0:
+                            should_blur = True
+                        
+                        # Save counter
+                        from sqlalchemy.orm.attributes import flag_modified
+                        chat.ext['blurred_image_counter'] = blurred_counter
+                        flag_modified(chat, "ext")
+                        db.commit()
+                        
+                        if should_blur:
+                            print(f"[IMAGE-CALLBACK] 🔒 Image will be blurred (tokens={tokens}, counter={blurred_counter})")
+            
+            # If should blur, send text first, then blurred placeholder
+            if should_blur:
+                import base64
+                from app.bot.keyboards.inline import build_blurred_image_keyboard
+                
+                # If there's pending caption, send text first (before blurred image)
+                if pending_caption:
+                    await bot.send_message(
+                        chat_id=tg_chat_id,
+                        text=pending_caption,
+                        parse_mode="MarkdownV2"
+                    )
+                    print(f"[IMAGE-CALLBACK] 📝 Sent pending caption before blurred image")
+                    pending_caption = None  # Clear so we don't send again
+                
+                # Store original image data in job.ext for unlock
+                with get_db() as db:
+                    job = crud.get_image_job(db, job_id_str)
+                    if job:
+                        if not job.ext:
+                            job.ext = {}
+                        if image_data:
+                            job.ext['blurred_original_data'] = base64.b64encode(image_data).decode('utf-8')
+                        elif image_url:
+                            job.ext['blurred_original_url'] = image_url
+                        from sqlalchemy.orm.attributes import flag_modified
+                        flag_modified(job, "ext")
+                        db.commit()
+                
+                # Get user language for button text
+                with get_db() as db:
+                    user_language = crud.get_user_language(db, job_user_id)
+                
+                # Send blurred placeholder
+                from pathlib import Path
+                blurred_path = Path("assets/blurred_placeholder.png")
+                if blurred_path.exists():
+                    from aiogram.types import FSInputFile
+                    blurred_file = FSInputFile(blurred_path)
+                    miniapp_url = f"{settings.public_url}/miniapp"
+                    blurred_keyboard = build_blurred_image_keyboard(job_id_str, miniapp_url, user_language)
+                    
+                    sent_message = await bot.send_photo(
+                        chat_id=tg_chat_id,
+                        photo=blurred_file,
+                        reply_markup=blurred_keyboard
+                    )
+                    print(f"[IMAGE-CALLBACK] 🔒 Blurred image sent to user {job_user_id}")
+                else:
+                    print(f"[IMAGE-CALLBACK] ⚠️  Blurred placeholder not found, sending original")
+                    should_blur = False  # Fallback to original
+            
+            if not should_blur:
+                # Send photo - handle both binary data and URL
+                if image_data:
+                    # Strip color profile to prevent yellowish tint in Telegram
+                    from app.core.image_utils import strip_color_profile_safe
+                    image_data = strip_color_profile_safe(image_data)
+                    
+                    # Send binary image data
+                    from aiogram.types import BufferedInputFile
+                    input_file = BufferedInputFile(image_data, filename="generated.png")
+                    sent_message = await bot.send_photo(
+                        chat_id=tg_chat_id,
+                        photo=input_file,
+                        caption=pending_caption,
+                        parse_mode="MarkdownV2" if pending_caption else None,
+                        reply_markup=refresh_keyboard
+                    )
+                else:
+                    # Send via URL
+                    sent_message = await bot.send_photo(
+                        chat_id=tg_chat_id,
+                        photo=image_url,
+                        caption=pending_caption,
+                        parse_mode="MarkdownV2" if pending_caption else None,
+                        reply_markup=refresh_keyboard
+                    )
             
             if pending_caption:
                 print(f"[IMAGE-CALLBACK] ✅ Image sent with caption (24h followup mode)")

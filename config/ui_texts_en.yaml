@@ -105,3 +105,9 @@ voice:
   hide_button: "🔇 Hide voice buttons"
   hidden_popup: "Voice buttons are now hidden. You can enable them in the app Settings."
   insufficient_energy: "⚡ You need 15 energy to create a voice message."
+
+# Blurred Image Paywall
+blurred_image:
+  open_button: "Open [ 10 ⚡ ]"
+  premium_button: "Premium 💘"
+  insufficient_energy: "⚡ Not enough energy! You need 10 energy to unlock this image."

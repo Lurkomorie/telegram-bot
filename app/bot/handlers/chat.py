@@ -566,3 +566,88 @@ async def handle_hide_blurred_image(callback: types.CallbackQuery):
         log_verbose(f"[IMAGE] ⚠️  Could not delete blurred image message: {e}")
     
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("unlock_blurred_image:"))
+async def handle_unlock_blurred_image(callback: types.CallbackQuery):
+    """Handle 'Open' button click on blurred image - costs 10 tokens"""
+    from app.settings import settings
+    from aiogram.types import BufferedInputFile
+    from app.bot.keyboards.inline import build_image_refresh_keyboard
+    from app.core.image_utils import strip_color_profile_safe
+    
+    user_id = callback.from_user.id
+    job_id = callback.data.split(":")[1]
+    
+    log_always(f"[UNLOCK-IMAGE] User {user_id} attempting to unlock image {job_id}")
+    
+    with get_db() as db:
+        user_language = crud.get_user_language(db, user_id)
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+        
+        # Check if user has enough energy (10 required)
+        if not crud.check_user_energy(db, user_id, required=10):
+            log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
+            # Redirect to premium page
+            miniapp_url = f"{settings.public_url}/miniapp?page=premium"
+            await callback.answer(
+                get_ui_text("blurred_image.insufficient_energy", language=user_language),
+                show_alert=True
+            )
+            return
+        
+        # Get the image job to retrieve the stored image data
+        job = crud.get_image_job(db, job_id)
+        if not job:
+            await callback.answer("❌ Image not found", show_alert=True)
+            return
+        
+        # Get stored image data from job.ext
+        image_data_b64 = job.ext.get("blurred_original_data") if job.ext else None
+        image_url = job.ext.get("blurred_original_url") if job.ext else None
+        
+        if not image_data_b64 and not image_url:
+            await callback.answer("❌ Original image not available", show_alert=True)
+            return
+        
+        # Deduct 10 energy
+        if not crud.deduct_user_energy(db, user_id, amount=10):
+            await callback.answer("❌ Failed to deduct energy", show_alert=True)
+            return
+        
+        log_always(f"[UNLOCK-IMAGE] Deducted 10 energy from user {user_id}")
+    
+    await callback.answer()
+    
+    # Delete the blurred image message
+    try:
+        await callback.message.delete()
+    except Exception as e:
+        log_verbose(f"[UNLOCK-IMAGE] ⚠️  Could not delete blurred message: {e}")
+    
+    # Send the real image
+    try:
+        refresh_keyboard = build_image_refresh_keyboard(job_id)
+        
+        if image_data_b64:
+            import base64
+            image_data = base64.b64decode(image_data_b64)
+            image_data = strip_color_profile_safe(image_data)
+            input_file = BufferedInputFile(image_data, filename="unlocked.png")
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=input_file,
+                reply_markup=refresh_keyboard
+            )
+        elif image_url:
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=image_url,
+                reply_markup=refresh_keyboard
+            )
+        
+        log_always(f"[UNLOCK-IMAGE] ✅ Unlocked image sent to user {user_id}")
+        
+    except Exception as e:
+        log_always(f"[UNLOCK-IMAGE] ❌ Error sending unlocked image: {e}")
+        await callback.message.answer("❌ Failed to send image. Please try again.")

@@ -961,18 +961,31 @@ def get_inactive_chats_for_reengagement(db: Session, minutes: int = 1440, test_u
     
     # Filter by auto_message_count if required
     # Use COALESCE to handle NULL ext or missing key - treat as 0
+    # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3) → 3day (count=4)
     if required_count is not None:
         if required_count == 1:
-            # For count 1, we also accept missing key or null (legacy behavior)
-            # COALESCE treats NULL as 0, so we check for == 1 OR == 0 (legacy)
+            # For 30min check: accept exactly count=1 (3min was sent)
+            filters.append(
+                func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 1
+            )
+        elif required_count == 2:
+            # For 24h check: accept count=2 (new 30min) OR count=1 (legacy 30min)
             filters.append(
                 or_(
-                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 1,
-                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 0
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 2,
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 1
+                )
+            )
+        elif required_count == 3:
+            # For 3day check: accept count=3 (new 24h) OR count=2 (legacy 24h)
+            filters.append(
+                or_(
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 3,
+                    func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == 2
                 )
             )
         else:
-            # For count > 1, we require exact match
+            # For any other count, require exact match
             filters.append(
                 func.coalesce(Chat.ext['auto_message_count'].astext.cast(Integer), 0) == required_count
             )
