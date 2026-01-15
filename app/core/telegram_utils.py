@@ -37,7 +37,8 @@ def _process_markdown_safely(text: str) -> str:
     """
     # Characters that need escaping in MarkdownV2
     # Note: * and _ are NOT escaped when used for formatting
-    special_chars = r'_*[]()~`>#+=|{}.!-'
+    # Backslash MUST be included to prevent escape sequence issues
+    special_chars = r'\_*[]()~`>#+=|{}.!-'
     
     result = []
     i = 0
@@ -143,8 +144,11 @@ def _is_valid_utf8_segment(text: str) -> bool:
 def _escape_special_chars(text: str, exclude: str = '') -> str:
     """
     Escape special MarkdownV2 characters, optionally excluding certain characters.
+    
+    IMPORTANT: Backslash must be escaped FIRST to avoid double-escaping issues.
     """
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    # Backslash MUST be first to avoid escaping the escape sequences we create
+    special_chars = ['\\', '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
     
     result = text
     for char in special_chars:
