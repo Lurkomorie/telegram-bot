@@ -8,15 +8,8 @@ from app.db.base import get_db
 from app.db import crud
 from app.settings import settings
 
-# ============================================
-# 🎄 NEW YEAR SALE - 20% OFF ALL PRICES! 🎄
-# ============================================
-# To disable sale: change NEW_YEAR_DISCOUNT to 0
-NEW_YEAR_DISCOUNT = 0.20  # 20% off
-
-def apply_discount(price: int) -> int:
-    """Apply New Year discount to price"""
-    return round(price * (1 - NEW_YEAR_DISCOUNT))
+# Stars to USD conversion rate
+STARS_TO_USD = 0.02  # 1 star ≈ $0.02
 
 
 STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
@@ -46,12 +39,12 @@ async def send_payment_notification(user: types.User, product_id: str, product: 
         stars_amount = product["stars"]
         usd_amount = round(stars_amount * STARS_TO_USD, 2)
         
-        if product_type == "tokens":
-            product_desc = f"🪙 {product['amount']} tokens"
-        else:
-            tier = product["tier"].capitalize()
+        if product_type == "subscription":
+            period = product["period"]
             duration = product["duration"]
-            product_desc = f"👑 {tier} ({duration} days)"
+            product_desc = f"👑 Premium ({period}, {duration} days)"
+        else:
+            product_desc = f"Unknown: {product_id}"
         
         # Build acquisition source info
         acquisition_source = db_user.acquisition_source if db_user and db_user.acquisition_source else "direct"
@@ -110,12 +103,12 @@ async def send_payment_error_notification(
         if product:
             stars_amount = product["stars"]
             usd_amount = round(stars_amount * STARS_TO_USD, 2)
-            if product["type"] == "tokens":
-                product_desc = f"🪙 {product['amount']} tokens"
-            else:
-                tier = product["tier"].capitalize()
+            if product["type"] == "subscription":
+                period = product["period"]
                 duration = product["duration"]
-                product_desc = f"👑 {tier} ({duration} days)"
+                product_desc = f"👑 Premium ({period}, {duration} days)"
+            else:
+                product_desc = f"Unknown: {product_id}"
         else:
             stars_amount = amount or "?"
             usd_amount = round(amount * STARS_TO_USD, 2) if amount else "?"
@@ -145,39 +138,33 @@ async def send_payment_error_notification(
     except Exception as e:
         print(f"[PAYMENT] ⚠️ Failed to send payment error notification: {e}")
 
-# Payment products: token packages and tier subscriptions
-# Prices with 20% New Year discount applied + bulk discounts
+# Payment products: Unified subscription system
+# Three periods with same benefits, different durations and prices
 PAYMENT_PRODUCTS = {
-    # Token packages (one-time purchases) - 20% OFF + bulk discounts
-    "tokens_50": {"type": "tokens", "amount": 50, "stars": apply_discount(35)},
-    "tokens_100": {"type": "tokens", "amount": 100, "stars": apply_discount(65)},
-    "tokens_250": {"type": "tokens", "amount": 250, "stars": apply_discount(150)},
-    "tokens_500": {"type": "tokens", "amount": 500, "stars": apply_discount(300)},
-    "tokens_1000": {"type": "tokens", "amount": 1000, "stars": apply_discount(600)},
-    "tokens_2500": {"type": "tokens", "amount": 2500, "stars": apply_discount(1400)},
-    "tokens_5000": {"type": "tokens", "amount": 5000, "stars": apply_discount(2700)},
-    "tokens_10000": {"type": "tokens", "amount": 10000, "stars": apply_discount(5000)},
-    "tokens_25000": {"type": "tokens", "amount": 25000, "stars": apply_discount(12000)},
-    
-    # Tier subscriptions (30 days) - 20% OFF
-    "plus_month": {"type": "tier", "tier": "plus", "duration": 30, "stars": apply_discount(450), "daily_tokens": 50},       # 450 → 360
-    "pro_month": {"type": "tier", "tier": "pro", "duration": 30, "stars": apply_discount(700), "daily_tokens": 75},         # 700 → 560
-    "legendary_month": {"type": "tier", "tier": "legendary", "duration": 30, "stars": apply_discount(900), "daily_tokens": 100}, # 900 → 720
-    
-    # Tier subscriptions (90 days) - 20% OFF (stacks with duration discount)
-    "plus_3months": {"type": "tier", "tier": "plus", "duration": 90, "stars": apply_discount(1215), "daily_tokens": 50},
-    "pro_3months": {"type": "tier", "tier": "pro", "duration": 90, "stars": apply_discount(1890), "daily_tokens": 75},
-    "legendary_3months": {"type": "tier", "tier": "legendary", "duration": 90, "stars": apply_discount(2430), "daily_tokens": 100},
-    
-    # Tier subscriptions (180 days) - 20% OFF (stacks with duration discount)
-    "plus_6months": {"type": "tier", "tier": "plus", "duration": 180, "stars": apply_discount(1890), "daily_tokens": 50},
-    "pro_6months": {"type": "tier", "tier": "pro", "duration": 180, "stars": apply_discount(2940), "daily_tokens": 75},
-    "legendary_6months": {"type": "tier", "tier": "legendary", "duration": 180, "stars": apply_discount(3780), "daily_tokens": 100},
-    
-    # Tier subscriptions (365 days) - 20% OFF (stacks with duration discount)
-    "plus_year": {"type": "tier", "tier": "plus", "duration": 365, "stars": apply_discount(3780), "daily_tokens": 50},
-    "pro_year": {"type": "tier", "tier": "pro", "duration": 365, "stars": apply_discount(5880), "daily_tokens": 75},
-    "legendary_year": {"type": "tier", "tier": "legendary", "duration": 365, "stars": apply_discount(7560), "daily_tokens": 100},
+    # Daily subscription - no discount
+    "subscription_daily": {
+        "type": "subscription",
+        "period": "day",
+        "duration": 1,
+        "stars": 75,
+        "original_stars": None  # No discount shown
+    },
+    # Weekly subscription - 41% off (was 500 stars / $10)
+    "subscription_weekly": {
+        "type": "subscription",
+        "period": "week",
+        "duration": 7,
+        "stars": 295,
+        "original_stars": 500  # -41% discount
+    },
+    # Monthly subscription - 78% off (was 2500 stars), Most Popular
+    "subscription_monthly": {
+        "type": "subscription",
+        "period": "month",
+        "duration": 30,
+        "stars": 495,
+        "original_stars": 2500  # -78% discount
+    }
 }
 
 
@@ -192,7 +179,7 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
         telegram_payment_charge_id: Payment charge ID from Telegram (None for simulated)
     
     Returns:
-        dict with keys: success (bool), message (str), tokens (int), tier (str), premium_until (str)
+        dict with keys: success (bool), message (str), tier (str), premium_until (str)
     """
     print(f"[PAYMENT-TX] 🔄 Processing transaction for user {user_id}, product {product_id}")
     
@@ -217,64 +204,27 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
             "message": "User not found. Please contact support.",
             "error": "user_not_found"
         }
-    print(f"[PAYMENT-TX] 👤 User found: {user_id}, current tier: {user.premium_tier}, energy: {user.energy}")
+    print(f"[PAYMENT-TX] 👤 User found: {user_id}, current premium: {user.is_premium}")
     
-    if product_type == "tokens":
-        # Token package purchase
-        tokens_amount = product["amount"]
-        print(f"[PAYMENT-TX] 🪙 Adding {tokens_amount} tokens to user {user_id}")
-        success = crud.add_user_energy(db, user_id, tokens_amount)
-        
-        if success:
-            print(f"[PAYMENT-TX] ✅ Tokens added successfully")
-            # Create transaction record
-            crud.create_payment_transaction(
-                db=db,
-                user_id=user_id,
-                transaction_type="token_package",
-                product_id=product_id,
-                amount_stars=product["stars"],
-                tokens_received=tokens_amount,
-                telegram_payment_charge_id=telegram_payment_charge_id
-            )
-            print(f"[PAYMENT-TX] 📝 Transaction record created")
-            
-            # Get updated balance
-            user = crud.get_or_create_user(db, user_id)
-            
-            return {
-                "success": True,
-                "message": f"🪙 <b>Tokens Purchased!</b>\n\n✨ +{tokens_amount} tokens added to your account!\n💰 Current balance: <b>{user.energy} tokens</b>\n\nThank you for your purchase! 💎",
-                "tokens": user.energy,
-                "tier": None
-            }
-        else:
-            print(f"[PAYMENT-TX] ❌ Failed to add tokens for user {user_id}")
-            return {
-                "success": False,
-                "message": "Failed to add tokens. Please contact support.",
-                "error": "add_tokens_failed"
-            }
-    
-    elif product_type == "tier":
-        # Tier subscription purchase
-        tier = product["tier"]
+    if product_type == "subscription":
+        # Unified subscription purchase - all periods give same benefits
         duration_days = product["duration"]
-        daily_tokens = product["daily_tokens"]
+        period = product["period"]
         
-        print(f"[PAYMENT-TX] 👑 Activating {tier} tier for {duration_days} days for user {user_id}")
-        success = crud.activate_premium(db, user_id, duration_days, tier)
+        print(f"[PAYMENT-TX] 👑 Activating subscription for {duration_days} days ({period}) for user {user_id}")
+        # All subscriptions use "premium" tier - no tier distinctions
+        success = crud.activate_premium(db, user_id, duration_days, "premium")
         
         if success:
-            print(f"[PAYMENT-TX] ✅ Premium activated successfully")
+            print(f"[PAYMENT-TX] ✅ Subscription activated successfully")
             # Create transaction record
             crud.create_payment_transaction(
                 db=db,
                 user_id=user_id,
-                transaction_type="tier_subscription",
+                transaction_type="subscription",
                 product_id=product_id,
                 amount_stars=product["stars"],
-                tier_granted=tier,
+                tier_granted="premium",
                 subscription_days=duration_days,
                 telegram_payment_charge_id=telegram_payment_charge_id
             )
@@ -282,30 +232,28 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
             
             # Get updated user info
             user = crud.get_or_create_user(db, user_id)
-            print(f"[PAYMENT-TX] 👤 User updated: premium_until={user.premium_until}, tier={user.premium_tier}")
+            print(f"[PAYMENT-TX] 👤 User updated: premium_until={user.premium_until}")
             premium_until = user.premium_until.strftime("%Y-%m-%d") if user.premium_until else "Forever"
             
-            tier_names = {
-                "plus": "Plus",
-                "premium": "Premium",
-                "pro": "Pro",
-                "legendary": "Legendary"
+            period_names = {
+                "day": "1 Day",
+                "week": "1 Week",
+                "month": "1 Month"
             }
-            tier_display = tier_names.get(tier, tier.capitalize())
+            period_display = period_names.get(period, period.capitalize())
             
             return {
                 "success": True,
-                "message": f"🎉 <b>Welcome to {tier_display}!</b>\n\n✨ Your {tier_display} subscription is now active!\n📅 Valid until: <b>{premium_until}</b>\n\nBenefits:\n🪙 +{daily_tokens} tokens every day\n🎁 Daily bonus rewards\n🚀 Enjoy the full experience!\n\nThank you for your support! 💎",
-                "tokens": user.energy,
-                "tier": tier,
+                "message": f"🎉 <b>Premium Activated!</b>\n\n✨ Your {period_display} subscription is now active!\n📅 Valid until: <b>{premium_until}</b>\n\nBenefits:\n♾️ Unlimited energy\n🔞 No blur\n🎭 Enhanced AI\n🧠 Enhanced memory\n\nThank you for your support! 💎",
+                "tier": "premium",
                 "premium_until": premium_until
             }
         else:
-            print(f"[PAYMENT-TX] ❌ Failed to activate premium for user {user_id}")
+            print(f"[PAYMENT-TX] ❌ Failed to activate subscription for user {user_id}")
             return {
                 "success": False,
                 "message": "Failed to activate subscription. Please contact support.",
-                "error": "activate_premium_failed"
+                "error": "activate_subscription_failed"
             }
     
     print(f"[PAYMENT-TX] ❌ Unknown product type: {product_type}")

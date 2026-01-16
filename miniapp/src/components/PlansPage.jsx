@@ -1,19 +1,17 @@
 import WebApp from '@twa-dev/sdk';
 import { useEffect, useState } from 'react';
 import { createInvoice, trackEvent } from '../api';
-import christmasBg from '../assets/christmas-bg.webp';
 import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PlansPage.css';
 
 /**
  * PlansPage Component
- * Shows token packages and premium tiers
+ * Unified subscription system - 3 periods with same benefits
  */
 export default function PlansPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('tokens');
-  const [selectedProduct, setSelectedProduct] = useState('tokens_1000');
+  const [selectedProduct, setSelectedProduct] = useState('subscription_monthly');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Track plans page view
@@ -24,28 +22,46 @@ export default function PlansPage() {
     });
   }, []);
 
-  // New Year Sale - 20% off all prices!
-  const DISCOUNT_PERCENT = 20;
-  const calcDiscount = (price) => Math.round(price * (1 - DISCOUNT_PERCENT / 100));
-
-  // Token packages with bulk discounts (cheaper per token for larger packages)
-  const tokenPackages = [
-    { id: 'tokens_50', amount: 50, originalStars: 35, stars: calcDiscount(35) },
-    { id: 'tokens_100', amount: 100, originalStars: 65, stars: calcDiscount(65) },
-    { id: 'tokens_250', amount: 250, originalStars: 150, stars: calcDiscount(150) },
-    { id: 'tokens_500', amount: 500, originalStars: 300, stars: calcDiscount(300) },
-    { id: 'tokens_1000', amount: 1000, originalStars: 600, stars: calcDiscount(600), popular: true },
-    { id: 'tokens_2500', amount: 2500, originalStars: 1400, stars: calcDiscount(1400) },
-    { id: 'tokens_5000', amount: 5000, originalStars: 2700, stars: calcDiscount(2700) },
-    { id: 'tokens_10000', amount: 10000, originalStars: 5000, stars: calcDiscount(5000) },
-    { id: 'tokens_25000', amount: 25000, originalStars: 12000, stars: calcDiscount(12000), bestValue: true },
+  // Unified subscription plans - all give same benefits
+  const subscriptionPlans = [
+    { 
+      id: 'subscription_daily', 
+      period: 'day',
+      periodKey: 'subscription.period.day',
+      stars: 75, 
+      originalStars: null,  // No discount
+      discount: null,
+      popular: false 
+    },
+    { 
+      id: 'subscription_weekly', 
+      period: 'week',
+      periodKey: 'subscription.period.week',
+      stars: 295, 
+      originalStars: 500,
+      discount: 41,
+      popular: false 
+    },
+    { 
+      id: 'subscription_monthly', 
+      period: 'month',
+      periodKey: 'subscription.period.month',
+      stars: 495, 
+      originalStars: 2500,
+      discount: 78,
+      popular: true  // "Most Popular" badge
+    }
   ];
 
-  // Premium tiers (original + discounted)
-  const premiumTiers = [
-    { id: 'plus_month', name: 'Plus', daily: 50, originalStars: 450, stars: calcDiscount(450) },
-    { id: 'pro_month', name: 'Pro', daily: 75, originalStars: 700, stars: calcDiscount(700), popular: true },
-    { id: 'legendary_month', name: 'Legendary', daily: 100, originalStars: 900, stars: calcDiscount(900) },
+  // Benefits list - same for all subscription periods
+  const benefits = [
+    { icon: '♾️⚡️', key: 'subscription.benefits.unlimitedEnergy' },
+    { icon: '🔞', key: 'subscription.benefits.noBlur' },
+    { icon: '🎭', key: 'subscription.benefits.enhancedAI' },
+    { icon: '🧠', key: 'subscription.benefits.enhancedMemory' },
+    { icon: '♻️', key: 'subscription.benefits.fasterGeneration' },
+    { icon: '➕', key: 'subscription.benefits.characterBonus' },
+    { icon: '💬', key: 'subscription.benefits.extendedDescription' }
   ];
 
   const handlePurchase = async () => {
@@ -61,7 +77,6 @@ export default function PlansPage() {
       
       // Check if this is a simulated payment
       if (result.simulated) {
-        // Simulated payment - already processed on backend
         WebApp.showAlert('✅ Payment successful! Thank you for your purchase!');
         window.location.reload();
         return;
@@ -70,7 +85,6 @@ export default function PlansPage() {
       // Real payment - open Telegram invoice
       const { invoice_link } = result;
       
-      // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {
         if (status === 'paid') {
           WebApp.showAlert('✅ Payment successful! Thank you for your purchase!');
@@ -91,120 +105,62 @@ export default function PlansPage() {
 
   return (
     <div className="plans-page">
-      <div className="plans-tabs">
-        <button
-          className={`tab-button ${activeTab === 'tokens' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tokens')}
-        >
-          🪙 Token Packages
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'tiers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tiers')}
-        >
-          💎 Premium Tiers
-        </button>
-      </div>
-
-      {/* New Year Sale Banner */}
-      <div className="sale-banner" style={{ backgroundImage: `url(${christmasBg})` }}>
-        <div className="sale-banner-overlay"></div>
-        <div className="sale-banner-snow">
-          {[...Array(12)].map((_, i) => (
-            <span key={i} className="snowflake">❄</span>
+      {/* Subscription Plans */}
+      <div className="subscription-section">
+        <div className="subscription-cards">
+          {subscriptionPlans.map((plan) => (
+            <div
+              key={plan.id}
+              className={`subscription-card ${selectedProduct === plan.id ? 'selected' : ''}`}
+              onClick={() => setSelectedProduct(plan.id)}
+            >
+              {plan.popular && <div className="badge popular">Most Popular</div>}
+              {plan.discount && <div className="discount-tag">-{plan.discount}%</div>}
+              
+              <div className="plan-period">{t(plan.periodKey)}</div>
+              
+              <div className="plan-price-container">
+                {plan.originalStars && (
+                  <span className="original-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {plan.originalStars.toLocaleString()}
+                  </span>
+                )}
+                <span className="current-price">
+                  <img src={starIcon} alt="star" className="star-icon-inline" />
+                  {plan.stars.toLocaleString()}
+                </span>
+              </div>
+              
+              {selectedProduct === plan.id && (
+                <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+            </div>
           ))}
         </div>
-        <div className="sale-banner-content">
-          <span className="sale-banner-emoji">🎄</span>
-          <div className="sale-banner-text-group">
-            <span className="sale-banner-title">NEW YEAR SALE</span>
-            <span className="sale-banner-discount">{DISCOUNT_PERCENT}% OFF ALL PLANS</span>
-          </div>
-          <span className="sale-banner-emoji">🎁</span>
+      </div>
+
+      {/* Benefits Section */}
+      <div className="benefits-section">
+        <div className="benefits-header">
+          💸 {t('subscription.benefitsTitle')} 👇🏻
+        </div>
+        <div className="benefits-list">
+          {benefits.map((benefit, index) => (
+            <div key={index} className="benefit-item">
+              <span className="benefit-icon">{benefit.icon}</span>
+              <span className="benefit-text">{t(benefit.key)}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {activeTab === 'tokens' ? (
-        <div className="tokens-section">
-          <div className="section-description">
-            <p>Purchase tokens for one-time use. Tokens never expire!</p>
-          </div>
-          <div className="token-packages-grid">
-            {tokenPackages.map((pkg) => (
-              <div
-                key={pkg.id}
-                className={`token-package ${selectedProduct === pkg.id ? 'selected' : ''}`}
-                onClick={() => setSelectedProduct(pkg.id)}
-              >
-                <div className="sale-tag">-{DISCOUNT_PERCENT}%</div>
-                {pkg.popular && <div className="badge popular">Popular</div>}
-                {pkg.bestValue && <div className="badge best-value">Best Value</div>}
-                <div className="package-amount">🪙 {pkg.amount.toLocaleString()}</div>
-                <div className="package-price-container">
-                  <span className="original-price">
-                    <img src={starIcon} alt="star" className="star-icon-inline" />
-                    {pkg.originalStars.toLocaleString()}
-                  </span>
-                  <span className="discounted-price">
-                    <img src={starIcon} alt="star" className="star-icon-inline" />
-                    {pkg.stars.toLocaleString()}
-                  </span>
-                </div>
-                {selectedProduct === pkg.id && (
-                  <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="tiers-section">
-          <div className="section-description">
-            <p>Subscribe to get daily tokens automatically. Cancel anytime!</p>
-          </div>
-          <div className="tiers-grid">
-            {premiumTiers.map((tier) => (
-              <div
-                key={tier.id}
-                className={`tier-card ${selectedProduct === tier.id ? 'selected' : ''}`}
-                onClick={() => setSelectedProduct(tier.id)}
-              >
-                <div className="sale-tag">-{DISCOUNT_PERCENT}%</div>
-                {tier.popular && <div className="badge popular">Popular</div>}
-                <div className="tier-name">{tier.name}</div>
-                <div className="tier-daily">+{tier.daily} tokens/day</div>
-                <div className="tier-price-container">
-                  <span className="original-price">
-                    <img src={starIcon} alt="star" className="star-icon-inline" />
-                    {tier.originalStars}
-                  </span>
-                  <span className="discounted-price">
-                    <img src={starIcon} alt="star" className="star-icon-inline" />
-                    {tier.stars}/mo
-                  </span>
-                </div>
-                <div className="tier-total">{tier.daily * 30} tokens total</div>
-                {selectedProduct === tier.id && (
-                  <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* Purchase Button */}
       <button className="purchase-button-sticky" onClick={handlePurchase} disabled={isProcessing}>
-        {isProcessing ? 'Processing...' : `Purchase ${activeTab === 'tokens' ? 'Tokens' : 'Subscription'}`}
+        {isProcessing ? t('subscription.processing') : t('subscription.purchaseButton')}
       </button>
     </div>
   );
 }
-
-
-
-
-

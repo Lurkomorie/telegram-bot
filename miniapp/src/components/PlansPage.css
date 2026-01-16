@@ -4,6 +4,173 @@
   padding-top: 0;
 }
 
+/* ===== Unified Subscription System ===== */
+
+.subscription-section {
+  padding: 20px;
+}
+
+.subscription-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subscription-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subscription-card:active {
+  transform: scale(0.98);
+}
+
+.subscription-card.selected {
+  background: var(--gradient-subtle);
+  border-color: var(--color-red);
+  box-shadow: 0 0 0 2px var(--color-red);
+}
+
+.subscription-card .badge.popular {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #000;
+  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+
+.subscription-card .discount-tag {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
+}
+
+.subscription-card .plan-period {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subscription-card .plan-price-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.subscription-card .original-price {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.subscription-card .original-price .star-icon-inline {
+  width: 10px;
+  height: 10px;
+  opacity: 0.6;
+}
+
+.subscription-card .current-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subscription-card .current-price .star-icon-inline {
+  width: 16px;
+  height: 16px;
+}
+
+.subscription-card .checkmark {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: var(--color-red);
+  display: none;
+}
+
+.subscription-card.selected .checkmark {
+  display: block;
+}
+
+.subscription-card.selected .plan-price-container {
+  margin-right: 30px;
+}
+
+/* Benefits Section */
+.benefits-section {
+  margin: 24px 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.benefits-header {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.benefits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.benefit-icon {
+  font-size: 18px;
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.benefit-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
 /* ===== New Year Sale Styles ===== */
 
 .sale-banner {

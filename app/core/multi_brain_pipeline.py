@@ -839,40 +839,15 @@ async def _background_image_generation(
                 await action_mgr.stop()
                 return
         
-        # Check if user is premium (premium users pay 3 energy, free users pay 5)
+        # Check if user is premium
         with get_db() as db:
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]
             # Get user's global message count for priority determination
             user = db.query(User).filter(User.id == user_id).first()
             global_message_count = user.global_message_count if user else 999
         
-        # Deduct energy (3 for premium, 5 for free users)
-        energy_cost = 3 if is_premium else 5
-        with get_db() as db:
-            # Check user's current energy
-            user_energy_info = crud.get_user_energy(db, user_id)
-            current_energy = user_energy_info.get('tokens', 0)
-            
-            if current_energy == 0:
-                # User has 0 energy - show upsell message and don't generate
-                log_always(f"[IMAGE-BG] 💎 User {user_id} has 0 energy, showing upsell")
-                await action_mgr.stop()
-                user = db.query(User).filter(User.id == user_id).first()
-                from app.bot.handlers.image import show_energy_upsell_message
-                await show_energy_upsell_message(message=None, user_id=user_id, tg_chat_id=tg_chat_id)
-                return
-            
-            # User has some energy - deduct what we can and generate anyway
-            actual_deduction = min(current_energy, energy_cost)
-            if not crud.deduct_user_energy(db, user_id, amount=actual_deduction):
-                log_always(f"[IMAGE-BG] ⚠️ Failed to deduct energy from user {user_id}")
-                await action_mgr.stop()
-                return
-            
-            if actual_deduction < energy_cost:
-                log_always(f"[IMAGE-BG] ⚡ User {user_id} had only {current_energy} energy, deducted all (needed {energy_cost})")
-            else:
-                log_always(f"[IMAGE-BG] ⚡ Deducted {energy_cost} energy from user {user_id} ({'premium' if is_premium else 'free'})")
+        # Energy is no longer consumed for image generation - only for character creation
+        log_always(f"[IMAGE-BG] 🖼️ Generating image for user {user_id} ({'premium' if is_premium else 'free'}) - no energy cost")
         
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")

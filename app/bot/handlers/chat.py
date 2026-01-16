@@ -238,13 +238,8 @@ async def handle_text_message(message: types.Message, state: FSMContext):
         
         db.commit()
         
-        # Deduct energy (1 energy per message for all users)
-        if crud.deduct_user_energy(db, user_id, amount=1):
-            log_verbose(f"[CHAT] ⚡ Deducted 1 energy from user {user_id}")
-        else:
-            log_verbose(f"[CHAT] ⚠️  Failed to deduct energy from user {user_id}")
-            await message.answer("❌ Failed to deduct energy. Please try again.")
-            return
+        # Energy is no longer consumed for messages - only for character creation
+        # Premium users get unlimited energy, free users pay only for character creation
         
         # Increment global message counter for priority queue logic
         user = db.query(User).filter(User.id == user_id).first()
@@ -368,24 +363,9 @@ async def handle_create_voice(callback: types.CallbackQuery):
             user.settings = {}
         is_free = not user.settings.get("voice_free_used", False)
         
-        # If not free, check and deduct 15 energy
-        if not is_free:
-            if not crud.check_user_energy(db, user_id, required=15):
-                log_always(f"[VOICE] ⚠️  User {user_id} has insufficient energy for voice")
-                from app.bot.handlers.image import show_energy_upsell_message
-                await show_energy_upsell_message(callback.message, user_id)
-                return
-            
-            # Deduct 15 energy
-            if not crud.deduct_user_energy(db, user_id, amount=15):
-                log_always(f"[VOICE] ❌ Failed to deduct energy from user {user_id}")
-                await callback.message.answer(
-                    get_ui_text("voice.failed", language=user_language)
-                )
-                return
-            log_verbose(f"[VOICE] ⚡ Deducted 15 energy from user {user_id}")
-        else:
-            # Mark free voice as used
+        # Voice is now free for all users - energy only consumed for character creation
+        # Mark first voice as used for tracking purposes
+        if is_free:
             user.settings["voice_free_used"] = True
             flag_modified(user, "settings")
             db.commit()
@@ -580,12 +560,8 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             await callback.answer("❌ Original image not available", show_alert=True)
             return
         
-        # Deduct 5 energy
-        if not crud.deduct_user_energy(db, user_id, amount=5):
-            await callback.answer("❌ Failed to deduct energy", show_alert=True)
-            return
-        
-        log_always(f"[UNLOCK-IMAGE] Deducted 5 energy from user {user_id}")
+        # Energy is no longer consumed for image unlock - only for character creation
+        log_always(f"[UNLOCK-IMAGE] User {user_id} unlocked image (no energy cost)")
     
     await callback.answer()
     

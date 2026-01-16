@@ -1,4 +1,23 @@
 {
+  "subscription": {
+    "period": {
+      "day": "Day",
+      "week": "Week",
+      "month": "Month"
+    },
+    "benefits": {
+      "unlimitedEnergy": "Unlimited energy",
+      "noBlur": "No blur at all",
+      "enhancedAI": "Enhanced AI models",
+      "enhancedMemory": "Enhanced memory system",
+      "fasterGeneration": "Faster generation speed",
+      "characterBonus": "Character creation bonuses",
+      "extendedDescription": "Extended description limit to 4000 characters"
+    },
+    "benefitsTitle": "Benefits",
+    "processing": "Processing...",
+    "purchaseButton": "Subscribe"
+  },
   "referrals": {
     "note": "Your friend must use your link and open the app to earn tokens",
     "opening": "Opening...",

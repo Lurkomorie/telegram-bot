@@ -1550,7 +1550,9 @@ async def create_character(
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
     """
-    Create a custom character (costs 50 tokens for regular users, 25 for premium)
+    Create a custom character
+    - Premium users: FREE (unlimited energy)
+    - Free users: costs 50 tokens (first character is free)
     
     Returns: {success: bool, persona_id: str, message: str, error: str}
     """
@@ -1580,23 +1582,21 @@ async def create_character(
             # Check if this is the first character creation (free!)
             is_first_character = not user.char_created
             
-            # Check premium status to determine cost
+            # Check premium status - premium users get FREE character creation
             premium_info = crud.check_user_premium(db, user_id)
             is_premium = premium_info["is_premium"]
-            is_legendary = premium_info["tier"] == "legendary"
             
-            # Base cost
-            base_cost = 0 if is_first_character else (25 if is_premium else 50)
+            # Premium users: FREE, Free users: 50 tokens (first is free)
+            if is_premium:
+                token_cost = 0  # Premium = unlimited energy = free character creation
+            elif is_first_character:
+                token_cost = 0  # First character is free for everyone
+            else:
+                token_cost = 50  # Free users pay 50 tokens
             
-            # Fantasy race cost (250 extra, free for Legendary)
-            fantasy_races = ["elf", "catgirl", "succubus"]
-            is_fantasy_race = request.race_type in fantasy_races
-            fantasy_cost = 250 if (is_fantasy_race and not is_legendary) else 0
-            
-            token_cost = base_cost + fantasy_cost
             max_description_length = 4000 if is_premium else 500
             
-            print(f"[CREATE-CHARACTER] User {user_id}: first_char={is_first_character}, race={request.race_type}, fantasy={is_fantasy_race}, legendary={is_legendary}, cost={token_cost}")
+            print(f"[CREATE-CHARACTER] User {user_id}: premium={is_premium}, first_char={is_first_character}, cost={token_cost}")
             
             # Validate name length
             if not request.name or len(request.name) > 100:
