@@ -1231,8 +1231,6 @@ async def create_invoice(
                     "success": True,
                     "simulated": True,
                     "message": result["message"],
-                    "tokens": result.get("tokens"),
-                    "tier": result.get("tier"),
                     "premium_until": result.get("premium_until")
                 }
             else:
@@ -1250,17 +1248,17 @@ async def create_invoice(
             title = f"{product['amount']} Tokens"
             description = f"Purchase {product['amount']} tokens"
             label = f"{product['amount']} tokens"
-        else:  # tier subscription
-            tier_names = {
-                "plus": "Plus",
-                "premium": "Premium",
-                "pro": "Pro",
-                "legendary": "Legendary"
+        else:  # subscription
+            period_names = {
+                "day": "1 Day",
+                "week": "1 Week", 
+                "month": "1 Month",
+                "year": "1 Year"
             }
-            tier_display = tier_names.get(product["tier"], product["tier"].capitalize())
-            title = f"{tier_display} - {product['duration']} days"
-            description = f"{tier_display} tier subscription (+{product['daily_tokens']} tokens daily)"
-            label = f"{tier_display} {product['duration']} days"
+            period_display = period_names.get(product["period"], product["period"].capitalize())
+            title = f"Premium - {period_display}"
+            description = f"Premium subscription for {period_display}"
+            label = f"Premium {period_display}"
         
         # Create invoice using Telegram Bot API
         # For Stars payment, provider_token should be empty string
