@@ -420,9 +420,8 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
-    # Check energy for non-premium users (refresh costs 3 energy)
-    if not is_premium:
     # Energy is no longer consumed for image refresh - only for character creation
+    # Premium check kept for potential future use
     
     # Get original job details
     with get_db() as db:
