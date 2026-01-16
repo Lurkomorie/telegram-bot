@@ -339,15 +339,23 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         # REUSE EXACT PROMPTS from original job (don't regenerate!)
         positive_prompt = original_job.prompt
         negative_prompt = original_job.negative_prompt
-        user_prompt = original_job.ext.get("user_prompt", "") if original_job.ext else ""
+        original_ext = original_job.ext if original_job.ext else {}
+        user_prompt = original_ext.get("user_prompt", "")
+        pending_caption = original_ext.get("pending_caption")  # Preserve caption for refresh
         
         print(f"[REFRESH-IMAGE] 🔄 Reusing exact prompts from job {original_job_id}")
         print(f"[REFRESH-IMAGE]    Positive: {positive_prompt[:100]}...")
         print(f"[REFRESH-IMAGE]    Negative: {negative_prompt[:100]}...")
+        if pending_caption:
+            print(f"[REFRESH-IMAGE]    Caption: {pending_caption[:50]}...")
         
         # Create new image job with SAME prompts, different seed
         # Use original job's chat_id (None for standalone images, chat.id for chat images)
         seed = random.randint(1, 2147483647)
+        new_ext = {"seed": seed, "user_prompt": user_prompt, "refreshed_from": original_job_id}
+        if pending_caption:
+            new_ext["pending_caption"] = pending_caption  # Copy caption to new job
+        
         job = crud.create_image_job(
             db,
             user_id=user_id,
@@ -355,7 +363,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
             prompt=positive_prompt,
             negative_prompt=negative_prompt,
             chat_id=original_job.chat_id,
-            ext={"seed": seed, "user_prompt": user_prompt, "refreshed_from": original_job_id}
+            ext=new_ext
         )
         
         job_id = job.id
