@@ -36,7 +36,8 @@ async def generate_text(
     frequency_penalty: float = None,
     presence_penalty: float = None,
     timeout_sec: int = None,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    reasoning: bool = False
 ) -> str:
     """
     Generate text response from OpenRouter (non-streaming)
@@ -51,6 +52,7 @@ async def generate_text(
         presence_penalty: Presence penalty parameter
         timeout_sec: Override default timeout
         user_id: Optional Telegram user ID for cost tracking
+        reasoning: Enable reasoning/thinking mode for supported models
     
     Returns:
         Generated text response
@@ -81,6 +83,8 @@ async def generate_text(
         body["frequency_penalty"] = frequency_penalty
     if presence_penalty is not None:
         body["presence_penalty"] = presence_penalty
+    if reasoning:
+        body["reasoning"] = {"effort": "medium"}
     
     timeout = timeout_sec if timeout_sec is not None else llm_config["timeout_sec"]
     

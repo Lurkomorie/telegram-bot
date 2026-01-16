@@ -102,6 +102,7 @@ async def generate_image_plan(
     """
     config = get_app_config()
     model = config["llm"]["image_model"]
+    use_reasoning = config["llm"].get("image_model_reasoning", False)
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
     context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt, context_summary)
@@ -155,7 +156,8 @@ async def generate_image_plan(
                 model=model,
                 temperature=0.5,
                 frequency_penalty=0.1,
-                max_tokens=512
+                max_tokens=512,
+                reasoning=use_reasoning
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000
