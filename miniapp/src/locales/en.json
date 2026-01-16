@@ -3,7 +3,8 @@
     "period": {
       "day": "Day",
       "week": "Week",
-      "month": "Month"
+      "month": "Month",
+      "year": "Year"
     },
     "benefits": {
       "unlimitedEnergy": "Unlimited energy",

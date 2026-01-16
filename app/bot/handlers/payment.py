@@ -139,7 +139,7 @@ async def send_payment_error_notification(
         print(f"[PAYMENT] ⚠️ Failed to send payment error notification: {e}")
 
 # Payment products: Unified subscription system
-# Three periods with same benefits, different durations and prices
+# Four periods with same benefits, different durations and prices
 PAYMENT_PRODUCTS = {
     # Daily subscription - no discount
     "subscription_daily": {
@@ -164,6 +164,14 @@ PAYMENT_PRODUCTS = {
         "duration": 30,
         "stars": 495,
         "original_stars": 2500  # -78% discount
+    },
+    # Yearly subscription - 92% off (was 30000 stars)
+    "subscription_yearly": {
+        "type": "subscription",
+        "period": "year",
+        "duration": 365,
+        "stars": 2495,
+        "original_stars": 30000  # -92% discount
     }
 }
 
@@ -238,7 +246,8 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
             period_names = {
                 "day": "1 Day",
                 "week": "1 Week",
-                "month": "1 Month"
+                "month": "1 Month",
+                "year": "1 Year"
             }
             period_display = period_names.get(period, period.capitalize())
             

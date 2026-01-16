@@ -3,7 +3,8 @@
     "period": {
       "day": "День",
       "week": "Неделя",
-      "month": "Месяц"
+      "month": "Месяц",
+      "year": "Год"
     },
     "benefits": {
       "unlimitedEnergy": "Безлимитная энергия",

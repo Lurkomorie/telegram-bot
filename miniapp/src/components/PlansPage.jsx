@@ -50,6 +50,15 @@ export default function PlansPage() {
       originalStars: 2500,
       discount: 78,
       popular: true  // "Most Popular" badge
+    },
+    { 
+      id: 'subscription_yearly', 
+      period: 'year',
+      periodKey: 'subscription.period.year',
+      stars: 2495, 
+      originalStars: 30000,
+      discount: 92,
+      popular: false
     }
   ];
 
