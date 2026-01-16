@@ -1,18 +1,19 @@
 import WebApp from '@twa-dev/sdk';
-import { useEffect } from 'react';
-import { trackEvent } from '../api';
-import christmasBg from '../assets/christmas-bg.webp';
+import { useEffect, useState } from 'react';
+import { createInvoice, trackEvent } from '../api';
 import starIcon from '../assets/star.webp';
 import { useTranslation } from '../i18n/TranslationContext';
 import './PremiumPage.css';
 
 /**
  * PremiumPage Component
- * Shows premium tier subscriptions
+ * Unified subscription system - 4 periods with same benefits
  */
-export default function PremiumPage({ onNavigateToCheckout }) {
+export default function PremiumPage() {
   const { t } = useTranslation();
-  
+  const [selectedProduct, setSelectedProduct] = useState('subscription_monthly');
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Track page view
   useEffect(() => {
     const initData = WebApp.initData;
@@ -21,130 +22,150 @@ export default function PremiumPage({ onNavigateToCheckout }) {
     });
   }, []);
 
-  // New Year Sale - 20% off all prices!
-  const DISCOUNT_PERCENT = 20;
-  const calcDiscount = (price) => Math.round(price * (1 - DISCOUNT_PERCENT / 100));
-
-  // Premium tiers with translation keys (original + discounted)
-  const tiers = [
-    {
-      id: 'plus_month',
-      name: 'Plus',
-      icon: '❄️',
-      daily: 50,
-      bonus: 500,
-      originalStars: 450,
-      stars: calcDiscount(450),
-      featureKeys: [
-        'premium.plus.feature1',
-        'premium.plus.feature2',
-        'premium.plus.feature3',
-        'premium.plus.feature8',
-        'premium.plus.feature9',
-        'premium.plus.feature4',
-        'premium.plus.feature5',
-        'premium.plus.feature6',
-        'premium.plus.feature7',
-        
-      ]
+  // Unified subscription plans - all give same benefits
+  const subscriptionPlans = [
+    { 
+      id: 'subscription_daily', 
+      period: 'day',
+      periodKey: 'subscription.period.day',
+      stars: 75, 
+      originalStars: null,
+      discount: null,
+      popular: false 
     },
-    {
-      id: 'pro_month',
-      name: 'Pro',
-      icon: '🔥',
-      daily: 100,
-      bonus: 750,
-      originalStars: 700,
-      stars: calcDiscount(700),
-      featureKeys: [
-        'premium.pro.feature1',
-        'premium.pro.feature2',
-        'premium.pro.feature3'
-      ]
+    { 
+      id: 'subscription_weekly', 
+      period: 'week',
+      periodKey: 'subscription.period.week',
+      stars: 295, 
+      originalStars: 500,
+      discount: 41,
+      popular: false 
     },
-    {
-      id: 'legendary_month',
-      name: 'Legendary',
-      icon: '🏆',
-      daily: 150,
-      bonus: 1000,
-      originalStars: 900,
-      stars: calcDiscount(900),
-      featureKeys: [
-        'premium.legendary.feature1',
-        'premium.legendary.feature2',
-        'premium.legendary.feature3',
-      ]
+    { 
+      id: 'subscription_monthly', 
+      period: 'month',
+      periodKey: 'subscription.period.month',
+      stars: 495, 
+      originalStars: 2500,
+      discount: 78,
+      popular: true
+    },
+    { 
+      id: 'subscription_yearly', 
+      period: 'year',
+      periodKey: 'subscription.period.year',
+      stars: 2495, 
+      originalStars: 30000,
+      discount: 92,
+      popular: false
     }
   ];
 
-  const handleTierClick = (tier) => {
-    onNavigateToCheckout(tier);
+  // Benefits list - same for all subscription periods
+  const benefits = [
+    { icon: '♾️⚡️', key: 'subscription.benefits.unlimitedEnergy' },
+    { icon: '🔞', key: 'subscription.benefits.noBlur' },
+    { icon: '🎭', key: 'subscription.benefits.enhancedAI' },
+    { icon: '🧠', key: 'subscription.benefits.enhancedMemory' },
+    { icon: '♻️', key: 'subscription.benefits.fasterGeneration' },
+    { icon: '➕', key: 'subscription.benefits.characterBonus' },
+    { icon: '💬', key: 'subscription.benefits.extendedDescription' }
+  ];
+
+  const handlePurchase = async () => {
+    if (isProcessing) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const initData = WebApp.initData;
+      const result = await createInvoice(selectedProduct, initData);
+      
+      if (result.simulated) {
+        WebApp.showAlert('✅ Payment successful! Thank you for your purchase!');
+        window.location.reload();
+        return;
+      }
+      
+      const { invoice_link } = result;
+      
+      WebApp.openInvoice(invoice_link, (status) => {
+        if (status === 'paid') {
+          WebApp.showAlert('✅ Payment successful! Thank you for your purchase!');
+          window.location.reload();
+        } else if (status === 'cancelled') {
+          WebApp.showAlert('Payment cancelled');
+        } else if (status === 'failed') {
+          WebApp.showAlert('Payment failed. Please try again.');
+        }
+        setIsProcessing(false);
+      });
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+      WebApp.showAlert('Failed to create invoice. Please try again.');
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div className="premium-page">
-      {/* New Year Sale Banner */}
-      <div className="sale-banner" style={{ backgroundImage: `url(${christmasBg})` }}>
-        <div className="sale-banner-overlay"></div>
-        <div className="sale-banner-snow">
-          {[...Array(12)].map((_, i) => (
-            <span key={i} className="snowflake">❄</span>
+      {/* Subscription Plans */}
+      <div className="subscription-section">
+        <div className="subscription-cards">
+          {subscriptionPlans.map((plan) => (
+            <div
+              key={plan.id}
+              className={`subscription-card ${selectedProduct === plan.id ? 'selected' : ''}`}
+              onClick={() => setSelectedProduct(plan.id)}
+            >
+              {plan.popular && <div className="badge popular">Most Popular</div>}
+              {plan.discount && <div className="discount-tag">-{plan.discount}%</div>}
+              
+              <div className="plan-period">{t(plan.periodKey)}</div>
+              
+              <div className="plan-price-container">
+                {plan.originalStars && (
+                  <span className="original-price">
+                    <img src={starIcon} alt="star" className="star-icon-inline" />
+                    {plan.originalStars.toLocaleString()}
+                  </span>
+                )}
+                <span className="current-price">
+                  <img src={starIcon} alt="star" className="star-icon-inline" />
+                  {plan.stars.toLocaleString()}
+                </span>
+              </div>
+              
+              {selectedProduct === plan.id && (
+                <svg className="checkmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+            </div>
           ))}
-        </div>
-        <div className="sale-banner-content">
-          <span className="sale-banner-emoji">🎄</span>
-          <div className="sale-banner-text-group">
-            <span className="sale-banner-title">NEW YEAR SALE</span>
-            <span className="sale-banner-discount">{DISCOUNT_PERCENT}% OFF PREMIUM</span>
-          </div>
-          <span className="sale-banner-emoji">🎁</span>
         </div>
       </div>
 
-      {tiers.map((tier) => (
-        <div key={tier.id} className="premium-card">
-          <div className="sale-tag-corner">-{DISCOUNT_PERCENT}%</div>
-          <div className="premium-card-header">
-            <div className="premium-card-title">
-              <span className="tier-icon-large">{tier.icon}</span>
-              <span className="tier-name-large">{tier.name}</span>
-            </div>
-            <div className="premium-card-price">
-              <div className="price-original">
-                <img src={starIcon} alt="star" className="star-icon-small" />
-                <span className="original-stars">{tier.originalStars}</span>
-              </div>
-              <div className="price-amount discounted">
-                <img src={starIcon} alt="star" className="star-icon" />
-                {tier.stars}
-              </div>
-              <div className="price-period">{t('premium.perMonth')}</div>
-            </div>
-          </div>
-
-          <div className="premium-card-body">
-            <h3 className="benefits-title">{t('premium.benefits')}</h3>
-            <div className="benefits-list">
-              {tier.featureKeys.map((featureKey, index) => (
-                <div key={index} className="benefit-item">
-                  <svg className="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  <span className="benefit-text">{t(featureKey)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button 
-            className="premium-card-button" 
-            onClick={() => handleTierClick(tier)}
-          >
-            {t('premium.getButton', { name: tier.name })}
-          </button>
+      {/* Benefits Section */}
+      <div className="benefits-section">
+        <div className="benefits-header">
+          💸 {t('subscription.benefitsTitle')} 👇🏻
         </div>
-      ))}
+        <div className="benefits-list">
+          {benefits.map((benefit, index) => (
+            <div key={index} className="benefit-item">
+              <span className="benefit-icon">{benefit.icon}</span>
+              <span className="benefit-text">{t(benefit.key)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Purchase Button */}
+      <button className="purchase-button-sticky" onClick={handlePurchase} disabled={isProcessing}>
+        {isProcessing ? t('subscription.processing') : t('subscription.purchaseButton')}
+      </button>
     </div>
   );
 }

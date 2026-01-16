@@ -671,7 +671,7 @@ function App() {
         ) : currentPage === 'plans' ? (
           <PlansPage />
         ) : currentPage === 'premium' ? (
-          <PremiumPage onNavigateToCheckout={handleNavigateToCheckout} />
+          <PremiumPage />
         ) : currentPage === 'checkout' ? (
           <CheckoutPage tier={selectedTier} onBack={handleBackToPrevious} />
         ) : currentPage === 'tokens' ? (

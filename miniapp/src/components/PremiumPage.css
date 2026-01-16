@@ -1,333 +1,209 @@
 .premium-page {
   min-height: 100vh;
+  padding-bottom: 100px;
+  padding-top: 0;
+}
+
+/* ===== Unified Subscription System ===== */
+
+.subscription-section {
   padding: 20px;
-  padding-bottom: 40px;
 }
 
-/* ===== New Year Sale Styles ===== */
-
-.sale-banner {
-  position: relative;
-  margin: 0 -20px 20px -20px;
-  padding: 20px;
-  border-radius: 0;
+.subscription-cards {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background-size: cover;
-  background-position: center;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.sale-banner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1;
-}
-
-.sale-banner-snow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.sale-banner-snow .snowflake {
-  position: absolute;
-  top: -20px;
-  color: white;
-  opacity: 0;
-  font-size: 14px;
-  animation: banner-snow linear infinite;
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
-}
-
-@keyframes banner-snow {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px) translateX(0);
-  }
-  10% {
-    opacity: 0.9;
-  }
-  90% {
-    opacity: 0.7;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(80px) translateX(10px);
-  }
-}
-
-.sale-banner-snow .snowflake:nth-child(1) { left: 5%; animation-duration: 3s; animation-delay: 0s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(2) { left: 15%; animation-duration: 4s; animation-delay: 0.5s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(4) { left: 35%; animation-duration: 4.5s; animation-delay: 0.3s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(5) { left: 45%; animation-duration: 3.2s; animation-delay: 0.8s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(6) { left: 55%; animation-duration: 4.2s; animation-delay: 0.2s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(7) { left: 65%; animation-duration: 3.8s; animation-delay: 1.2s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(8) { left: 75%; animation-duration: 4.8s; animation-delay: 0.6s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(9) { left: 85%; animation-duration: 3.3s; animation-delay: 1.5s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(10) { left: 95%; animation-duration: 4.3s; animation-delay: 0.4s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(11) { left: 10%; animation-duration: 5s; animation-delay: 2s; font-size: 8px; }
-.sale-banner-snow .snowflake:nth-child(12) { left: 90%; animation-duration: 5.5s; animation-delay: 2.5s; font-size: 12px; }
-
-.sale-banner-content {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   gap: 12px;
 }
 
-.sale-banner-emoji {
-  font-size: 24px;
-  animation: emoji-bounce 2s ease-in-out infinite;
+.subscription-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.sale-banner-emoji:last-child {
-  animation-delay: 0.3s;
+.subscription-card:active {
+  transform: scale(0.98);
 }
 
-@keyframes emoji-bounce {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-3px) scale(1.1);
-  }
+.subscription-card.selected {
+  background: var(--gradient-subtle);
+  border-color: var(--color-red);
+  box-shadow: 0 0 0 2px var(--color-red);
 }
 
-.sale-banner-text-group {
+.subscription-card .badge.popular {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #000;
+  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+
+.subscription-card .discount-tag {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);
+}
+
+.subscription-card .plan-period {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subscription-card .plan-price-container {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.subscription-card .original-price {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  opacity: 0.6;
+  display: flex;
   align-items: center;
   gap: 2px;
 }
 
-.sale-banner-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  text-shadow: 
-    0 0 10px rgba(255, 100, 100, 0.8),
-    0 0 20px rgba(255, 100, 100, 0.5),
-    0 0 30px rgba(255, 100, 100, 0.3);
-  animation: text-glow 2s ease-in-out infinite;
+.subscription-card .original-price .star-icon-inline {
+  width: 10px;
+  height: 10px;
+  opacity: 0.6;
 }
 
-.sale-banner-discount {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 0.5px;
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes text-glow {
-  0%, 100% {
-    text-shadow: 
-      0 0 10px rgba(255, 100, 100, 0.8),
-      0 0 20px rgba(255, 100, 100, 0.5),
-      0 0 30px rgba(255, 100, 100, 0.3);
-  }
-  50% {
-    text-shadow: 
-      0 0 15px rgba(255, 120, 120, 1),
-      0 0 30px rgba(255, 100, 100, 0.7),
-      0 0 45px rgba(255, 100, 100, 0.5);
-  }
-}
-
-.sale-tag-corner {
-  position: absolute;
-  top: -8px;
-  right: 16px;
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 8px;
-  z-index: 10;
-  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.4);
-  animation: pop-in 0.3s ease-out;
-}
-
-@keyframes pop-in {
-  0% {
-    transform: scale(0);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.premium-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 24px;
-  margin-bottom: 20px;
-  transition: all 0.2s ease;
-  position: relative;
-  overflow: visible;
-}
-
-.premium-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.premium-card-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.tier-icon-large {
-  font-size: 32px;
-  line-height: 1;
-}
-
-.tier-name-large {
-  font-size: 24px;
+.subscription-card .current-price {
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-}
-
-.premium-card-price {
-  text-align: right;
-}
-
-.price-original {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 4px;
-  margin-bottom: 2px;
 }
 
-.original-stars {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-decoration: line-through;
-  opacity: 0.6;
+.subscription-card .current-price .star-icon-inline {
+  width: 16px;
+  height: 16px;
 }
 
-.star-icon-small {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  opacity: 0.6;
+.subscription-card .checkmark {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  color: var(--color-red);
+  display: none;
 }
 
-.price-amount {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
+.subscription-card.selected .checkmark {
+  display: block;
 }
 
-.price-amount.discounted {
-  color: #4ade80;
+.subscription-card.selected .plan-price-container {
+  margin-right: 30px;
 }
 
-.price-amount.discounted .star-icon {
-  filter: hue-rotate(90deg) saturate(1.5);
+/* Benefits Section */
+.benefits-section {
+  margin: 24px 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.star-icon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-}
-
-.price-period {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 4px;
-}
-
-.premium-card-body {
-  margin-bottom: 20px;
-}
-
-.benefits-title {
+.benefits-header {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 12px 0;
+  margin-bottom: 16px;
+  text-align: center;
 }
 
 .benefits-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .benefit-item {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
 }
 
-.check-icon {
-  width: 18px;
-  height: 18px;
-  color: #4ade80;
+.benefit-icon {
+  font-size: 18px;
+  width: 32px;
+  text-align: center;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .benefit-text {
   font-size: 14px;
   color: var(--text-primary);
-  line-height: 1.4;
+  font-weight: 400;
 }
 
-.premium-card-button {
+.star-icon-inline {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Purchase Button */
+.purchase-button-sticky {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   width: 100%;
-  padding: 14px;
+  padding: 16px 20px;
   background: var(--gradient-primary);
   color: var(--text-primary);
   border: none;
-  border-radius: 12px;
+  border-radius: 0;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 100;
 }
 
-.premium-card-button:active {
+.purchase-button-sticky:active {
   transform: scale(0.98);
 }
 
-.premium-card-button:disabled {
+.purchase-button-sticky:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
