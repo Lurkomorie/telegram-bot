@@ -64,7 +64,7 @@ export default function PremiumPage() {
 
   // Benefits list - same for all subscription periods
   const benefits = [
-    { icon: '♾️⚡️', key: 'subscription.benefits.unlimitedEnergy' },
+    { icon: '⚡️', key: 'subscription.benefits.unlimitedEnergy' },
     { icon: '🔞', key: 'subscription.benefits.noBlur' },
     { icon: '🎭', key: 'subscription.benefits.enhancedAI' },
     { icon: '🧠', key: 'subscription.benefits.enhancedMemory' },
