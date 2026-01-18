@@ -15,6 +15,8 @@ import UserMessageStats from './components/UserMessageStats';
 import SystemMessages from './components/SystemMessages';
 import SystemMessageTemplates from './components/SystemMessageTemplates';
 import Conversions from './components/Conversions';
+import Payments from './components/Payments';
+import PremiumUsers from './components/PremiumUsers';
 
 function App() {
   return (
@@ -40,6 +42,8 @@ function App() {
                   <Route path="/images" element={<Images />} />
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
                   <Route path="/conversions" element={<Conversions />} />
+                  <Route path="/payments" element={<Payments />} />
+                  <Route path="/premium-users" element={<PremiumUsers />} />
                   <Route path="/user-message-stats" element={<UserMessageStats />} />
                   <Route path="/translations" element={<Translations />} />
                   <Route path="/system-messages" element={<SystemMessages />} />

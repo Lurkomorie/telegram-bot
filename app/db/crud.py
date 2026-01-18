@@ -2967,6 +2967,63 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
     # Average purchase value
     avg_purchase_value = round(total_stars / total_purchases, 2) if total_purchases > 0 else 0
     
+    # Revenue over time (daily)
+    revenue_over_time = []
+    if start_date or end_date:
+        revenue_time_query = db.query(
+            func.date(PaymentTransaction.created_at).label('date'),
+            func.count(PaymentTransaction.id).label('purchases'),
+            func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars')
+        ).join(User, PaymentTransaction.user_id == User.id).filter(
+            PaymentTransaction.status == 'completed'
+        )
+        if acquisition_source:
+            revenue_time_query = revenue_time_query.filter(User.acquisition_source == acquisition_source)
+        if start_date or end_date:
+            revenue_time_query = apply_date_filter(revenue_time_query, PaymentTransaction.created_at, start_date, end_date)
+        
+        revenue_time_results = revenue_time_query.group_by(func.date(PaymentTransaction.created_at)).order_by(func.date(PaymentTransaction.created_at)).all()
+        
+        STARS_TO_USD = 0.013
+        revenue_over_time = [
+            {
+                'date': row.date.isoformat(),
+                'purchases': row.purchases,
+                'revenue_stars': int(row.stars),
+                'revenue_usd': round(int(row.stars) * STARS_TO_USD, 2)
+            }
+            for row in revenue_time_results
+        ]
+    
+    # Revenue by plan
+    by_plan_query = db.query(
+        PaymentTransaction.product_id,
+        func.count(PaymentTransaction.id).label('count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed'
+    )
+    if acquisition_source:
+        by_plan_query = by_plan_query.filter(User.acquisition_source == acquisition_source)
+    if start_date or end_date:
+        by_plan_query = apply_date_filter(by_plan_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    by_plan_results = by_plan_query.group_by(PaymentTransaction.product_id).all()
+    
+    STARS_TO_USD = 0.013
+    by_plan = [
+        {
+            'plan_name': row.product_id or 'Unknown',
+            'count': row.count,
+            'revenue_stars': int(row.stars),
+            'revenue_usd': round(int(row.stars) * STARS_TO_USD, 2)
+        }
+        for row in by_plan_results
+    ]
+    
+    # Calculate total revenue in USD
+    total_revenue_usd = round(total_stars * STARS_TO_USD, 2)
+    
     return {
         # User stats
         'total_premium_users': total_premium_users,
@@ -2977,6 +3034,9 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
         # Revenue stats
         'total_purchases': total_purchases,
         'total_stars': total_stars,
+        'total_revenue_stars': total_stars,
+        'total_revenue_usd': total_revenue_usd,
+        'paying_users': unique_paying_users,
         'avg_purchase_value': avg_purchase_value,
         # Token packages
         'token_packages_count': token_packages_count,
@@ -2986,7 +3046,89 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
         'tier_subscriptions_count': tier_subscriptions_count,
         'tier_subscriptions_stars': tier_subscriptions_stars,
         # Breakdown
-        'packages_breakdown': packages_breakdown
+        'packages_breakdown': packages_breakdown,
+        # Time series
+        'revenue_over_time': revenue_over_time,
+        'by_plan': by_plan
+    }
+
+
+def get_premium_users_with_spending(db: Session) -> dict:
+    """
+    Get all premium users with their spending statistics
+    
+    Returns:
+        Dictionary with users list and aggregate stats
+    """
+    from sqlalchemy import func
+    from app.db.models import PaymentTransaction
+    
+    # Get all users who ever had premium
+    premium_users_query = db.query(User).filter(User.is_premium == True)
+    
+    # Get spending stats per user
+    spending_stats = db.query(
+        PaymentTransaction.user_id,
+        func.count(PaymentTransaction.id).label('purchase_count'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('total_spent_stars'),
+        func.max(PaymentTransaction.created_at).label('last_purchase_date')
+    ).filter(
+        PaymentTransaction.status == 'completed'
+    ).group_by(PaymentTransaction.user_id).all()
+    
+    # Create a dict for quick lookup
+    spending_dict = {
+        stat.user_id: {
+            'purchase_count': stat.purchase_count,
+            'total_spent_stars': int(stat.total_spent_stars),
+            'last_purchase_date': stat.last_purchase_date
+        }
+        for stat in spending_stats
+    }
+    
+    # Build user list with spending info
+    users = []
+    for user in premium_users_query.all():
+        spending = spending_dict.get(user.id, {
+            'purchase_count': 0,
+            'total_spent_stars': 0,
+            'last_purchase_date': None
+        })
+        
+        users.append({
+            'id': user.id,
+            'username': user.username,
+            'first_name': user.first_name,
+            'acquisition_source': user.acquisition_source,
+            'is_premium': user.is_premium,
+            'premium_until': user.premium_until.isoformat() if user.premium_until else None,
+            'purchase_count': spending['purchase_count'],
+            'total_spent_stars': spending['total_spent_stars'],
+            'last_purchase_date': spending['last_purchase_date'].isoformat() if spending['last_purchase_date'] else None
+        })
+    
+    # Calculate aggregate stats
+    total_premium_users = len(users)
+    active_premium_users = sum(1 for u in users if not u['premium_until'] or datetime.fromisoformat(u['premium_until']) > datetime.utcnow())
+    total_revenue_stars = sum(u['total_spent_stars'] for u in users)
+    total_purchases = sum(u['purchase_count'] for u in users)
+    
+    STARS_TO_USD = 0.013
+    total_revenue_usd = round(total_revenue_stars * STARS_TO_USD, 2)
+    avg_spent_per_user = round(total_revenue_usd / total_premium_users, 2) if total_premium_users > 0 else 0
+    avg_purchases_per_user = round(total_purchases / total_premium_users, 2) if total_premium_users > 0 else 0
+    
+    return {
+        'users': users,
+        'stats': {
+            'total_premium_users': total_premium_users,
+            'active_premium_users': active_premium_users,
+            'total_revenue_stars': total_revenue_stars,
+            'total_revenue_usd': total_revenue_usd,
+            'total_purchases': total_purchases,
+            'avg_spent_per_user': avg_spent_per_user,
+            'avg_purchases_per_user': avg_purchases_per_user
+        }
     }
 
 

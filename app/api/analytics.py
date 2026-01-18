@@ -1105,6 +1105,23 @@ async def get_premium_purchases(
         raise HTTPException(status_code=500, detail=f"Error fetching premium purchases: {str(e)}")
 
 
+@router.get("/premium-users")
+async def get_premium_users() -> Dict[str, Any]:
+    """
+    Get all premium users with their spending statistics
+    
+    Returns:
+        Dictionary with users list and aggregate stats
+    """
+    try:
+        with get_db() as db:
+            data = crud.get_premium_users_with_spending(db)
+            return data
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching premium users: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching premium users: {str(e)}")
+
+
 @router.get("/conversions")
 async def get_conversions_stats(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
@@ -1124,8 +1141,8 @@ async def get_conversions_stats(
     from sqlalchemy import func, distinct, case
     
     # Cost constants
-    COST_PER_MESSAGE = 0.00703
-    COST_PER_IMAGE = 0.00465
+    COST_PER_MESSAGE = 0.0013
+    COST_PER_IMAGE = 0.003
     STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
     
     try:

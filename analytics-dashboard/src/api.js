@@ -252,6 +252,12 @@ export const api = {
     return response.json();
   },
 
+  async getPremiumUsers() {
+    const response = await fetch(`${API_BASE}/api/analytics/premium-users`);
+    if (!response.ok) throw new Error('Failed to fetch premium users');
+    return response.json();
+  },
+
   // ========== PERSONA MANAGEMENT ==========
 
   async getPersonas() {

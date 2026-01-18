@@ -8,6 +8,8 @@ export default function Sidebar() {
     { path: '/statistics', label: 'Statistics', icon: '📊' },
     { path: '/premium-statistics', label: 'Premium Stats', icon: '👑' },
     { path: '/conversions', label: 'Conversions', icon: '💰' },
+    { path: '/payments', label: 'Оплаты', icon: '💳' },
+    { path: '/premium-users', label: 'Премиум юзеры', icon: '💎' },
     { path: '/user-message-stats', label: 'User Messages', icon: '📈' },
     { path: '/users', label: 'Users', icon: '👥' },
     { path: '/acquisition-sources', label: 'Acquisition Sources', icon: '🎯' },
