@@ -1580,17 +1580,15 @@ async def create_character(
             # Check if this is the first character creation (free!)
             is_first_character = not user.char_created
             
-            # Check premium status - premium users get FREE character creation
+            # Check premium status for description length limit
             premium_info = crud.check_user_premium(db, user_id)
             is_premium = premium_info["is_premium"]
             
-            # Premium users: FREE, Free users: 50 tokens (first is free)
-            if is_premium:
-                token_cost = 0  # Premium = unlimited energy = free character creation
-            elif is_first_character:
+            # ALL users pay 50 tokens for character creation (first is free for everyone)
+            if is_first_character:
                 token_cost = 0  # First character is free for everyone
             else:
-                token_cost = 50  # Free users pay 50 tokens
+                token_cost = 50  # Everyone pays 50 tokens (including premium)
             
             max_description_length = 4000 if is_premium else 500
             

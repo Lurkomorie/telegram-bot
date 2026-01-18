@@ -845,9 +845,22 @@ async def _background_image_generation(
             # Get user's global message count for priority determination
             user = db.query(User).filter(User.id == user_id).first()
             global_message_count = user.global_message_count if user else 999
-        
-        # Energy is no longer consumed for image generation - only for character creation
-        log_always(f"[IMAGE-BG] 🖼️ Generating image for user {user_id} ({'premium' if is_premium else 'free'}) - no energy cost")
+            
+            # Free users pay 3 energy for images, premium users don't
+            if not is_premium:
+                if not crud.check_user_energy(db, user_id, required=3):
+                    log_always(f"[IMAGE-BG] ⚠️ User {user_id} has insufficient energy for image")
+                    await action_mgr.stop()
+                    return
+                
+                # Deduct energy for free users
+                if not crud.deduct_user_energy(db, user_id, amount=3):
+                    log_always(f"[IMAGE-BG] ⚠️ Failed to deduct energy for user {user_id}")
+                    await action_mgr.stop()
+                    return
+                log_always(f"[IMAGE-BG] 🖼️ Generating image for free user {user_id} (3 energy deducted)")
+            else:
+                log_always(f"[IMAGE-BG] 🖼️ Generating image for premium user {user_id} (no energy cost)")
         
         log_always(f"[IMAGE-BG] 🎨 Starting image generation for chat {chat_id}")
         log_verbose(f"[IMAGE-BG]    Chat ID: {chat_id}")

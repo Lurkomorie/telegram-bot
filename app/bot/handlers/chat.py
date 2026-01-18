@@ -120,17 +120,27 @@ async def handle_text_message(message: types.Message, state: FSMContext):
             language_code=message.from_user.language_code
         )
         
-        # Check if user is premium (all users pay 1 energy per message)
+        # Check if user is premium
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
-        # Check energy (1 energy per message for all users)
-        if not crud.check_user_energy(db, user_id, required=1):
-            # Show energy upsell message
-            from app.bot.handlers.image import show_energy_upsell_message
-            await show_energy_upsell_message(message, user_id)
-            log_verbose(f"[CHAT] ⚠️  User {user_id} has insufficient energy")
-            return
-        log_verbose(f"[CHAT] ⚡ User has sufficient energy")
+        # Free users pay 1 energy per message, premium users don't
+        if not is_premium:
+            if not crud.check_user_energy(db, user_id, required=1):
+                # Show energy upsell message
+                from app.bot.handlers.image import show_energy_upsell_message
+                await show_energy_upsell_message(message, user_id)
+                log_verbose(f"[CHAT] ⚠️  User {user_id} has insufficient energy")
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=1):
+                from app.bot.handlers.image import show_energy_upsell_message
+                await show_energy_upsell_message(message, user_id)
+                log_verbose(f"[CHAT] ⚠️  Failed to deduct energy")
+                return
+            log_verbose(f"[CHAT] ⚡ Deducted 1 energy from free user")
+        else:
+            log_verbose(f"[CHAT] ⚡ Premium user - no energy cost")
         
         # Delete any existing energy upsell message (user is chatting, not low on energy)
         upsell_msg_id, upsell_chat_id = crud.get_and_clear_energy_upsell_message(db, user_id)
@@ -357,19 +367,37 @@ async def handle_create_voice(callback: types.CallbackQuery):
     with get_db() as db:
         user = db.query(User).filter(User.id == user_id).first()
         user_language = user.locale if user else 'en'
+        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
-        # Check if user has used their free voice (1 free per lifetime)
+        # Voice costs energy for ALL users (including premium)
+        # First voice is free for everyone
         if user.settings is None:
             user.settings = {}
         is_free = not user.settings.get("voice_free_used", False)
         
-        # Voice is now free for all users - energy only consumed for character creation
-        # Mark first voice as used for tracking purposes
         if is_free:
+            # First voice is free - just mark as used
             user.settings["voice_free_used"] = True
             flag_modified(user, "settings")
             db.commit()
             log_verbose(f"[VOICE] 🎁 User {user_id} used their free voice")
+        else:
+            # All subsequent voices cost 5 energy (for everyone, including premium)
+            if not crud.check_user_energy(db, user_id, required=5):
+                log_always(f"[VOICE] ⚠️ User {user_id} has insufficient energy")
+                await callback.message.answer(
+                    get_ui_text("voice.insufficient_energy", language=user_language)
+                )
+                return
+            
+            # Deduct energy
+            if not crud.deduct_user_energy(db, user_id, amount=5):
+                log_always(f"[VOICE] ⚠️ Failed to deduct energy")
+                await callback.message.answer(
+                    get_ui_text("voice.failed", language=user_language)
+                )
+                return
+            log_always(f"[VOICE] 🎤 Voice generated for user {user_id} (5 energy deducted, premium={is_premium})")
         
         # Get the message from database
         message = crud.get_message_by_id(db, message_id)
@@ -527,23 +555,33 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
         user_language = crud.get_user_language(db, user_id)
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
-        # Check if user has enough energy (5 required)
-        if not crud.check_user_energy(db, user_id, required=5):
-            log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
-            # Replace keyboard with only premium button
-            miniapp_url = f"{settings.public_url}/miniapp?page=premium"
-            premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=get_ui_text("blurred_image.premium_button", language=user_language),
-                    web_app=WebAppInfo(url=miniapp_url)
-                )]
-            ])
-            try:
-                await callback.message.edit_reply_markup(reply_markup=premium_keyboard)
-            except Exception:
-                pass
-            await callback.answer()
-            return
+        # Free users pay 5 energy to unlock, premium users don't pay
+        if not is_premium:
+            if not crud.check_user_energy(db, user_id, required=5):
+                log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
+                # Replace keyboard with only premium button
+                miniapp_url = f"{settings.public_url}/miniapp?page=premium"
+                premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(
+                        text=get_ui_text("blurred_image.premium_button", language=user_language),
+                        web_app=WebAppInfo(url=miniapp_url)
+                    )]
+                ])
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=premium_keyboard)
+                except Exception:
+                    pass
+                await callback.answer()
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=5):
+                log_always(f"[UNLOCK-IMAGE] Failed to deduct energy")
+                await callback.answer("❌ Failed to deduct energy", show_alert=True)
+                return
+            log_always(f"[UNLOCK-IMAGE] User {user_id} unlocked image (5 energy deducted)")
+        else:
+            log_always(f"[UNLOCK-IMAGE] Premium user {user_id} unlocked image (no energy cost)")
         
         # Get the image job to retrieve the stored image data
         job = crud.get_image_job(db, job_id)

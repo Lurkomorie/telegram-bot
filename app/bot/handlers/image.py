@@ -69,8 +69,20 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
     
-    # Energy is no longer consumed for image generation - only for character creation
-    # All users can generate images freely
+    # Free users pay 3 energy for images, premium users don't
+    if not is_premium:
+        with get_db() as db:
+            if not crud.check_user_energy(db, user_id, required=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+        print(f"[IMAGE] 🖼️ Generating image for free user {user_id} (3 energy deducted)")
+    else:
+        print(f"[IMAGE] 🖼️ Generating image for premium user {user_id} (no energy cost)")
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -94,8 +106,21 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
             return
     
     with get_db() as db:
-        # Energy is no longer consumed for image generation
-        print(f"[IMAGE] 🖼️ Generating image for user {user_id} ({'premium' if is_premium else 'free'}) - no energy cost")
+        is_premium_check = crud.check_user_premium(db, user_id)["is_premium"]
+        
+        # Free users pay 3 energy for images, premium users don't
+        if not is_premium_check:
+            if not crud.check_user_energy(db, user_id, required=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+            print(f"[IMAGE] 🖼️ Generating image for free user {user_id} (3 energy deducted)")
+        else:
+            print(f"[IMAGE] 🖼️ Generating image for premium user {user_id} (no energy cost)")
         
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()
@@ -419,9 +444,20 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     # Check if user is premium
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
-    
-    # Energy is no longer consumed for image refresh - only for character creation
-    # Premium check kept for potential future use
+        
+        # Free users pay 3 energy for refresh, premium users don't
+        if not is_premium:
+            if not crud.check_user_energy(db, user_id, required=3):
+                await callback.answer("❌ Insufficient energy", show_alert=True)
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await callback.answer("❌ Failed to deduct energy", show_alert=True)
+                return
+            print(f"[REFRESH-IMAGE] 🔄 Refreshing image for free user {user_id} (3 energy deducted)")
+        else:
+            print(f"[REFRESH-IMAGE] 🔄 Refreshing image for premium user {user_id} (no energy cost)")
     
     # Get original job details
     with get_db() as db:
@@ -441,8 +477,7 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             persona_name=persona.name if persona else None
         )
         
-        # Energy is no longer consumed for image refresh
-        print(f"[REFRESH-IMAGE] 🔄 Refreshing image for user {user_id} ({'premium' if is_premium else 'free'}) - no energy cost")
+        # Free users pay 3 energy for refresh, premium users don't (already deducted above)
     
     # Answer the callback first
     await callback.answer("🔄 Refreshing image...")
@@ -638,8 +673,20 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
     # Check if user is premium
     with get_db() as db:
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
-    
-    # Energy is no longer consumed for image generation - only for character creation
+        
+        # Free users pay 3 energy for images, premium users don't
+        if not is_premium:
+            if not crud.check_user_energy(db, user_id, required=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+            
+            # Deduct energy for free users
+            if not crud.deduct_user_energy(db, user_id, amount=3):
+                await message.answer(ERROR_MESSAGES["insufficient_energy"])
+                return
+            print(f"[IMAGE] 🖼️ Generating image for free user {user_id} (3 energy deducted)")
+        else:
+            print(f"[IMAGE] 🖼️ Generating image for premium user {user_id} (no energy cost)")
     
     # Rate limit check
     allowed, _ = await check_rate_limit(
@@ -669,8 +716,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         return
     
     with get_db() as db:
-        # Energy is no longer consumed for image generation
-        print(f"[IMAGE] 🖼️ Generating image for user {user_id} ({'premium' if is_premium else 'free'}) - no energy cost")
+        # Energy already deducted above for free users
         
         # Get user's global message count for priority determination
         user = db.query(User).filter(User.id == user_id).first()

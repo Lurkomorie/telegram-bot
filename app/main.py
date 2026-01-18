@@ -601,10 +601,12 @@ async def image_callback(request: Request):
                 pending_caption = escape_markdown_v2(pending_caption)
             
             # Check if image should be blurred for non-premium low-token users
+            # Premium users NEVER get blurred images
             should_blur = False
             with get_db() as db:
                 is_premium = crud.check_user_premium(db, job_user_id)["is_premium"]
                 
+                # Premium users never get blur
                 if not is_premium:
                     user_energy = crud.get_user_energy(db, job_user_id)
                     tokens = user_energy.get('tokens', 0)
