@@ -2967,33 +2967,32 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
     # Average purchase value
     avg_purchase_value = round(total_stars / total_purchases, 2) if total_purchases > 0 else 0
     
-    # Revenue over time (daily)
+    # Revenue over time (daily) - always calculate if we have date filters
     revenue_over_time = []
+    revenue_time_query = db.query(
+        func.date(PaymentTransaction.created_at).label('date'),
+        func.count(PaymentTransaction.id).label('purchases'),
+        func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars')
+    ).join(User, PaymentTransaction.user_id == User.id).filter(
+        PaymentTransaction.status == 'completed'
+    )
+    if acquisition_source:
+        revenue_time_query = revenue_time_query.filter(User.acquisition_source == acquisition_source)
     if start_date or end_date:
-        revenue_time_query = db.query(
-            func.date(PaymentTransaction.created_at).label('date'),
-            func.count(PaymentTransaction.id).label('purchases'),
-            func.coalesce(func.sum(PaymentTransaction.amount_stars), 0).label('stars')
-        ).join(User, PaymentTransaction.user_id == User.id).filter(
-            PaymentTransaction.status == 'completed'
-        )
-        if acquisition_source:
-            revenue_time_query = revenue_time_query.filter(User.acquisition_source == acquisition_source)
-        if start_date or end_date:
-            revenue_time_query = apply_date_filter(revenue_time_query, PaymentTransaction.created_at, start_date, end_date)
-        
-        revenue_time_results = revenue_time_query.group_by(func.date(PaymentTransaction.created_at)).order_by(func.date(PaymentTransaction.created_at)).all()
-        
-        STARS_TO_USD = 0.013
-        revenue_over_time = [
-            {
-                'date': row.date.isoformat(),
-                'purchases': row.purchases,
-                'revenue_stars': int(row.stars),
-                'revenue_usd': round(int(row.stars) * STARS_TO_USD, 2)
-            }
-            for row in revenue_time_results
-        ]
+        revenue_time_query = apply_date_filter(revenue_time_query, PaymentTransaction.created_at, start_date, end_date)
+    
+    revenue_time_results = revenue_time_query.group_by(func.date(PaymentTransaction.created_at)).order_by(func.date(PaymentTransaction.created_at)).all()
+    
+    STARS_TO_USD = 0.013
+    revenue_over_time = [
+        {
+            'date': row.date.isoformat(),
+            'purchases': row.purchases,
+            'revenue_stars': int(row.stars),
+            'revenue_usd': round(int(row.stars) * STARS_TO_USD, 2)
+        }
+        for row in revenue_time_results
+    ]
     
     # Revenue by plan
     by_plan_query = db.query(
@@ -3055,18 +3054,23 @@ def get_premium_stats(db: Session, start_date: Optional[str] = None, end_date: O
 
 def get_premium_users_with_spending(db: Session) -> dict:
     """
-    Get all premium users with their spending statistics
+    Get all premium users with their spending statistics and usage costs
     
     Returns:
-        Dictionary with users list and aggregate stats
+        Dictionary with users list and aggregate stats including LLM and image costs
     """
     from sqlalchemy import func
-    from app.db.models import PaymentTransaction
+    from app.db.models import PaymentTransaction, Message, ImageJob
+    
+    # Cost constants
+    COST_PER_MESSAGE = 0.0013
+    COST_PER_IMAGE = 0.003
+    STARS_TO_USD = 0.013
     
     # Get all users who ever had premium
     premium_users_query = db.query(User).filter(User.is_premium == True)
     
-    # Get spending stats per user
+    # Get spending stats per user (revenue from purchases)
     spending_stats = db.query(
         PaymentTransaction.user_id,
         func.count(PaymentTransaction.id).label('purchase_count'),
@@ -3086,7 +3090,26 @@ def get_premium_users_with_spending(db: Session) -> dict:
         for stat in spending_stats
     }
     
-    # Build user list with spending info
+    # Get usage stats per user (messages and images)
+    message_stats = db.query(
+        Message.client_id,
+        func.count(Message.id).label('message_count')
+    ).filter(
+        Message.role == 'assistant'
+    ).group_by(Message.client_id).all()
+    
+    message_dict = {stat.client_id: stat.message_count for stat in message_stats}
+    
+    image_stats = db.query(
+        ImageJob.client_id,
+        func.count(ImageJob.id).label('image_count')
+    ).filter(
+        ImageJob.status == 'completed'
+    ).group_by(ImageJob.client_id).all()
+    
+    image_dict = {stat.client_id: stat.image_count for stat in image_stats}
+    
+    # Build user list with spending and usage info
     users = []
     for user in premium_users_query.all():
         spending = spending_dict.get(user.id, {
@@ -3094,6 +3117,13 @@ def get_premium_users_with_spending(db: Session) -> dict:
             'total_spent_stars': 0,
             'last_purchase_date': None
         })
+        
+        messages = message_dict.get(user.id, 0)
+        images = image_dict.get(user.id, 0)
+        
+        llm_cost = messages * COST_PER_MESSAGE
+        image_cost = images * COST_PER_IMAGE
+        total_cost = llm_cost + image_cost
         
         users.append({
             'id': user.id,
@@ -3104,7 +3134,12 @@ def get_premium_users_with_spending(db: Session) -> dict:
             'premium_until': user.premium_until.isoformat() if user.premium_until else None,
             'purchase_count': spending['purchase_count'],
             'total_spent_stars': spending['total_spent_stars'],
-            'last_purchase_date': spending['last_purchase_date'].isoformat() if spending['last_purchase_date'] else None
+            'last_purchase_date': spending['last_purchase_date'].isoformat() if spending['last_purchase_date'] else None,
+            'messages': messages,
+            'images': images,
+            'llm_cost': round(llm_cost, 2),
+            'image_cost': round(image_cost, 2),
+            'total_cost': round(total_cost, 2)
         })
     
     # Calculate aggregate stats
@@ -3112,11 +3147,16 @@ def get_premium_users_with_spending(db: Session) -> dict:
     active_premium_users = sum(1 for u in users if not u['premium_until'] or datetime.fromisoformat(u['premium_until']) > datetime.utcnow())
     total_revenue_stars = sum(u['total_spent_stars'] for u in users)
     total_purchases = sum(u['purchase_count'] for u in users)
+    total_messages = sum(u['messages'] for u in users)
+    total_images = sum(u['images'] for u in users)
+    total_llm_cost = sum(u['llm_cost'] for u in users)
+    total_image_cost = sum(u['image_cost'] for u in users)
+    total_usage_cost = total_llm_cost + total_image_cost
     
-    STARS_TO_USD = 0.013
     total_revenue_usd = round(total_revenue_stars * STARS_TO_USD, 2)
     avg_spent_per_user = round(total_revenue_usd / total_premium_users, 2) if total_premium_users > 0 else 0
     avg_purchases_per_user = round(total_purchases / total_premium_users, 2) if total_premium_users > 0 else 0
+    avg_cost_per_user = round(total_usage_cost / total_premium_users, 2) if total_premium_users > 0 else 0
     
     return {
         'users': users,
@@ -3127,7 +3167,13 @@ def get_premium_users_with_spending(db: Session) -> dict:
             'total_revenue_usd': total_revenue_usd,
             'total_purchases': total_purchases,
             'avg_spent_per_user': avg_spent_per_user,
-            'avg_purchases_per_user': avg_purchases_per_user
+            'avg_purchases_per_user': avg_purchases_per_user,
+            'total_messages': total_messages,
+            'total_images': total_images,
+            'total_llm_cost': round(total_llm_cost, 2),
+            'total_image_cost': round(total_image_cost, 2),
+            'total_usage_cost': round(total_usage_cost, 2),
+            'avg_cost_per_user': avg_cost_per_user
         }
     }
 

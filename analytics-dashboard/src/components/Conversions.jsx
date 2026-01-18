@@ -354,7 +354,7 @@ export default function Conversions() {
       {/* Unit Economics */}
       <div className="mt-8 bg-white rounded-lg shadow p-6">
         <h3 className="text-xl font-bold text-gray-800 mb-4">Unit Economics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-gray-500 text-sm">Cost per User (Acquired)</p>
             <p className="text-2xl font-bold text-gray-800">
@@ -379,8 +379,46 @@ export default function Conversions() {
               ${totals.paying_users > 0 ? (totals.total_cost / totals.paying_users).toFixed(2) : '0.00'}
             </p>
           </div>
+          <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+            <p className="text-purple-700 text-sm font-medium">Avg Cost per Premium User</p>
+            <p className="text-2xl font-bold text-purple-600">
+              ${totals.premium_avg_cost ? totals.premium_avg_cost.toFixed(2) : '0.00'}
+            </p>
+            <p className="text-xs text-purple-600 mt-1">
+              💬 {totals.premium_avg_messages || 0} msgs · 🖼️ {totals.premium_avg_images || 0} imgs
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Premium Users Cost Breakdown */}
+      {totals.premium_users_count > 0 && (
+        <div className="mt-6 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow p-6 border border-purple-200">
+          <h3 className="text-xl font-bold text-purple-900 mb-4">💎 Premium Users Cost Analysis</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-gray-500 text-sm">Premium Users</p>
+              <p className="text-2xl font-bold text-purple-600">{formatNumber(totals.premium_users_count)}</p>
+              <p className="text-xs text-gray-500 mt-1">In selected period</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-gray-500 text-sm">Total Premium Cost</p>
+              <p className="text-2xl font-bold text-red-600">${formatNumber(totals.premium_total_cost)}</p>
+              <p className="text-xs text-gray-500 mt-1">LLM + Images</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-gray-500 text-sm">Avg Messages per User</p>
+              <p className="text-2xl font-bold text-blue-600">{totals.premium_avg_messages || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">💬 Assistant messages</p>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <p className="text-gray-500 text-sm">Avg Images per User</p>
+              <p className="text-2xl font-bold text-orange-600">{totals.premium_avg_images || 0}</p>
+              <p className="text-xs text-gray-500 mt-1">🖼️ Generated images</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

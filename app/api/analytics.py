@@ -1313,6 +1313,47 @@ async def get_conversions_stats(
             totals['overall_roi'] = round((totals['net_profit'] / totals['total_cost'] * 100) if totals['total_cost'] > 0 else 0, 2)
             totals['overall_conversion'] = round((totals['paying_users'] / totals['total_users'] * 100) if totals['total_users'] > 0 else 0, 2)
             
+            # Calculate average costs per premium user
+            premium_user_ids = db.query(User.id).filter(User.is_premium == True)
+            if start_date:
+                premium_user_ids = premium_user_ids.filter(User.acquisition_timestamp >= datetime.strptime(start_date, '%Y-%m-%d'))
+            if end_date:
+                premium_user_ids = premium_user_ids.filter(User.acquisition_timestamp < datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1))
+            
+            premium_user_ids = [u.id for u in premium_user_ids.all()]
+            premium_user_count = len(premium_user_ids)
+            
+            if premium_user_count > 0:
+                # Get messages from premium users
+                premium_messages = db.query(func.count(Message.id)).join(
+                    Chat, Chat.id == Message.chat_id
+                ).filter(
+                    Chat.user_id.in_(premium_user_ids),
+                    Message.role == 'assistant'
+                ).scalar() or 0
+                
+                # Get images from premium users
+                premium_images = db.query(func.count(ImageJob.id)).filter(
+                    ImageJob.client_id.in_(premium_user_ids),
+                    ImageJob.status == 'completed'
+                ).scalar() or 0
+                
+                premium_llm_cost = premium_messages * COST_PER_MESSAGE
+                premium_image_cost = premium_images * COST_PER_IMAGE
+                premium_total_cost = premium_llm_cost + premium_image_cost
+                
+                totals['premium_users_count'] = premium_user_count
+                totals['premium_avg_messages'] = round(premium_messages / premium_user_count, 1) if premium_user_count > 0 else 0
+                totals['premium_avg_images'] = round(premium_images / premium_user_count, 1) if premium_user_count > 0 else 0
+                totals['premium_avg_cost'] = round(premium_total_cost / premium_user_count, 2) if premium_user_count > 0 else 0
+                totals['premium_total_cost'] = round(premium_total_cost, 2)
+            else:
+                totals['premium_users_count'] = 0
+                totals['premium_avg_messages'] = 0
+                totals['premium_avg_images'] = 0
+                totals['premium_avg_cost'] = 0
+                totals['premium_total_cost'] = 0
+            
             # Sort sources by revenue
             sources.sort(key=lambda x: x['revenue_usd'], reverse=True)
             

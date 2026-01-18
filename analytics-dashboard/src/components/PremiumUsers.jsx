@@ -115,7 +115,7 @@ export default function PremiumUsers() {
 
       {/* Stats Overview */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
             <p className="text-purple-100 text-sm font-medium">Всего премиум</p>
             <p className="text-3xl font-bold mt-2">{formatNumber(stats.total_premium_users)}</p>
@@ -129,7 +129,7 @@ export default function PremiumUsers() {
           </div>
           
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-500 text-sm font-medium">Средний чек</p>
+            <p className="text-gray-500 text-sm font-medium">Средний доход</p>
             <p className="text-3xl font-bold text-blue-600 mt-2">
               ${stats.avg_spent_per_user ? stats.avg_spent_per_user.toFixed(2) : '0.00'}
             </p>
@@ -137,17 +137,23 @@ export default function PremiumUsers() {
           </div>
           
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-500 text-sm font-medium">Всего потрачено</p>
+            <p className="text-gray-500 text-sm font-medium">Средние траты</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">
+              ${stats.avg_cost_per_user ? stats.avg_cost_per_user.toFixed(2) : '0.00'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">LLM + Images</p>
+          </div>
+          
+          <div className="bg-white rounded-lg shadow p-6">
+            <p className="text-gray-500 text-sm font-medium">Всего получено</p>
             <p className="text-3xl font-bold text-green-600 mt-2">${formatNumber(stats.total_revenue_usd)}</p>
             <p className="text-xs text-gray-400 mt-1">⭐ {formatNumber(stats.total_revenue_stars)} звезд</p>
           </div>
           
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-gray-500 text-sm font-medium">Покупок на юзера</p>
-            <p className="text-3xl font-bold text-orange-600 mt-2">
-              {stats.avg_purchases_per_user ? stats.avg_purchases_per_user.toFixed(1) : '0.0'}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">В среднем</p>
+            <p className="text-gray-500 text-sm font-medium">Всего потрачено</p>
+            <p className="text-3xl font-bold text-red-600 mt-2">${formatNumber(stats.total_usage_cost)}</p>
+            <p className="text-xs text-gray-400 mt-1">На услуги</p>
           </div>
         </div>
       )}
@@ -223,11 +229,14 @@ export default function PremiumUsers() {
                   onClick={() => handleSort('total_spent')}
                 >
                   <div className="flex items-center justify-end gap-1">
-                    Потрачено <SortIcon field="total_spent" />
+                    Доход <SortIcon field="total_spent" />
                   </div>
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                  USD
+                  Использование
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  Наши траты
                 </th>
                 <th 
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
@@ -271,11 +280,32 @@ export default function PremiumUsers() {
                     <td className="px-4 py-3 text-right text-sm font-medium text-gray-800">
                       {formatNumber(user.purchase_count || 0)}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-bold text-purple-600">
-                      ⭐ {formatNumber(user.total_spent_stars || 0)}
+                    <td className="px-4 py-3 text-right">
+                      <div className="text-sm font-bold text-green-600">
+                        ${((user.total_spent_stars || 0) * 0.013).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        ⭐ {formatNumber(user.total_spent_stars || 0)}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-bold text-green-600">
-                      ${((user.total_spent_stars || 0) * 0.013).toFixed(2)}
+                    <td className="px-4 py-3 text-right">
+                      <div className="text-xs text-gray-600">
+                        💬 {formatNumber(user.messages || 0)} msgs
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        🖼️ {formatNumber(user.images || 0)} imgs
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="text-sm font-bold text-red-600">
+                        ${(user.total_cost || 0).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        LLM: ${(user.llm_cost || 0).toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Img: ${(user.image_cost || 0).toFixed(2)}
+                      </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                       {formatDate(user.last_purchase_date)}
