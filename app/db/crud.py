@@ -1396,8 +1396,11 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
     """
     Activate premium subscription for user with specific tier
     duration_days: number of days to add to subscription
-    tier: premium tier (plus, premium, pro, legendary)
+    tier: premium tier (always "premium" in unified subscription system)
     Returns True if successful
+    
+    NOTE: In unified subscription system, premium users get unlimited energy.
+    No bonus tokens are granted - premium status itself removes energy costs.
     """
     from datetime import timedelta
     
@@ -1405,44 +1408,20 @@ def activate_premium(db: Session, user_id: int, duration_days: int, tier: str = 
     if not user:
         return False
     
-    # Check if this is a new subscription (not an extension)
-    is_new_subscription = not user.is_premium or (user.premium_until and user.premium_until <= datetime.utcnow())
-    
     # Set premium status and tier
     user.is_premium = True
     user.premium_tier = tier
     
     # Calculate expiry date
     if user.premium_until and user.premium_until > datetime.utcnow():
-        # Extend existing subscription
+        # Extend existing subscription (time stacks)
         user.premium_until = user.premium_until + timedelta(days=duration_days)
     else:
         # New subscription
         user.premium_until = datetime.utcnow() + timedelta(days=duration_days)
     
-    # Add one-time energy bonus for new subscriptions
-    if is_new_subscription:
-        tier_bonus = {
-            "plus": 500,
-            "premium": 500,
-            "pro": 750,
-            "legendary": 1000
-        }
-        bonus = tier_bonus.get(tier, 0)
-        if bonus > 0:
-            user.energy += bonus
-        
-        # Also set initial temp_energy for immediate use
-        tier_temp_energy = {
-            "plus": 50,
-            "premium": 75,
-            "pro": 100,
-            "legendary": 150
-        }
-        temp_energy = tier_temp_energy.get(tier, 0)
-        if temp_energy > 0:
-            user.temp_energy = temp_energy
-            user.last_temp_energy_refill = datetime.utcnow()
+    # NO bonus tokens granted - premium users don't need tokens
+    # Premium = unlimited energy for messages, photos, blur removal
     
     db.commit()
     return True
