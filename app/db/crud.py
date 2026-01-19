@@ -3060,7 +3060,7 @@ def get_premium_users_with_spending(db: Session) -> dict:
         Dictionary with users list and aggregate stats including LLM and image costs
     """
     from sqlalchemy import func
-    from app.db.models import PaymentTransaction, Message, ImageJob
+    from app.db.models import PaymentTransaction, Message, ImageJob, Chat
     
     # Cost constants
     COST_PER_MESSAGE = 0.0013
@@ -3092,13 +3092,15 @@ def get_premium_users_with_spending(db: Session) -> dict:
     
     # Get usage stats per user (messages and images)
     message_stats = db.query(
-        Message.client_id,
+        Chat.user_id,
         func.count(Message.id).label('message_count')
+    ).join(
+        Message, Message.chat_id == Chat.id
     ).filter(
         Message.role == 'assistant'
-    ).group_by(Message.client_id).all()
+    ).group_by(Chat.user_id).all()
     
-    message_dict = {stat.client_id: stat.message_count for stat in message_stats}
+    message_dict = {stat.user_id: stat.message_count for stat in message_stats}
     
     image_stats = db.query(
         ImageJob.user_id,
