@@ -334,7 +334,7 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
             crud.create_payment_transaction(
                 db=db,
                 user_id=user_id,
-                transaction_type="token_purchase",
+                transaction_type="token_package",
                 product_id=product_id,
                 amount_stars=product["stars"],
                 tokens_received=token_amount,

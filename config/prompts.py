@@ -302,7 +302,7 @@ When hands are visible, you MUST include the following tags:
 "natural hand pose" (if hands visible)
 ⸻
 GOOD EXAMPLES
-Example 1: Solo Female Portrait (Most Common - 90% of images)  
+Example 1: Solo Female Portrait 
 1girl, solo, close-up, bust, portrait, sitting, hand in hair, cropped arms, casual, dress, window light, dappled sunlight, indoors, smile, blush, seductive_ smile,   solo focus, photorealistic  
 
 Example 2: Solo Female Explicit  
