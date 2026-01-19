@@ -299,6 +299,10 @@ export async function createCustomStory(storyData, initData) {
  * @returns {Promise<Object>} Invoice object {invoice_link} or simulated result {success, simulated, ...}
  */
 export async function createInvoice(productId, initData) {
+  console.log('[API] Creating invoice for product:', productId);
+  console.log('[API] Init data present:', !!initData, 'length:', initData?.length || 0);
+  console.log('[API] Init data preview:', initData?.substring(0, 100) || 'EMPTY');
+  
   const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
     method: 'POST',
     headers: {
@@ -308,8 +312,12 @@ export async function createInvoice(productId, initData) {
     body: JSON.stringify({ product_id: productId }),
   });
   
+  console.log('[API] Response status:', response.status);
+  
   if (!response.ok) {
-    throw new Error('Failed to create invoice');
+    const errorText = await response.text();
+    console.error('[API] Error response:', errorText);
+    throw new Error(`Failed to create invoice: ${response.status} ${errorText}`);
   }
   
   const data = await response.json();

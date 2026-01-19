@@ -1181,21 +1181,29 @@ async def create_invoice(
     
     Returns: {invoice_link: str} OR {success: bool, simulated: bool, ...}
     """
-    # Validate authentication
+    print(f"[INVOICE-API] 📥 Received create-invoice request: product_id={request.product_id}")
+    print(f"[INVOICE-API] 📥 Init data present: {bool(x_telegram_init_data)}, length: {len(x_telegram_init_data) if x_telegram_init_data else 0}")
+    print(f"[INVOICE-API] 📥 ENV: {settings.ENV}, SIMULATE_PAYMENTS: {settings.SIMULATE_PAYMENTS}")
+    
+    # Validate authentication (skip in development with simulated payments)
     if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        print(f"[INVOICE-API] ❌ Invalid Telegram authentication")
         raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
     
-    # Parse user ID from init data
-    try:
-        parsed = dict(parse_qsl(x_telegram_init_data or ""))
-        import json
-        user_data = json.loads(parsed.get('user', '{}'))
-        user_id = user_data.get('id')
-        
-        if not user_id:
-            raise HTTPException(status_code=400, detail="User ID not found")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse user data: {e}")
+    # Extract user ID from init data
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    
+    if not user_id:
+        # In development with simulated payments, allow a test user ID
+        if settings.ENV == "development" and settings.SIMULATE_PAYMENTS:
+            print(f"[INVOICE-API] ⚠️ No user ID found, using test user ID 549861060 for development")
+            user_id = 549861060  # Test user from FOLLOWUP_TEST_USERS
+        else:
+            print(f"[INVOICE-API] ❌ Failed to extract user ID from init data")
+            print(f"[INVOICE-API] ❌ Init data: {x_telegram_init_data[:100] if x_telegram_init_data else 'None'}...")
+            raise HTTPException(status_code=400, detail="Failed to extract user ID from init data. Please try reopening the app.")
+    
+    print(f"[INVOICE-API] ✅ User ID extracted: {user_id}")
     
     # Get payment products from payment handler
     from app.bot.handlers.payment import PAYMENT_PRODUCTS, process_payment_transaction
