@@ -1334,7 +1334,7 @@ async def get_conversions_stats(
                 
                 # Get images from premium users
                 premium_images = db.query(func.count(ImageJob.id)).filter(
-                    ImageJob.client_id.in_(premium_user_ids),
+                    ImageJob.user_id.in_(premium_user_ids),
                     ImageJob.status == 'completed'
                 ).scalar() or 0
                 

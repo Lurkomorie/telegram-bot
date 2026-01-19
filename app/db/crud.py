@@ -3101,13 +3101,13 @@ def get_premium_users_with_spending(db: Session) -> dict:
     message_dict = {stat.client_id: stat.message_count for stat in message_stats}
     
     image_stats = db.query(
-        ImageJob.client_id,
+        ImageJob.user_id,
         func.count(ImageJob.id).label('image_count')
     ).filter(
         ImageJob.status == 'completed'
-    ).group_by(ImageJob.client_id).all()
+    ).group_by(ImageJob.user_id).all()
     
-    image_dict = {stat.client_id: stat.image_count for stat in image_stats}
+    image_dict = {stat.user_id: stat.image_count for stat in image_stats}
     
     # Build user list with spending and usage info
     users = []
