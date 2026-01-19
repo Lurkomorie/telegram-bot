@@ -141,6 +141,62 @@ async def send_payment_error_notification(
 # Payment products: Unified subscription system
 # Four periods with same benefits, different durations and prices
 PAYMENT_PRODUCTS = {
+    # Token packages - New Year Sale 20% off
+    "tokens_50": {
+        "type": "tokens",
+        "amount": 50,
+        "stars": 28,  # 20% off from 35
+        "original_stars": 35
+    },
+    "tokens_100": {
+        "type": "tokens",
+        "amount": 100,
+        "stars": 52,  # 20% off from 65
+        "original_stars": 65
+    },
+    "tokens_250": {
+        "type": "tokens",
+        "amount": 250,
+        "stars": 120,  # 20% off from 150
+        "original_stars": 150
+    },
+    "tokens_500": {
+        "type": "tokens",
+        "amount": 500,
+        "stars": 240,  # 20% off from 300
+        "original_stars": 300
+    },
+    "tokens_1000": {
+        "type": "tokens",
+        "amount": 1000,
+        "stars": 480,  # 20% off from 600
+        "original_stars": 600
+    },
+    "tokens_2500": {
+        "type": "tokens",
+        "amount": 2500,
+        "stars": 1120,  # 20% off from 1400
+        "original_stars": 1400
+    },
+    "tokens_5000": {
+        "type": "tokens",
+        "amount": 5000,
+        "stars": 2160,  # 20% off from 2700
+        "original_stars": 2700
+    },
+    "tokens_10000": {
+        "type": "tokens",
+        "amount": 10000,
+        "stars": 4000,  # 20% off from 5000
+        "original_stars": 5000
+    },
+    "tokens_25000": {
+        "type": "tokens",
+        "amount": 25000,
+        "stars": 9600,  # 20% off from 12000
+        "original_stars": 12000
+    },
+    
     # Daily subscription - no discount
     "subscription_daily": {
         "type": "subscription",
@@ -263,6 +319,46 @@ def process_payment_transaction(db, user_id: int, product_id: str, telegram_paym
                 "success": False,
                 "message": "Failed to activate subscription. Please contact support.",
                 "error": "activate_subscription_failed"
+            }
+    
+    elif product_type == "tokens":
+        # Token package purchase
+        token_amount = product["amount"]
+        
+        print(f"[PAYMENT-TX] ⚡ Adding {token_amount} tokens to user {user_id}")
+        success = crud.add_user_energy(db, user_id, token_amount)
+        
+        if success:
+            print(f"[PAYMENT-TX] ✅ Tokens added successfully")
+            # Create transaction record
+            crud.create_payment_transaction(
+                db=db,
+                user_id=user_id,
+                transaction_type="token_purchase",
+                product_id=product_id,
+                amount_stars=product["stars"],
+                tokens_received=token_amount,
+                telegram_payment_charge_id=telegram_payment_charge_id
+            )
+            print(f"[PAYMENT-TX] 📝 Transaction record created")
+            
+            # Get updated user info
+            user = crud.get_or_create_user(db, user_id)
+            total_tokens = (user.temp_energy or 0) + user.energy
+            print(f"[PAYMENT-TX] 👤 User updated: total_tokens={total_tokens}")
+            
+            return {
+                "success": True,
+                "message": f"🎉 <b>Tokens Added!</b>\n\n⚡ You received <b>{token_amount}</b> tokens!\n💰 Your balance: <b>{total_tokens}</b> tokens\n\nThank you for your support! 💎",
+                "tokens_granted": token_amount,
+                "total_tokens": total_tokens
+            }
+        else:
+            print(f"[PAYMENT-TX] ❌ Failed to add tokens for user {user_id}")
+            return {
+                "success": False,
+                "message": "Failed to add tokens. Please contact support.",
+                "error": "add_tokens_failed"
             }
     
     print(f"[PAYMENT-TX] ❌ Unknown product type: {product_type}")
