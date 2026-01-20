@@ -23,29 +23,8 @@ def _build_image_context(
 ) -> str:
     """Build context for image prompt generation
     
-    Uses context_summary + last 2 messages if summary is available.
+    Minimal context to reduce token usage and costs.
     """
-    # Use summary + last 2 messages OR recent history
-    if context_summary and len(chat_history) > 4:
-        last_2_msgs = chat_history[-2:] if len(chat_history) >= 2 else chat_history
-        last_msgs_text = "\n".join([
-            f"**{msg['role'].upper()}:** {msg['content']}"
-            for msg in last_2_msgs
-        ])
-        history_text = f"""SUMMARY:
-{context_summary}
-
-LAST 2 MESSAGES:
-{last_msgs_text}"""
-        print(f"[IMAGE-PLAN] 📝 Using context summary + last 2 messages")
-    else:
-        # Fallback: use last 6 messages
-        recent_count = min(6, len(chat_history))
-        history_text = "\n".join([
-            f"**{msg['role'].upper()}:** {msg['content']}"
-            for msg in chat_history[-recent_count:]
-        ]) if chat_history else "No conversation history yet."
-    
     # Add previous image prompt if available
     image_context = ""
     if previous_image_prompt:
@@ -54,7 +33,7 @@ LAST 2 MESSAGES:
     {previous_image_prompt}
 
     Note: This is what was visually depicted in the last image. Consider this context when updating the image prompt, 
-    especially for location, clothing, and scene details that may have been shown visually and shoud not be changed.
+    especially for location, clothing, and scene details that may have been shown visually and should not be changed.
     """
     
     context = f"""
@@ -71,9 +50,6 @@ LAST 2 MESSAGES:
     # BACKGROUND CONTEXT (for reference only)
     State: {state}
     User's message: {user_message}
-    
-    # CONVERSATION HISTORY (for continuity only)
-    {history_text}
 {image_context}
     """
     return context
@@ -91,14 +67,15 @@ async def generate_image_plan(
     """
     Brain 3: Generate SDXL image prompt
     
-    Model: meta-llama/llama-3.3-70b-instruct:nitro (from app.yaml)
-    Temperature: 0.8
+    Model: x-ai/grok-4.1-fast (from app.yaml)
+    Temperature: 0.5
     Retries: 3 attempts with exponential backoff
     Returns: Simple string prompt
     
     Context optimization:
-    - If context_summary is provided, uses summary + last 2 messages
-    - Otherwise falls back to last 6 messages
+    - Uses minimal context (dialogue_response, state, user_message, previous_image_prompt)
+    - Removed chat_history to reduce token usage and costs
+    - Reasoning disabled to reduce output tokens
     """
     config = get_app_config()
     model = config["llm"]["image_model"]
