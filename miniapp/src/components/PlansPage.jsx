@@ -28,7 +28,7 @@ export default function PlansPage() {
       id: 'subscription_daily', 
       period: 'day',
       periodKey: 'subscription.period.day',
-      stars: 75, 
+      stars: 95, 
       originalStars: null,  // No discount
       discount: null,
       popular: false 

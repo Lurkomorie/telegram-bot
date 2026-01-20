@@ -28,7 +28,7 @@ export default function PremiumPage() {
       id: 'subscription_daily', 
       period: 'day',
       periodKey: 'subscription.period.day',
-      stars: 75, 
+      stars: 95, 
       originalStars: null,
       discount: null,
       popular: false 

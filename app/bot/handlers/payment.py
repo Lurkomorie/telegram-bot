@@ -202,7 +202,7 @@ PAYMENT_PRODUCTS = {
         "type": "subscription",
         "period": "day",
         "duration": 1,
-        "stars": 75,
+        "stars": 95,
         "original_stars": None  # No discount shown
     },
     # Weekly subscription - 41% off (was 500 stars / $10)
