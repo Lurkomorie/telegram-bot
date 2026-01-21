@@ -3,9 +3,9 @@ llm:
   model: xiaomi/mimo-v2-flash # Main conversational intelligence - ultra cheap
   followup_model: xiaomi/mimo-v2-flash # Auto-followup messages (same model)
   state_model: mistralai/mistral-nemo # Fast model for state resolution
-  image_model: x-ai/grok-4.1-fast # Image tag generation
+  image_model: mistralai/ministral-3b # Image tag generation
   image_model_reasoning: false # Disable reasoning to reduce costs
-  memory_model: x-ai/grok-4.1-fast # Memory extraction - uncensored, cheap, decent quality with good prompt
+  memory_model: mistralai/ministral-3b # Memory extraction - uncensored, cheap, decent quality with good prompt
   decision_model: mistralai/ministral-3b # Fast, uncensored model for image decisions
   summary_model: mistralai/ministral-3b # Fast, cheap model for context summarization
   temperature: 0.7
