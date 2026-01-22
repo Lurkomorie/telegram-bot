@@ -306,6 +306,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
     """Generate image for refresh - costs 3 energy for free users, 0 for premium
     
     Reuses the EXACT same prompts from the original job, only changes the seed.
+    Increments refresh_count in the new job's ext.
     """
     config = get_app_config()
     
@@ -358,6 +359,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         original_ext = original_job.ext if original_job.ext else {}
         user_prompt = original_ext.get("user_prompt", "")
         pending_caption = original_ext.get("pending_caption")  # Preserve caption for refresh
+        refresh_count = original_ext.get("refresh_count", 0)
         
         print(f"[REFRESH-IMAGE] 🔄 Reusing exact prompts from job {original_job_id}")
         print(f"[REFRESH-IMAGE]    Positive: {positive_prompt[:100]}...")
@@ -368,7 +370,12 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         # Create new image job with SAME prompts, different seed
         # Use original job's chat_id (None for standalone images, chat.id for chat images)
         seed = random.randint(1, 2147483647)
-        new_ext = {"seed": seed, "user_prompt": user_prompt, "refreshed_from": original_job_id}
+        new_ext = {
+            "seed": seed, 
+            "user_prompt": user_prompt, 
+            "refreshed_from": original_job_id,
+            "refresh_count": refresh_count + 1  # Increment refresh count
+        }
         if pending_caption:
             new_ext["pending_caption"] = pending_caption  # Copy caption to new job
         
@@ -413,7 +420,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
             )
             
             # Job submitted successfully
-            print(f"[REFRESH-IMAGE] ✅ Job {job_id} submitted to Runpod (3 energy)")
+            print(f"[REFRESH-IMAGE] ✅ Job {job_id} submitted to Runpod (refresh #{refresh_count + 1})")
     
     except Exception as e:
         print(f"[REFRESH-IMAGE] ❌ Error submitting job: {e}")
@@ -433,16 +440,123 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
 
 
+async def generate_text_only_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
+    """Generate text-only response for second+ refresh - no image
+    
+    Uses dialogue specialist to generate a new response based on the original context.
+    Increments refresh_count in job ext.
+    """
+    from app.core.brains.dialogue_specialist import generate_dialogue
+    from app.core.telegram_utils import escape_markdown_v2
+    
+    print(f"[TEXT-REFRESH] 📝 Generating text-only response for job {original_job_id}")
+    
+    with get_db() as db:
+        # Get original job
+        original_job = crud.get_image_job(db, original_job_id)
+        if not original_job:
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
+            return
+        
+        # Get persona
+        persona = crud.get_persona_by_id(db, original_job.persona_id)
+        if not persona:
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["persona_not_found"])
+            return
+        
+        # Get user language
+        user_language = crud.get_user_language(db, user_id)
+        
+        # Get original job ext
+        original_ext = original_job.ext if original_job.ext else {}
+        user_prompt = original_ext.get("user_prompt", "")
+        refresh_count = original_ext.get("refresh_count", 0)
+        
+        # Get chat if exists
+        chat = None
+        if original_job.chat_id:
+            chat = crud.get_chat_by_id(db, original_job.chat_id)
+        
+        # Build state from persona description
+        state = persona.description or ""
+        
+        # Build chat history from the original prompt
+        chat_history = []
+        if user_prompt:
+            chat_history.append({
+                "role": "user",
+                "content": user_prompt
+            })
+        
+        # Get memory if chat exists
+        memory = chat.memory if chat else None
+        
+        # Generate dialogue response
+        try:
+            async with send_action_repeatedly(bot, tg_chat_id, "typing"):
+                response_text = await generate_dialogue(
+                    state=state,
+                    chat_history=chat_history,
+                    user_message=f"Generate a different response to: {user_prompt}",
+                    persona={
+                        "name": persona.name,
+                        "prompt": persona.prompt or ""
+                    },
+                    memory=memory,
+                    is_auto_followup=False,
+                    user_id=user_id
+                )
+            
+            print(f"[TEXT-REFRESH] ✅ Generated text response: {response_text[:100]}...")
+            
+            # Send text response
+            escaped_text = escape_markdown_v2(response_text)
+            await bot.send_message(
+                chat_id=tg_chat_id,
+                text=escaped_text,
+                parse_mode="MarkdownV2"
+            )
+            
+            # Track analytics
+            analytics_service_tg.track_text_refresh(
+                client_id=user_id,
+                original_job_id=original_job_id,
+                persona_id=original_job.persona_id,
+                persona_name=persona.name,
+                refresh_count=refresh_count + 1
+            )
+            
+        except Exception as e:
+            print(f"[TEXT-REFRESH] ❌ Error generating text: {e}")
+            await bot.send_message(tg_chat_id, ERROR_MESSAGES["image_failed"])
+
+
 @router.callback_query(lambda c: c.data.startswith("refresh_image:"))
 async def refresh_image_callback(callback: types.CallbackQuery):
-    """Handle refresh image button click - costs 3 energy for free, 0 for premium"""
+    """Handle refresh image button click - costs 3 energy for free, 0 for premium
+    
+    First refresh: generates new image
+    Second+ refresh: sends text-only response (no image)
+    """
     job_id_str = callback.data.split(":")[1]
     user_id = callback.from_user.id
     
     print(f"[REFRESH-IMAGE] 🔄 Refresh requested for job {job_id_str} by user {user_id}")
     
-    # Check if user is premium
+    # Get original job and check refresh count
     with get_db() as db:
+        job = crud.get_image_job(db, job_id_str)
+        if not job:
+            await callback.answer("❌ Job not found", show_alert=True)
+            return
+        
+        # Get refresh count from job ext
+        job_ext = job.ext if job.ext else {}
+        refresh_count = job_ext.get("refresh_count", 0)
+        
+        print(f"[REFRESH-IMAGE] 📊 Current refresh count: {refresh_count}")
+        
+        # Check if user is premium
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
         
         # Free users pay 3 energy for refresh, premium users don't
@@ -455,18 +569,11 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             if not crud.deduct_user_energy(db, user_id, amount=3):
                 await callback.answer("❌ Failed to deduct energy", show_alert=True)
                 return
-            print(f"[REFRESH-IMAGE] 🔄 Refreshing image for free user {user_id} (3 energy deducted)")
+            print(f"[REFRESH-IMAGE] 🔄 Refreshing for free user {user_id} (3 energy deducted)")
         else:
-            print(f"[REFRESH-IMAGE] 🔄 Refreshing image for premium user {user_id} (no energy cost)")
-    
-    # Get original job details
-    with get_db() as db:
-        job = crud.get_image_job(db, job_id_str)
-        if not job:
-            await callback.answer("❌ Job not found", show_alert=True)
-            return
+            print(f"[REFRESH-IMAGE] 🔄 Refreshing for premium user {user_id} (no energy cost)")
         
-        # Get persona for analytics directly from job (job always has persona_id)
+        # Get persona for analytics
         persona = crud.get_persona_by_id(db, job.persona_id)
         
         # Track refresh request
@@ -476,11 +583,12 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             persona_id=job.persona_id,
             persona_name=persona.name if persona else None
         )
-        
-        # Free users pay 3 energy for refresh, premium users don't (already deducted above)
     
     # Answer the callback first
-    await callback.answer("🔄 Refreshing image...")
+    if refresh_count == 0:
+        await callback.answer("🔄 Refreshing image...")
+    else:
+        await callback.answer("🔄 Generating text response...")
     
     # Delete the old image message
     try:
@@ -500,8 +608,14 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     except Exception as e:
         print(f"[REFRESH-IMAGE] ⚠️  Could not delete original image: {e}")
     
-    # Generate new image with EXACT same prompts from original job (only seed changes)
-    await generate_image_for_refresh(user_id, job_id_str, callback.message.chat.id)
+    # First refresh: generate new image
+    # Second+ refresh: send text-only response
+    if refresh_count == 0:
+        # Generate new image with EXACT same prompts from original job (only seed changes)
+        await generate_image_for_refresh(user_id, job_id_str, callback.message.chat.id)
+    else:
+        # Send text-only response
+        await generate_text_only_refresh(user_id, job_id_str, callback.message.chat.id)
 
 
 @router.callback_query(lambda c: c.data == "cancel_image")

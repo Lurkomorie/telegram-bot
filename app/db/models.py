@@ -27,8 +27,8 @@ class User(Base):
     settings = Column(JSONB, default={})
     
     # Token system (formerly energy)
-    energy = Column(BigInteger, default=100, nullable=False)  # Now represents token balance
-    max_energy = Column(BigInteger, default=100, nullable=False)  # Maximum energy/tokens a user can have
+    energy = Column(BigInteger, default=80, nullable=False)  # Now represents token balance
+    max_energy = Column(BigInteger, default=80, nullable=False)  # Maximum energy/tokens a user can have
     temp_energy = Column(BigInteger, default=0, nullable=False)  # Temporary daily energy (resets daily, consumed first)
     last_energy_upsell_message_id = Column(BigInteger, nullable=True)
     last_energy_upsell_chat_id = Column(BigInteger, nullable=True)

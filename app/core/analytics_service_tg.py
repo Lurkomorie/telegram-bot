@@ -225,6 +225,26 @@ def track_image_refresh(
     )
 
 
+def track_text_refresh(
+    client_id: int,
+    original_job_id: str,
+    persona_id: Optional[UUID] = None,
+    persona_name: Optional[str] = None,
+    refresh_count: int = 0
+):
+    """Track text-only refresh request (second+ refresh)"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="text_refresh",
+        persona_id=persona_id,
+        persona_name=persona_name,
+        meta={
+            "original_job_id": original_job_id,
+            "refresh_count": refresh_count
+        }
+    )
+
+
 def track_persona_selected(
     client_id: int,
     persona_id: UUID,
