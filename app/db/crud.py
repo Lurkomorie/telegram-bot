@@ -4,7 +4,7 @@ CRUD operations for database models
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from app.db.models import (
     User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
     PersonaTranslation, PersonaHistoryTranslation, SystemMessage, SystemMessageTemplate, SystemMessageDelivery
@@ -1087,6 +1087,85 @@ def get_chat_by_id(db: Session, chat_id: UUID) -> Optional[Chat]:
 
 # ========== IMAGE JOB OPERATIONS ==========
 
+import hashlib
+
+def normalize_prompt(prompt: str) -> str:
+    """Normalize prompt for consistent hashing - handles tag order and case differences
+    
+    Examples:
+        "blonde hair, blue eyes, smiling" -> "blonde hair,blue eyes,smiling"
+        "Blue Eyes, Blonde Hair, SMILING" -> "blonde hair,blue eyes,smiling"
+        "smiling, blonde hair, blue eyes" -> "blonde hair,blue eyes,smiling"
+    """
+    # Split by comma
+    tags = prompt.split(",")
+    # Strip whitespace, lowercase, remove empty
+    tags = [tag.strip().lower() for tag in tags if tag.strip()]
+    # Sort alphabetically
+    tags = sorted(tags)
+    # Join back
+    return ",".join(tags)
+
+
+def compute_prompt_hash(prompt: str) -> str:
+    """SHA256 hash of normalized prompt for cache lookup"""
+    normalized = normalize_prompt(prompt)
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def find_cached_image(db: Session, prompt_hash: str, user_id: int) -> Optional[ImageJob]:
+    """Find a cached image that the user hasn't seen yet (only from last 60 days)
+    
+    Args:
+        db: Database session
+        prompt_hash: SHA256 hash of normalized prompt
+        user_id: User ID to exclude images they've already seen
+    
+    Returns:
+        ImageJob if found, None otherwise
+    """
+    from app.db.models import UserShownImage
+    
+    # Subquery - images this user has already seen
+    seen_subq = db.query(UserShownImage.image_job_id).filter(
+        UserShownImage.user_id == user_id
+    ).scalar_subquery()
+    
+    return db.query(ImageJob).filter(
+        ImageJob.prompt_hash == prompt_hash,
+        ImageJob.status == "completed",
+        ImageJob.result_url.like("https://imagedelivery.net/%"),  # Only cloudflare URLs
+        ImageJob.is_blacklisted == False,
+        ImageJob.id.notin_(seen_subq)  # Not shown to this user
+    ).order_by(func.random()).first()  # Random from available
+
+
+def mark_image_shown(db: Session, user_id: int, image_job_id: UUID):
+    """Mark that a user has been shown an image (for cache deduplication)"""
+    from app.db.models import UserShownImage
+    
+    # Use merge to handle duplicates gracefully
+    shown = UserShownImage(user_id=user_id, image_job_id=image_job_id)
+    db.merge(shown)
+    db.commit()
+
+
+def increment_refresh_count(db: Session, job_id: UUID):
+    """Increment the refresh count for an image (tracks how often users refresh it)"""
+    db.query(ImageJob).filter(ImageJob.id == job_id).update(
+        {ImageJob.refresh_count: ImageJob.refresh_count + 1}
+    )
+    db.commit()
+
+
+def increment_cache_serve_count(db: Session, job_id: UUID):
+    """Increment the cache serve count for an image (tracks how often it's served from cache)"""
+    db.query(ImageJob).filter(ImageJob.id == job_id).update(
+        {ImageJob.cache_serve_count: ImageJob.cache_serve_count + 1}
+    )
+    db.commit()
+
+
 def create_image_job(
     db: Session,
     user_id: int,
@@ -1094,15 +1173,21 @@ def create_image_job(
     prompt: str,
     negative_prompt: str,
     chat_id: UUID = None,
-    ext: dict = None
+    ext: dict = None,
+    prompt_hash: str = None
 ) -> ImageJob:
     """Create a new image generation job"""
+    # Auto-compute hash if not provided
+    if prompt_hash is None:
+        prompt_hash = compute_prompt_hash(prompt)
+    
     job = ImageJob(
         user_id=user_id,
         persona_id=persona_id,
         chat_id=chat_id,
         prompt=prompt,
         negative_prompt=negative_prompt,
+        prompt_hash=prompt_hash,
         status="queued",
         ext=ext or {}
     )
@@ -1128,6 +1213,7 @@ def create_initial_image_job(
         chat_id=chat_id,
         prompt=prompt,
         negative_prompt="",  # Not relevant for history images
+        prompt_hash=compute_prompt_hash(prompt),
         status="completed",
         result_url=result_url,
         finished_at=datetime.utcnow(),
@@ -1801,11 +1887,25 @@ def get_analytics_stats(db: Session, start_date: Optional[str] = None, end_date:
     avg_image_waiting_time = get_avg_image_waiting_time(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
     failed_images_count = get_failed_images_count(db, start_date=start_date, end_date=end_date, acquisition_source=acquisition_source)
     
+    # Images served from cache
+    total_images_from_cache = db.query(func.count(TgAnalyticsEvent.id)).filter(
+        TgAnalyticsEvent.event_name == 'image_from_cache'
+    )
+    total_images_from_cache = apply_date_filter(total_images_from_cache, TgAnalyticsEvent.created_at, start_date, end_date)
+    total_images_from_cache = apply_acquisition_source_filter(db, total_images_from_cache, acquisition_source)
+    total_images_from_cache = total_images_from_cache.scalar() or 0
+    
+    # Calculate cache hit rate
+    total_image_requests = (total_images or 0) + total_images_from_cache
+    cache_hit_rate = round(total_images_from_cache / total_image_requests * 100, 1) if total_image_requests > 0 else 0
+    
     return {
         'total_users': total_users or 0,
         'total_events': total_events or 0,
         'total_messages': total_messages or 0,
-        'total_images': total_images or 0,
+        'total_images_generated': total_images or 0,
+        'total_images_from_cache': total_images_from_cache,
+        'cache_hit_rate': cache_hit_rate,
         'total_voices': total_voices or 0,
         'total_voice_characters': total_voice_characters,
         'active_users_7d': active_users or 0,

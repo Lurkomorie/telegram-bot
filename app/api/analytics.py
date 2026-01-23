@@ -2014,6 +2014,165 @@ async def delete_persona_history(history_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Error deleting persona history: {str(e)}")
 
 
+# ========== IMAGE CACHE MANAGEMENT ENDPOINTS ==========
+
+@router.get("/most-refreshed-images")
+async def get_most_refreshed_images(
+    limit: int = Query(50, ge=1, le=200, description="Number of images to return")
+) -> List[Dict[str, Any]]:
+    """
+    Get images with highest refresh count - candidates for replacement/deletion
+    
+    These are images that users frequently refresh, indicating they may be low quality.
+    
+    Returns:
+        List of images sorted by refresh_count descending:
+        - id: Image job UUID
+        - prompt: Image prompt (truncated to 200 chars)
+        - refresh_count: Number of times users refreshed this image
+        - result_url: Cloudflare URL
+        - created_at: When the image was created
+        - is_blacklisted: Whether the image is blacklisted from cache
+    """
+    from app.db.models import ImageJob
+    
+    try:
+        with get_db() as db:
+            jobs = db.query(ImageJob).filter(
+                ImageJob.refresh_count > 0,
+                ImageJob.status == "completed"
+            ).order_by(ImageJob.refresh_count.desc()).limit(limit).all()
+            
+            return [{
+                "id": str(j.id),
+                "prompt": j.prompt[:200] + "..." if len(j.prompt) > 200 else j.prompt,
+                "refresh_count": j.refresh_count,
+                "result_url": j.result_url,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+                "is_blacklisted": j.is_blacklisted
+            } for j in jobs]
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching most refreshed images: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching images: {str(e)}")
+
+
+@router.post("/blacklist-image/{job_id}")
+async def blacklist_image(job_id: str) -> Dict[str, Any]:
+    """
+    Mark an image as blacklisted - it won't be served from cache anymore
+    
+    Args:
+        job_id: Image job UUID
+    
+    Returns:
+        Success message with updated blacklist status
+    """
+    from app.db.models import ImageJob
+    
+    try:
+        job_uuid = UUID(job_id)
+        
+        with get_db() as db:
+            job = db.query(ImageJob).filter(ImageJob.id == job_uuid).first()
+            if not job:
+                raise HTTPException(status_code=404, detail=f"Image job not found: {job_id}")
+            
+            job.is_blacklisted = True
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Image {job_id} has been blacklisted",
+                "is_blacklisted": True
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error blacklisting image: {e}")
+        raise HTTPException(status_code=500, detail=f"Error blacklisting image: {str(e)}")
+
+
+@router.post("/unblacklist-image/{job_id}")
+async def unblacklist_image(job_id: str) -> Dict[str, Any]:
+    """
+    Remove blacklist flag from an image - it can be served from cache again
+    
+    Args:
+        job_id: Image job UUID
+    
+    Returns:
+        Success message with updated blacklist status
+    """
+    from app.db.models import ImageJob
+    
+    try:
+        job_uuid = UUID(job_id)
+        
+        with get_db() as db:
+            job = db.query(ImageJob).filter(ImageJob.id == job_uuid).first()
+            if not job:
+                raise HTTPException(status_code=404, detail=f"Image job not found: {job_id}")
+            
+            job.is_blacklisted = False
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": f"Image {job_id} has been removed from blacklist",
+                "is_blacklisted": False
+            }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID format")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error unblacklisting image: {e}")
+        raise HTTPException(status_code=500, detail=f"Error unblacklisting image: {str(e)}")
+
+
+@router.get("/most-cached-images")
+async def get_most_cached_images(
+    limit: int = Query(50, ge=1, le=200, description="Number of images to return")
+) -> List[Dict[str, Any]]:
+    """
+    Get images that are most frequently served from cache
+    
+    These are popular images that save the most generation costs.
+    
+    Returns:
+        List of images sorted by cache_serve_count descending:
+        - id: Image job UUID
+        - prompt: Image prompt (truncated to 200 chars)
+        - cache_serve_count: Number of times served from cache
+        - refresh_count: Number of times users refreshed this image
+        - result_url: Cloudflare URL
+        - created_at: When the image was created
+    """
+    from app.db.models import ImageJob
+    
+    try:
+        with get_db() as db:
+            jobs = db.query(ImageJob).filter(
+                ImageJob.cache_serve_count > 0,
+                ImageJob.status == "completed"
+            ).order_by(ImageJob.cache_serve_count.desc()).limit(limit).all()
+            
+            return [{
+                "id": str(j.id),
+                "prompt": j.prompt[:200] + "..." if len(j.prompt) > 200 else j.prompt,
+                "cache_serve_count": j.cache_serve_count,
+                "refresh_count": j.refresh_count,
+                "result_url": j.result_url,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+                "is_blacklisted": j.is_blacklisted
+            } for j in jobs]
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching most cached images: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching images: {str(e)}")
+
+
 # ========== TRANSLATION MANAGEMENT ENDPOINTS ==========
 
 class TranslationRequest(BaseModel):

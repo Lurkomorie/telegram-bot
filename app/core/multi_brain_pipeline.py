@@ -910,6 +910,85 @@ async def _background_image_generation(
         log_verbose(f"[IMAGE-BG]    Positive preview: {positive[:100]}...")
         log_verbose(f"[IMAGE-BG]    Negative preview: {negative[:100]}...")
         
+        # Check image cache before generating
+        prompt_hash = crud.compute_prompt_hash(positive)
+        log_verbose(f"[IMAGE-BG] 🔍 Checking cache for hash: {prompt_hash[:16]}...")
+        
+        with get_db() as db:
+            cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+            
+            if cached_image and cached_image.result_url:
+                log_always(f"[IMAGE-BG] ✅ CACHE HIT! Found cached image {cached_image.id}")
+                log_verbose(f"[IMAGE-BG]    URL: {cached_image.result_url[:80]}...")
+                
+                # Send cached image to user
+                try:
+                    from app.bot.main import bot
+                    from app.bot.keyboards.inline import build_image_refresh_keyboard
+                    
+                    # Build refresh keyboard with cached image job ID
+                    refresh_keyboard = build_image_refresh_keyboard(str(cached_image.id))
+                    
+                    # Handle caption if needed
+                    caption = None
+                    if should_send_as_caption and dialogue_response:
+                        from app.core.telegram_utils import escape_markdown_v2
+                        caption = escape_markdown_v2(dialogue_response)
+                    
+                    # Remove refresh button from previous image
+                    chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                    if chat and chat.ext and chat.ext.get("last_image_msg_id"):
+                        prev_msg_id = chat.ext["last_image_msg_id"]
+                        try:
+                            await bot.edit_message_reply_markup(
+                                chat_id=tg_chat_id,
+                                message_id=prev_msg_id,
+                                reply_markup=None
+                            )
+                            log_verbose(f"[IMAGE-BG] 🗑️ Removed refresh button from previous image")
+                        except Exception:
+                            pass
+                    
+                    # Send cached image
+                    sent_message = await bot.send_photo(
+                        chat_id=tg_chat_id,
+                        photo=cached_image.result_url,
+                        caption=caption,
+                        parse_mode="MarkdownV2" if caption else None,
+                        reply_markup=refresh_keyboard
+                    )
+                    
+                    # Update tracking
+                    if sent_message.photo and chat:
+                        from sqlalchemy.orm.attributes import flag_modified
+                        if not chat.ext:
+                            chat.ext = {}
+                        chat.ext["last_image_msg_id"] = sent_message.message_id
+                        flag_modified(chat, "ext")
+                        db.commit()
+                    
+                    # Mark image as shown to this user and increment cache serve count
+                    crud.mark_image_shown(db, user_id, cached_image.id)
+                    crud.increment_cache_serve_count(db, cached_image.id)
+                    
+                    # Track analytics
+                    from app.core import analytics_service_tg
+                    analytics_service_tg.track_image_from_cache(
+                        client_id=user_id,
+                        image_job_id=cached_image.id,
+                        prompt_hash=prompt_hash
+                    )
+                    
+                    log_always(f"[IMAGE-BG] ✅ Cached image sent successfully! (served {cached_image.cache_serve_count + 1} times)")
+                    await action_mgr.stop()
+                    return  # Exit early - no need to generate
+                    
+                except Exception as e:
+                    log_always(f"[IMAGE-BG] ⚠️ Failed to send cached image: {e}, falling back to generation")
+                    # Continue to normal generation if cache send fails
+            else:
+                log_verbose(f"[IMAGE-BG] 📭 Cache miss - will generate new image")
+        
         # Create job record
         log_verbose(f"[IMAGE-BG] 💾 Creating job record in database...")
         
