@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '031_add_image_cache_indexes'
-down_revision = '030_add_image_cache_fields'
+down_revision = '030_image_cache'  # Fixed: matches actual revision ID of migration 030
 branch_labels = None
 depends_on = None
 
