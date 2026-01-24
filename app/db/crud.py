@@ -1124,29 +1124,41 @@ def find_cached_image(db: Session, prompt_hash: str, user_id: int) -> Optional[I
     Returns:
         ImageJob if found, None otherwise
     """
+    from sqlalchemy import exists, and_
     from app.db.models import UserShownImage
     
-    # Subquery - images this user has already seen
-    seen_subq = db.query(UserShownImage.image_job_id).filter(
-        UserShownImage.user_id == user_id
-    ).scalar_subquery()
+    # Use NOT EXISTS instead of NOT IN - more efficient for large datasets
+    not_shown = ~exists().where(
+        and_(
+            UserShownImage.user_id == user_id,
+            UserShownImage.image_job_id == ImageJob.id
+        )
+    )
     
     return db.query(ImageJob).filter(
         ImageJob.prompt_hash == prompt_hash,
         ImageJob.status == "completed",
         ImageJob.result_url.like("https://imagedelivery.net/%"),  # Only cloudflare URLs
         ImageJob.is_blacklisted == False,
-        ImageJob.id.notin_(seen_subq)  # Not shown to this user
+        not_shown  # Not shown to this user
     ).order_by(func.random()).first()  # Random from available
 
 
 def mark_image_shown(db: Session, user_id: int, image_job_id: UUID):
-    """Mark that a user has been shown an image (for cache deduplication)"""
+    """Mark that a user has been shown an image (for cache deduplication)
+    
+    Uses INSERT ... ON CONFLICT DO NOTHING for optimal performance.
+    """
+    from sqlalchemy.dialects.postgresql import insert
     from app.db.models import UserShownImage
     
-    # Use merge to handle duplicates gracefully
-    shown = UserShownImage(user_id=user_id, image_job_id=image_job_id)
-    db.merge(shown)
+    stmt = insert(UserShownImage).values(
+        user_id=user_id,
+        image_job_id=image_job_id
+    ).on_conflict_do_nothing(
+        index_elements=['user_id', 'image_job_id']  # Uses unique index ix_user_shown_images_lookup
+    )
+    db.execute(stmt)
     db.commit()
 
 

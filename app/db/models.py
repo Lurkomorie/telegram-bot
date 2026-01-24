@@ -307,6 +307,10 @@ class ImageJob(Base):
         Index("ix_image_jobs_status", "status"),
         Index("ix_image_jobs_chat_id", "chat_id"),
         Index("ix_image_jobs_prompt_hash", "prompt_hash"),  # For fast cache lookup
+        # Additional partial indexes created via migration 031_add_image_cache_indexes:
+        # - ix_image_jobs_cache_lookup: partial index on prompt_hash WHERE completed & not blacklisted & has cloudflare URL
+        # - ix_image_jobs_refresh_count: partial index on refresh_count DESC WHERE > 0
+        # - ix_image_jobs_cache_serve_count: partial index on cache_serve_count DESC WHERE > 0
     )
 
 
@@ -325,6 +329,7 @@ class UserShownImage(Base):
     
     __table_args__ = (
         Index("ix_user_shown_images_lookup", "user_id", "image_job_id", unique=True),
+        Index("ix_user_shown_images_user_id", "user_id"),  # For NOT IN subquery in cache lookup
     )
 
 
