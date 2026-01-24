@@ -771,6 +771,11 @@ async def image_callback(request: Request):
             
             print(f"[IMAGE-CALLBACK] ✅ Image sent to chat {tg_chat_id}")
             
+            # Mark image as shown to this user (for cache deduplication)
+            with get_db() as db:
+                crud.mark_image_shown(db, job_user_id, job_id_str)
+                print(f"[IMAGE-CALLBACK] 📝 Marked image as shown to user {job_user_id}")
+            
             # Track image generation for analytics (with Cloudflare upload in background)
             # Use job details extracted earlier from the db session
             # NOTE: For character creation images, analytics tracking is skipped to avoid duplicate Cloudflare uploads
