@@ -15,8 +15,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.settings import settings
 
 CF_IDS_FILE = "/tmp/cloudflare_ids_to_delete.txt"
-BATCH_SIZE = 50
-DELAY_BETWEEN_BATCHES = 2  # seconds
+BATCH_SIZE = 100
+CONCURRENCY = 5  # Parallel requests
+DELAY_BETWEEN_BATCHES = 1  # seconds
 
 
 async def cleanup_cloudflare():
@@ -46,37 +47,39 @@ async def cleanup_cloudflare():
     
     headers = {"Authorization": f"Bearer {api_token}"}
     timeout = aiohttp.ClientTimeout(total=30)
+    semaphore = asyncio.Semaphore(CONCURRENCY)
     
     total_deleted = 0
     total_failed = 0
     failed_ids = set()
+    
+    async def delete_one(session, cf_id):
+        if cf_id in failed_ids:
+            return False
+        async with semaphore:
+            url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/images/v1/{cf_id}"
+            try:
+                async with session.delete(url) as resp:
+                    result = await resp.json()
+                    if resp.status == 200 and result.get("success"):
+                        return True
+                    failed_ids.add(cf_id)
+                    return False
+            except:
+                return False
     
     async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
         for i in range(0, len(cf_ids), BATCH_SIZE):
             batch = cf_ids[i:i + BATCH_SIZE]
             batch_num = i // BATCH_SIZE + 1
             
-            print(f"\n📦 Batch {batch_num}: Deleting {len(batch)} from Cloudflare...")
+            print(f"\n📦 Batch {batch_num}: Deleting {len(batch)} images...")
             
-            deleted = 0
-            failed = 0
+            tasks = [delete_one(session, cf_id) for cf_id in batch]
+            results = await asyncio.gather(*tasks)
             
-            for cf_id in batch:
-                if cf_id in failed_ids:
-                    failed += 1
-                    continue
-                    
-                url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/images/v1/{cf_id}"
-                try:
-                    async with session.delete(url) as resp:
-                        result = await resp.json()
-                        if resp.status == 200 and result.get("success"):
-                            deleted += 1
-                        else:
-                            failed += 1
-                            failed_ids.add(cf_id)
-                except Exception:
-                    failed += 1
+            deleted = sum(1 for r in results if r)
+            failed = sum(1 for r in results if not r)
             
             total_deleted += deleted
             total_failed += failed
