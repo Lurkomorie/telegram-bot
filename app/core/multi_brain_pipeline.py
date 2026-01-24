@@ -568,17 +568,18 @@ async def _process_single_batch(
         log_always(f"[BATCH] 💾 Saving batch to database...")
         assistant_message_id = None
         user_language = 'en'
-        voice_buttons_hidden = False
-        voice_free_available = True
+        # VOICE DISABLED - voice settings no longer needed
+        # voice_buttons_hidden = False
+        # voice_free_available = True
         with get_db() as db:
-            # Get user language and voice settings for UI elements
+            # Get user language for UI elements
             user = db.query(User).filter(User.id == user_id).first()
             if user:
                 user_language = user.locale or 'en'
-                # Check voice settings
-                if user.settings:
-                    voice_buttons_hidden = user.settings.get("voice_buttons_hidden", False)
-                    voice_free_available = not user.settings.get("voice_free_used", False)
+                # VOICE DISABLED - voice settings commented out
+                # if user.settings:
+                #     voice_buttons_hidden = user.settings.get("voice_buttons_hidden", False)
+                #     voice_free_available = not user.settings.get("voice_free_used", False)
             
             # Save ALL user messages from batch (mark as processed)
             # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
@@ -663,32 +664,33 @@ async def _process_single_batch(
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             
+            # VOICE DISABLED - voice button functionality commented out
             # Build voice button keyboard if ElevenLabs is configured, persona has voice, not hidden by user, and response is short enough
-            from app.settings import settings
-            voice_keyboard = None
-            persona_voice_id = persona_data.get("voice_id")
-            response_length = len(dialogue_response)
-            max_voice_length = 500
-            if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id and response_length < max_voice_length:
-                from app.bot.keyboards.inline import build_voice_button_keyboard
-                voice_keyboard = build_voice_button_keyboard(
-                    message_id=assistant_message_id,
-                    language=user_language,
-                    is_free=voice_free_available
-                )
-                log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
-            elif voice_buttons_hidden:
-                log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
-            elif not persona_voice_id:
-                log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
-            elif response_length >= max_voice_length:
-                log_verbose(f"[BATCH]    Voice button skipped - response too long ({response_length} chars >= {max_voice_length})")
+            # from app.settings import settings
+            # voice_keyboard = None
+            # persona_voice_id = persona_data.get("voice_id")
+            # response_length = len(dialogue_response)
+            # max_voice_length = 500
+            # if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id and response_length < max_voice_length:
+            #     from app.bot.keyboards.inline import build_voice_button_keyboard
+            #     voice_keyboard = build_voice_button_keyboard(
+            #         message_id=assistant_message_id,
+            #         language=user_language,
+            #         is_free=voice_free_available
+            #     )
+            #     log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
+            # elif voice_buttons_hidden:
+            #     log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
+            # elif not persona_voice_id:
+            #     log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
+            # elif response_length >= max_voice_length:
+            #     log_verbose(f"[BATCH]    Voice button skipped - response too long ({response_length} chars >= {max_voice_length})")
             
             await bot.send_message(
                 tg_chat_id, 
                 escaped_response, 
-                parse_mode="MarkdownV2",
-                reply_markup=voice_keyboard
+                parse_mode="MarkdownV2"
+                # reply_markup=voice_keyboard  # VOICE DISABLED
             )
             log_always(f"[BATCH] ✅ Response sent to user")
             log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")

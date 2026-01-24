@@ -340,188 +340,189 @@ async def _background_process(chat_id, user_id, tg_chat_id, config):
             pass
 
 
-@router.callback_query(F.data.startswith("create_voice:"))
-async def handle_create_voice(callback: types.CallbackQuery):
-    """Handle 'Create Voice' button click - generate voice message from AI response"""
-    from uuid import UUID
-    from aiogram.types import BufferedInputFile
-    from sqlalchemy.orm.attributes import flag_modified
-    
-    user_id = callback.from_user.id
-    
-    log_always(f"[VOICE] 🎤 Voice generation requested by user {user_id}")
-    
-    # Parse message ID from callback data
-    try:
-        message_id_str = callback.data.split(":")[1]
-        message_id = UUID(message_id_str)
-    except (IndexError, ValueError):
-        log_always(f"[VOICE] ❌ Invalid callback data: {callback.data}")
-        await callback.answer("❌ Invalid request", show_alert=True)
-        return
-    
-    # Acknowledge callback immediately
-    await callback.answer()
-    
-    # Get user language and check energy/free status
-    with get_db() as db:
-        user = db.query(User).filter(User.id == user_id).first()
-        user_language = user.locale if user else 'en'
-        is_premium = crud.check_user_premium(db, user_id)["is_premium"]
-        
-        # Voice costs energy for ALL users (including premium)
-        # First voice is free for everyone
-        if user.settings is None:
-            user.settings = {}
-        is_free = not user.settings.get("voice_free_used", False)
-        
-        if is_free:
-            # First voice is free - just mark as used
-            user.settings["voice_free_used"] = True
-            flag_modified(user, "settings")
-            db.commit()
-            log_verbose(f"[VOICE] 🎁 User {user_id} used their free voice")
-        else:
-            # All subsequent voices cost 5 energy (for everyone, including premium)
-            if not crud.check_user_energy(db, user_id, required=5):
-                log_always(f"[VOICE] ⚠️ User {user_id} has insufficient energy")
-                await callback.message.answer(
-                    get_ui_text("voice.insufficient_energy", language=user_language)
-                )
-                return
-            
-            # Deduct energy
-            if not crud.deduct_user_energy(db, user_id, amount=5):
-                log_always(f"[VOICE] ⚠️ Failed to deduct energy")
-                await callback.message.answer(
-                    get_ui_text("voice.failed", language=user_language)
-                )
-                return
-            log_always(f"[VOICE] 🎤 Voice generated for user {user_id} (5 energy deducted, premium={is_premium})")
-        
-        # Get the message from database
-        message = crud.get_message_by_id(db, message_id)
-        
-        if not message:
-            log_always(f"[VOICE] ❌ Message {message_id} not found")
-            await callback.message.answer(
-                get_ui_text("voice.failed", language=user_language)
-            )
-            return
-        
-        message_text = message.text
-        
-        # Get persona for voice processing context and voice_id
-        chat = crud.get_chat_by_id(db, message.chat_id)
-        persona = crud.get_persona_by_id(db, chat.persona_id) if chat else None
-        persona_name = persona.name if persona else "AI"
-        # Get persona's voice_id if available (for custom characters)
-        persona_voice_id = getattr(persona, 'voice_id', None) if persona else None
-        
-        # Save IDs before session closes (to avoid DetachedInstanceError)
-        persona_id = persona.id if persona else None
-        chat_id = chat.id if chat else None
-    
-    log_verbose(f"[VOICE]    Message text: {message_text[:100]}...")
-    log_verbose(f"[VOICE]    Persona: {persona_name}")
-    log_verbose(f"[VOICE]    Persona voice_id: {persona_voice_id}")
-    
-    # Remove the voice button from the original message
-    try:
-        await callback.message.edit_reply_markup(reply_markup=None)
-        log_verbose(f"[VOICE] 🗑️  Removed voice button from message")
-    except Exception as e:
-        log_verbose(f"[VOICE] ⚠️  Could not remove voice button: {e}")
-    
-    # Show "generating" status
-    status_msg = await callback.message.answer(
-        get_ui_text("voice.generating", language=user_language)
-    )
-    
-    try:
-        # Process text through voice processor brain (add audio tags)
-        from app.core.brains.voice_processor import process_text_for_voice
-        tagged_text = await process_text_for_voice(message_text, persona_name)
-        
-        log_verbose(f"[VOICE]    Tagged text: {tagged_text[:150]}...")
-        
-        # Generate voice audio via ElevenLabs (use persona's voice_id if available)
-        from app.core.elevenlabs_service import generate_voice
-        voice_bytes = await generate_voice(tagged_text, voice_id=persona_voice_id)
-        
-        if not voice_bytes:
-            log_always(f"[VOICE] ❌ Voice generation failed")
-            await status_msg.delete()
-            await callback.message.answer(
-                get_ui_text("voice.failed", language=user_language)
-            )
-            return
-        
-        # Delete status message
-        await status_msg.delete()
-        
-        # Send voice message
-        voice_file = BufferedInputFile(voice_bytes, filename="voice.ogg")
-        await callback.message.answer_voice(voice=voice_file)
-        
-        log_always(f"[VOICE] ✅ Voice message sent to user {user_id}")
-        
-        # Track voice generation analytics
-        from app.core import analytics_service_tg
-        analytics_service_tg.track_voice_generated(
-            client_id=user_id,
-            persona_id=persona_id,
-            persona_name=persona_name,
-            chat_id=chat_id,
-            message_length=len(message_text),
-            characters_used=len(tagged_text),  # Characters billed by ElevenLabs
-            is_free=is_free
-        )
-        
-    except Exception as e:
-        log_always(f"[VOICE] ❌ Error: {type(e).__name__}: {e}")
-        try:
-            await status_msg.delete()
-        except:
-            pass
-        await callback.message.answer(
-            get_ui_text("voice.failed", language=user_language)
-        )
+# VOICE DISABLED - all voice handlers commented out
+# @router.callback_query(F.data.startswith("create_voice:"))
+# async def handle_create_voice(callback: types.CallbackQuery):
+#     """Handle 'Create Voice' button click - generate voice message from AI response"""
+#     from uuid import UUID
+#     from aiogram.types import BufferedInputFile
+#     from sqlalchemy.orm.attributes import flag_modified
+#     
+#     user_id = callback.from_user.id
+#     
+#     log_always(f"[VOICE] 🎤 Voice generation requested by user {user_id}")
+#     
+#     # Parse message ID from callback data
+#     try:
+#         message_id_str = callback.data.split(":")[1]
+#         message_id = UUID(message_id_str)
+#     except (IndexError, ValueError):
+#         log_always(f"[VOICE] ❌ Invalid callback data: {callback.data}")
+#         await callback.answer("❌ Invalid request", show_alert=True)
+#         return
+#     
+#     # Acknowledge callback immediately
+#     await callback.answer()
+#     
+#     # Get user language and check energy/free status
+#     with get_db() as db:
+#         user = db.query(User).filter(User.id == user_id).first()
+#         user_language = user.locale if user else 'en'
+#         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+#         
+#         # Voice costs energy for ALL users (including premium)
+#         # First voice is free for everyone
+#         if user.settings is None:
+#             user.settings = {}
+#         is_free = not user.settings.get("voice_free_used", False)
+#         
+#         if is_free:
+#             # First voice is free - just mark as used
+#             user.settings["voice_free_used"] = True
+#             flag_modified(user, "settings")
+#             db.commit()
+#             log_verbose(f"[VOICE] 🎁 User {user_id} used their free voice")
+#         else:
+#             # All subsequent voices cost 5 energy (for everyone, including premium)
+#             if not crud.check_user_energy(db, user_id, required=5):
+#                 log_always(f"[VOICE] ⚠️ User {user_id} has insufficient energy")
+#                 await callback.message.answer(
+#                     get_ui_text("voice.insufficient_energy", language=user_language)
+#                 )
+#                 return
+#             
+#             # Deduct energy
+#             if not crud.deduct_user_energy(db, user_id, amount=5):
+#                 log_always(f"[VOICE] ⚠️ Failed to deduct energy")
+#                 await callback.message.answer(
+#                     get_ui_text("voice.failed", language=user_language)
+#                 )
+#                 return
+#             log_always(f"[VOICE] 🎤 Voice generated for user {user_id} (5 energy deducted, premium={is_premium})")
+#         
+#         # Get the message from database
+#         message = crud.get_message_by_id(db, message_id)
+#         
+#         if not message:
+#             log_always(f"[VOICE] ❌ Message {message_id} not found")
+#             await callback.message.answer(
+#                 get_ui_text("voice.failed", language=user_language)
+#             )
+#             return
+#         
+#         message_text = message.text
+#         
+#         # Get persona for voice processing context and voice_id
+#         chat = crud.get_chat_by_id(db, message.chat_id)
+#         persona = crud.get_persona_by_id(db, chat.persona_id) if chat else None
+#         persona_name = persona.name if persona else "AI"
+#         # Get persona's voice_id if available (for custom characters)
+#         persona_voice_id = getattr(persona, 'voice_id', None) if persona else None
+#         
+#         # Save IDs before session closes (to avoid DetachedInstanceError)
+#         persona_id = persona.id if persona else None
+#         chat_id = chat.id if chat else None
+#     
+#     log_verbose(f"[VOICE]    Message text: {message_text[:100]}...")
+#     log_verbose(f"[VOICE]    Persona: {persona_name}")
+#     log_verbose(f"[VOICE]    Persona voice_id: {persona_voice_id}")
+#     
+#     # Remove the voice button from the original message
+#     try:
+#         await callback.message.edit_reply_markup(reply_markup=None)
+#         log_verbose(f"[VOICE] 🗑️  Removed voice button from message")
+#     except Exception as e:
+#         log_verbose(f"[VOICE] ⚠️  Could not remove voice button: {e}")
+#     
+#     # Show "generating" status
+#     status_msg = await callback.message.answer(
+#         get_ui_text("voice.generating", language=user_language)
+#     )
+#     
+#     try:
+#         # Process text through voice processor brain (add audio tags)
+#         from app.core.brains.voice_processor import process_text_for_voice
+#         tagged_text = await process_text_for_voice(message_text, persona_name)
+#         
+#         log_verbose(f"[VOICE]    Tagged text: {tagged_text[:150]}...")
+#         
+#         # Generate voice audio via ElevenLabs (use persona's voice_id if available)
+#         from app.core.elevenlabs_service import generate_voice
+#         voice_bytes = await generate_voice(tagged_text, voice_id=persona_voice_id)
+#         
+#         if not voice_bytes:
+#             log_always(f"[VOICE] ❌ Voice generation failed")
+#             await status_msg.delete()
+#             await callback.message.answer(
+#                 get_ui_text("voice.failed", language=user_language)
+#             )
+#             return
+#         
+#         # Delete status message
+#         await status_msg.delete()
+#         
+#         # Send voice message
+#         voice_file = BufferedInputFile(voice_bytes, filename="voice.ogg")
+#         await callback.message.answer_voice(voice=voice_file)
+#         
+#         log_always(f"[VOICE] ✅ Voice message sent to user {user_id}")
+#         
+#         # Track voice generation analytics
+#         from app.core import analytics_service_tg
+#         analytics_service_tg.track_voice_generated(
+#             client_id=user_id,
+#             persona_id=persona_id,
+#             persona_name=persona_name,
+#             chat_id=chat_id,
+#             message_length=len(message_text),
+#             characters_used=len(tagged_text),  # Characters billed by ElevenLabs
+#             is_free=is_free
+#         )
+#         
+#     except Exception as e:
+#         log_always(f"[VOICE] ❌ Error: {type(e).__name__}: {e}")
+#         try:
+#             await status_msg.delete()
+#         except:
+#             pass
+#         await callback.message.answer(
+#             get_ui_text("voice.failed", language=user_language)
+#         )
 
 
-@router.callback_query(F.data == "hide_voice_buttons")
-async def handle_hide_voice_buttons(callback: types.CallbackQuery):
-    """Handle 'Hide voice buttons' click - hide voice buttons for this user"""
-    from sqlalchemy.orm.attributes import flag_modified
-    
-    user_id = callback.from_user.id
-    
-    log_always(f"[VOICE] 🔇 User {user_id} requested to hide voice buttons")
-    
-    with get_db() as db:
-        user = db.query(User).filter(User.id == user_id).first()
-        user_language = user.locale if user else 'en'
-        
-        # Update user settings to hide voice buttons
-        if user.settings is None:
-            user.settings = {}
-        user.settings["voice_buttons_hidden"] = True
-        flag_modified(user, "settings")
-        db.commit()
-        
-        log_verbose(f"[VOICE] ✅ Voice buttons hidden for user {user_id}")
-    
-    # Remove the buttons from the current message
-    try:
-        await callback.message.edit_reply_markup(reply_markup=None)
-    except Exception as e:
-        log_verbose(f"[VOICE] ⚠️  Could not remove buttons: {e}")
-    
-    # Show popup with message
-    await callback.answer(
-        get_ui_text("voice.hidden_popup", language=user_language),
-        show_alert=True
-    )
+# @router.callback_query(F.data == "hide_voice_buttons")
+# async def handle_hide_voice_buttons(callback: types.CallbackQuery):
+#     """Handle 'Hide voice buttons' click - hide voice buttons for this user"""
+#     from sqlalchemy.orm.attributes import flag_modified
+#     
+#     user_id = callback.from_user.id
+#     
+#     log_always(f"[VOICE] 🔇 User {user_id} requested to hide voice buttons")
+#     
+#     with get_db() as db:
+#         user = db.query(User).filter(User.id == user_id).first()
+#         user_language = user.locale if user else 'en'
+#         
+#         # Update user settings to hide voice buttons
+#         if user.settings is None:
+#             user.settings = {}
+#         user.settings["voice_buttons_hidden"] = True
+#         flag_modified(user, "settings")
+#         db.commit()
+#         
+#         log_verbose(f"[VOICE] ✅ Voice buttons hidden for user {user_id}")
+#     
+#     # Remove the buttons from the current message
+#     try:
+#         await callback.message.edit_reply_markup(reply_markup=None)
+#     except Exception as e:
+#         log_verbose(f"[VOICE] ⚠️  Could not remove buttons: {e}")
+#     
+#     # Show popup with message
+#     await callback.answer(
+#         get_ui_text("voice.hidden_popup", language=user_language),
+#         show_alert=True
+#     )
 
 
 @router.callback_query(F.data == "hide_blurred_image")
