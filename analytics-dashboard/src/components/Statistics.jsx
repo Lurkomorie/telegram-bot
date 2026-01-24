@@ -272,7 +272,8 @@ export default function Statistics() {
   const statCards = [
     { label: 'Total Users', value: stats.total_users, icon: '👥', color: 'blue' },
     { label: 'Total Messages', value: stats.total_messages, icon: '💬', color: 'green' },
-    { label: 'Total Images', value: stats.total_images, icon: '🖼️', color: 'purple' },
+    { label: 'Images Generated', value: stats.total_images_generated, icon: '🖼️', color: 'purple' },
+    { label: 'Images from Cache', value: stats.total_images_from_cache, icon: '💾', color: 'emerald', tooltip: `Cache hit rate: ${stats.cache_hit_rate}%` },
     { label: 'Total Voices', value: stats.total_voices, icon: '🎤', color: 'orange' },
     { label: 'Voice Characters', value: formatCharacters(stats.total_voice_characters || 0), icon: '📝', color: 'cyan', tooltip: 'ElevenLabs billed characters' },
     { label: 'Active Users (7d)', value: stats.active_users_7d, icon: '⚡', color: 'yellow' },

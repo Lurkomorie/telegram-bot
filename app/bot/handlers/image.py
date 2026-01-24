@@ -148,6 +148,67 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
             ""  # No dialogue response for manual image gen
         )
         
+        # Check image cache before generating
+        prompt_hash = crud.compute_prompt_hash(positive_prompt)
+        cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+        
+        if cached_image and cached_image.result_url:
+            print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
+            
+            try:
+                from app.bot.keyboards.inline import build_image_refresh_keyboard
+                
+                # Build refresh keyboard with cached image job ID
+                refresh_keyboard = build_image_refresh_keyboard(str(cached_image.id))
+                
+                # Remove refresh button from previous image
+                if chat.ext and chat.ext.get("last_image_msg_id"):
+                    prev_msg_id = chat.ext["last_image_msg_id"]
+                    try:
+                        await bot.edit_message_reply_markup(
+                            chat_id=message.chat.id,
+                            message_id=prev_msg_id,
+                            reply_markup=None
+                        )
+                    except Exception:
+                        pass
+                
+                # Send cached image
+                sent_message = await bot.send_photo(
+                    chat_id=message.chat.id,
+                    photo=cached_image.result_url,
+                    reply_markup=refresh_keyboard
+                )
+                
+                # Update tracking
+                if sent_message.photo:
+                    from sqlalchemy.orm.attributes import flag_modified
+                    if not chat.ext:
+                        chat.ext = {}
+                    chat.ext["last_image_msg_id"] = sent_message.message_id
+                    flag_modified(chat, "ext")
+                    db.commit()
+                
+                # Mark image as shown to this user and increment cache serve count
+                crud.mark_image_shown(db, user_id, cached_image.id)
+                crud.increment_cache_serve_count(db, cached_image.id)
+                
+                # Track analytics
+                from app.core import analytics_service_tg
+                analytics_service_tg.track_image_from_cache(
+                    client_id=user_id,
+                    image_job_id=cached_image.id,
+                    prompt_hash=prompt_hash
+                )
+                
+                print(f"[IMAGE] ✅ Cached image sent successfully! (served {cached_image.cache_serve_count + 1} times)")
+                return  # Exit early - no need to generate
+                
+            except Exception as e:
+                print(f"[IMAGE] ⚠️ Failed to send cached image: {e}, falling back to generation")
+        else:
+            print(f"[IMAGE] 📭 Cache miss - will generate new image")
+        
         # Create image job
         seed = random.randint(1, 2147483647)
         job = crud.create_image_job(
@@ -550,11 +611,15 @@ async def refresh_image_callback(callback: types.CallbackQuery):
             await callback.answer("❌ Job not found", show_alert=True)
             return
         
-        # Get refresh count from job ext
-        job_ext = job.ext if job.ext else {}
-        refresh_count = job_ext.get("refresh_count", 0)
+        # Get refresh count from job (use new field, fallback to ext for backwards compatibility)
+        refresh_count = job.refresh_count if job.refresh_count else 0
+        if refresh_count == 0 and job.ext:
+            refresh_count = job.ext.get("refresh_count", 0)
         
         print(f"[REFRESH-IMAGE] 📊 Current refresh count: {refresh_count}")
+        
+        # Increment refresh count on the image (tracks quality)
+        crud.increment_refresh_count(db, job.id)
         
         # Check if user is premium
         is_premium = crud.check_user_premium(db, user_id)["is_premium"]
@@ -881,6 +946,53 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
                 None,  # No chat
                 ""
             )
+        
+        # Check image cache before generating
+        prompt_hash = crud.compute_prompt_hash(positive_prompt)
+        cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+        
+        if cached_image and cached_image.result_url:
+            print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
+            
+            try:
+                from app.bot.keyboards.inline import build_image_refresh_keyboard
+                
+                # Build refresh keyboard with cached image job ID
+                refresh_keyboard = build_image_refresh_keyboard(str(cached_image.id))
+                
+                # Delete loading message if exists
+                if loading_msg_id:
+                    try:
+                        await bot.delete_message(chat_id=message.chat.id, message_id=loading_msg_id)
+                    except Exception:
+                        pass
+                
+                # Send cached image
+                sent_message = await bot.send_photo(
+                    chat_id=message.chat.id,
+                    photo=cached_image.result_url,
+                    reply_markup=refresh_keyboard
+                )
+                
+                # Mark image as shown to this user and increment cache serve count
+                crud.mark_image_shown(db, user_id, cached_image.id)
+                crud.increment_cache_serve_count(db, cached_image.id)
+                
+                # Track analytics
+                from app.core import analytics_service_tg
+                analytics_service_tg.track_image_from_cache(
+                    client_id=user_id,
+                    image_job_id=cached_image.id,
+                    prompt_hash=prompt_hash
+                )
+                
+                print(f"[IMAGE] ✅ Cached image sent successfully! (served {cached_image.cache_serve_count + 1} times)")
+                return  # Exit early - no need to generate
+                
+            except Exception as e:
+                print(f"[IMAGE] ⚠️ Failed to send cached image: {e}, falling back to generation")
+        else:
+            print(f"[IMAGE] 📭 Cache miss - will generate new image")
         
         # Create image job (without chat_id - standalone image generation)
         seed = random.randint(1, 2147483647)

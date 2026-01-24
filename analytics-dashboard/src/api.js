@@ -548,5 +548,35 @@ export const api = {
       throw new Error(error.detail || 'Failed to upload file');
     }
     return response.json();
+  },
+
+  // ========== IMAGE CACHE ==========
+
+  async getMostRefreshedImages(limit = 50) {
+    const response = await fetch(`${API_BASE}/api/analytics/most-refreshed-images?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch most refreshed images');
+    return response.json();
+  },
+
+  async getMostCachedImages(limit = 50) {
+    const response = await fetch(`${API_BASE}/api/analytics/most-cached-images?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch most cached images');
+    return response.json();
+  },
+
+  async blacklistImage(jobId) {
+    const response = await fetch(`${API_BASE}/api/analytics/blacklist-image/${jobId}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to blacklist image');
+    return response.json();
+  },
+
+  async unblacklistImage(jobId) {
+    const response = await fetch(`${API_BASE}/api/analytics/unblacklist-image/${jobId}`, {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to unblacklist image');
+    return response.json();
   }
 };

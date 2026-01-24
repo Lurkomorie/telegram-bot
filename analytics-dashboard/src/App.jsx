@@ -6,6 +6,7 @@ import UserTimeline from './components/UserTimeline';
 import AcquisitionSources from './components/AcquisitionSources';
 import StartCodes from './components/StartCodes';
 import Images from './components/Images';
+import ImageCache from './components/ImageCache';
 import PremiumStatistics from './components/PremiumStatistics';
 import ReferralStats from './components/ReferralStats';
 import AuthGuard from './components/AuthGuard';
@@ -40,6 +41,7 @@ function App() {
                   <Route path="/start-codes" element={<StartCodes />} />
                   <Route path="/characters" element={<Characters />} />
                   <Route path="/images" element={<Images />} />
+                  <Route path="/image-cache" element={<ImageCache />} />
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
                   <Route path="/conversions" element={<Conversions />} />
                   <Route path="/payments" element={<Payments />} />

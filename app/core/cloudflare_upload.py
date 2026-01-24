@@ -184,3 +184,55 @@ async def upload_to_cloudflare_tg(
         error=str(last_error) if last_error else "Upload failed after all retry attempts"
     )
 
+
+def extract_image_id_from_url(result_url: str) -> Optional[str]:
+    """Extract image_id from Cloudflare URL: https://imagedelivery.net/{hash}/{image_id}/public"""
+    if not result_url or "imagedelivery.net" not in result_url:
+        return None
+    parts = result_url.split("/")
+    # URL format: https://imagedelivery.net/{account_hash}/{image_id}/{variant}
+    # parts: ['https:', '', 'imagedelivery.net', '{hash}', '{image_id}', '{variant}']
+    if len(parts) >= 5:
+        return parts[-2]  # image_id is second to last (before variant like 'public' or 'admin')
+    return None
+
+
+async def delete_from_cloudflare(image_id: str, timeout_ms: int = 10000) -> bool:
+    """
+    Delete image from Cloudflare CDN
+    
+    Args:
+        image_id: Cloudflare image ID to delete
+        timeout_ms: Timeout in milliseconds
+    
+    Returns:
+        True if deletion was successful, False otherwise
+    """
+    import aiohttp
+    
+    api_token = CLOUDFLARE_CONFIG["API_TOKEN"]
+    account_id = CLOUDFLARE_CONFIG["ACCOUNT_ID"]
+    
+    if not api_token or not account_id:
+        print(f"[CLOUDFLARE] ⚠️ Cannot delete {image_id}: credentials not configured")
+        return False
+    
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/images/v1/{image_id}"
+    headers = {"Authorization": f"Bearer {api_token}"}
+    
+    try:
+        timeout = aiohttp.ClientTimeout(total=timeout_ms / 1000)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.delete(url, headers=headers) as resp:
+                result = await resp.json()
+                if resp.status == 200 and result.get("success"):
+                    print(f"[CLOUDFLARE] 🗑️ Deleted image {image_id}")
+                    return True
+                else:
+                    error_msg = result.get('errors', [{}])[0].get('message', 'Unknown error')
+                    print(f"[CLOUDFLARE] ⚠️ Failed to delete {image_id}: {error_msg}")
+                    return False
+    except Exception as e:
+        print(f"[CLOUDFLARE] ❌ Error deleting {image_id}: {e}")
+        return False
+

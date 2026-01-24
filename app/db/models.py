@@ -3,7 +3,7 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Numeric, String, Text, ARRAY, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, ARRAY, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -272,6 +272,7 @@ class ImageJob(Base):
     # Prompts
     prompt = Column(Text, nullable=False)
     negative_prompt = Column(Text, nullable=True)
+    prompt_hash = Column(String(64), nullable=True)  # SHA256 of normalized prompt for cache lookup
     
     # Status
     status = Column(
@@ -285,6 +286,11 @@ class ImageJob(Base):
     result_url = Column(Text, nullable=True)
     result_file_id = Column(String(255), nullable=True)  # Telegram file_id for caching
     error = Column(Text, nullable=True)
+    
+    # Cache quality tracking
+    refresh_count = Column(Integer, default=0, nullable=False)  # How many times users refreshed this image
+    cache_serve_count = Column(Integer, default=0, nullable=False)  # How many times served from cache
+    is_blacklisted = Column(Boolean, default=False, nullable=False)  # Bad image - don't serve from cache
     
     # Extra metadata
     ext = Column(JSONB, default={})  # {"width": 832, "height": 1216, "seed": 123456, ...}
@@ -300,6 +306,30 @@ class ImageJob(Base):
     __table_args__ = (
         Index("ix_image_jobs_status", "status"),
         Index("ix_image_jobs_chat_id", "chat_id"),
+        Index("ix_image_jobs_prompt_hash", "prompt_hash"),  # For fast cache lookup
+        # Additional partial indexes created via migration 031_add_image_cache_indexes:
+        # - ix_image_jobs_cache_lookup: partial index on prompt_hash WHERE completed & not blacklisted & has cloudflare URL
+        # - ix_image_jobs_refresh_count: partial index on refresh_count DESC WHERE > 0
+        # - ix_image_jobs_cache_serve_count: partial index on cache_serve_count DESC WHERE > 0
+    )
+
+
+class UserShownImage(Base):
+    """Track which images each user has seen (for cache deduplication)"""
+    __tablename__ = "user_shown_images"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    image_job_id = Column(UUID(as_uuid=True), ForeignKey("image_jobs.id"), nullable=False)
+    shown_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    user = relationship("User")
+    image_job = relationship("ImageJob")
+    
+    __table_args__ = (
+        Index("ix_user_shown_images_lookup", "user_id", "image_job_id", unique=True),
+        Index("ix_user_shown_images_user_id", "user_id"),  # For NOT IN subquery in cache lookup
     )
 
 

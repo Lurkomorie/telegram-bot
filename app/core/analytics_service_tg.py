@@ -143,6 +143,17 @@ async def _upload_and_track_image(
         if result.success:
             cloudflare_url = result.image_url
             print(f"[ANALYTICS] ✅ Image uploaded: {cloudflare_url}")
+            
+            # Update ImageJob.result_url with real Cloudflare URL (if job_id provided)
+            if job_id and cloudflare_url:
+                try:
+                    from app.db.base import get_db
+                    from app.db import crud
+                    with get_db() as db:
+                        crud.update_image_job_status(db, job_id, status="completed", result_url=cloudflare_url)
+                        print(f"[ANALYTICS] ✅ Updated ImageJob {job_id} with Cloudflare URL")
+                except Exception as e:
+                    print(f"[ANALYTICS] ⚠️ Failed to update ImageJob result_url: {e}")
         else:
             print(f"[ANALYTICS] ⚠️  Image upload failed: {result.error}")
             cloudflare_url = None
@@ -221,6 +232,26 @@ def track_image_refresh(
         persona_name=persona_name,
         meta={
             "original_job_id": original_job_id
+        }
+    )
+
+
+def track_image_from_cache(
+    client_id: int,
+    image_job_id: UUID,
+    prompt_hash: str,
+    persona_id: Optional[UUID] = None,
+    persona_name: Optional[str] = None
+):
+    """Track when an image is served from cache instead of being generated"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="image_from_cache",
+        persona_id=persona_id,
+        persona_name=persona_name,
+        meta={
+            "image_job_id": str(image_job_id),
+            "prompt_hash": prompt_hash
         }
     )
 
