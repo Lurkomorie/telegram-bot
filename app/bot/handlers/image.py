@@ -316,7 +316,7 @@ async def show_energy_upsell_message(message: types.Message = None, user_id: int
     message_text = get_ui_text(variant_key, user_language)
     
     # Build keyboard with variant tracking
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_energy_upsell_keyboard(
         miniapp_url, 
         language=user_language, 
@@ -1110,7 +1110,7 @@ async def upsell_click_callback(callback: types.CallbackQuery):
             log_always(f"[IMAGE] Failed to track upsell click: {e}")
     
     # Build miniapp URL - always go to premium page
-    miniapp_url = f"{settings.public_url}/miniapp?page=premium"
+    miniapp_url = f"{settings.miniapp_url}?page=premium"
     
     # Edit message to show WebApp button (callback.answer with URL only works for games)
     button_key = f"tokens.outOfTokens.button{button_variant}"

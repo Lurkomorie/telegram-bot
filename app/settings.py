@@ -56,6 +56,22 @@ class Settings(BaseSettings):
     ENV: str = "production"
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: Optional[str] = "production"  # For verbose logging (development/dev/local or production)
+    SERVE_LOCAL_STATIC: bool = True
+    
+    # Frontend base URLs (CDN/Pages)
+    MINIAPP_BASE_URL: Optional[str] = None
+    ANALYTICS_BASE_URL: Optional[str] = None
+    
+    # Upload storage
+    UPLOADS_BACKEND: str = "local"  # local | r2
+    R2_ACCESS_KEY_ID: Optional[str] = None
+    R2_SECRET_ACCESS_KEY: Optional[str] = None
+    R2_BUCKET_NAME: Optional[str] = None
+    R2_ENDPOINT_URL: Optional[str] = None
+    R2_PUBLIC_BASE_URL: Optional[str] = None
+    R2_SIGNED_URLS: bool = True
+    R2_URL_EXPIRES_SECONDS: int = 3600
+    R2_UPLOADS_PREFIX: str = "uploads"
     
     # Feature flags
     ENABLE_BOT: bool = True  # Set to False to disable bot (useful for local testing of APIs)
@@ -68,6 +84,10 @@ class Settings(BaseSettings):
     CONCURRENT_IMAGE_LIMIT_ENABLED: bool = False  # Set to True to enable concurrent image limit per user
     CONCURRENT_IMAGE_LIMIT_NUMBER: int = 2  # Maximum number of images a user can generate simultaneously (only if CONCURRENT_IMAGE_LIMIT_ENABLED=True)
     SIMULATE_PAYMENTS: bool = False  # Set to True to simulate successful payments in development (no real Telegram Stars charged)
+
+    # CORS
+    CORS_ALLOW_ORIGINS: Optional[str] = None  # Comma-separated origins
+    ENABLE_EGRESS_LOGGING: bool = False
     
     # Notifications
     PAYMENT_NOTIFICATION_CHAT_ID: Optional[int] = None  # Telegram group/channel ID for payment notifications
@@ -88,6 +108,26 @@ class Settings(BaseSettings):
             return f"https://{self.RAILWAY_PUBLIC_DOMAIN}"
         else:
             raise ValueError("Either PUBLIC_BASE_URL or RAILWAY_PUBLIC_DOMAIN must be set")
+
+    @property
+    def miniapp_url(self) -> str:
+        """Get Mini App URL (external base if configured)."""
+        if self.MINIAPP_BASE_URL:
+            return self.MINIAPP_BASE_URL.rstrip("/")
+        return f"{self.public_url}/miniapp"
+
+    @property
+    def analytics_url(self) -> Optional[str]:
+        """Get Analytics URL (external base if configured)."""
+        if self.ANALYTICS_BASE_URL:
+            return self.ANALYTICS_BASE_URL.rstrip("/")
+        return f"{self.public_url}/analytics"
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        if not self.CORS_ALLOW_ORIGINS:
+            return []
+        return [origin.strip() for origin in self.CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
     
     @property
     def followup_test_user_ids(self) -> Optional[list[int]]:

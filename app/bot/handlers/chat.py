@@ -561,7 +561,7 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             if not crud.check_user_energy(db, user_id, required=5):
                 log_always(f"[UNLOCK-IMAGE] User {user_id} has insufficient energy")
                 # Replace keyboard with only premium button
-                miniapp_url = f"{settings.public_url}/miniapp?page=premium"
+                miniapp_url = f"{settings.miniapp_url}?page=premium"
                 premium_keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(
                         text=get_ui_text("blurred_image.premium_button", language=user_language),

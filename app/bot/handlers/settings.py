@@ -99,7 +99,7 @@ async def cmd_girls(message: types.Message):
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     await message.answer(

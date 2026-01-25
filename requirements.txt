@@ -24,6 +24,7 @@ PyYAML==6.0.1
 
 # Utilities
 orjson==3.9.12
+boto3==1.39.8
 
 # Image Processing
 Pillow>=10.0.0

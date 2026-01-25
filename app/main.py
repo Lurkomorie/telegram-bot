@@ -3,6 +3,7 @@ FastAPI application with Telegram webhook and image callback endpoints
 """
 print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from aiogram.types import Update
@@ -79,7 +80,7 @@ async def lifespan(app: FastAPI):
             app_config = get_app_config()
             miniapp_config = app_config.get('miniapp', {})
             button_name = miniapp_config.get('menu_button_name', 'App')
-            miniapp_url = f"{settings.public_url}/miniapp"
+            miniapp_url = settings.miniapp_url
             menu_button = MenuButtonWebApp(text=button_name, web_app=WebAppInfo(url=miniapp_url))
             await bot.set_chat_menu_button(menu_button=menu_button)
             print(f"✅ Mini App menu button set: {miniapp_url}")
@@ -120,76 +121,105 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan, title="AI Telegram Bot")
 
+# CORS (for external Mini App / Analytics domains)
+cors_allow_origins = settings.cors_allow_origins
+if cors_allow_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+if settings.ENABLE_EGRESS_LOGGING:
+    @app.middleware("http")
+    async def log_response_size(request: Request, call_next):
+        response = await call_next(request)
+        content_length = response.headers.get("content-length")
+        if content_length:
+            print(f"[EGRESS] {request.method} {request.url.path} {content_length} bytes")
+        return response
+
 # Include API routers
 app.include_router(miniapp.router)
 app.include_router(analytics.router)
 
 # Serve Mini App static files (React build)
-miniapp_build_path = Path(__file__).parent.parent / "miniapp" / "dist"
-if miniapp_build_path.exists():
-    # Mount assets directory
-    app.mount("/miniapp/assets", StaticFiles(directory=miniapp_build_path / "assets"), name="miniapp-assets")
-    
-    # Serve index.html at /miniapp
-    @app.get("/miniapp")
-    async def serve_miniapp():
-        """Serve Mini App index.html"""
-        index_path = miniapp_build_path / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
-        return {"error": "Mini App not built"}
-    
-    # Serve other static files (like vite.svg)
-    @app.get("/miniapp/{filename}")
-    async def serve_miniapp_files(filename: str):
-        """Serve static files from Mini App build"""
-        file_path = miniapp_build_path / filename
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        return {"error": "File not found"}
-    
-    print(f"✅ Mini App static files mounted at /miniapp")
+if settings.SERVE_LOCAL_STATIC:
+    miniapp_build_path = Path(__file__).parent.parent / "miniapp" / "dist"
+    if miniapp_build_path.exists():
+        # Mount assets directory
+        app.mount("/miniapp/assets", StaticFiles(directory=miniapp_build_path / "assets"), name="miniapp-assets")
+        
+        # Serve index.html at /miniapp
+        @app.get("/miniapp")
+        async def serve_miniapp():
+            """Serve Mini App index.html"""
+            index_path = miniapp_build_path / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            return {"error": "Mini App not built"}
+        
+        # Serve other static files (like vite.svg)
+        @app.get("/miniapp/{filename}")
+        async def serve_miniapp_files(filename: str):
+            """Serve static files from Mini App build"""
+            file_path = miniapp_build_path / filename
+            if file_path.exists() and file_path.is_file():
+                return FileResponse(file_path)
+            return {"error": "File not found"}
+        
+        print("✅ Mini App static files mounted at /miniapp")
+    else:
+        print(f"⚠️  Mini App build not found at {miniapp_build_path}")
 else:
-    print(f"⚠️  Mini App build not found at {miniapp_build_path}")
+    print("ℹ️  Local Mini App static hosting disabled")
 
 # Serve Analytics Dashboard static files (React build)
-analytics_build_path = Path(__file__).parent.parent / "analytics-dashboard" / "dist"
-if analytics_build_path.exists():
-    # Mount assets directory
-    app.mount("/analytics/assets", StaticFiles(directory=analytics_build_path / "assets"), name="analytics-assets")
-    
-    # Serve index.html at /analytics
-    @app.get("/analytics")
-    async def serve_analytics():
-        """Serve Analytics Dashboard index.html"""
-        index_path = analytics_build_path / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
-        return {"error": "Analytics Dashboard not built"}
-    
-    # Catch-all route for React Router (must be after /analytics/assets)
-    @app.get("/analytics/{full_path:path}")
-    async def serve_analytics_routes(full_path: str):
-        """Serve Analytics Dashboard for all routes (React Router)"""
-        # If requesting a file that exists, serve it
-        file_path = analytics_build_path / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        # Otherwise serve index.html (for React Router)
-        index_path = analytics_build_path / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
-        return {"error": "File not found"}
-    
-    print(f"✅ Analytics Dashboard mounted at /analytics")
+if settings.SERVE_LOCAL_STATIC:
+    analytics_build_path = Path(__file__).parent.parent / "analytics-dashboard" / "dist"
+    if analytics_build_path.exists():
+        # Mount assets directory
+        app.mount("/analytics/assets", StaticFiles(directory=analytics_build_path / "assets"), name="analytics-assets")
+        
+        # Serve index.html at /analytics
+        @app.get("/analytics")
+        async def serve_analytics():
+            """Serve Analytics Dashboard index.html"""
+            index_path = analytics_build_path / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            return {"error": "Analytics Dashboard not built"}
+        
+        # Catch-all route for React Router (must be after /analytics/assets)
+        @app.get("/analytics/{full_path:path}")
+        async def serve_analytics_routes(full_path: str):
+            """Serve Analytics Dashboard for all routes (React Router)"""
+            # If requesting a file that exists, serve it
+            file_path = analytics_build_path / full_path
+            if file_path.exists() and file_path.is_file():
+                return FileResponse(file_path)
+            # Otherwise serve index.html (for React Router)
+            index_path = analytics_build_path / "index.html"
+            if index_path.exists():
+                return FileResponse(index_path)
+            return {"error": "File not found"}
+        
+        print("✅ Analytics Dashboard mounted at /analytics")
+    else:
+        print(f"⚠️  Analytics Dashboard build not found at {analytics_build_path}")
 else:
-    print(f"⚠️  Analytics Dashboard build not found at {analytics_build_path}")
+    print("ℹ️  Local Analytics static hosting disabled")
 
 # Mount uploads directory for serving uploaded files
-uploads_path = Path(__file__).parent.parent / "uploads"
-uploads_path.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
-print(f"✅ Uploads directory mounted at /uploads")
+if settings.UPLOADS_BACKEND == "local":
+    uploads_path = Path(__file__).parent.parent / "uploads"
+    uploads_path.mkdir(exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+    print("✅ Uploads directory mounted at /uploads")
+else:
+    print("ℹ️  Local uploads hosting disabled")
 
 
 @app.get("/")
@@ -680,7 +710,7 @@ async def image_callback(request: Request):
                             db.commit()
                     
                     # Build keyboard and send blurred image WITH caption
-                    miniapp_url = f"{settings.public_url}/miniapp"
+                    miniapp_url = settings.miniapp_url
                     blurred_keyboard = build_blurred_image_keyboard(job_id_str, miniapp_url, user_language)
                     
                     blurred_file = BufferedInputFile(blurred_data, filename="blurred.jpg")
