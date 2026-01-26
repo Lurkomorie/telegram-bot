@@ -1,0 +1,20 @@
+R2 Account Token was successfully created
+Summary:
+Permissions:
+Allows the ability to create, list, and delete buckets, edit bucket configuration, read, write, and list objects, and read and write access to data catalog tables and associated metadata.
+
+Buckets:
+All R2 buckets on this account
+Use this token for authenticating against the Cloudflare API:
+Token value
+oQ7Doycyo36wufNFI1n-KOPX9LdIhKYuxu_F_o8t
+Click to copy
+
+Use the following credentials for S3 clients:
+Access Key ID
+17eb65ba37e03224926bc467b67dc3ab
+Click to copy
+
+Secret Access Key
+6173104ab289fae3190c7c0ead34816eda2ba408a43c9d30902e7c3bfea35b22
+Click to copy
