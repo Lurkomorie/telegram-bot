@@ -1733,6 +1733,43 @@ async def create_character(
                 "face cut off, partial face, incomplete face"
             )
             
+            # Check image cache before generating - find a cached image the user hasn't seen
+            prompt_hash = crud.compute_prompt_hash(first_image_prompt)
+            cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+            
+            if cached_image and cached_image.result_url:
+                # Cache hit! Use cached image as avatar
+                print(f"[CREATE-CHARACTER] ✅ CACHE HIT! Using cached image {cached_image.id}")
+                print(f"[CREATE-CHARACTER]    Cached URL: {cached_image.result_url[:80]}...")
+                
+                # Update persona avatar with cached image
+                crud.update_persona(db, persona.id, avatar_url=cached_image.result_url)
+                
+                # Mark image as shown to this user and increment cache serve count
+                crud.mark_image_shown(db, user_id, cached_image.id)
+                crud.increment_cache_serve_count(db, cached_image.id)
+                
+                # Track cache hit analytics
+                from app.core import analytics_service_tg
+                analytics_service_tg.track_image_from_cache(
+                    client_id=user_id,
+                    image_job_id=cached_image.id,
+                    prompt_hash=prompt_hash,
+                    persona_id=persona.id,
+                    persona_name=request.name
+                )
+                
+                return {
+                    "success": True,
+                    "persona_id": str(persona.id),
+                    "message": f"{request.name} created successfully!",
+                    "tokens_spent": token_cost,
+                    "from_cache": True
+                }
+            
+            # Cache miss - generate new image
+            print(f"[CREATE-CHARACTER] ❌ Cache miss for hash: {prompt_hash[:16]}... - generating new image")
+            
             # Create image job in database with special flag to NOT send to chat
             job = crud.create_image_job(
                 db,

@@ -294,7 +294,7 @@ else:
     print("⚠️  Webhook endpoint disabled (ENABLE_BOT=False)")
 
 
-async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: bytes, file_id: str = None):
+async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: bytes, file_id: str = None, job_id: str = None, user_id: int = None):
     """
     Upload image to Cloudflare, with fallback to Telegram CDN if upload fails
     More reliable - works even if Cloudflare has connectivity issues
@@ -303,6 +303,8 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
         persona_id: UUID of the persona to update
         image_data: Image binary data
         file_id: Telegram file_id (optional, for fallback to Telegram CDN)
+        job_id: ImageJob ID (optional, to update result_url for caching)
+        user_id: User ID (optional, to mark image as shown for cache deduplication)
     """
     try:
         from app.bot.loader import bot
@@ -312,6 +314,7 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
         import random
         
         cloudflare_url = None
+        is_cloudflare_url = False
         
         # Try Cloudflare upload first (preferred)
         try:
@@ -321,6 +324,7 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
             
             if result.success:
                 cloudflare_url = result.image_url
+                is_cloudflare_url = True
                 print(f"[CHARACTER-AVATAR] ✅ Uploaded to Cloudflare: {cloudflare_url}")
             else:
                 print(f"[CHARACTER-AVATAR] ⚠️  Cloudflare upload failed: {result.error}, falling back to Telegram CDN")
@@ -339,9 +343,10 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
                 print(f"[CHARACTER-AVATAR] ❌ Failed to get Telegram URL: {tg_error}")
                 return
         
-        # Update persona's avatar_url
+        # Update persona's avatar_url and ImageJob.result_url (for caching)
         if cloudflare_url:
             with get_db() as db:
+                # Update persona avatar
                 updated_persona = crud.update_persona(
                     db,
                     persona_id,
@@ -351,6 +356,22 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
                     print(f"[CHARACTER-AVATAR] ✅ Updated persona {persona_id} avatar_url in database")
                 else:
                     print(f"[CHARACTER-AVATAR] ⚠️  Persona {persona_id} not found in database")
+                
+                # Update ImageJob.result_url with Cloudflare URL for caching (only if it's a Cloudflare URL)
+                if job_id and is_cloudflare_url:
+                    try:
+                        crud.update_image_job_status(db, job_id, status="completed", result_url=cloudflare_url)
+                        print(f"[CHARACTER-AVATAR] ✅ Updated ImageJob {job_id} result_url for caching")
+                    except Exception as e:
+                        print(f"[CHARACTER-AVATAR] ⚠️  Failed to update ImageJob result_url: {e}")
+                
+                # Mark image as shown to this user for cache deduplication
+                if job_id and user_id:
+                    try:
+                        crud.mark_image_shown(db, user_id, job_id)
+                        print(f"[CHARACTER-AVATAR] ✅ Marked image as shown to user {user_id}")
+                    except Exception as e:
+                        print(f"[CHARACTER-AVATAR] ⚠️  Failed to mark image as shown: {e}")
     
     except Exception as e:
         print(f"[CHARACTER-AVATAR] ❌ Error updating avatar: {e}")
@@ -534,7 +555,9 @@ async def image_callback(request: Request):
                         asyncio.create_task(_update_persona_avatar_with_fallback(
                             persona_id=job_persona_id,
                             image_data=image_data,
-                            file_id=None  # We don't have file_id yet since not sent to Telegram
+                            file_id=None,  # We don't have file_id yet since not sent to Telegram
+                            job_id=job_id_str,  # For updating ImageJob.result_url for caching
+                            user_id=job_user_id  # For marking image as shown
                         ))
                         print(f"[CHARACTER-AVATAR] 🚀 Started avatar upload task (from image_data)")
                     elif image_url:
@@ -792,7 +815,9 @@ async def image_callback(request: Request):
                         asyncio.create_task(_update_persona_avatar_with_fallback(
                             persona_id=job_persona_id,
                             image_data=image_data,
-                            file_id=file_id
+                            file_id=file_id,
+                            job_id=job_id_str,  # For updating ImageJob.result_url for caching
+                            user_id=job_user_id  # For marking image as shown
                         ))
                         print(f"[CHARACTER-AVATAR] 🚀 Started avatar upload task for persona {job_persona_id}")
             
