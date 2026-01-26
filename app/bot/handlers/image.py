@@ -565,7 +565,8 @@ async def generate_text_only_refresh(user_id: int, original_job_id: str, tg_chat
                     },
                     memory=memory,
                     is_auto_followup=False,
-                    user_id=user_id
+                    user_id=user_id,
+                    language=user_language  # User's language for prompt selection
                 )
             
             print(f"[TEXT-REFRESH] ✅ Generated text response: {response_text[:100]}...")

@@ -86,7 +86,8 @@ async def generate_dialogue(
     memory: str = None,  # Optional conversation memory
     is_auto_followup: bool = False,  # Use cheaper model for scheduled followups
     user_id: int = None,  # Optional user_id for cost tracking
-    context_summary: str = None  # Pre-generated summary of conversation history
+    context_summary: str = None,  # Pre-generated summary of conversation history
+    language: str = "en"  # User's language for prompt selection
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -111,8 +112,9 @@ async def generate_dialogue(
     
     max_retries = DIALOGUE_SPECIALIST_MAX_RETRIES
     
-    # Build system prompt with replacements
-    base_prompt = PromptService.get("CHAT_GPT")
+    # Build system prompt with replacements (select by language)
+    base_prompt = PromptService.get("CHAT_GPT", language=language)
+    print(f"[DIALOGUE] 🌐 Using {language.upper()} prompt")
     system_prompt = _apply_template_replacements(
         base_prompt,
         persona=persona,
