@@ -21,8 +21,13 @@ if [[ -z "${CF_PAGES_PROJECT_ANALYTICS:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${VITE_API_BASE_URL:-}" ]]; then
+  echo "VITE_API_BASE_URL is required (e.g., https://your-api.up.railway.app)"
+  exit 1
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-API_BASE_URL="${VITE_API_BASE_URL:-}"
+API_BASE_URL="${VITE_API_BASE_URL}"
 
 echo "▶ Deploying Mini App to Cloudflare Pages"
 pushd "${ROOT_DIR}/miniapp" >/dev/null
