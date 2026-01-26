@@ -131,6 +131,7 @@ if cors_allow_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    print(f"✅ CORS middleware enabled for {len(cors_allow_origins)} origin(s)")
 
 if settings.ENABLE_EGRESS_LOGGING:
     @app.middleware("http")
