@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: Optional[str] = "production"  # For verbose logging (development/dev/local or production)
     SERVE_LOCAL_STATIC: bool = True
+    SKIP_MINIAPP_AUTH: bool = False  # Set to True in dev to skip Telegram auth validation
     
     # Frontend base URLs (CDN/Pages)
     MINIAPP_BASE_URL: Optional[str] = None
