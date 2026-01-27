@@ -176,6 +176,30 @@ if settings.SERVE_LOCAL_STATIC:
         print(f"⚠️  Mini App build not found at {miniapp_build_path}")
 else:
     print("ℹ️  Local Mini App static hosting disabled")
+    
+    # Redirect old /miniapp URLs to Cloudflare Pages (for users with cached old inline buttons)
+    if settings.MINIAPP_BASE_URL:
+        from fastapi.responses import RedirectResponse
+        
+        @app.get("/miniapp")
+        async def redirect_miniapp_root(request: Request):
+            """Redirect old miniapp URLs to Cloudflare Pages"""
+            query_string = str(request.query_params)
+            target = settings.MINIAPP_BASE_URL
+            if query_string:
+                target = f"{target}?{query_string}"
+            return RedirectResponse(url=target, status_code=302)
+        
+        @app.get("/miniapp/{path:path}")
+        async def redirect_miniapp_path(path: str, request: Request):
+            """Redirect old miniapp URLs to Cloudflare Pages"""
+            query_string = str(request.query_params)
+            target = f"{settings.MINIAPP_BASE_URL}/{path}"
+            if query_string:
+                target = f"{target}?{query_string}"
+            return RedirectResponse(url=target, status_code=302)
+        
+        print(f"↪️  Mini App redirects enabled → {settings.MINIAPP_BASE_URL}")
 
 # Serve Analytics Dashboard static files (React build)
 if settings.SERVE_LOCAL_STATIC:
