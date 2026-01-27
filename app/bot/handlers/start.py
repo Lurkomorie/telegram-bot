@@ -121,30 +121,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 persona = get_persona_by_id(persona_id)
                 
                 if persona:
-                    persona_name = get_persona_field(persona, 'name', language=user_language) or persona["name"]
-                    
-                    # Check if chat already exists
+                    # Start codes should always start the story directly
+                    # Archive existing chat if any, then create new one with the specific history
                     with get_db() as db:
-                        existing_chat = crud.check_existing_chat(
-                            db,
-                            tg_chat_id=message.chat.id,
-                            user_id=message.from_user.id,
-                            persona_id=persona_id
-                        )
+                        crud.archive_all_user_chats(db, message.from_user.id)
+                        print(f"[START-CODE] 📦 Archived all chats for user {message.from_user.id}")
                     
-                    if existing_chat:
-                        keyboard = build_chat_options_keyboard(persona_id, language=user_language)
-                        title = get_ui_text("chat_options.title", language=user_language, persona_name=persona_name)
-                        description = get_ui_text("chat_options.description", language=user_language)
-                        await message.answer(
-                            f"{title}\n\n{description}",
-                            reply_markup=keyboard
-                        )
-                        return
-                    else:
-                        # Create new chat with the specific history from start code
-                        await create_new_persona_chat_with_history(message, persona_id, history_id)
-                        return
+                    await create_new_persona_chat_with_history(message, persona_id, history_id)
+                    return
                 else:
                     print(f"[START-CODE] ⚠️  Persona {persona_id} not found in cache")
                     # Fall through to default persona selection
