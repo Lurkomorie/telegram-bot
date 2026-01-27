@@ -2620,16 +2620,29 @@ async def upload_file(file: UploadFile = File(...), file_type: str = Query("audi
         
         # Generate unique filename
         unique_filename = f"{uuid4()}{file_ext}"
-        file_path = UPLOADS_DIR / unique_filename
         
-        # Save file
+        from app.settings import settings
+        if settings.UPLOADS_BACKEND == "r2":
+            from app.core.r2_storage import build_r2_key, build_r2_object_url, upload_bytes_to_r2, is_r2_configured
+            
+            if not is_r2_configured():
+                raise HTTPException(status_code=500, detail="R2 storage is not configured")
+            
+            object_key = build_r2_key(filename=unique_filename)
+            await asyncio.to_thread(
+                upload_bytes_to_r2,
+                key=object_key,
+                data=content,
+                content_type=file.content_type,
+            )
+            file_url = build_r2_object_url(key=object_key)
+            return {"url": file_url, "filename": unique_filename}
+        
+        file_path = UPLOADS_DIR / unique_filename
         with open(file_path, "wb") as f:
             f.write(content)
         
-        # Return URL
-        from app.settings import settings
         file_url = f"{settings.public_url}/uploads/{unique_filename}"
-        
         return {"url": file_url, "filename": unique_filename}
     
     except HTTPException:

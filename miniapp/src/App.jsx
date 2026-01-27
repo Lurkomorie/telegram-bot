@@ -273,28 +273,23 @@ function App() {
   }
 
   async function handleHistoryClick(history) {
-    // Close immediately - optimistic UI
-    WebApp.close();
+    // Capture initData BEFORE closing - WebApp.close() terminates JS context
+    const initData = WebApp.initData;
+    const personaId = selectedPersona.id;
+    const historyId = history ? history.id : null;
+    const location = history?.location || null;
+    const continueExisting = history?.continueExisting || false;
     
-    // Fire the API call in the background
-    try {
-      const initData = WebApp.initData;
-      // Extract location if present (for custom character location selection)
-      const location = history?.location || null;
-      // Check if this is a "continue existing" action
-      const continueExisting = history?.continueExisting || false;
-      selectScenario(
-        selectedPersona.id,
-        history ? history.id : null,
-        initData,
-        location,
-        continueExisting
-      ).catch(err => {
+    // Fire the API call first (before closing)
+    selectScenario(personaId, historyId, initData, location, continueExisting)
+      .catch(err => {
         console.error('Failed to select scenario:', err);
       });
-    } catch (err) {
-      console.error('Failed to initiate scenario selection:', err);
-    }
+    
+    // Small delay to ensure the request is sent before closing
+    setTimeout(() => {
+      WebApp.close();
+    }, 100);
   }
 
   const handleBackToGallery = useCallback(() => {

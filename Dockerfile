@@ -12,7 +12,8 @@ RUN npm install
 # Copy Mini App source
 COPY miniapp/ ./
 
-# Build Mini App
+# Build Mini App (with /miniapp/ base path for Railway local serving)
+ENV VITE_BASE_PATH=/miniapp/
 RUN npm run build
 
 # Stage 2: Build Analytics Dashboard
@@ -29,7 +30,8 @@ RUN npm install
 # Copy Analytics Dashboard source
 COPY analytics-dashboard/ ./
 
-# Build Analytics Dashboard
+# Build Analytics Dashboard (with /analytics/ base path for Railway local serving)
+ENV VITE_BASE_PATH=/analytics/
 RUN npm run build
 
 # Stage 3: Python application

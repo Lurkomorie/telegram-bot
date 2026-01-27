@@ -402,6 +402,10 @@ async def _process_single_batch(
             
             # Check if user is premium (for memory feature)
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+            
+            # Get user's language preference for prompt selection
+            user = db.query(User).filter(User.id == user_id).first()
+            user_language = user.locale if user and user.locale else "en"
         
         pipeline_timer.end_stage()
         
@@ -528,7 +532,8 @@ async def _process_single_batch(
             memory=memory,  # Pass conversation memory
             is_auto_followup=is_auto_followup,  # Use cheaper model with enhanced prompt for followups
             user_id=user_id,
-            context_summary=context_summary  # Use summary for context efficiency
+            context_summary=context_summary,  # Use summary for context efficiency
+            language=user_language  # User's language for prompt selection
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -567,20 +572,11 @@ async def _process_single_batch(
         # 4. Save batch messages & response to DB + Clear refresh button
         log_always(f"[BATCH] 💾 Saving batch to database...")
         assistant_message_id = None
-        user_language = 'en'
+        # user_language already retrieved earlier for prompt selection
         # VOICE DISABLED - voice settings no longer needed
         # voice_buttons_hidden = False
         # voice_free_available = True
         with get_db() as db:
-            # Get user language for UI elements
-            user = db.query(User).filter(User.id == user_id).first()
-            if user:
-                user_language = user.locale or 'en'
-                # VOICE DISABLED - voice settings commented out
-                # if user.settings:
-                #     voice_buttons_hidden = user.settings.get("voice_buttons_hidden", False)
-                #     voice_free_available = not user.settings.get("voice_free_used", False)
-            
             # Save ALL user messages from batch (mark as processed)
             # Skip system markers ([SYSTEM_RESUME], [AUTO_FOLLOWUP])
             messages_to_save = [

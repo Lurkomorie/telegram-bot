@@ -307,7 +307,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     # Get menu image URL from translation service (if configured)
@@ -705,7 +705,7 @@ async def trigger_start_callback(callback: types.CallbackQuery):
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     # Get menu image URL from translation service (if configured)
@@ -759,7 +759,7 @@ async def show_personas_callback(callback: types.CallbackQuery):
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     # Get menu image URL from translation service (if configured)
@@ -794,7 +794,7 @@ async def discover_characters_callback(callback: types.CallbackQuery):
     with get_db() as db:
         user_language = get_and_update_user_language(db, callback.from_user)
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_gallery_keyboard(miniapp_url, language=user_language)
     
     title = get_ui_text("welcome.discover_title", language=user_language)
@@ -1407,7 +1407,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
         else:
             welcome_text += f"{emoji} <b>{name}</b>\n\n"
     
-    miniapp_url = f"{settings.public_url}/miniapp"
+    miniapp_url = settings.miniapp_url
     keyboard = build_persona_selection_keyboard(preset_data, user_data, miniapp_url, language=user_language)
     
     # Get menu image URL from translation service (if configured)

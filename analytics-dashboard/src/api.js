@@ -1,4 +1,4 @@
-const API_BASE = '';  // Same origin
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';  // Same origin if unset
 
 export const api = {
   async getDailyUserStats(date) {

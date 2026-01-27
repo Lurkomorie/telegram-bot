@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/analytics/',
+  base: process.env.VITE_BASE_PATH || '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
