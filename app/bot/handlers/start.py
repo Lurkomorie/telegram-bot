@@ -122,11 +122,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 
                 if persona:
                     # Start codes should always start the story directly
-                    # Archive existing chat if any, then create new one with the specific history
-                    with get_db() as db:
-                        crud.archive_all_user_chats(db, message.from_user.id)
-                        print(f"[START-CODE] 📦 Archived all chats for user {message.from_user.id}")
-                    
+                    # create_new_chat (called inside) handles archiving existing chats
+                    print(f"[START-CODE] 🚀 Starting story directly for user {message.from_user.id}")
                     await create_new_persona_chat_with_history(message, persona_id, history_id)
                     return
                 else:
