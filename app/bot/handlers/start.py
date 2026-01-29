@@ -508,11 +508,23 @@ async def create_new_persona_chat(message: types.Message, persona_id: str):
         )
 
 
-async def create_new_persona_chat_with_history(message: types.Message, persona_id: str, history_id: str):
-    """Helper function to create a new chat with a specific history"""
+async def create_new_persona_chat_with_history(message: types.Message, persona_id: str, history_id: str, user_id: int = None, telegram_user=None):
+    """Helper function to create a new chat with a specific history
+    
+    Args:
+        message: Telegram message to reply to
+        persona_id: UUID of the persona
+        history_id: UUID of the history/story
+        user_id: Optional explicit user ID (needed for callbacks where message.from_user is the bot)
+        telegram_user: Optional telegram user object for language detection
+    """
+    # Use explicit user_id if provided, otherwise fall back to message.from_user.id
+    actual_user_id = user_id if user_id is not None else message.from_user.id
+    actual_telegram_user = telegram_user if telegram_user is not None else message.from_user
+    
     # Get user language
     with get_db() as db:
-        user_language = get_and_update_user_language(db, message.from_user)
+        user_language = get_and_update_user_language(db, actual_telegram_user)
     
     # Get persona from cache
     from app.core.persona_cache import get_persona_by_id, get_persona_histories
@@ -544,7 +556,7 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
         chat = crud.create_new_chat(
             db,
             tg_chat_id=message.chat.id,
-            user_id=message.from_user.id,
+            user_id=actual_user_id,
             persona_id=persona_id
         )
         
@@ -1273,7 +1285,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
                             )
                         else:
                             # Create new chat with the specific history from start code
-                            await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                            await create_new_persona_chat_with_history(callback.message, persona_id, history_id, user_id=callback.from_user.id, telegram_user=callback.from_user)
                         
                         await callback.answer()
                         return
@@ -1321,7 +1333,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
                         )
                     else:
                         # Create new chat with the specific history from the ad
-                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id, user_id=callback.from_user.id, telegram_user=callback.from_user)
                     
                     await callback.answer()
                     return
@@ -1360,7 +1372,7 @@ async def confirm_age_callback(callback: types.CallbackQuery):
                     )
                 else:
                     if history_id:
-                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id)
+                        await create_new_persona_chat_with_history(callback.message, persona_id, history_id, user_id=callback.from_user.id, telegram_user=callback.from_user)
                     else:
                         await show_story_selection(callback.message, persona_id, user_id=callback.from_user.id)
                 
