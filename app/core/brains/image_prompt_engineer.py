@@ -19,7 +19,9 @@ def _build_image_context(
     persona: dict,
     chat_history: list[dict],
     previous_image_prompt: str = None,
-    context_summary: str = None
+    context_summary: str = None,
+    mood: int = 50,
+    purchases: list[dict] = None
 ) -> str:
     """Build context for image prompt generation
     
@@ -36,6 +38,27 @@ def _build_image_context(
     especially for location, clothing, and scene details that may have been shown visually and should not be changed.
     """
     
+    # Add mood/gift context if relevant
+    mood_context = ""
+    if mood >= 70 or purchases:
+        mood_hint = "happy, warm expression" if mood >= 70 else ""
+        gift_hint = ""
+        if purchases:
+            # Map purchases to visual elements
+            gift_visuals = {
+                "wine": "holding wine glass, romantic setting",
+                "lipstick": "freshly applied lipstick, glossy lips",
+                "rose": "holding a red rose, romantic",
+                "gift": "excited expression, gift nearby",
+                "vibrator": "playful expression, intimate setting",
+                "anal_beads": "mischievous smile, intimate setting"
+            }
+            recent_gift = purchases[0].get("item_id", "") if purchases else ""
+            gift_hint = gift_visuals.get(recent_gift, "")
+        
+        if mood_hint or gift_hint:
+            mood_context = f"\n    # MOOD/GIFT VISUAL HINTS\n    {mood_hint} {gift_hint}".strip()
+    
     context = f"""
     =====================================================
     🎯 MOST IMPORTANT - AI'S LAST RESPONSE (GENERATE IMAGE BASED ON THIS):
@@ -50,7 +73,7 @@ def _build_image_context(
     # BACKGROUND CONTEXT (for reference only)
     State: {state}
     User's message: {user_message}
-{image_context}
+{image_context}{mood_context}
     """
     return context
 
@@ -62,7 +85,9 @@ async def generate_image_plan(
     persona: Dict[str, str],
     chat_history: list[dict],
     previous_image_prompt: str = None,
-    context_summary: str = None
+    context_summary: str = None,
+    mood: int = 50,
+    purchases: list[dict] = None
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -82,7 +107,7 @@ async def generate_image_plan(
     use_reasoning = config["llm"].get("image_model_reasoning", False)
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
-    context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt, context_summary)
+    context = _build_image_context(state, dialogue_response, user_message, persona, chat_history, previous_image_prompt, context_summary, mood, purchases)
     
     # Retry with exponential backoff
     for attempt in range(1, IMAGE_ENGINEER_MAX_RETRIES + 1):

@@ -394,3 +394,30 @@ def build_blurred_image_keyboard(
         )]
     ])
 
+
+def build_gift_suggestion_keyboard(
+    item_key: str,
+    item_emoji: str,
+    item_name: str,
+    miniapp_url: str,
+    language: str = "en"
+) -> InlineKeyboardMarkup:
+    """Build keyboard for gift suggestion with shop button
+    
+    Args:
+        item_key: Gift item key (wine, rose, etc.)
+        item_emoji: Emoji for the gift
+        item_name: Display name of the gift
+        miniapp_url: Base miniapp URL
+        language: User language code
+    """
+    # Build button text with emoji and name
+    button_text = f"{item_emoji} {item_name}"
+    
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=button_text,
+            web_app=WebAppInfo(url=f"{miniapp_url}?page=shop")
+        )]
+    ])
+

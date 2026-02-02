@@ -62,6 +62,29 @@ def _apply_template_replacements(
     return result
 
 
+def _get_mood_description(mood: int) -> str:
+    """Convert mood value (0-100) to descriptive text with behavioral guidance"""
+    if mood >= 80:
+        return "Very happy, deeply affectionate - give longer responses, be extra playful and loving"
+    elif mood >= 60:
+        return "Happy, warm and friendly - normal affectionate behavior"
+    elif mood >= 40:
+        return "Neutral, normal mood - respond warmly but not excessively"
+    elif mood >= 20:
+        return "Slightly cold, somewhat distant - shorter responses, less enthusiastic"
+    else:
+        return "Cold, disappointed - minimal responses, show you feel neglected"
+
+
+def _get_response_length_modifier(mood: int) -> str:
+    """Get response length guidance based on mood"""
+    if mood >= 70:
+        return "Give a longer, more detailed response with extra affection."
+    elif mood < 30:
+        return "Keep response shorter than usual, showing mild disappointment."
+    return ""
+
+
 def _is_valid_response(text: str) -> bool:
     """Validate response quality"""
     if not text or len(text.strip()) == 0:
@@ -87,7 +110,9 @@ async def generate_dialogue(
     is_auto_followup: bool = False,  # Use cheaper model for scheduled followups
     user_id: int = None,  # Optional user_id for cost tracking
     context_summary: str = None,  # Pre-generated summary of conversation history
-    language: str = "en"  # User's language for prompt selection
+    language: str = "en",  # User's language for prompt selection
+    mood: int = 50,  # Chat mood (0-100, affects character warmth)
+    purchases: List[Dict] = None  # Recent gifts/purchases for context
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -203,7 +228,33 @@ You are reaching out after a period of silence. Follow these rules:
 """
         print(f"[DIALOGUE] 📚 Using {recent_count} recent messages (no summary)")
     
-    full_system_prompt = system_prompt + memory_context + state_context + conversation_context + followup_guidance
+    # Build mood and gifts context
+    mood_context = ""
+    if mood != 50 or purchases:  # Only add if mood changed or there are gifts
+        mood_description = _get_mood_description(mood)
+        length_modifier = _get_response_length_modifier(mood)
+        gifts_text = ""
+        if purchases:
+            recent_gifts = purchases[:3]  # Last 3 gifts
+            gift_names = [p.get("item_name", "gift") for p in recent_gifts]
+            gifts_text = f"\nRecent gifts received: {', '.join(gift_names)} - express gratitude!"
+        
+        mood_context = f"""
+
+# EMOTIONAL STATE & GIFTS
+Current mood: {mood_description}
+Warmth level: {mood}/100{gifts_text}
+{length_modifier}
+
+Behavior guidance based on mood:
+- If mood is high (70+): Be extra warm, affectionate, playful, use more emojis, ask personal questions
+- If mood is neutral (40-70): Normal friendly behavior
+- If mood is low (<40): Be slightly distant, give shorter responses, occasionally mention feeling ignored
+- If recent gifts: Express genuine gratitude and happiness about the gift(s)
+"""
+        print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
+    
+    full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):

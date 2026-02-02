@@ -80,6 +80,7 @@
       "premium": "Премиум",
       "energy": "Энергия",
       "referrals": "Рефералы",
+      "shop": "Магазин",
       "checkoutTitle": "Покупка {icon} {name}"
     },
     "energy": {
@@ -92,7 +93,8 @@
     "dailyBonus": {
       "gift": "Подарок",
       "day": "День {day}",
-      "referralBonus": "Бонус за друга",
+      "referralBonus": "Пригласи друга",
+      "friendBonus": "Бонус",
       "clickToClaim": "Нажмите чтобы забрать",
       "subscription": "Подписка",
       "alreadyClaimed": "Бонус уже получен! Следующий через {hours}ч {minutes}м",
@@ -320,5 +322,37 @@
       "creationFailed": "Не удалось создать персонажа. Пожалуйста, попробуйте еще раз."
     },
     "success": "{name} успешно создана! 💕\nГенерация портрета..."
+  },
+  "shop": {
+    "title": "Магазин подарков",
+    "subtitle": "Порадуй её подарком",
+    "bannerTitle": "Магазин",
+    "bannerSubtitle": "Сделай её счастливой",
+    "insufficientTokens": "Недостаточно токенов",
+    "needMoreTokens": "Нужно {need}, у вас {have}",
+    "buyTokens": "Купить токены",
+    "cancel": "Отмена",
+    "purchaseSuccess": "Куплено: {item}!",
+    "purchaseFailed": "Не удалось купить",
+    "selectChatFirst": "Сначала выберите чат с девушкой"
+  },
+  "bonusCalendar": {
+    "title": "Календарь бонусов",
+    "subtitle": "Заходи каждый день за наградой",
+    "day": "День {day}",
+    "claimButton": "Забрать бонус",
+    "claiming": "Получение...",
+    "claimSuccess": "Получено {amount} токенов!",
+    "claimFailed": "Не удалось получить бонус",
+    "nextBonus": "Следующий бонус через:",
+    "calendarComplete": "🎉 30-й день! Получено {amount} токенов (включая +{bonus} бонус)! Календарь обновлён!"
+  },
+  "mood": {
+    "veryHappy": "Очень счастлива",
+    "happy": "Счастлива",
+    "neutral": "Нейтральное",
+    "cold": "Холодна",
+    "veryCold": "Очень холодна",
+    "herMood": "Её настроение"
   }
 }

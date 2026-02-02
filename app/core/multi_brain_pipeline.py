@@ -375,6 +375,10 @@ async def _process_single_batch(
             # Extract memory
             memory = chat.memory
             
+            # Extract mood and purchases for AI context
+            chat_mood = chat.mood or 50  # Default neutral mood
+            chat_purchases = crud.get_chat_purchases(db, chat_id)
+            
             # Extract context summary from chat.ext (persisted from previous messages)
             context_summary = None
             messages_since_last_image = 0
@@ -533,7 +537,9 @@ async def _process_single_batch(
             is_auto_followup=is_auto_followup,  # Use cheaper model with enhanced prompt for followups
             user_id=user_id,
             context_summary=context_summary,  # Use summary for context efficiency
-            language=user_language  # User's language for prompt selection
+            language=user_language,  # User's language for prompt selection
+            mood=chat_mood,  # Chat mood (0-100)
+            purchases=chat_purchases  # Recent purchases for context
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -633,6 +639,20 @@ async def _process_single_batch(
                 log_always(f"[BATCH] ℹ️  No refresh button to remove")
         
         log_verbose(f"[BATCH] ✅ Batch saved to database")
+        
+        # 5.5 Update mood based on user engagement
+        try:
+            from app.core.pipeline_adapter import detect_message_engagement
+            mood_change, is_cold = detect_message_engagement(
+                user_message=batched_text,
+                chat_history=chat_history,
+                state_snapshot=previous_state_dict
+            )
+            if mood_change != 0:
+                crud.update_chat_mood(db, chat_id, mood_change, is_cold)
+                log_verbose(f"[BATCH] 💭 Mood updated: change={mood_change}, is_cold={is_cold}")
+        except Exception as mood_error:
+            log_verbose(f"[BATCH] ⚠️ Failed to update mood: {mood_error}")
         
         pipeline_timer.end_stage()
         
@@ -751,7 +771,9 @@ async def _process_single_batch(
                 is_auto_followup=is_auto_followup,
                 followup_type=followup_type,
                 should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
-                context_summary=context_summary  # Pass summary for efficient context
+                context_summary=context_summary,  # Pass summary for efficient context
+                mood=chat_mood,  # Chat mood for image context
+                purchases=chat_purchases  # Recent purchases for image context
             ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
@@ -822,7 +844,9 @@ async def _background_image_generation(
     is_auto_followup: bool = False,  # Track if image is from scheduler
     followup_type: str = None,  # Type of followup ("30min" or "24h")
     should_send_as_caption: bool = False,  # If True, send dialogue_response as photo caption
-    context_summary: str = None  # Pre-generated context summary for efficiency
+    context_summary: str = None,  # Pre-generated context summary for efficiency
+    mood: int = 50,  # Chat mood for image context
+    purchases: list = None  # Recent purchases for image context
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -892,7 +916,9 @@ async def _background_image_generation(
             persona=persona,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
-            context_summary=context_summary
+            context_summary=context_summary,
+            mood=mood,
+            purchases=purchases
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")

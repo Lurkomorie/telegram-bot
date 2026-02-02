@@ -611,16 +611,24 @@ def create_new_chat(db: Session, tg_chat_id: int, user_id: int, persona_id: UUID
     
     Archives all other chats for this telegram user to prevent scheduler
     from sending auto-messages to old conversations.
+    Uses persona's starting_mood if available.
     """
     # Archive all other chats for this telegram user
     archive_all_user_chats(db, user_id)
+    
+    # Get persona's starting mood (default 50 if not set)
+    persona = get_persona_by_id(db, persona_id)
+    starting_mood = 50
+    if persona and persona.starting_mood is not None:
+        starting_mood = persona.starting_mood
     
     chat = Chat(
         tg_chat_id=tg_chat_id,
         user_id=user_id,
         persona_id=persona_id,
         state_snapshot={},
-        status="active"
+        status="active",
+        mood=starting_mood
     )
     db.add(chat)
     db.commit()
@@ -1602,16 +1610,42 @@ def can_claim_daily_bonus(db: Session, user_id: int) -> dict:
         return {"can_claim": False, "next_claim_seconds": seconds_until_next}
 
 
+# 30-day bonus calendar with progressive rewards
+# Total: 550 tokens + 50 completion bonus = 600 tokens max per cycle
+BONUS_CALENDAR_30 = [
+    5, 5, 10, 10, 10, 10, 15,      # Week 1 (65)
+    15, 15, 15, 15, 15, 20, 20,    # Week 2 (115)
+    20, 20, 20, 20, 20, 25, 25,    # Week 3 (150)
+    25, 25, 25, 30, 30, 35, 50     # Week 4 (220)
+]
+DAY_30_COMPLETION_BONUS = 50  # Extra bonus for completing all 30 days
+
+
+def get_daily_bonus_amount(day: int) -> int:
+    """
+    Get bonus amount for a specific day in the 30-day calendar
+    Day 30 gets an extra completion bonus
+    """
+    # Cycle through calendar (day 1 = index 0)
+    index = (day - 1) % 30
+    return BONUS_CALENDAR_30[index]
+
+
+def get_bonus_calendar() -> list:
+    """Return the full 30-day bonus calendar for display"""
+    return BONUS_CALENDAR_30.copy()
+
+
 def claim_daily_bonus(db: Session, user_id: int) -> dict:
     """
-    Claim daily bonus (10 tokens)
-    Returns: {success: bool, tokens: int, message: str, streak: int}
+    Claim daily bonus with progressive rewards
+    Returns: {success: bool, tokens: int, message: str, streak: int, bonus_amount: int}
     """
     from datetime import timedelta
     
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
-        return {"success": False, "tokens": 0, "message": "User not found", "streak": 0}
+        return {"success": False, "tokens": 0, "message": "User not found", "streak": 0, "bonus_amount": 0}
     
     # Check if can claim
     if user.last_daily_bonus_claim:
@@ -1624,25 +1658,53 @@ def claim_daily_bonus(db: Session, user_id: int) -> dict:
                 "success": False,
                 "tokens": user.energy,
                 "message": f"Already claimed today. Next bonus in {hours}h {minutes}m",
-                "streak": user.daily_bonus_streak or 0
+                "streak": user.daily_bonus_streak or 0,
+                "bonus_amount": 0
             }
         
         # Check if streak should be reset (more than 48 hours)
         if time_since_last > timedelta(hours=48):
             user.daily_bonus_streak = 0
     
-    # Award 10 tokens and increment streak
-    user.energy += 10
-    user.last_daily_bonus_claim = datetime.utcnow()
+    # Increment streak first to get the correct day
     user.daily_bonus_streak = (user.daily_bonus_streak or 0) + 1
+    
+    # Get bonus amount for this day
+    bonus_amount = get_daily_bonus_amount(user.daily_bonus_streak)
+    
+    # Check if this is day 30 - add completion bonus and reset
+    is_day_30 = user.daily_bonus_streak == 30
+    completion_bonus = 0
+    if is_day_30:
+        completion_bonus = DAY_30_COMPLETION_BONUS
+        bonus_amount += completion_bonus
+    
+    # Award tokens
+    user.energy += bonus_amount
+    user.last_daily_bonus_claim = datetime.utcnow()
+    
+    # Reset streak after day 30
+    current_day = user.daily_bonus_streak
+    if is_day_30:
+        user.daily_bonus_streak = 0
+    
     db.commit()
     db.refresh(user)
+    
+    # Build response message
+    if is_day_30:
+        message = f"🎉 Day 30 complete! Claimed {bonus_amount} tokens (including +{completion_bonus} bonus)! Calendar reset!"
+    else:
+        message = f"Claimed {bonus_amount} tokens! Day {current_day} streak!"
     
     return {
         "success": True,
         "tokens": user.energy,
-        "message": f"Claimed 10 tokens! Day {user.daily_bonus_streak} streak!",
-        "streak": user.daily_bonus_streak
+        "message": message,
+        "streak": user.daily_bonus_streak,  # Will be 0 after day 30
+        "bonus_amount": bonus_amount,
+        "is_calendar_complete": is_day_30,
+        "completion_bonus": completion_bonus
     }
 
 
@@ -4428,5 +4490,200 @@ def get_deliveries_by_message(
         'total_pages': (total + per_page - 1) // per_page
     }
 
+
+# ========== SHOP OPERATIONS ==========
+
+# Shop items configuration
+SHOP_ITEMS = {
+    "wine": {
+        "name": "Wine Bottle",
+        "name_ru": "Бутылка вина",
+        "price": 60,
+        "mood_boost": 15,
+        "context_effect": "holding wine glass, wine bottle nearby"
+    },
+    "lipstick": {
+        "name": "Lipstick",
+        "name_ru": "Помада",
+        "price": 40,
+        "mood_boost": 10,
+        "context_effect": "wearing red lipstick, glossy lips"
+    },
+    "rose": {
+        "name": "Rose Bouquet",
+        "name_ru": "Букет роз",
+        "price": 50,
+        "mood_boost": 12,
+        "context_effect": "roses nearby, romantic setting"
+    },
+    "mystery": {
+        "name": "Mystery Gift",
+        "name_ru": "Загадочный подарок",
+        "price": 100,
+        "mood_boost": 20,
+        "context_effect": "excited expression, gift box nearby"
+    },
+    "vibrator": {
+        "name": "Vibrator",
+        "name_ru": "Вибратор",
+        "price": 160,
+        "mood_boost": 25,
+        "context_effect": "vibrator visible, intimate setting"
+    },
+    "anal_beads": {
+        "name": "Anal Beads",
+        "name_ru": "Анальные шарики",
+        "price": 200,
+        "mood_boost": 30,
+        "context_effect": "anal beads nearby, playful expression"
+    }
+}
+
+
+def get_shop_items() -> list:
+    """Get all shop items for display"""
+    return [
+        {
+            "key": key,
+            "name": item["name"],
+            "name_ru": item["name_ru"],
+            "price": item["price"],
+            "mood_boost": item["mood_boost"]
+        }
+        for key, item in SHOP_ITEMS.items()
+    ]
+
+
+def purchase_shop_item(db: Session, user_id: int, chat_id: UUID, item_key: str) -> dict:
+    """
+    Purchase a shop item for a specific chat
+    Deducts tokens from user, adds mood boost to chat, creates purchase record
+    Returns: {success: bool, message: str, new_mood: int, new_tokens: int}
+    """
+    from app.db.models import ChatPurchase
+    
+    # Validate item exists
+    if item_key not in SHOP_ITEMS:
+        return {"success": False, "message": "Invalid item", "new_mood": 0, "new_tokens": 0}
+    
+    item = SHOP_ITEMS[item_key]
+    
+    # Get user and check tokens
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {"success": False, "message": "User not found", "new_mood": 0, "new_tokens": 0}
+    
+    total_tokens = (user.temp_energy or 0) + user.energy
+    if total_tokens < item["price"]:
+        return {"success": False, "message": "Insufficient tokens", "new_mood": 0, "new_tokens": total_tokens}
+    
+    # Get chat
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return {"success": False, "message": "Chat not found", "new_mood": 0, "new_tokens": total_tokens}
+    
+    # Deduct tokens (temp_energy first, then regular)
+    price = item["price"]
+    if user.temp_energy and user.temp_energy >= price:
+        user.temp_energy -= price
+    elif user.temp_energy and user.temp_energy > 0:
+        remaining = price - user.temp_energy
+        user.temp_energy = 0
+        user.energy -= remaining
+    else:
+        user.energy -= price
+    
+    # Boost chat mood (cap at 100)
+    old_mood = chat.mood or 50
+    chat.mood = min(100, old_mood + item["mood_boost"])
+    chat.coldness_streak = 0  # Reset coldness streak on purchase
+    
+    # Create purchase record
+    purchase = ChatPurchase(
+        chat_id=chat_id,
+        user_id=user_id,
+        item_key=item_key,
+        item_name=item["name"],
+        price_paid=item["price"],
+        mood_boost=item["mood_boost"],
+        context_effect=item["context_effect"]
+    )
+    db.add(purchase)
+    db.commit()
+    db.refresh(user)
+    db.refresh(chat)
+    
+    new_tokens = (user.temp_energy or 0) + user.energy
+    
+    return {
+        "success": True,
+        "message": f"Purchased {item['name']}!",
+        "new_mood": chat.mood,
+        "new_tokens": new_tokens,
+        "mood_boost": item["mood_boost"]
+    }
+
+
+def get_chat_purchases(db: Session, chat_id: UUID) -> list:
+    """Get all purchases for a chat (for context in image generation)"""
+    from app.db.models import ChatPurchase
+    
+    purchases = db.query(ChatPurchase).filter(
+        ChatPurchase.chat_id == chat_id
+    ).order_by(desc(ChatPurchase.purchased_at)).all()
+    
+    return [
+        {
+            "item_key": p.item_key,
+            "item_name": p.item_name,
+            "context_effect": p.context_effect,
+            "purchased_at": p.purchased_at
+        }
+        for p in purchases
+    ]
+
+
+def get_chat_mood(db: Session, chat_id: UUID) -> dict:
+    """Get mood info for a chat"""
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return {"mood": 50, "coldness_streak": 0}
+    
+    return {
+        "mood": chat.mood or 50,
+        "coldness_streak": chat.coldness_streak or 0
+    }
+
+
+def update_chat_mood(db: Session, chat_id: UUID, mood_change: int, is_cold: bool = False) -> dict:
+    """
+    Update chat mood based on user message
+    mood_change: positive for kind messages, negative for cold/dismissive
+    is_cold: True if this was a cold/dismissive message
+    Returns: {mood: int, coldness_streak: int}
+    """
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        return {"mood": 50, "coldness_streak": 0}
+    
+    old_mood = chat.mood or 50
+    
+    # Update coldness streak
+    if is_cold:
+        chat.coldness_streak = (chat.coldness_streak or 0) + 1
+    else:
+        chat.coldness_streak = 0
+    
+    # Apply mood change (clamp to 0-100)
+    new_mood = max(0, min(100, old_mood + mood_change))
+    chat.mood = new_mood
+    
+    db.commit()
+    db.refresh(chat)
+    
+    return {
+        "mood": chat.mood,
+        "coldness_streak": chat.coldness_streak
+    }
 
 

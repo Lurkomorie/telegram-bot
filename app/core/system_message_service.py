@@ -44,9 +44,9 @@ def _sanitize_html_for_telegram(html: str) -> str:
     if not html:
         return ""
     
-    # Replace paragraph tags with double line breaks
+    # Replace paragraph tags with single line breaks
     html = re.sub(r'<p[^>]*>', '', html)
-    html = re.sub(r'</p>', '\n\n', html)
+    html = re.sub(r'</p>', '\n', html)
     
     # Replace <br> and <br/> with newlines
     html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
@@ -531,15 +531,15 @@ async def _send_bulk(message_data: dict, message_id: UUID, user_ids: List[int]) 
         ).all()
         delivery_map = {d.user_id: d.id for d in deliveries}
     
-    # Rate limiting: 30 messages per minute (batch of 30, wait 60 seconds)
+    # Rate limiting: 150 messages per minute (batch of 30, wait 12 seconds)
     batch_size = 30
-    batch_interval_seconds = 60  # Wait 60 seconds between batches
+    batch_interval_seconds = 12  # Wait 12 seconds between batches (5x faster)
     
     logger.info(f"Starting bulk send", extra={
         "message_id": str(message_id),
         "total_recipients": len(user_ids),
         "batch_size": batch_size,
-        "rate_limit": "30 per minute"
+        "rate_limit": "150 per minute"
     })
     
     last_send_times = {}  # Track per-user send times for 1 msg/sec limit

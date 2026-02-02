@@ -3,8 +3,101 @@ Pipeline Adapter - Mirrors Sexsplicit AI pipeline logic 1:1
 Replicates assistant-processor.ts and image-pipeline-service.ts behaviors
 """
 import json
+import re
 from typing import Dict, List, Optional, Tuple, Union
 from app.db.models import Persona, Chat, Message
+
+
+# ========== MOOD/ENGAGEMENT DETECTION ==========
+
+# Dismissive patterns that indicate cold/rude behavior (outside roleplay)
+DISMISSIVE_PATTERNS_EN = [
+    r'\bshut up\b', r'\bwhatever\b', r'\bdon\'?t care\b', r'\bboring\b',
+    r'\bstop talking\b', r'\bleave me alone\b', r'\bgo away\b', r'\bannoy',
+    r'\bstupid\b', r'\bidiot\b', r'\bdumb\b', r'\bpathetic\b'
+]
+
+DISMISSIVE_PATTERNS_RU = [
+    r'\bзаткнись\b', r'\bпофиг\b', r'\bне интересно\b', r'\bскучно\b',
+    r'\bотстань\b', r'\bуйди\b', r'\bне трогай\b', r'\bдостала\b',
+    r'\bтупая\b', r'\bидиотка\b', r'\bдура\b', r'\bглупая\b',
+    r'\bзамолчи\b', r'\bхватит\b', r'\bнадоела\b'
+]
+
+# Patterns that indicate intimate/roleplay context (where rough language is OK)
+INTIMATE_CONTEXT_PATTERNS = [
+    r'\bsex\b', r'\bfuck\b', r'\bhard\b', r'\brough\b', r'\bdeep\b',
+    r'\bсекс\b', r'\bтрах\b', r'\bжестко\b', r'\bсильн\b', r'\bглубок\b',
+    r'\bкончи\b', r'\bкончай\b', r'\bcum\b', r'\bharder\b', r'\bfaster\b',
+    r'\bбыстрее\b', r'\bсильнее\b', r'\bеще\b', r'\bmore\b'
+]
+
+
+def is_intimate_context(chat_history: List[dict], state_snapshot: dict = None) -> bool:
+    """
+    Check if conversation is in intimate/roleplay context where rough language is acceptable.
+    Checks recent messages and relationship stage.
+    """
+    # Check state snapshot for relationship stage
+    if state_snapshot:
+        rel = state_snapshot.get("rel", {})
+        stage = rel.get("relationshipStage", "").lower()
+        if stage in ["lover", "intimate", "passionate"]:
+            return True
+    
+    # Check recent messages for intimate content
+    recent_text = " ".join([
+        msg.get("content", "").lower() 
+        for msg in chat_history[-5:] 
+        if msg.get("content")
+    ])
+    
+    for pattern in INTIMATE_CONTEXT_PATTERNS:
+        if re.search(pattern, recent_text, re.IGNORECASE):
+            return True
+    
+    return False
+
+
+def detect_message_engagement(
+    user_message: str, 
+    chat_history: List[dict] = None,
+    state_snapshot: dict = None
+) -> Tuple[int, bool]:
+    """
+    Detect user engagement level and return mood change.
+    
+    Returns:
+        Tuple[int, bool]: (mood_change, is_cold)
+        - mood_change: positive for engaged, negative for cold/dismissive
+        - is_cold: True if message is cold/dismissive
+    """
+    text = user_message.strip().lower()
+    
+    # Very short messages are cold (unless single emoji or intimate context)
+    if len(text) <= 3 and not any(ord(c) > 127 for c in text):  # Not emoji
+        # Check if it's in intimate context
+        if chat_history and is_intimate_context(chat_history, state_snapshot):
+            return (0, False)  # Neutral in intimate context
+        return (-5, True)
+    
+    # Check for dismissive patterns (only if NOT in intimate context)
+    if chat_history and is_intimate_context(chat_history, state_snapshot):
+        # In intimate context, rough language is fine
+        return (3, False)  # Engaged in roleplay
+    
+    # Check dismissive patterns
+    all_patterns = DISMISSIVE_PATTERNS_EN + DISMISSIVE_PATTERNS_RU
+    for pattern in all_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return (-5, True)
+    
+    # Longer, engaged messages boost mood
+    if len(text) > 20:
+        return (3, False)
+    
+    # Normal messages
+    return (1, False)
 
 
 # ========== CONVERSATION STATE MANAGEMENT ==========

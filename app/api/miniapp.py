@@ -1973,3 +1973,143 @@ async def health():
     """Health check for Mini App API"""
     return {"status": "ok", "service": "miniapp-api"}
 
+
+# ========== SHOP ENDPOINTS ==========
+
+class PurchaseRequest(BaseModel):
+    chat_id: str
+    item_key: str
+
+
+@router.get("/shop/items")
+async def get_shop_items(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> List[Dict[str, Any]]:
+    """
+    Get all available shop items
+    Returns: List of items with key, name, name_ru, price, mood_boost
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    return crud.get_shop_items()
+
+
+@router.post("/shop/purchase")
+async def purchase_item(
+    request: PurchaseRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Purchase a shop item for a specific chat
+    Deducts tokens, boosts mood, creates purchase record
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="User ID not found")
+    
+    try:
+        from uuid import UUID
+        chat_uuid = UUID(request.chat_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid chat ID format")
+    
+    with get_db() as db:
+        result = crud.purchase_shop_item(db, user_id, chat_uuid, request.item_key)
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return result
+
+
+@router.get("/shop/purchases/{chat_id}")
+async def get_chat_purchases(
+    chat_id: str,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> List[Dict[str, Any]]:
+    """
+    Get all purchases for a specific chat
+    Used for context in image generation
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    try:
+        from uuid import UUID
+        chat_uuid = UUID(chat_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid chat ID format")
+    
+    with get_db() as db:
+        return crud.get_chat_purchases(db, chat_uuid)
+
+
+@router.get("/chat/{chat_id}/mood")
+async def get_chat_mood(
+    chat_id: str,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get mood info for a specific chat
+    Returns: {mood: int, coldness_streak: int}
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    try:
+        from uuid import UUID
+        chat_uuid = UUID(chat_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid chat ID format")
+    
+    with get_db() as db:
+        return crud.get_chat_mood(db, chat_uuid)
+
+
+@router.get("/bonus-calendar")
+async def get_bonus_calendar(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get bonus calendar data for display
+    Returns: {calendar: list, current_day: int, can_claim: bool, next_bonus_in_seconds: int}
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        return {
+            "calendar": crud.get_bonus_calendar(),
+            "current_day": 1,
+            "can_claim": True,
+            "next_bonus_in_seconds": 0
+        }
+    
+    with get_db() as db:
+        bonus_info = crud.can_claim_daily_bonus(db, user_id)
+        user = db.query(crud.User).filter(crud.User.id == user_id).first()
+        current_day = (user.daily_bonus_streak or 0) % 13
+        if current_day == 0:
+            current_day = 13 if user.daily_bonus_streak else 1
+        
+        # If can claim, show next day
+        if bonus_info["can_claim"]:
+            current_day = ((user.daily_bonus_streak or 0) % 13) + 1
+        
+        return {
+            "calendar": crud.get_bonus_calendar(),
+            "current_day": current_day,
+            "can_claim": bonus_info["can_claim"],
+            "next_bonus_in_seconds": bonus_info["next_claim_seconds"]
+        }
+

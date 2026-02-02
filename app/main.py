@@ -717,10 +717,11 @@ async def image_callback(request: Request):
             
             # If should blur, dynamically blur the actual image and send with caption
             if should_blur:
-                import base64
                 from app.bot.keyboards.inline import build_blurred_image_keyboard
                 from app.core.image_utils import blur_image_safe
+                from app.core.cloudflare_upload import upload_to_cloudflare_tg
                 from aiogram.types import BufferedInputFile
+                import random
                 
                 # Get user language for button text
                 with get_db() as db:
@@ -744,20 +745,7 @@ async def image_callback(request: Request):
                     blurred_data = blur_image_safe(actual_image_data)
                 
                 if blurred_data:
-                    # Store original image data and caption in job.ext for unlock
-                    with get_db() as db:
-                        job = crud.get_image_job(db, job_id_str)
-                        if job:
-                            if not job.ext:
-                                job.ext = {}
-                            job.ext['blurred_original_data'] = base64.b64encode(actual_image_data).decode('utf-8')
-                            if pending_caption:
-                                job.ext['blurred_caption'] = pending_caption
-                            from sqlalchemy.orm.attributes import flag_modified
-                            flag_modified(job, "ext")
-                            db.commit()
-                    
-                    # Build keyboard and send blurred image WITH caption
+                    # Send blurred image IMMEDIATELY (no waiting for Cloudflare)
                     miniapp_url = settings.miniapp_url
                     blurred_keyboard = build_blurred_image_keyboard(job_id_str, miniapp_url, user_language)
                     
@@ -771,18 +759,49 @@ async def image_callback(request: Request):
                     )
                     pending_caption = None  # Clear so we don't send again below
                     print(f"[IMAGE-CALLBACK] 🔒 Blurred image sent to user {job_user_id}")
+                    
+                    # Upload original to Cloudflare ASYNC (background) - don't store base64 in DB!
+                    async def _upload_blurred_original_async(img_data: bytes, jid: str, caption: str):
+                        try:
+                            filename = f"blurred_original_{jid}_{random.randint(1000, 9999)}.png"
+                            cf_result = await upload_to_cloudflare_tg(img_data, filename)
+                            if cf_result.success:
+                                # Save URL to DB (not base64!)
+                                with get_db() as db:
+                                    job = crud.get_image_job(db, jid)
+                                    if job:
+                                        if not job.ext:
+                                            job.ext = {}
+                                        job.ext['blurred_original_url'] = cf_result.image_url
+                                        if caption:
+                                            job.ext['blurred_caption'] = caption
+                                        from sqlalchemy.orm.attributes import flag_modified
+                                        flag_modified(job, "ext")
+                                        db.commit()
+                                print(f"[IMAGE-CALLBACK] ✅ Blurred original uploaded to CF: {cf_result.image_url[:50]}...")
+                            else:
+                                print(f"[IMAGE-CALLBACK] ⚠️  Blurred CF upload failed: {cf_result.error}")
+                        except Exception as e:
+                            print(f"[IMAGE-CALLBACK] ⚠️  Blurred CF upload error: {e}")
+                    
+                    # Fire and forget - don't wait
+                    asyncio.create_task(_upload_blurred_original_async(actual_image_data, job_id_str, pending_caption))
                 else:
                     print(f"[IMAGE-CALLBACK] ⚠️  Failed to blur image, sending original")
                     should_blur = False  # Fallback to original
             
             if not should_blur:
-                # Send photo - handle both binary data and URL
+                # Send image IMMEDIATELY, upload to Cloudflare ASYNC in background
+                # This avoids 2s delay from waiting for Cloudflare upload
+                from app.core.cloudflare_upload import upload_to_cloudflare_tg
+                import random as img_random
+                
                 if image_data:
-                    # Strip color profile to prevent yellowish tint in Telegram
+                    # Strip color profile to prevent yellowish tint
                     from app.core.image_utils import strip_color_profile_safe
                     image_data = strip_color_profile_safe(image_data)
                     
-                    # Send binary image data
+                    # Send immediately via BufferedInputFile (fastest for user)
                     from aiogram.types import BufferedInputFile
                     input_file = BufferedInputFile(image_data, filename="generated.png")
                     sent_message = await bot.send_photo(
@@ -792,8 +811,25 @@ async def image_callback(request: Request):
                         parse_mode="MarkdownV2" if pending_caption else None,
                         reply_markup=refresh_keyboard
                     )
+                    
+                    # Upload to Cloudflare ASYNC (background) - saves URL to DB for caching
+                    async def _upload_image_async(img_data: bytes, jid: str):
+                        try:
+                            cf_filename = f"img_{jid}_{img_random.randint(1000, 9999)}.png"
+                            cf_result = await upload_to_cloudflare_tg(img_data, cf_filename)
+                            if cf_result.success:
+                                with get_db() as db:
+                                    crud.update_image_job_status(db, jid, status="completed", result_url=cf_result.image_url)
+                                print(f"[IMAGE-CALLBACK] ✅ Async CF upload done: {cf_result.image_url[:50]}...")
+                            else:
+                                print(f"[IMAGE-CALLBACK] ⚠️  Async CF upload failed: {cf_result.error}")
+                        except Exception as e:
+                            print(f"[IMAGE-CALLBACK] ⚠️  Async CF upload error: {e}")
+                    
+                    # Fire and forget - don't block
+                    asyncio.create_task(_upload_image_async(image_data, job_id_str))
                 else:
-                    # Send via URL
+                    # Send via URL (already a URL, no need to re-upload)
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
                         photo=image_url,
@@ -856,18 +892,16 @@ async def image_callback(request: Request):
                 crud.mark_image_shown(db, job_user_id, job_id_str)
                 print(f"[IMAGE-CALLBACK] 📝 Marked image as shown to user {job_user_id}")
             
-            # Track image generation for analytics (with Cloudflare upload in background)
-            # Use job details extracted earlier from the db session
-            # NOTE: For character creation images, analytics tracking is skipped to avoid duplicate Cloudflare uploads
+            # Track image generation for analytics
+            # NOTE: We upload to Cloudflare async above, so just pass image_url here
+            # Analytics will skip re-upload if URL is from imagedelivery.net (Cloudflare)
             if job_chat_id:  # Only track analytics for chat images, not character creation
                 with get_db() as db:
-                    chat_details = crud.get_chat_by_id(db, job_chat_id) if job_chat_id else None
                     persona_details = crud.get_persona_by_id(db, job_persona_id) if job_persona_id else None
                     
-                    # Use image_data if available, otherwise use image_url
-                    image_source = image_data if image_data else image_url
+                    # Use image_url if available (async upload saves URL to DB separately)
+                    image_source = image_url if image_url else None
                     
-                    # Use is_auto_followup extracted earlier
                     analytics_service_tg.track_image_generated(
                         client_id=job_user_id,
                         image_url_or_bytes=image_source,

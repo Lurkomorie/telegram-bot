@@ -237,48 +237,6 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
             print(f"[SCHEDULER] ❌ Chat {chat_id} not found")
             return
         user_id = chat_obj.user_id
-        
-        # Safety check: Ensure we aren't spamming on top of assistant messages
-        # Get last 3 messages
-        last_messages = crud.get_chat_messages(db, chat_id, limit=3)
-        if last_messages:
-            # Check if the very last message is from assistant
-            last_msg = last_messages[-1]
-            if last_msg.role == "assistant":
-                # If we have multiple recent assistant messages, this is a strong signal to stop
-                assistant_streak = 0
-                for msg in reversed(last_messages):
-                    if msg.role == "assistant":
-                        assistant_streak += 1
-                    else:
-                        break
-                
-                # If we already sent 2+ assistant messages in a row, DON'T send another auto-message
-                # unless it's a very long time gap (which is handled by the scheduler intervals)
-                # But to be safe against "infinite loop" bugs, let's cap it.
-                if assistant_streak >= 2:
-                    print(f"[SCHEDULER] ⚠️  Skipping auto-message for chat {chat_id}: Last {assistant_streak} messages are from assistant.")
-                    # Update timestamp AND count to prevent immediate retry and allow next tier to pick up later
-                    chat_obj.last_auto_message_at = datetime.utcnow()
-                    
-                    # Update auto_message_count based on type so next scheduler tier can work
-                    # Flow: 3min (count=1) → 30min (count=2) → 24h (count=3) → 3day (count=4)
-                    skip_count = 1
-                    if followup_type == "30min":
-                        skip_count = 2
-                    elif followup_type == "24h":
-                        skip_count = 3
-                    elif followup_type == "3day":
-                        skip_count = 4
-                    
-                    if chat_obj.ext is None:
-                        chat_obj.ext = {}
-                    ext_copy = dict(chat_obj.ext)
-                    ext_copy['auto_message_count'] = skip_count
-                    chat_obj.ext = ext_copy
-                    
-                    db.commit()
-                    return
 
         # Mark that we're sending an auto-message to prevent repeated sends
         chat_obj.last_auto_message_at = datetime.utcnow()

@@ -1,0 +1,48 @@
+.mood-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mood-indicator.compact {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+}
+
+.mood-hearts {
+  display: flex;
+  gap: 2px;
+}
+
+.mood-heart {
+  font-size: 14px;
+  transition: transform 0.2s;
+}
+
+.mood-heart.filled {
+  animation: heartPulse 1s ease-in-out infinite;
+}
+
+.mood-heart.empty {
+  opacity: 0.4;
+}
+
+.mood-indicator.compact .mood-heart {
+  font-size: 12px;
+}
+
+.mood-label {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+}
+
+@keyframes heartPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
