@@ -16,6 +16,7 @@ import clockIcon from "./assets/clock.svg";
 import giftIconPng from "./assets/gift-icon.png";
 import giftIcon from "./assets/gift.webp";
 import lightningIcon from "./assets/lightning.webp";
+import BonusCalendar from "./components/BonusCalendar";
 import BottomNav from "./components/BottomNav";
 import CheckoutPage from "./components/CheckoutPage";
 import CustomStoryCreation from "./components/CustomStoryCreation";
@@ -26,6 +27,7 @@ import PlansPage from "./components/PlansPage";
 import PremiumPage from "./components/PremiumPage";
 import ReferralsPage from "./components/ReferralsPage";
 import SettingsPage from "./components/SettingsPage";
+import ShopPage from "./components/ShopPage";
 import TokensPage from "./components/TokensPage";
 import { useTranslation } from "./i18n/TranslationContext";
 
