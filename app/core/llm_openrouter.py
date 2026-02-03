@@ -137,6 +137,16 @@ async def generate_text(
                 response.raise_for_status()
                 
                 data = response.json()
+                
+                # Check for API error response
+                if "error" in data:
+                    error_msg = data["error"].get("message", str(data["error"]))
+                    raise Exception(f"OpenRouter API returned error: {error_msg}")
+                
+                if "choices" not in data or not data["choices"]:
+                    log_always(f"[LLM] ⚠️ Unexpected response structure: {data}")
+                    raise Exception(f"OpenRouter API returned invalid response (no choices). Response: {str(data)[:500]}")
+                
                 result = data["choices"][0]["message"]["content"]
                 
                 # Track token usage and cost if user_id is provided
@@ -194,11 +204,17 @@ async def generate_text(
             
             # Exponential backoff
             wait_time = (attempt + 1) * 1.5
-            print(f"[LLM] Retry {attempt + 1}/{max_retries} after {wait_time}s...")
+            log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
         
         except Exception as e:
-            raise Exception(f"OpenRouter API error: {str(e)}")
+            # Retry on API errors (invalid response, no choices, etc.)
+            if attempt == max_retries - 1:
+                raise Exception(f"OpenRouter API error after {max_retries} attempts: {str(e)}")
+            
+            wait_time = (attempt + 1) * 1.5
+            log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {str(e)[:200]}")
+            await asyncio.sleep(wait_time)
     
     raise Exception("OpenRouter API failed unexpectedly")
 
