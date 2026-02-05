@@ -12,10 +12,10 @@ from app.settings import settings
 engine = create_engine(
     settings.active_database_url,
     pool_pre_ping=True,
-    pool_size=3,           # Reduced from 5 - base persistent connections
-    max_overflow=5,        # Reduced from 10 - max additional connections under load
-    pool_timeout=10,       # Fail fast if pool exhausted (10 seconds wait max)
-    pool_recycle=300,      # Recycle connections after 5 minutes to avoid stale connections
+    pool_size=5,           # Base persistent connections
+    max_overflow=10,       # Max additional connections under load
+    pool_timeout=30,       # Wait up to 30s for connection
+    pool_recycle=60,       # Recycle connections every 60s to clear stale ones faster
     echo=False
 )
 
