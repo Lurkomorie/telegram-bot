@@ -44,17 +44,9 @@ def _build_image_context(
         mood_hint = "happy, warm expression" if mood >= 70 else ""
         gift_hint = ""
         if purchases:
-            # Map purchases to visual elements
-            gift_visuals = {
-                "wine": "holding wine glass, romantic setting",
-                "lipstick": "freshly applied lipstick, glossy lips",
-                "rose": "holding a red rose, romantic",
-                "gift": "excited expression, gift nearby",
-                "vibrator": "playful expression, intimate setting",
-                "anal_beads": "mischievous smile, intimate setting"
-            }
-            recent_gift = purchases[0].get("item_id", "") if purchases else ""
-            gift_hint = gift_visuals.get(recent_gift, "")
+            # Use context_effect from the most recent purchase
+            recent_purchase = purchases[0]
+            gift_hint = recent_purchase.get("context_effect", "")
         
         if mood_hint or gift_hint:
             mood_context = f"\n    # MOOD/GIFT VISUAL HINTS\n    {mood_hint} {gift_hint}".strip()

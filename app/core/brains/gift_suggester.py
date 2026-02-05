@@ -3,14 +3,10 @@ Gift Suggester Brain
 Determines when to suggest a gift and which item based on mood
 """
 import random
-from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
 # Gift suggestion probability (5-10%)
 SUGGESTION_PROBABILITY = 0.07  # 7%
-
-# Cooldown between suggestions (24 hours)
-SUGGESTION_COOLDOWN_HOURS = 24
 
 # Item selection by mood tier
 # Higher mood = more expensive gift suggestion
@@ -41,34 +37,13 @@ def _get_mood_tier(mood: int) -> str:
         return "high"
 
 
-def _check_cooldown(chat_ext: Optional[Dict]) -> bool:
-    """Check if enough time has passed since last suggestion"""
-    if not chat_ext:
-        return True
-    
-    last_suggestion = chat_ext.get("last_gift_suggestion_at")
-    if not last_suggestion:
-        return True
-    
-    # Parse datetime if string
-    if isinstance(last_suggestion, str):
-        try:
-            last_suggestion = datetime.fromisoformat(last_suggestion.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            return True
-    
-    # Check if cooldown has passed
-    cooldown_end = last_suggestion + timedelta(hours=SUGGESTION_COOLDOWN_HOURS)
-    return datetime.utcnow() > cooldown_end
-
-
-def should_suggest_gift(chat_ext: Optional[Dict], mood: int) -> Dict[str, Any]:
+def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None) -> Dict[str, Any]:
     """
     Determine if we should suggest a gift and which one
     
     Args:
-        chat_ext: Chat extended metadata (contains last_gift_suggestion_at)
         mood: Current mood value (0-100)
+        last_suggested_gift: Last suggested item key (to avoid repeating)
     
     Returns:
         {
@@ -78,16 +53,7 @@ def should_suggest_gift(chat_ext: Optional[Dict], mood: int) -> Dict[str, Any]:
             "reason": str
         }
     """
-    # Check cooldown first
-    if not _check_cooldown(chat_ext):
-        return {
-            "should_suggest": False,
-            "item_key": None,
-            "item_info": None,
-            "reason": "cooldown_active"
-        }
-    
-    # Random probability check
+    # Random probability check (7%)
     if random.random() > SUGGESTION_PROBABILITY:
         return {
             "should_suggest": False,
@@ -98,7 +64,16 @@ def should_suggest_gift(chat_ext: Optional[Dict], mood: int) -> Dict[str, Any]:
     
     # Select item based on mood tier
     tier = _get_mood_tier(mood)
-    available_items = GIFT_TIERS[tier]
+    available_items = GIFT_TIERS[tier].copy()
+    
+    # Exclude last suggested item to avoid repetition
+    if last_suggested_gift and last_suggested_gift in available_items:
+        available_items.remove(last_suggested_gift)
+    
+    # If no items left after exclusion, use full tier list
+    if not available_items:
+        available_items = GIFT_TIERS[tier].copy()
+    
     selected_item = random.choice(available_items)
     
     return {
@@ -138,24 +113,3 @@ def get_gift_dialogue_hint(item_key: str, language: str = "en") -> str:
     return random.choice(hints)
 
 
-def get_gift_image_context(item_key: str) -> str:
-    """
-    Get image context for gift suggestion (holding the gift)
-    
-    Args:
-        item_key: The gift item key
-    
-    Returns:
-        Image context string for prompt
-    """
-    item_contexts = {
-        "wine": "holding wine glass elegantly, wine bottle nearby",
-        "lipstick": "applying lipstick seductively, looking at viewer",
-        "rose": "holding a beautiful red rose, smelling it",
-        "mystery": "holding a wrapped gift box with ribbon",
-        "vibrator": "holding a gift suggestively, playful expression",
-        "anal_beads": "holding a wrapped gift, teasing smile",
-    }
-    
-    base_context = item_contexts.get(item_key, "holding a gift")
-    return f"{base_context}, close-up portrait, offering gesture to viewer"

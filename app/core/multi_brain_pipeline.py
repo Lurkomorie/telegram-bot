@@ -379,12 +379,14 @@ async def _process_single_batch(
             chat_mood = chat.mood or 50  # Default neutral mood
             chat_purchases = crud.get_chat_purchases(db, chat_id)
             
-            # Extract context summary from chat.ext (persisted from previous messages)
+            # Extract context summary and gift suggestion tracking from chat.ext
             context_summary = None
             messages_since_last_image = 0
+            last_suggested_gift = None
             if chat.ext and isinstance(chat.ext, dict):
                 context_summary = chat.ext.get("context_summary")
                 messages_since_last_image = chat.ext.get("messages_since_last_image", 0)
+                last_suggested_gift = chat.ext.get("last_suggested_gift")
             
             # Build chat history (all existing processed messages - up to 20 for summary)
             chat_history = [
@@ -544,6 +546,29 @@ async def _process_single_batch(
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
         
+        # Check for gift suggestion (7% probability, mood-based item selection)
+        gift_suggestion = {"should_suggest": False}
+        gift_keyboard = None
+        if not is_auto_followup:  # Don't suggest gifts in auto-followups
+            from app.core.brains.gift_suggester import should_suggest_gift, get_gift_dialogue_hint
+            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift)
+            
+            if gift_suggestion["should_suggest"]:
+                hint = get_gift_dialogue_hint(gift_suggestion["item_key"], user_language)
+                dialogue_response = f"{dialogue_response}\n\n{hint}"
+                
+                from app.bot.keyboards.inline import build_gift_suggestion_keyboard
+                from app.settings import settings
+                item_info = gift_suggestion["item_info"]
+                gift_keyboard = build_gift_suggestion_keyboard(
+                    item_key=gift_suggestion["item_key"],
+                    item_emoji=item_info["emoji"],
+                    item_name=item_info["name"] if user_language == "en" else item_info["name_ru"],
+                    miniapp_url=settings.MINIAPP_URL,
+                    language=user_language
+                )
+                log_always(f"[BATCH] 🎁 Gift suggestion: {gift_suggestion['item_key']} (tier: {gift_suggestion['reason']})")
+        
         pipeline_timer.end_stage()
         pipeline_timer.start_stage("Brain 2: State Resolution")
         
@@ -637,6 +662,18 @@ async def _process_single_batch(
                     log_always(f"[BATCH] ✅ Cleared last_image_msg_id from database")
             else:
                 log_always(f"[BATCH] ℹ️  No refresh button to remove")
+            
+            # Update last_suggested_gift if a gift was suggested
+            if gift_suggestion["should_suggest"]:
+                from sqlalchemy.orm.attributes import flag_modified
+                chat_for_gift = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                if chat_for_gift:
+                    if not chat_for_gift.ext:
+                        chat_for_gift.ext = {}
+                    chat_for_gift.ext["last_suggested_gift"] = gift_suggestion["item_key"]
+                    flag_modified(chat_for_gift, "ext")
+                    db.commit()
+                    log_verbose(f"[BATCH] 🎁 Updated last_suggested_gift to {gift_suggestion['item_key']}")
         
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         
@@ -705,10 +742,10 @@ async def _process_single_batch(
             await bot.send_message(
                 tg_chat_id, 
                 escaped_response, 
-                parse_mode="MarkdownV2"
-                # reply_markup=voice_keyboard  # VOICE DISABLED
+                parse_mode="MarkdownV2",
+                reply_markup=gift_keyboard  # Gift suggestion button (None if no suggestion)
             )
-            log_always(f"[BATCH] ✅ Response sent to user")
+            log_always(f"[BATCH] ✅ Response sent to user{' (with gift button)' if gift_keyboard else ''}")
             log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
         
         pipeline_timer.end_stage()
