@@ -1197,8 +1197,9 @@ async def process_gift_purchase(
     tg_chat_id: int,
     item_key: str,
     item_name: str,
-    context_effect: str,
-    new_mood: int
+    item_emoji: str = "🎁",
+    context_effect: str = "",
+    new_mood: int = 50
 ):
     """
     Background task triggered after a gift purchase from the shop.
@@ -1221,6 +1222,18 @@ async def process_gift_purchase(
             
             # Get user language
             user_language = crud.get_user_language(db, user_id)
+            
+            # Build and send system message
+            persona_name = persona.name
+            if user_language == "ru":
+                from app.db.crud import SHOP_ITEMS
+                item_name_localized = SHOP_ITEMS.get(item_key, {}).get("name_ru", item_name)
+                system_text = f"{item_emoji} Вы подарили {persona_name} подарок — {item_name_localized}"
+            else:
+                system_text = f"{item_emoji} You bought {persona_name} a {item_name}"
+            
+            escaped_system = escape_markdown_v2(system_text)
+            await bot.send_message(tg_chat_id, escaped_system, parse_mode="MarkdownV2")
             user = db.query(User).filter(User.id == user_id).first()
             user_first_name = user.first_name if user else None
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]

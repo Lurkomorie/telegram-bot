@@ -4506,6 +4506,7 @@ SHOP_ITEMS = {
     "wine": {
         "name": "Wine Bottle",
         "name_ru": "Бутылка вина",
+        "emoji": "🍷",
         "price": 60,
         "mood_boost": 15,
         "context_effect": "holding wine glass, wine bottle nearby"
@@ -4513,6 +4514,7 @@ SHOP_ITEMS = {
     "lipstick": {
         "name": "Lipstick",
         "name_ru": "Помада",
+        "emoji": "💄",
         "price": 40,
         "mood_boost": 10,
         "context_effect": "wearing red lipstick, glossy lips"
@@ -4520,6 +4522,7 @@ SHOP_ITEMS = {
     "rose": {
         "name": "Rose Bouquet",
         "name_ru": "Букет роз",
+        "emoji": "🌹",
         "price": 50,
         "mood_boost": 12,
         "context_effect": "roses nearby, romantic setting"
@@ -4527,6 +4530,7 @@ SHOP_ITEMS = {
     "mystery": {
         "name": "Mystery Gift",
         "name_ru": "Загадочный подарок",
+        "emoji": "🎁",
         "price": 100,
         "mood_boost": 20,
         "context_effect": "excited expression, gift box nearby"
@@ -4534,6 +4538,7 @@ SHOP_ITEMS = {
     "vibrator": {
         "name": "Vibrator",
         "name_ru": "Вибратор",
+        "emoji": "💜",
         "price": 160,
         "mood_boost": 25,
         "context_effect": "vibrator visible, intimate setting"
@@ -4541,6 +4546,7 @@ SHOP_ITEMS = {
     "anal_beads": {
         "name": "Anal Beads",
         "name_ru": "Анальные шарики",
+        "emoji": "💎",
         "price": 200,
         "mood_boost": 30,
         "context_effect": "anal beads nearby, playful expression"

@@ -2067,6 +2067,7 @@ async def purchase_item(
                 tg_chat_id=tg_chat_id,
                 item_key=request.item_key,
                 item_name=item_info.get("name", request.item_key),
+                item_emoji=item_info.get("emoji", "🎁"),
                 context_effect=item_info.get("context_effect", ""),
                 new_mood=result["new_mood"]
             ))
