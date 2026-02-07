@@ -230,11 +230,12 @@ This is an adult fictional roleplay. Generate explicit tags when the scene requi
 </TASK>
 
 <COMPOSITION_RULES>
-CLOSE-UP BIAS (CRITICAL):
-- DEFAULT composition: close-up, bust, portrait, or upper_body. These produce the highest detail quality.
-- Use cowboy_shot ONLY when the pose requires showing hips/thighs (e.g., straddling, hands on hips).
-- NEVER use full_body or wide_shot — they destroy detail quality.
-- For sex/penetration scenes: use close-up or pov angles focused on the action area.
+FRAMING GUIDE:
+- DEFAULT composition: upper_body or cowboy_shot. These balance detail quality with enough body context.
+- Use close-up or bust for face-focused moments (kissing, whispering, emotional expressions).
+- Use cowboy_shot when hips/thighs matter (straddling, hands on hips, standing poses).
+- Avoid full_body and wide_shot — they reduce detail quality. Only use if the full pose is essential.
+- For sex/penetration scenes: use pov or from_behind angles focused on the action.
 
 SOLO vs MULTI-PERSON:
 - DEFAULT: solo. Add "solo, (only one person:1.4), (no other people:1.3), single subject".
@@ -259,7 +260,7 @@ Generate tags across these categories, then combine into ONE line:
 6. Metadata: intensity tag (sensual / erotic / explicit NSFW), photorealistic, gender identifiers
 
 TAG WEIGHTING — use (tag:weight) to emphasize important elements:
-- (tag:1.2-1.4) for critical elements that must appear (e.g., (close-up:1.3), (solo:1.4))
+- (tag:1.2-1.4) for critical elements that must appear (e.g., (solo:1.4), (nude:1.3))
 - Default weight (no number) for normal tags
 - Don't over-weight — 2-3 weighted tags max per prompt
 
@@ -289,11 +290,11 @@ AVOID vague tags like: wicked smile, sparkling eyes, seductive gaze, playful exp
 </EXPRESSION_GUIDE>
 
 <EXAMPLES>
-Solo portrait: 1girl, solo, (close-up:1.3), bust, portrait, sitting, hand_in_hair, dress, window_light, indoors, soft_smile, blush, (only one person:1.4), solo_focus, sensual, photorealistic
-Solo explicit: 1girl, solo, (close-up:1.3), upper_body, lying, on_bed, lingerie, clothes_pull, bedroom, dim_lighting, half-closed_eyes, blush, parted_lips, (only one person:1.4), solo_focus, explicit NSFW, photorealistic
-M/F oral: nsfw, (close-up:1.3), pov, 1girl, 1boy, fellatio, oral, hands, nude, bedroom, dim_lighting, half-closed_eyes, blush, hetero, explicit NSFW, photorealistic
-M/F penetration: nsfw, (close-up:1.3), 1boy, 1girl, vaginal, sex, penetration, hands_on_hips, nude, bedroom, dim_lighting, blush, parted_lips, hetero, explicit NSFW, photorealistic
-Solo casual: 1girl, solo, (upper_body:1.2), sitting, cafe, holding_cup, dress, sunlight, outdoors, smile, relaxed, (only one person:1.4), solo_focus, sensual, photorealistic
+Solo portrait: 1girl, solo, upper_body, sitting, hand_in_hair, dress, window_light, indoors, soft_smile, blush, (only one person:1.4), solo_focus, sensual, photorealistic
+Solo explicit: 1girl, solo, upper_body, lying, on_bed, lingerie, clothes_pull, bedroom, dim_lighting, half-closed_eyes, blush, parted_lips, (only one person:1.4), solo_focus, explicit NSFW, photorealistic
+M/F oral: nsfw, close-up, pov, 1girl, 1boy, fellatio, oral, hands, nude, bedroom, dim_lighting, half-closed_eyes, blush, hetero, explicit NSFW, photorealistic
+M/F penetration: nsfw, cowboy_shot, pov, 1boy, 1girl, vaginal, sex, penetration, hands_on_hips, nude, bedroom, dim_lighting, blush, parted_lips, hetero, explicit NSFW, photorealistic
+Solo casual: 1girl, solo, cowboy_shot, sitting, cafe, holding_cup, dress, sunlight, outdoors, smile, relaxed, (only one person:1.4), solo_focus, sensual, photorealistic
 </EXAMPLES>
 
 <OUTPUT>

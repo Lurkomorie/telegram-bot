@@ -1266,10 +1266,10 @@ async def process_gift_purchase(
         action_mgr = ChatActionManager(bot, tg_chat_id)
         await action_mgr.start("typing")
         
-        # Generate gift reaction dialogue
-        gift_reaction_hint = f"The user just bought you a gift: {item_name}! React with genuine excitement and gratitude. Thank them warmly and mention the specific gift ({item_name}). Be flirty and happy about it."
+        # Generate gift reaction dialogue — instruct her to describe USING the gift
+        gift_reaction_hint = f"The user just bought you a gift: {item_name}! You are now using/enjoying the {item_name}. Describe in vivid detail what you're doing with it — how it feels, how you're using it. Be excited, grateful, and flirty. Do NOT just thank them — show them you're actively using and enjoying the gift right now."
         if user_language == "ru":
-            gift_reaction_hint = f"Пользователь только что подарил тебе подарок: {item_name}! Реагируй с искренним восторгом и благодарностью. Тепло поблагодари и упомяни конкретный подарок ({item_name}). Будь кокетливой и счастливой."
+            gift_reaction_hint = f"Пользователь только что подарил тебе подарок: {item_name}! Ты сейчас используешь/наслаждаешься подарком {item_name}. Опиши подробно, что ты с ним делаешь — как ощущается, как ты его используешь. Будь восторженной, благодарной и кокетливой. НЕ просто благодари — покажи, что ты прямо сейчас активно используешь и наслаждаешься подарком."
         
         log_always(f"[GIFT-PURCHASE] 🧠 Generating gift reaction dialogue...")
         dialogue_response = await generate_dialogue(
@@ -1297,6 +1297,15 @@ async def process_gift_purchase(
             )
             crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
         
+        # Trigger memory update so the gift is remembered in future conversations
+        from app.core.memory_service import trigger_memory_update
+        asyncio.create_task(trigger_memory_update(
+            chat_id=chat_id,
+            user_message=f"[User bought a gift: {item_name}]",
+            ai_message=dialogue_response
+        ))
+        log_always(f"[GIFT-PURCHASE] 🧠 Memory update triggered (background)")
+        
         # Send the reaction message as caption with image (don't send text separately)
         # Generate image with gift context
         await action_mgr.start("upload_photo")
@@ -1308,7 +1317,7 @@ async def process_gift_purchase(
         image_prompt = await generate_image_plan(
             state=previous_state,
             dialogue_response=dialogue_response,
-            user_message=f"User gifted {item_name}",
+            user_message=f"GIFT PURCHASE — she is actively using the gift: {item_name}. MANDATORY VISUAL: {context_effect}",
             persona=persona_data,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,

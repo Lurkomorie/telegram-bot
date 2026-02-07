@@ -4509,7 +4509,7 @@ SHOP_ITEMS = {
         "emoji": "🍷",
         "price": 60,
         "mood_boost": 15,
-        "context_effect": "holding wine glass, wine bottle nearby"
+        "context_effect": "drinking wine, holding wine glass, tipsy expression, flushed cheeks"
     },
     "lipstick": {
         "name": "Lipstick",
@@ -4517,7 +4517,7 @@ SHOP_ITEMS = {
         "emoji": "💄",
         "price": 40,
         "mood_boost": 10,
-        "context_effect": "wearing red lipstick, glossy lips"
+        "context_effect": "applying lipstick, glossy red lips, looking in mirror, pouting"
     },
     "rose": {
         "name": "Rose Bouquet",
@@ -4525,7 +4525,7 @@ SHOP_ITEMS = {
         "emoji": "🌹",
         "price": 50,
         "mood_boost": 12,
-        "context_effect": "roses nearby, romantic setting"
+        "context_effect": "holding roses, smelling roses, romantic setting, eyes closed"
     },
     "mystery": {
         "name": "Mystery Gift",
@@ -4533,7 +4533,7 @@ SHOP_ITEMS = {
         "emoji": "🎁",
         "price": 100,
         "mood_boost": 20,
-        "context_effect": "excited expression, gift box nearby"
+        "context_effect": "opening gift box, excited, surprised expression, hands on box"
     },
     "vibrator": {
         "name": "Vibrator",
@@ -4541,7 +4541,7 @@ SHOP_ITEMS = {
         "emoji": "💜",
         "price": 160,
         "mood_boost": 25,
-        "context_effect": "vibrator visible, intimate setting"
+        "context_effect": "using vibrator, masturbating, pleasuring herself, moaning, intimate bedroom"
     },
     "anal_beads": {
         "name": "Anal Beads",
@@ -4549,7 +4549,7 @@ SHOP_ITEMS = {
         "emoji": "💎",
         "price": 200,
         "mood_boost": 30,
-        "context_effect": "anal beads nearby, playful expression"
+        "context_effect": "using anal beads, anal insertion, from behind, intimate bedroom"
     }
 }
 
