@@ -44,12 +44,20 @@ def _build_image_context(
         mood_hint = "happy, warm expression" if mood >= 70 else ""
         gift_hint = ""
         if purchases:
-            # Use context_effect from the most recent purchase
             recent_purchase = purchases[0]
             gift_hint = recent_purchase.get("context_effect", "")
+            messages_since = recent_purchase.get("messages_since", 999)
         
-        if mood_hint or gift_hint:
-            mood_context = f"\n    # MOOD/GIFT VISUAL HINTS\n    {mood_hint} {gift_hint}".strip()
+        if gift_hint and messages_since <= 6:
+            gift_name = recent_purchase.get("item_name", "gift")
+            mood_context = f"""
+    
+    ⚠️ MANDATORY GIFT VISUAL — The character just received a {gift_name} as a gift and is actively using it.
+    You MUST include these visual elements: {gift_hint}
+    The gift item MUST be visible in the image. This takes priority over other visual elements."""
+        elif gift_hint or mood_hint:
+            hints = " ".join(filter(None, [mood_hint, gift_hint]))
+            mood_context = f"\n    # MOOD/GIFT VISUAL HINTS\n    {hints}".strip()
     
     context = f"""
     =====================================================

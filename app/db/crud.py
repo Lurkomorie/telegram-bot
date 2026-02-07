@@ -4640,21 +4640,26 @@ def purchase_shop_item(db: Session, user_id: int, chat_id: UUID, item_key: str) 
 
 def get_chat_purchases(db: Session, chat_id: UUID) -> list:
     """Get all purchases for a chat (for context in image generation)"""
-    from app.db.models import ChatPurchase
+    from app.db.models import ChatPurchase, Message
     
     purchases = db.query(ChatPurchase).filter(
         ChatPurchase.chat_id == chat_id
     ).order_by(desc(ChatPurchase.purchased_at)).all()
     
-    return [
-        {
+    result = []
+    for p in purchases:
+        messages_since = db.query(Message).filter(
+            Message.chat_id == chat_id,
+            Message.created_at > p.purchased_at
+        ).count() if p.purchased_at else 999
+        result.append({
             "item_key": p.item_key,
             "item_name": p.item_name,
             "context_effect": p.context_effect,
-            "purchased_at": p.purchased_at
-        }
-        for p in purchases
-    ]
+            "purchased_at": p.purchased_at,
+            "messages_since": messages_since
+        })
+    return result
 
 
 def get_chat_mood(db: Session, chat_id: UUID) -> dict:
