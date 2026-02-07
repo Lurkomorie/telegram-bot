@@ -2049,6 +2049,28 @@ async def purchase_item(
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["message"])
         
+        # Get tg_chat_id and item info to trigger background gift reaction
+        from app.db.models import Chat
+        chat = db.query(Chat).filter(Chat.id == chat_uuid).first()
+        if chat:
+            tg_chat_id = chat.tg_chat_id
+            
+            # Get item context_effect for image generation
+            from app.db.crud import SHOP_ITEMS
+            item_info = SHOP_ITEMS.get(request.item_key, {})
+            
+            import asyncio
+            from app.core.multi_brain_pipeline import process_gift_purchase
+            asyncio.create_task(process_gift_purchase(
+                chat_id=chat_uuid,
+                user_id=user_id,
+                tg_chat_id=tg_chat_id,
+                item_key=request.item_key,
+                item_name=item_info.get("name", request.item_key),
+                context_effect=item_info.get("context_effect", ""),
+                new_mood=result["new_mood"]
+            ))
+        
         return result
 
 

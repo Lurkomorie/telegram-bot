@@ -75,7 +75,6 @@ export default function ShopPage({
 }) {
   const { t, language } = useTranslation();
   const [isPurchasing, setIsPurchasing] = useState(null);
-  const [purchaseSuccess, setPurchaseSuccess] = useState(null);
   const [mood, setMood] = useState(50);
   const [chatId, setChatId] = useState(initialChatId);
 
@@ -178,23 +177,13 @@ export default function ShopPage({
 
       const result = await response.json();
 
-      // Show success animation
-      setPurchaseSuccess(item.key);
-      setTimeout(() => setPurchaseSuccess(null), 2000);
-
-      // Re-fetch mood after purchase
-      fetchMood();
-
-      // Notify parent of purchase
+      // Notify parent of purchase (update token count)
       if (onPurchase) {
         onPurchase(result);
       }
 
-      WebApp.showAlert(
-        t("shop.purchaseSuccess", {
-          item: language === "ru" ? item.nameRu : item.name,
-        }),
-      );
+      // Close miniapp — backend will send the gift reaction + image in chat
+      WebApp.close();
     } catch (error) {
       console.error("Purchase failed:", error);
       WebApp.showAlert(t("shop.purchaseFailed"));
@@ -254,7 +243,7 @@ export default function ShopPage({
         {SHOP_ITEMS.map((item) => (
           <div
             key={item.key}
-            className={`shop-item ${isPurchasing === item.key ? "purchasing" : ""} ${purchaseSuccess === item.key ? "success" : ""}`}
+            className={`shop-item ${isPurchasing === item.key ? "purchasing" : ""}`}
             onClick={() => handlePurchase(item)}
           >
             <div className="shop-item-left">
@@ -264,11 +253,6 @@ export default function ShopPage({
                   alt={item.name}
                   className="shop-item-image"
                 />
-                {purchaseSuccess === item.key && (
-                  <div className="purchase-success-overlay">
-                    <span className="success-checkmark">✓</span>
-                  </div>
-                )}
               </div>
               <div className="shop-item-info">
                 <span className="shop-item-name">{getItemName(item)}</span>

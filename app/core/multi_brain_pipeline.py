@@ -1190,3 +1190,208 @@ async def _update_context_summary(
         log_always(f"[CONTEXT-SUMMARY] ❌ Error updating summary: {e}")
         # Non-critical - don't raise, just log
 
+
+async def process_gift_purchase(
+    chat_id: UUID,
+    user_id: int,
+    tg_chat_id: int,
+    item_key: str,
+    item_name: str,
+    context_effect: str,
+    new_mood: int
+):
+    """
+    Background task triggered after a gift purchase from the shop.
+    Sends a character reaction message + generates an image with the gift context.
+    """
+    try:
+        log_always(f"[GIFT-PURCHASE] 🎁 Processing gift purchase: {item_key} for chat {chat_id}")
+        
+        # Fetch chat and persona data
+        with get_db() as db:
+            chat = crud.get_chat_by_id(db, chat_id)
+            if not chat:
+                log_always(f"[GIFT-PURCHASE] ❌ Chat {chat_id} not found")
+                return
+            
+            persona = crud.get_persona_by_id(db, chat.persona_id)
+            if not persona:
+                log_always(f"[GIFT-PURCHASE] ❌ Persona not found for chat {chat_id}")
+                return
+            
+            # Get user language
+            user_language = crud.get_user_language(db, user_id)
+            user = db.query(User).filter(User.id == user_id).first()
+            user_first_name = user.first_name if user else None
+            is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+            
+            # Get chat history for context
+            messages = crud.get_chat_messages(db, chat_id, limit=10)
+            chat_history = [{"role": m.role, "content": m.content} for m in reversed(messages)]
+            
+            # Get previous image prompt
+            previous_image_job = crud.get_last_completed_image_job(db, chat_id)
+            previous_image_prompt = previous_image_job.prompt if previous_image_job else None
+            
+            # Get recent purchases for context
+            chat_purchases = crud.get_chat_purchases(db, chat_id)
+            
+            # Build persona data dict
+            persona_data = {
+                "id": str(persona.id),
+                "name": persona.name,
+                "prompt": persona.prompt,
+                "image_prompt": persona.image_prompt,
+            }
+            
+            # Get state
+            previous_state = chat.state_snapshot.get("state", "chatting") if chat.state_snapshot else "chatting"
+            memory = chat.memory
+            context_summary = chat.ext.get("context_summary") if chat.ext else None
+        
+        # Show typing indicator
+        action_mgr = ChatActionManager(bot, tg_chat_id)
+        await action_mgr.start("typing")
+        
+        # Generate gift reaction dialogue
+        gift_reaction_hint = f"The user just bought you a gift: {item_name}! React with genuine excitement and gratitude. Thank them warmly and mention the specific gift ({item_name}). Be flirty and happy about it."
+        if user_language == "ru":
+            gift_reaction_hint = f"Пользователь только что подарил тебе подарок: {item_name}! Реагируй с искренним восторгом и благодарностью. Тепло поблагодари и упомяни конкретный подарок ({item_name}). Будь кокетливой и счастливой."
+        
+        log_always(f"[GIFT-PURCHASE] 🧠 Generating gift reaction dialogue...")
+        dialogue_response = await generate_dialogue(
+            state=previous_state,
+            chat_history=chat_history,
+            user_message=f"[User bought you a gift: {item_name}]",
+            persona=persona_data,
+            memory=memory,
+            is_auto_followup=False,
+            user_id=user_id,
+            context_summary=context_summary,
+            language=user_language,
+            mood=new_mood,
+            purchases=chat_purchases,
+            gift_hint=gift_reaction_hint,
+            user_name=user_first_name
+        )
+        log_always(f"[GIFT-PURCHASE] ✅ Gift reaction generated: {dialogue_response[:80]}...")
+        
+        # Save the assistant message to chat history
+        with get_db() as db:
+            crud.create_message_with_state(
+                db, chat_id, "assistant", dialogue_response,
+                state_snapshot={"state": previous_state}
+            )
+            crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
+        
+        # Send the reaction message as caption with image (don't send text separately)
+        # Generate image with gift context
+        await action_mgr.start("upload_photo")
+        from app.core.action_registry import register_action_manager
+        register_action_manager(tg_chat_id, action_mgr)
+        
+        log_always(f"[GIFT-PURCHASE] 🎨 Generating image with gift context: {context_effect}")
+        
+        image_prompt = await generate_image_plan(
+            state=previous_state,
+            dialogue_response=dialogue_response,
+            user_message=f"User gifted {item_name}",
+            persona=persona_data,
+            chat_history=chat_history,
+            previous_image_prompt=previous_image_prompt,
+            context_summary=context_summary,
+            mood=new_mood,
+            purchases=chat_purchases
+        )
+        log_always(f"[GIFT-PURCHASE] ✅ Image plan generated")
+        
+        positive, negative = assemble_final_prompt(
+            image_prompt,
+            persona_image_prompt=persona_data.get("image_prompt") or ""
+        )
+        
+        # Check cache
+        prompt_hash = crud.compute_prompt_hash(positive)
+        with get_db() as db:
+            cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+            
+            if cached_image and cached_image.result_url:
+                log_always(f"[GIFT-PURCHASE] ✅ CACHE HIT for gift image")
+                try:
+                    caption = escape_markdown_v2(dialogue_response)
+                    sent_message = await bot.send_photo(
+                        chat_id=tg_chat_id,
+                        photo=cached_image.result_url,
+                        caption=caption,
+                        parse_mode="MarkdownV2"
+                    )
+                    # Track image msg
+                    from sqlalchemy.orm.attributes import flag_modified
+                    chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
+                    if chat and sent_message.photo:
+                        if not chat.ext:
+                            chat.ext = {}
+                        chat.ext["last_image_msg_id"] = sent_message.message_id
+                        flag_modified(chat, "ext")
+                        db.commit()
+                    crud.mark_image_shown(db, user_id, cached_image.id)
+                    crud.increment_cache_serve_count(db, cached_image.id)
+                    await action_mgr.stop()
+                    log_always(f"[GIFT-PURCHASE] ✅ Gift image + reaction sent (cached)")
+                    return
+                except Exception as e:
+                    log_always(f"[GIFT-PURCHASE] ⚠️ Cache send failed: {e}, generating new")
+        
+        # Create job and dispatch
+        await redis_queue.increment_user_image_count(user_id)
+        
+        with get_db() as db:
+            job = crud.create_image_job(
+                db, user_id, persona.id if hasattr(persona, 'id') else UUID(persona_data["id"]),
+                positive, negative, chat_id,
+                ext={"pending_caption": dialogue_response, "is_gift_purchase": True}
+            )
+            job_id = job.id
+        
+        queue_priority = "high" if is_premium else "medium"
+        
+        from app.core.img_runpod import dispatch_image_generation
+        result = await dispatch_image_generation(
+            job_id=job_id,
+            prompt=positive,
+            negative_prompt=negative,
+            tg_chat_id=tg_chat_id,
+            queue_priority=queue_priority
+        )
+        
+        if not result:
+            log_always(f"[GIFT-PURCHASE] ⚠️ Image dispatch failed, sending text only")
+            await redis_queue.decrement_user_image_count(user_id)
+            # Fall back to text-only message
+            escaped = escape_markdown_v2(dialogue_response)
+            await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+            await action_mgr.stop()
+            return
+        
+        log_always(f"[GIFT-PURCHASE] ✅ Gift purchase processing complete (image dispatched)")
+        
+    except Exception as e:
+        log_always(f"[GIFT-PURCHASE] ❌ Error: {type(e).__name__}: {e}")
+        if is_development():
+            import traceback
+            traceback.print_exc()
+        
+        # Try to send text-only as fallback
+        try:
+            if dialogue_response:
+                escaped = escape_markdown_v2(dialogue_response)
+                await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+        except Exception:
+            pass
+        
+        try:
+            from app.core.action_registry import stop_and_remove_action
+            await stop_and_remove_action(tg_chat_id)
+        except Exception:
+            pass
+
