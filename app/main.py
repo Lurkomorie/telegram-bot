@@ -558,6 +558,7 @@ async def image_callback(request: Request):
             skip_chat_send = job_ext_data.get("skip_chat_send", False)  # Check if we should skip sending
             loading_msg_id = job_ext_data.get("loading_msg_id")  # Loading message to delete
             ext_tg_chat_id = job_ext_data.get("tg_chat_id")  # For standalone image gen
+            gift_suggestion_data = job_ext_data.get("gift_suggestion")  # Gift button data
             job_user_id = job.user_id
             job_persona_id = job.persona_id
             job_prompt = job.prompt
@@ -641,9 +642,27 @@ async def image_callback(request: Request):
                 except Exception as e:
                     print(f"[IMAGE-CALLBACK] ⚠️  Could not delete loading message: {e}")
             
-            # Build refresh keyboard
+            # Build refresh keyboard (+ gift button if gift suggestion present)
             from app.bot.keyboards.inline import build_image_refresh_keyboard
             refresh_keyboard = build_image_refresh_keyboard(job_id_str)
+            
+            if gift_suggestion_data:
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+                from app.settings import settings
+                # Determine language from user
+                gift_lang = "en"
+                with get_db() as db:
+                    gift_lang = crud.get_user_language(db, job_user_id) or "en"
+                gift_name = gift_suggestion_data.get("item_name_ru" if gift_lang == "ru" else "item_name", "Gift")
+                gift_emoji = gift_suggestion_data.get("item_emoji", "🎁")
+                gift_url = f"{settings.miniapp_url}?page=shop"
+                if job_chat_id:
+                    gift_url += f"&chatId={job_chat_id}"
+                refresh_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔄 Refresh Image", callback_data=f"refresh_image:{job_id_str}")],
+                    [InlineKeyboardButton(text=f"{gift_emoji} {gift_name}", web_app=WebAppInfo(url=gift_url))]
+                ])
+                print(f"[IMAGE-CALLBACK] 🎁 Added gift button to image keyboard")
             
             # Get the chat and check for previous image message
             with get_db() as db:

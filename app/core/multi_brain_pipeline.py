@@ -814,7 +814,8 @@ async def _process_single_batch(
                 should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
                 context_summary=context_summary,  # Pass summary for efficient context
                 mood=chat_mood,  # Chat mood for image context
-                purchases=chat_purchases  # Recent purchases for image context
+                purchases=chat_purchases,  # Recent purchases for image context
+                gift_suggestion=gift_suggestion  # Gift suggestion for button on image
             ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
@@ -887,7 +888,8 @@ async def _background_image_generation(
     should_send_as_caption: bool = False,  # If True, send dialogue_response as photo caption
     context_summary: str = None,  # Pre-generated context summary for efficiency
     mood: int = 50,  # Chat mood for image context
-    purchases: list = None  # Recent purchases for image context
+    purchases: list = None,  # Recent purchases for image context
+    gift_suggestion: dict = None  # Gift suggestion data for button on image
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1066,6 +1068,16 @@ async def _background_image_generation(
         if should_send_as_caption:
             job_ext["pending_caption"] = dialogue_response
             log_always(f"[IMAGE-BG] 📝 Storing dialogue text as pending caption")
+        
+        # Store gift suggestion data for button on image
+        if gift_suggestion and gift_suggestion.get("should_suggest"):
+            job_ext["gift_suggestion"] = {
+                "item_key": gift_suggestion["item_key"],
+                "item_emoji": gift_suggestion["item_info"]["emoji"],
+                "item_name": gift_suggestion["item_info"]["name"],
+                "item_name_ru": gift_suggestion["item_info"]["name_ru"],
+            }
+            log_always(f"[IMAGE-BG] 🎁 Storing gift suggestion for image button")
         
         # Increment concurrent image counter (track that we incremented for error handling)
         new_count = await redis_queue.increment_user_image_count(user_id)

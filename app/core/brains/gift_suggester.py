@@ -6,7 +6,7 @@ import random
 from typing import Optional, Dict, Any
 
 # Gift suggestion probability (5-10%)
-SUGGESTION_PROBABILITY = 0.5  # 7%
+SUGGESTION_PROBABILITY = 0.3  # 7%
 
 # Cumulative gift tiers — higher mood unlocks more items
 # Low tier items are always available, higher tiers add to the pool
