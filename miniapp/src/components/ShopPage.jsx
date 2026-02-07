@@ -1,5 +1,6 @@
 import WebApp from "@twa-dev/sdk";
 import { useCallback, useEffect, useState } from "react";
+import { fetchUserActiveChat } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
 import MoodIndicator from "./MoodIndicator";
 import "./ShopPage.css";
@@ -18,14 +19,6 @@ const API_BASE =
 
 const SHOP_ITEMS = [
   {
-    key: "wine",
-    name: "Wine Bottle",
-    nameRu: "Бутылка вина",
-    price: 60,
-    moodBoost: 15,
-    image: wineImg,
-  },
-  {
     key: "lipstick",
     name: "Lipstick",
     nameRu: "Помада",
@@ -40,6 +33,14 @@ const SHOP_ITEMS = [
     price: 50,
     moodBoost: 12,
     image: roseImg,
+  },
+  {
+    key: "wine",
+    name: "Wine Bottle",
+    nameRu: "Бутылка вина",
+    price: 60,
+    moodBoost: 15,
+    image: wineImg,
   },
   {
     key: "mystery",
@@ -68,7 +69,7 @@ const SHOP_ITEMS = [
 ];
 
 export default function ShopPage({
-  chatId,
+  chatId: initialChatId,
   tokens,
   onPurchase,
   onNavigateToTokens,
@@ -77,6 +78,29 @@ export default function ShopPage({
   const [isPurchasing, setIsPurchasing] = useState(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState(null);
   const [mood, setMood] = useState(50);
+  const [chatId, setChatId] = useState(initialChatId);
+
+  // Self-fetch active chat if not provided
+  useEffect(() => {
+    if (chatId) return;
+    const loadChat = async () => {
+      try {
+        const initData = WebApp.initData;
+        const data = await fetchUserActiveChat(initData);
+        if (data.chatId) {
+          setChatId(data.chatId);
+        }
+      } catch (err) {
+        console.error("Failed to fetch active chat for shop:", err);
+      }
+    };
+    loadChat();
+  }, [chatId]);
+
+  // Sync with parent if initialChatId changes
+  useEffect(() => {
+    if (initialChatId) setChatId(initialChatId);
+  }, [initialChatId]);
 
   // Fetch mood when chatId is available
   const fetchMood = useCallback(async () => {
@@ -105,7 +129,12 @@ export default function ShopPage({
   }, [fetchMood]);
 
   const handlePurchase = async (item) => {
-    if (isPurchasing || !chatId) return;
+    if (isPurchasing) return;
+
+    if (!chatId) {
+      WebApp.showAlert(t("shop.selectChatFirst"));
+      return;
+    }
 
     // Check if user has enough tokens
     if (tokens < item.price) {
@@ -154,6 +183,9 @@ export default function ShopPage({
       setPurchaseSuccess(item.key);
       setTimeout(() => setPurchaseSuccess(null), 2000);
 
+      // Re-fetch mood after purchase
+      fetchMood();
+
       // Notify parent of purchase
       if (onPurchase) {
         onPurchase(result);
@@ -178,62 +210,61 @@ export default function ShopPage({
 
   return (
     <div className="shop-page">
-      <div className="shop-header">
-        <div className="shop-header-icon">🎁</div>
-        <h1 className="shop-title">{t("shop.title")}</h1>
-        <p className="shop-subtitle">{t("shop.subtitle")}</p>
-        {chatId && (
-          <div className="shop-mood-section">
-            <span className="mood-label">{t("mood.herMood")}</span>
-            <MoodIndicator mood={mood} compact />
-          </div>
-        )}
-      </div>
+      {/* Mood section */}
+      {chatId && (
+        <div className="shop-mood-section">
+          <span className="shop-mood-label">{t("mood.herMood")}</span>
+          <MoodIndicator mood={mood} compact />
+        </div>
+      )}
 
-      <div className="shop-grid">
+      <p className="shop-subtitle">{t("shop.subtitle")}</p>
+
+      {/* Items list */}
+      <div className="shop-items-list">
         {SHOP_ITEMS.map((item) => (
           <div
             key={item.key}
             className={`shop-item ${isPurchasing === item.key ? "purchasing" : ""} ${purchaseSuccess === item.key ? "success" : ""}`}
             onClick={() => handlePurchase(item)}
           >
-            <div className="shop-item-image-container">
-              <img
-                src={item.image}
-                alt={item.name}
-                className="shop-item-image"
-              />
-              {purchaseSuccess === item.key && (
-                <div className="purchase-success-overlay">
-                  <span className="success-checkmark">✓</span>
+            <div className="shop-item-left">
+              <div className="shop-item-image-wrap">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="shop-item-image"
+                />
+                {purchaseSuccess === item.key && (
+                  <div className="purchase-success-overlay">
+                    <span className="success-checkmark">✓</span>
+                  </div>
+                )}
+              </div>
+              <div className="shop-item-info">
+                <span className="shop-item-name">{getItemName(item)}</span>
+                <div className="shop-item-mood">
+                  <span className="mood-heart">❤️</span>
+                  <span className="mood-boost-value">+{item.moodBoost}</span>
                 </div>
+              </div>
+            </div>
+            <button
+              className={`shop-buy-button ${isPurchasing === item.key ? "buying" : ""}`}
+              disabled={isPurchasing === item.key}
+            >
+              {isPurchasing === item.key ? (
+                <div className="buy-spinner"></div>
+              ) : (
+                <>
+                  <img src={lightningIcon} alt="tokens" className="buy-icon" />
+                  <span className="buy-price">{item.price}</span>
+                </>
               )}
-            </div>
-            <div className="shop-item-info">
-              <span className="shop-item-name">{getItemName(item)}</span>
-              <div className="shop-item-mood">
-                <span className="mood-icon">💖</span>
-                <span className="mood-value">+{item.moodBoost}</span>
-              </div>
-            </div>
-            <div className="shop-item-price">
-              <img src={lightningIcon} alt="tokens" className="price-icon" />
-              <span className="price-value">{item.price}</span>
-            </div>
-            {isPurchasing === item.key && (
-              <div className="purchasing-overlay">
-                <div className="purchasing-spinner"></div>
-              </div>
-            )}
+            </button>
           </div>
         ))}
       </div>
-
-      {!chatId && (
-        <div className="shop-no-chat-warning">
-          <p>{t("shop.selectChatFirst")}</p>
-        </div>
-      )}
     </div>
   );
 }
