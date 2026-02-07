@@ -1227,7 +1227,7 @@ async def process_gift_purchase(
             
             # Get chat history for context
             messages = crud.get_chat_messages(db, chat_id, limit=10)
-            chat_history = [{"role": m.role, "content": m.content} for m in reversed(messages)]
+            chat_history = [{"role": m.role, "content": m.text} for m in reversed(messages)]
             
             # Get previous image prompt
             previous_image_job = crud.get_last_completed_image_job(db, chat_id)
