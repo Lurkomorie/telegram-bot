@@ -653,6 +653,14 @@ def get_chat_by_tg_chat_id(db: Session, tg_chat_id: int) -> Optional[Chat]:
     ).order_by(desc(Chat.updated_at)).first()
 
 
+def get_user_latest_active_chat(db: Session, user_id: int) -> Optional[Chat]:
+    """Get user's most recent active chat (any persona)"""
+    return db.query(Chat).filter(
+        Chat.user_id == user_id,
+        Chat.status == "active"
+    ).order_by(desc(Chat.updated_at)).first()
+
+
 def get_user_chat_with_persona(db: Session, user_id: int, persona_id: UUID) -> Optional[Chat]:
     """Get most recent chat for a user with a specific persona (any tg_chat_id)"""
     return db.query(Chat).filter(

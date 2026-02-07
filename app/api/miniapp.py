@@ -176,6 +176,30 @@ async def get_personas(
     return result
 
 
+@router.get("/user/active-chat")
+async def get_user_active_chat(
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get user's most recent active chat (any persona).
+    Used by shop page to know which chat to purchase gifts for.
+    """
+    if not settings.SKIP_MINIAPP_AUTH:
+        if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+            raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+    
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        return {"chatId": None}
+    
+    with get_db() as db:
+        chat = crud.get_user_latest_active_chat(db, user_id)
+        if chat:
+            return {"chatId": str(chat.id)}
+    
+    return {"chatId": None}
+
+
 @router.get("/personas/{persona_id}/active-chat")
 async def get_persona_active_chat(
     persona_id: str,

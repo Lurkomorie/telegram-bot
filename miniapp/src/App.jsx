@@ -6,6 +6,7 @@ import {
     fetchActiveChat,
     fetchPersonaHistories,
     fetchPersonas,
+    fetchUserActiveChat,
     fetchUserEnergy,
     selectScenario,
     trackEvent,
@@ -169,11 +170,14 @@ function App() {
           setCurrentPage("plans");
         } else if (page === "energy" || page === "tokens") {
           setCurrentPage("tokens");
+        } else if (page === "shop") {
+          setCurrentPage("shop");
         }
 
         // Load initial data
         loadPersonas();
         loadEnergy();
+        loadActiveChat();
       }
     } catch (err) {
       console.error("Failed to check age verification:", err);
@@ -197,11 +201,14 @@ function App() {
       const page = urlParams.get("page");
       if (page === "premium" || page === "plans") {
         setCurrentPage("plans");
+      } else if (page === "shop") {
+        setCurrentPage("shop");
       }
 
       // Load initial data
       loadPersonas();
       loadEnergy();
+      loadActiveChat();
     } catch (err) {
       console.error("Failed to verify age:", err);
       WebApp.showAlert("Failed to verify age. Please try again.");
@@ -257,6 +264,18 @@ function App() {
       if (!silent) {
         setIsLoading(false);
       }
+    }
+  }
+
+  async function loadActiveChat() {
+    try {
+      const initData = WebApp.initData;
+      const data = await fetchUserActiveChat(initData);
+      if (data.chatId) {
+        setActiveChatId(data.chatId);
+      }
+    } catch (err) {
+      console.error("Failed to load active chat:", err);
     }
   }
 
@@ -470,7 +489,8 @@ function App() {
     currentPage === "tokens" ||
     currentPage === "referrals" ||
     currentPage === "history" ||
-    currentPage === "custom-story";
+    currentPage === "custom-story" ||
+    currentPage === "shop";
 
   // Handle Telegram BackButton
   useEffect(() => {

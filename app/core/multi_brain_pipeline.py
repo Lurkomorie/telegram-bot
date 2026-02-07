@@ -409,9 +409,10 @@ async def _process_single_batch(
             # Check if user is premium (for memory feature)
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]
             
-            # Get user's language preference for prompt selection
+            # Get user's language preference and name for prompt selection
             user = db.query(User).filter(User.id == user_id).first()
             user_language = user.locale if user and user.locale else "en"
+            user_first_name = user.first_name if user and user.first_name else None
         
         pipeline_timer.end_stage()
         
@@ -519,6 +520,29 @@ async def _process_single_batch(
             log_verbose(f"[BATCH]    For message: {batched_text[:50]}...")
             user_message_for_ai = batched_text
         
+        # Check for gift suggestion BEFORE dialogue (7% probability, mood-based)
+        gift_suggestion = {"should_suggest": False}
+        gift_keyboard = None
+        gift_hint = None
+        if not is_auto_followup:
+            from app.core.brains.gift_suggester import should_suggest_gift, get_gift_dialogue_hint
+            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift)
+            
+            if gift_suggestion["should_suggest"]:
+                gift_hint = get_gift_dialogue_hint(gift_suggestion["item_key"], user_language)
+                
+                from app.bot.keyboards.inline import build_gift_suggestion_keyboard
+                from app.settings import settings
+                item_info = gift_suggestion["item_info"]
+                gift_keyboard = build_gift_suggestion_keyboard(
+                    item_key=gift_suggestion["item_key"],
+                    item_emoji=item_info["emoji"],
+                    item_name=item_info["name"] if user_language == "en" else item_info["name_ru"],
+                    miniapp_url=settings.miniapp_url,
+                    language=user_language
+                )
+                log_always(f"[BATCH] 🎁 Gift suggestion: {gift_suggestion['item_key']} (tier: {gift_suggestion['reason']})")
+        
         _log_brain_inputs(
             "Brain 1 (Dialogue)",
             state=previous_state,
@@ -541,33 +565,12 @@ async def _process_single_batch(
             context_summary=context_summary,  # Use summary for context efficiency
             language=user_language,  # User's language for prompt selection
             mood=chat_mood,  # Chat mood (0-100)
-            purchases=chat_purchases  # Recent purchases for context
+            purchases=chat_purchases,  # Recent purchases for context
+            gift_hint=gift_hint,  # Gift suggestion hint for AI to incorporate naturally
+            user_name=user_first_name  # User's first name for personalized responses
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
-        
-        # Check for gift suggestion (7% probability, mood-based item selection)
-        gift_suggestion = {"should_suggest": False}
-        gift_keyboard = None
-        if not is_auto_followup:  # Don't suggest gifts in auto-followups
-            from app.core.brains.gift_suggester import should_suggest_gift, get_gift_dialogue_hint
-            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift)
-            
-            if gift_suggestion["should_suggest"]:
-                hint = get_gift_dialogue_hint(gift_suggestion["item_key"], user_language)
-                dialogue_response = f"{dialogue_response}\n\n{hint}"
-                
-                from app.bot.keyboards.inline import build_gift_suggestion_keyboard
-                from app.settings import settings
-                item_info = gift_suggestion["item_info"]
-                gift_keyboard = build_gift_suggestion_keyboard(
-                    item_key=gift_suggestion["item_key"],
-                    item_emoji=item_info["emoji"],
-                    item_name=item_info["name"] if user_language == "en" else item_info["name_ru"],
-                    miniapp_url=settings.MINIAPP_URL,
-                    language=user_language
-                )
-                log_always(f"[BATCH] 🎁 Gift suggestion: {gift_suggestion['item_key']} (tier: {gift_suggestion['reason']})")
         
         pipeline_timer.end_stage()
         pipeline_timer.start_stage("Brain 2: State Resolution")

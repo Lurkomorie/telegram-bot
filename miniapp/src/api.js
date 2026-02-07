@@ -460,6 +460,25 @@ export async function fetchReferralStats(initData) {
 }
 
 /**
+ * Fetch user's current active chat ID (any persona)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Object {chatId: string|null}
+ */
+export async function fetchUserActiveChat(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/active-chat`, {
+    headers: {
+      "X-Telegram-Init-Data": initData || "",
+    },
+  });
+
+  if (!response.ok) {
+    return { chatId: null };
+  }
+
+  return response.json();
+}
+
+/**
  * Fetch shop items
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Shop items list
@@ -492,7 +511,7 @@ export async function purchaseShopItem(initData, chatId, itemId) {
       "Content-Type": "application/json",
       "X-Telegram-Init-Data": initData || "",
     },
-    body: JSON.stringify({ chat_id: chatId, item_id: itemId }),
+    body: JSON.stringify({ chat_id: chatId, item_key: itemId }),
   });
 
   if (!response.ok) {

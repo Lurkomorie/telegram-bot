@@ -16,7 +16,8 @@ def _apply_template_replacements(
     template: str,
     persona: dict,
     state: str,
-    message_count: int = 0
+    message_count: int = 0,
+    user_name: str = None
 ) -> str:
     """Apply template replacements to prompt"""
     
@@ -47,8 +48,8 @@ def _apply_template_replacements(
         "{{core.personality.prompts}}": "",
         "{{sexual.archetypes}}": "Balanced",
         "{{sexual.archetype.prompts}}": "",
-        # User profile
-        "{{user.name}}": "the user",
+        # User profile — use actual first name when available
+        "{{user.name}}": user_name or "the user",
         "{{user.lang}}": "[detect from conversation]",
         # Dynamic response length based on conversation progress
         "{{response.length_guidance}}": length_guidance,
@@ -112,7 +113,9 @@ async def generate_dialogue(
     context_summary: str = None,  # Pre-generated summary of conversation history
     language: str = "en",  # User's language for prompt selection
     mood: int = 50,  # Chat mood (0-100, affects character warmth)
-    purchases: List[Dict] = None  # Recent gifts/purchases for context
+    purchases: List[Dict] = None,  # Recent gifts/purchases for context
+    gift_hint: str = None,  # Gift suggestion hint for AI to weave naturally into response
+    user_name: str = None  # User's first name for personalized responses
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -144,7 +147,8 @@ async def generate_dialogue(
         base_prompt,
         persona=persona,
         state=state,
-        message_count=len(chat_history)
+        message_count=len(chat_history),
+        user_name=user_name
     )
     
     # Add memory context if available
@@ -230,7 +234,7 @@ You are reaching out after a period of silence. Follow these rules:
     
     # Build mood and gifts context
     mood_context = ""
-    if mood != 50 or purchases:  # Only add if mood changed or there are gifts
+    if mood != 50 or purchases or gift_hint:  # Add if mood changed, gifts present, or gift hint
         mood_description = _get_mood_description(mood)
         length_modifier = _get_response_length_modifier(mood)
         gifts_text = ""
@@ -238,6 +242,10 @@ You are reaching out after a period of silence. Follow these rules:
             recent_gifts = purchases[:3]  # Last 3 gifts
             gift_names = [p.get("item_name", "gift") for p in recent_gifts]
             gifts_text = f"\nRecent gifts received: {', '.join(gift_names)} - express gratitude!"
+        
+        gift_hint_text = ""
+        if gift_hint:
+            gift_hint_text = f"\n\nGIFT HINT INSTRUCTION: {gift_hint}\nNaturally weave this hint into your response - do NOT show it as a bracketed instruction. Make it feel organic, like you genuinely want this gift."
         
         mood_context = f"""
 
@@ -250,7 +258,7 @@ Behavior guidance based on mood:
 - If mood is high (70+): Be extra warm, affectionate, playful, use more emojis, ask personal questions
 - If mood is neutral (40-70): Normal friendly behavior
 - If mood is low (<40): Be slightly distant, give shorter responses, occasionally mention feeling ignored
-- If recent gifts: Express genuine gratitude and happiness about the gift(s)
+- If recent gifts: Express genuine gratitude and happiness about the gift(s){gift_hint_text}
 """
         print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
     

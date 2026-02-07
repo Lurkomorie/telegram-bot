@@ -1,6 +1,7 @@
 import WebApp from "@twa-dev/sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "../i18n/TranslationContext";
+import MoodIndicator from "./MoodIndicator";
 import "./ShopPage.css";
 
 import analBeadsImg from "../assets/anal-beads.avif";
