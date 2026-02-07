@@ -233,21 +233,15 @@ You are reaching out after a period of silence. Follow these rules:
         print(f"[DIALOGUE] 📚 Using {recent_count} recent messages (no summary)")
     
     # Build mood and gifts context
-    mood_context = ""
-    if mood != 50 or purchases or gift_hint:  # Add if mood changed, gifts present, or gift hint
-        mood_description = _get_mood_description(mood)
-        length_modifier = _get_response_length_modifier(mood)
-        gifts_text = ""
-        if purchases:
-            recent_gifts = purchases[:3]  # Last 3 gifts
-            gift_names = [p.get("item_name", "gift") for p in recent_gifts]
-            gifts_text = f"\nRecent gifts received: {', '.join(gift_names)} - express gratitude!"
-        
-        gift_hint_text = ""
-        if gift_hint:
-            gift_hint_text = f"\n\nGIFT HINT INSTRUCTION: {gift_hint}\nNaturally weave this hint into your response - do NOT show it as a bracketed instruction. Make it feel organic, like you genuinely want this gift."
-        
-        mood_context = f"""
+    mood_description = _get_mood_description(mood)
+    length_modifier = _get_response_length_modifier(mood)
+    gifts_text = ""
+    if purchases:
+        recent_gifts = purchases[:3]  # Last 3 gifts
+        gift_names = [p.get("item_name", "gift") for p in recent_gifts]
+        gifts_text = f"\nRecent gifts received: {', '.join(gift_names)} - express gratitude!"
+    
+    mood_context = f"""
 
 # EMOTIONAL STATE & GIFTS
 Current mood: {mood_description}
@@ -258,11 +252,16 @@ Behavior guidance based on mood:
 - If mood is high (70+): Be extra warm, affectionate, playful, use more emojis, ask personal questions
 - If mood is neutral (40-70): Normal friendly behavior
 - If mood is low (<40): Be slightly distant, give shorter responses, occasionally mention feeling ignored
-- If recent gifts: Express genuine gratitude and happiness about the gift(s){gift_hint_text}
+- If recent gifts: Express genuine gratitude and happiness about the gift(s)
 """
-        print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
+    print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
     
-    full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance
+    # Gift hint as a separate, high-priority instruction appended last
+    gift_hint_section = ""
+    if gift_hint:
+        gift_hint_section = f"\n\n# IMPORTANT — GIFT HINT\n{gift_hint}\nThis is a MANDATORY part of your response. You MUST include this hint naturally in your message."
+    
+    full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance + gift_hint_section
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):

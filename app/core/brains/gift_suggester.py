@@ -8,12 +8,12 @@ from typing import Optional, Dict, Any
 # Gift suggestion probability (5-10%)
 SUGGESTION_PROBABILITY = 0.5  # 7%
 
-# Item selection by mood tier
-# Higher mood = more expensive gift suggestion
+# Cumulative gift tiers — higher mood unlocks more items
+# Low tier items are always available, higher tiers add to the pool
 GIFT_TIERS = {
-    "low": ["wine", "lipstick", "rose"],      # 0-30 mood: cheaper gifts (40-60 tokens)
-    "mid": ["mystery", "rose"],                # 31-60 mood: mid-range (50-100 tokens)
-    "high": ["vibrator", "anal_beads", "mystery"]  # 61-100 mood: expensive (100-200 tokens)
+    "low": ["wine", "lipstick", "rose"],                              # 0-30 mood: basic gifts only
+    "mid": ["wine", "lipstick", "rose", "mystery"],                   # 31-60 mood: + mystery
+    "high": ["wine", "lipstick", "rose", "mystery", "vibrator", "anal_beads"]  # 61-100 mood: all gifts unlocked
 }
 
 # Gift display names and emojis
@@ -99,15 +99,15 @@ def get_gift_dialogue_hint(item_key: str, language: str = "en") -> str:
     
     if language == "ru":
         hints = [
-            f"[Мягко намекни, что тебе бы понравился подарок - {info['name_ru']} {info['emoji']}]",
-            f"[Упомяни, что {info['name_ru']} {info['emoji']} сделал бы тебя счастливой]",
-            f"[Деликатно скажи, что мечтаешь о {info['name_ru']} {info['emoji']}]",
+            f"В конце своего ответа мягко намекни, что тебе бы очень понравился подарок — {info['name_ru']} {info['emoji']}. Вплети это естественно в разговор.",
+            f"Ближе к концу ответа упомяни, что {info['name_ru']} {info['emoji']} сделал бы тебя очень счастливой. Скажи это мило и естественно.",
+            f"В конце своего ответа деликатно скажи, что мечтаешь о {info['name_ru']} {info['emoji']}. Пусть это звучит как искреннее желание.",
         ]
     else:
         hints = [
-            f"[Gently hint that you would love a gift - {info['name']} {info['emoji']}]",
-            f"[Mention that a {info['name']} {info['emoji']} would make you happy]",
-            f"[Delicately say you've been dreaming about {info['name']} {info['emoji']}]",
+            f"At the end of your response, gently hint that you would love to receive a {info['name']} {info['emoji']} as a gift. Weave it naturally into the conversation.",
+            f"Near the end of your response, mention that a {info['name']} {info['emoji']} would make you really happy. Say it cutely and naturally.",
+            f"At the end of your response, delicately say you've been dreaming about a {info['name']} {info['emoji']}. Make it sound like a genuine wish.",
         ]
     
     return random.choice(hints)
