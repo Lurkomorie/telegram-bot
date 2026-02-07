@@ -1360,7 +1360,7 @@ async def process_gift_purchase(
         
         with get_db() as db:
             job = crud.create_image_job(
-                db, user_id, persona.id if hasattr(persona, 'id') else UUID(persona_data["id"]),
+                db, user_id, UUID(persona_data["id"]),
                 positive, negative, chat_id,
                 ext={"pending_caption": dialogue_response, "is_gift_purchase": True}
             )
