@@ -2,7 +2,6 @@ import WebApp from "@twa-dev/sdk";
 import { useCallback, useEffect, useState } from "react";
 import { fetchUserActiveChat } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
-import MoodIndicator from "./MoodIndicator";
 import "./ShopPage.css";
 
 import analBeadsImg from "../assets/anal-beads.avif";
@@ -208,13 +207,43 @@ export default function ShopPage({
     return language === "ru" ? item.nameRu : item.name;
   };
 
+  const getMoodEmoji = () => {
+    if (mood >= 80) return "😍";
+    if (mood >= 60) return "😊";
+    if (mood >= 40) return "😐";
+    if (mood >= 20) return "😒";
+    return "🥶";
+  };
+
+  const getMoodLabel = () => {
+    if (mood >= 80) return t("mood.veryHappy");
+    if (mood >= 60) return t("mood.happy");
+    if (mood >= 40) return t("mood.neutral");
+    if (mood >= 20) return t("mood.cold");
+    return t("mood.veryCold");
+  };
+
+  const getMoodHint = () => {
+    if (mood >= 80) return t("shop.moodHintHigh");
+    if (mood >= 50) return t("shop.moodHintMid");
+    return t("shop.moodHintLow");
+  };
+
   return (
     <div className="shop-page">
-      {/* Mood section */}
+      {/* Mood bar */}
       {chatId && (
-        <div className="shop-mood-section">
-          <span className="shop-mood-label">{t("mood.herMood")}</span>
-          <MoodIndicator mood={mood} compact />
+        <div className="shop-mood-card">
+          <div className="mood-bar-header">
+            <span className="mood-bar-label">
+              {getMoodEmoji()} {getMoodLabel()}
+            </span>
+            <span className="mood-bar-percent">{mood}%</span>
+          </div>
+          <div className="mood-bar-track">
+            <div className="mood-bar-fill" style={{ width: `${mood}%` }} />
+          </div>
+          <span className="mood-bar-hint">{getMoodHint()}</span>
         </div>
       )}
 

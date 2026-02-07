@@ -539,6 +539,7 @@ async def _process_single_batch(
                     item_emoji=item_info["emoji"],
                     item_name=item_info["name"] if user_language == "en" else item_info["name_ru"],
                     miniapp_url=settings.miniapp_url,
+                    chat_id=str(chat_id),
                     language=user_language
                 )
                 log_always(f"[BATCH] 🎁 Gift suggestion: {gift_suggestion['item_key']} (tier: {gift_suggestion['reason']})")

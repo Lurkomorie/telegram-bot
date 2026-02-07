@@ -334,7 +334,10 @@
     "cancel": "Отмена",
     "purchaseSuccess": "Куплено: {item}!",
     "purchaseFailed": "Не удалось купить",
-    "selectChatFirst": "Сначала выберите чат с девушкой"
+    "selectChatFirst": "Сначала выберите чат с девушкой",
+    "moodHintLow": "🎁 Подари ей что-нибудь, чтобы согреть!",
+    "moodHintMid": "🎁 Подарок поднимет ей настроение!",
+    "moodHintHigh": "💕 Ей нравятся твои подарки! Так держать!"
   },
   "bonusCalendar": {
     "title": "Календарь бонусов",

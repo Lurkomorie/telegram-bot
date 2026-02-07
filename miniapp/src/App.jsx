@@ -172,6 +172,11 @@ function App() {
           setCurrentPage("tokens");
         } else if (page === "shop") {
           setCurrentPage("shop");
+          // Read chatId from URL (passed by gift suggestion button)
+          const urlChatId = urlParams.get("chatId");
+          if (urlChatId) {
+            setActiveChatId(urlChatId);
+          }
         }
 
         // Load initial data
@@ -203,6 +208,10 @@ function App() {
         setCurrentPage("plans");
       } else if (page === "shop") {
         setCurrentPage("shop");
+        const urlChatId = urlParams.get("chatId");
+        if (urlChatId) {
+          setActiveChatId(urlChatId);
+        }
       }
 
       // Load initial data

@@ -400,6 +400,7 @@ def build_gift_suggestion_keyboard(
     item_emoji: str,
     item_name: str,
     miniapp_url: str,
+    chat_id: str = None,
     language: str = "en"
 ) -> InlineKeyboardMarkup:
     """Build keyboard for gift suggestion with shop button
@@ -409,15 +410,21 @@ def build_gift_suggestion_keyboard(
         item_emoji: Emoji for the gift
         item_name: Display name of the gift
         miniapp_url: Base miniapp URL
+        chat_id: Chat ID to pass to shop page
         language: User language code
     """
     # Build button text with emoji and name
     button_text = f"{item_emoji} {item_name}"
     
+    # Include chat_id in URL so shop page knows which chat to purchase for
+    url = f"{miniapp_url}?page=shop"
+    if chat_id:
+        url += f"&chatId={chat_id}"
+    
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text=button_text,
-            web_app=WebAppInfo(url=f"{miniapp_url}?page=shop")
+            web_app=WebAppInfo(url=url)
         )]
     ])
 

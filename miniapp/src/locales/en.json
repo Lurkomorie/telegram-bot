@@ -334,7 +334,10 @@
     "cancel": "Cancel",
     "purchaseSuccess": "Purchased: {item}!",
     "purchaseFailed": "Purchase failed",
-    "selectChatFirst": "Select a chat first"
+    "selectChatFirst": "Select a chat first",
+    "moodHintLow": "🎁 Send a gift to warm her up!",
+    "moodHintMid": "🎁 A gift would make her day!",
+    "moodHintHigh": "💕 She loves your gifts! Keep it up!"
   },
   "bonusCalendar": {
     "title": "Bonus Calendar",
