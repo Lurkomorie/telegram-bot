@@ -6,7 +6,7 @@ import random
 from typing import Optional, Dict, Any
 
 # Gift suggestion probability (5-10%)
-SUGGESTION_PROBABILITY = 0.07  # 7%
+SUGGESTION_PROBABILITY = 0.50  # 7%
 
 # Item selection by mood tier
 # Higher mood = more expensive gift suggestion
