@@ -696,24 +696,19 @@ function App() {
               )}
             </button>
             <button
-              className="action-button shop-banner-button"
+              className="action-button shop-button"
               onClick={() => handleNavigate("shop")}
             >
-              <div className="shop-banner-content">
+              <div className="button-content">
                 <img
                   src={giftIconPng}
                   alt="shop"
-                  className="shop-banner-icon"
+                  className="shop-button-icon"
                 />
-                <div className="shop-banner-text">
-                  <span className="shop-banner-title">
-                    {t("shop.bannerTitle")}
-                  </span>
-                  <span className="shop-banner-subtitle">
-                    {t("shop.bannerSubtitle")}
-                  </span>
-                </div>
-                <span className="shop-banner-arrow">→</span>
+                <span className="button-label">{t("shop.bannerTitle")}</span>
+              </div>
+              <div className="button-subtitle shop-button-action">
+                {t("shop.bannerSubtitle")}
               </div>
             </button>
           </div>

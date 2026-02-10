@@ -555,63 +555,16 @@ body {
   font-weight: 600 !important;
 }
 
-/* Shop Banner Button */
-.shop-banner-button {
-  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%) !important;
-  border: none !important;
-  padding: 0 !important;
-  overflow: hidden;
-}
-
-.shop-banner-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  width: 100%;
-}
-
-.shop-banner-icon {
-  width: 32px;
-  height: 32px;
+/* Shop Button Specific Styles */
+.shop-button-icon {
+  width: 20px;
+  height: 20px;
   object-fit: contain;
-  flex-shrink: 0;
 }
 
-.shop-banner-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  flex: 1;
-  min-width: 0;
-}
-
-.shop-banner-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #ffffff;
-  line-height: 1.2;
-}
-
-.shop-banner-subtitle {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.shop-banner-arrow {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.9);
-  flex-shrink: 0;
-}
-
-.shop-banner-button:active {
-  transform: scale(0.98);
-  filter: brightness(0.95);
+.shop-button-action {
+  color: #a855f7 !important;
+  font-weight: 600 !important;
 }
 
 /* Bonus Animation */

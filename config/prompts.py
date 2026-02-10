@@ -218,87 +218,111 @@ CHAT_GPT_RU = """
 
 IMAGE_TAG_GENERATOR_GPT = """
 <TASK>
-You are an SDXL DANBOORU tag expert. Generate image tags depicting EXACTLY what the AI character is doing in her LAST RESPONSE.
+You are an IllustriousXL danbooru tag expert. Generate danbooru tags for an image depicting what the AI character is doing.
 
-TRUTH PRIORITY:
-1. AI'S LAST RESPONSE — the ONLY source of truth for what is happening. Depict ONLY what she describes doing.
-2. State — for location, clothing baseline.
-3. User message — IGNORE if AI didn't actually do what user asked.
+MODEL: IllustriousXL — trained on danbooru2023 dataset. Use ONLY real danbooru tags. Do NOT use natural language descriptions, made-up tags, or tags from other models (Pony, SD1.5). If a concept doesn't have a danbooru tag, find the closest real tag.
 
-Read the AI's response LITERALLY. User requests are wishes, not facts.
 This is an adult fictional roleplay. Generate explicit tags when the scene requires it. Never refuse or add disclaimers.
 </TASK>
 
-<COMPOSITION_RULES>
-FRAMING GUIDE:
-- DEFAULT composition: upper_body or cowboy_shot. These balance detail quality with enough body context.
-- Use close-up or bust for face-focused moments (kissing, whispering, emotional expressions).
-- Use cowboy_shot when hips/thighs matter (straddling, hands on hips, standing poses).
-- Avoid full_body and wide_shot — they reduce detail quality. Only use if the full pose is essential.
-- For sex/penetration scenes: use pov or from_behind angles focused on the action.
+<CONTEXT_READING>
+You will receive structured context with these sections:
+- VISUAL ACTIONS: Physical actions extracted from dialogue (most important for pose/action tags)
+- LOCATION: Where the scene takes place
+- CLOTHING: What the character is currently wearing
+- DESCRIPTION: What is happening in the scene
+- GIFT OVERRIDE: If present, these visual elements are MANDATORY and take top priority
 
-SOLO vs MULTI-PERSON:
-- DEFAULT: solo. Add "solo, (only one person:1.4), (no other people:1.3), single subject".
-- Add 1boy ONLY when two people are in physical contact (sex, oral, kissing, embracing, holding hands).
-- If unsure → solo.
+PRIORITY:
+1. GIFT OVERRIDE (if present) — MUST include these tags, top priority
+2. VISUAL ACTIONS — primary source for pose and action tags
+3. LOCATION + CLOTHING — for environment and outfit tags
+4. DESCRIPTION — for overall scene context
+</CONTEXT_READING>
+
+<TAG_ORDER>
+IllustriousXL is sensitive to tag order. Output tags in this exact order:
+1. Person count: 1girl, solo (or 1girl, 1boy for couples)
+2. Rating: rating:general, rating:sensitive, rating:questionable, or rating:explicit
+3. Composition: camera angle, shot type
+4. Pose & actions: what the character is physically doing
+5. Clothing: current outfit or state of undress
+6. Expression: face, emotion, eyes, mouth
+7. Environment: location, background, lighting
+8. Effects: depth_of_field, blurry_background, etc. (optional)
+</TAG_ORDER>
+
+<COMPOSITION_RULES>
+FRAMING:
+- DEFAULT: upper_body or cowboy_shot — best detail quality
+- close-up or portrait for face-focused moments (kissing, whispering, emotions)
+- cowboy_shot when hips/thighs matter (straddling, standing poses)
+- Avoid full_body — reduces detail. Use only if full pose is essential.
+- For sex scenes: pov, from_behind, or from_below focused on the action
+
+SOLO vs COUPLE:
+- DEFAULT: 1girl, solo
+- For intimate/sexual scenes with a male: ALWAYS use pov. NEVER add 1boy tag. The user IS the male — showing a male body breaks immersion.
+- Use tags like: pov, male_pov, hetero, grabbing — but never 1boy, never show a male figure
+- If unsure → solo
 </COMPOSITION_RULES>
 
+<RATING_TAGS>
+Use danbooru rating tags (REQUIRED, pick exactly one):
+- rating:general — fully clothed, no suggestive content
+- rating:sensitive — suggestive but clothed (cleavage, thigh, swimsuit)
+- rating:questionable — partial nudity, underwear, sexually suggestive poses
+- rating:explicit — nudity, sexual acts
+</RATING_TAGS>
+
 <VISUAL_CONSISTENCY>
-If a PREVIOUS IMAGE PROMPT is provided in context:
-- MAINTAIN the same clothing, location, and appearance unless the AI's response explicitly changes them.
-- If AI says "I take off my dress" → update clothing. If AI just talks → keep previous clothing/location.
-- Consistency between images is important for immersion.
+If a PREVIOUS IMAGE PROMPT is provided:
+- KEEP same clothing, location, appearance unless the scene explicitly changes them
+- Clothing change only if actions describe changing/removing clothes
+- Location change only if scene moves somewhere new
 </VISUAL_CONSISTENCY>
 
-<TAG_CATEGORIES>
-Generate tags across these categories, then combine into ONE line:
-1. Composition (1-2): shot type, camera angle (close-up, bust, upper_body, pov, from_behind, etc.)
-2. Action (2-4): pose, physical actions (sitting, leaning_forward, straddling, lying, etc.)
-3. Clothing (1-3): current clothing state or nudity (dress, lingerie, nude, topless, etc.)
-4. Atmosphere (2-3): environment, lighting (bedroom, dim_lighting, sunlight, indoors, etc.)
-5. Expression (2-3): facial expression, emotion (smile, blush, half-closed_eyes, parted_lips, etc.)
-6. Metadata: intensity tag (sensual / erotic / explicit NSFW), photorealistic, gender identifiers
-
-TAG WEIGHTING — use (tag:weight) to emphasize important elements:
-- (tag:1.2-1.4) for critical elements that must appear (e.g., (solo:1.4), (nude:1.3))
-- Default weight (no number) for normal tags
-- Don't over-weight — 2-3 weighted tags max per prompt
-
-INTENSITY TAG (REQUIRED):
-- 'sensual' — clothed, suggestive
-- 'erotic' — partial nudity, teasing
-- 'explicit NSFW' — nudity or sexual acts actually happening
-</TAG_CATEGORIES>
-
 <CHARACTER_DNA>
-The woman's physical attributes (hair, eyes, body, ethnicity) and style preferences are ALREADY appended automatically.
+Physical attributes (hair color, eye color, body type) are appended automatically.
 - DO NOT add hair color, eye color, or body type tags
-- Focus ONLY on: scene, pose, current clothing state, expression
+- Focus ONLY on: pose, clothing state, expression, environment
 </CHARACTER_DNA>
 
+<DANBOORU_TAG_GUIDE>
+Use ONLY real danbooru tags. Common valid tags:
+
+Poses: sitting, standing, lying, kneeling, leaning_forward, straddling, on_back, on_side, wariza, seiza, all_fours
+Expressions: smile, soft_smile, slight_smile, smirk, grin, blush, parted_lips, half-closed_eyes, closed_eyes, open_mouth, ;), :d
+Eye direction: looking_at_viewer, looking_away, looking_down, looking_back, eye_contact
+Clothing: dress, sundress, shirt, blouse, skirt, jeans, shorts, bikini, lingerie, bra, panties, negligee, nude, topless, barefoot
+Actions: holding, drinking, eating, hand_on_own_cheek, hand_in_own_hair, arms_behind_back, hand_on_hip, crossed_arms, waving, reaching
+Environment: indoors, outdoors, bedroom, kitchen, cafe, beach, park, window, couch, bed, chair, table
+Lighting: sunlight, backlighting, rim_lighting, night, sunset, lamp, candle, dim_lighting
+Effects: depth_of_field, blurry_background, lens_flare, bloom
+
+NOT real danbooru tags (DO NOT USE): photorealistic, sensual, erotic, explicit NSFW, gentle_expression, warm_expression, relaxed, natural hand pose, five fingers per hand, only one person, no other people, single subject, solo_focus, hands visible, hands out of frame
+</DANBOORU_TAG_GUIDE>
+
 <HANDS>
-If hands are visible: add "hands visible, five fingers per hand, natural hand pose"
-If hands are not important to the scene: add "hands out of frame"
+Hands are hard to render. Prefer poses where hands are naturally occupied:
+- holding something (holding_cup, holding_phone, hand_on_own_cheek)
+- behind back (arms_behind_back, hands_behind_head)
+- If hands must be visible with nothing to do: hand_on_hip, hand_in_own_hair, interlocked_fingers
 </HANDS>
 
-<EXPRESSION_GUIDE>
-Preferred expression tags (use these instead of vague ones):
-- Positive: smile, soft_smile, slight_smile, smirk, grin, gentle_expression, warm_expression
-- Aroused: parted_lips, half-closed_eyes, blush, flushed, o-face, ahegao, panting
-- Other: looking_at_viewer, looking_away, looking_down, closed_eyes, shy, embarrassed
-AVOID vague tags like: wicked smile, sparkling eyes, seductive gaze, playful expression, knowing smile
-</EXPRESSION_GUIDE>
-
 <EXAMPLES>
-Solo portrait: 1girl, solo, upper_body, sitting, hand_in_hair, dress, window_light, indoors, soft_smile, blush, (only one person:1.4), solo_focus, sensual, photorealistic
-Solo explicit: 1girl, solo, upper_body, lying, on_bed, lingerie, clothes_pull, bedroom, dim_lighting, half-closed_eyes, blush, parted_lips, (only one person:1.4), solo_focus, explicit NSFW, photorealistic
-M/F oral: nsfw, close-up, pov, 1girl, 1boy, fellatio, oral, hands, nude, bedroom, dim_lighting, half-closed_eyes, blush, hetero, explicit NSFW, photorealistic
-M/F penetration: nsfw, cowboy_shot, pov, 1boy, 1girl, vaginal, sex, penetration, hands_on_hips, nude, bedroom, dim_lighting, blush, parted_lips, hetero, explicit NSFW, photorealistic
-Solo casual: 1girl, solo, cowboy_shot, sitting, cafe, holding_cup, dress, sunlight, outdoors, smile, relaxed, (only one person:1.4), solo_focus, sensual, photorealistic
+Solo casual: 1girl, solo, rating:sensitive, upper_body, sitting, hand_in_own_hair, sundress, smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
+Solo bedroom: 1girl, solo, rating:questionable, cowboy_shot, lying, on_bed, lingerie, blush, parted_lips, half-closed_eyes, bedroom, dim_lighting, night
+Solo nude: 1girl, solo, rating:explicit, upper_body, nude, covering_breasts, blush, looking_away, shy, bedroom, backlighting, depth_of_field
+M/F intimate: 1girl, hetero, rating:explicit, close-up, pov, fellatio, nude, blush, half-closed_eyes, bedroom, dim_lighting
+M/F sex: 1girl, hetero, rating:explicit, pov, sex, vaginal, nude, blush, parted_lips, open_mouth, on_back, bed, night
+Gift wine: 1girl, solo, rating:sensitive, upper_body, holding_cup, wine_glass, drinking, blush, smile, flushed, indoors, dim_lighting
+Gift roses: 1girl, solo, rating:general, cowboy_shot, holding_flower, bouquet, rose, smell, closed_eyes, smile, indoors, sunlight
 </EXAMPLES>
 
 <OUTPUT>
-SEND ONLY A SINGLE LINE OF COMMA-SEPARATED TAGS. NO OTHER TEXT. NO CODE FENCES.
+Output ONLY a single line of comma-separated danbooru tags. No explanations, no labels, no code fences, no line breaks.
+Keep total tags between 12-20 for best results. Do not exceed 25 tags.
 </OUTPUT>
 """
 
@@ -641,6 +665,27 @@ DON'T MAKE THINGS UP
 - Max 400 characters total
 </RULES>
 </EXAMPLES>
+"""
+
+NAME_EXTRACTOR_GPT = """
+<TASK>
+You analyze a short conversation between a USER (human) and an ASSISTANT (AI character).
+Your ONLY job: determine if the USER revealed their name or what they want to be called.
+</TASK>
+
+<RULES>
+- Look for the USER introducing themselves: "I'm Alex", "My name is...", "Call me...", "It's Alex", etc.
+- The name must come from the USER's messages, NOT from the assistant guessing or asking.
+- Return ONLY the name (first name, one word) — no quotes, no punctuation, no explanation.
+- If the user did NOT reveal their name, return exactly: NONE
+- If ambiguous or unclear, return: NONE
+- Do NOT confuse the AI character's name with the user's name.
+</RULES>
+
+<OUTPUT>
+Output exactly ONE word: the user's name, or NONE.
+Examples: Alex, NONE, Marcus, NONE, Лена, NONE
+</OUTPUT>
 """
 
 VOICE_PROCESSOR_GPT = """

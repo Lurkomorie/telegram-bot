@@ -217,6 +217,105 @@ async def update_memory(
         return current_memory or ""
 
 
+async def extract_user_name(
+    chat_id: UUID,
+    chat_history: List[Dict[str, str]]
+) -> str:
+    """
+    Lightweight LLM call to detect if the user revealed their name in recent conversation.
+    
+    Args:
+        chat_id: Chat UUID
+        chat_history: Recent conversation messages
+    
+    Returns:
+        Detected name string, or None if no name found
+    """
+    try:
+        if not chat_history or len(chat_history) < 2:
+            return None
+        
+        log_verbose(f"[NAME] 🔍 Checking for user name in chat {chat_id}")
+        
+        prompt_template = PromptService.get("NAME_EXTRACTOR_GPT")
+        
+        # Format last few messages for context
+        recent = chat_history[-6:]  # Last 6 messages max
+        conversation_text = "\n".join([
+            f"{'USER' if m['role'] == 'user' else 'ASSISTANT'}: {m['content']}"
+            for m in recent
+        ])
+        
+        full_prompt = f"{prompt_template}\n\n<CONVERSATION>\n{conversation_text}\n</CONVERSATION>"
+        
+        config = get_app_config()
+        name_model = config["llm"].get("memory_model", config["llm"]["model"])
+        
+        response = await generate_text(
+            messages=[{"role": "user", "content": full_prompt}],
+            model=name_model,
+            temperature=0.1,
+            max_tokens=20
+        )
+        
+        result = response.strip().strip('"').strip("'").strip()
+        
+        # Validate the result
+        if not result or result.upper() == "NONE" or len(result) > 30 or " " in result.strip():
+            log_verbose(f"[NAME] ℹ️  No name detected (response: {result})")
+            return None
+        
+        log_always(f"[NAME] ✅ Detected user name: {result}")
+        return result
+        
+    except Exception as e:
+        log_verbose(f"[NAME] ⚠️ Name extraction failed: {e}")
+        return None
+
+
+async def trigger_name_extraction(chat_id: UUID):
+    """
+    Fire-and-forget name extraction.
+    Checks if chat already has a name; if not, tries to extract one from recent messages.
+    """
+    try:
+        with get_db() as db:
+            chat = crud.get_chat_by_id(db, chat_id)
+            if not chat:
+                return
+            
+            # Skip if name already discovered for this chat
+            if chat.ext and chat.ext.get("user_display_name"):
+                return
+            
+            # Get recent messages
+            messages = crud.get_chat_messages(db, chat_id, limit=10)
+            chat_history = [
+                {"role": m.role, "content": m.text}
+                for m in messages
+                if m.text
+            ]
+        
+        # Try to extract name
+        name = await extract_user_name(chat_id, chat_history)
+        
+        if name:
+            # Save to chat.ext
+            with get_db() as db:
+                chat = crud.get_chat_by_id(db, chat_id)
+                if chat:
+                    from sqlalchemy.orm.attributes import flag_modified
+                    if not chat.ext:
+                        chat.ext = {}
+                    chat.ext["user_display_name"] = name
+                    flag_modified(chat, "ext")
+                    db.commit()
+                    log_always(f"[NAME] ✅ Saved user name '{name}' to chat {chat_id}")
+    
+    except Exception as e:
+        log_always(f"[NAME] ❌ Background name extraction failed: {e}")
+
+
 async def trigger_memory_update(
     chat_id: UUID,
     user_message: str,

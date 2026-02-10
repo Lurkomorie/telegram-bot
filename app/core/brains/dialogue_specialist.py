@@ -31,6 +31,9 @@ def _apply_template_replacements(
         length_guidance = "Max 3 sentences: {physical action} + {sound/texture} + {speech with love/devotion}."
         length_task = "Keep output concise (max 3 sentences), physical, and immersive."
     
+    # When no name is known, use generic references instead of Telegram's unreliable first_name
+    name_for_prompt = user_name if user_name else "them"
+    
     replacements = {
         "{{char.name}}": persona.get("name", "AI"),
         "{{char.physical_description}}": persona.get("prompt", ""),
@@ -48,8 +51,8 @@ def _apply_template_replacements(
         "{{core.personality.prompts}}": "",
         "{{sexual.archetypes}}": "Balanced",
         "{{sexual.archetype.prompts}}": "",
-        # User profile — use actual first name when available
-        "{{user.name}}": user_name or "the user",
+        # User profile — use discovered chat name, or generic reference
+        "{{user.name}}": name_for_prompt,
         "{{user.lang}}": "[detect from conversation]",
         # Dynamic response length based on conversation progress
         "{{response.length_guidance}}": length_guidance,
@@ -115,7 +118,8 @@ async def generate_dialogue(
     mood: int = 50,  # Chat mood (0-100, affects character warmth)
     purchases: List[Dict] = None,  # Recent gifts/purchases for context
     gift_hint: str = None,  # Gift suggestion hint for AI to weave naturally into response
-    user_name: str = None  # User's first name for personalized responses
+    user_name: str = None,  # User's display name (discovered from conversation, per-chat)
+    name_known: bool = False  # Whether user's name has been discovered for this chat
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -261,7 +265,23 @@ Behavior guidance based on mood:
     if gift_hint:
         gift_hint_section = f"\n\n# IMPORTANT — GIFT HINT\n{gift_hint}\nThis is a MANDATORY part of your response. You MUST include this hint naturally in your message."
     
-    full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance + gift_hint_section
+    # Name discovery hint — only when name is not yet known for this chat
+    name_discovery_section = ""
+    if not name_known and not is_auto_followup:
+        if language == "ru":
+            name_discovery_section = """
+
+# ЗНАКОМСТВО С ПОЛЬЗОВАТЕЛЕМ
+Ты ещё не знаешь, как зовут собеседника. В течение первых сообщений естественно представься и спроси, как его называть — вплети это в диалог непринуждённо, кокетливо, не в лоб. Например: «Кстати, а как мне тебя называть?» или «Я же даже не знаю, как тебя зовут…». Не повторяй вопрос, если уже спрашивала.
+"""
+        else:
+            name_discovery_section = """
+
+# GETTING TO KNOW THE USER
+You don't know the user's name yet. Within the first few messages, naturally introduce yourself and ask what to call them — weave it into the conversation flirtatiously, not robotically. For example: "By the way, what should I call you?" or "I don't even know your name yet…". Don't repeat the question if you've already asked.
+"""
+    
+    full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance + name_discovery_section + gift_hint_section
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):

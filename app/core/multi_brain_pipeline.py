@@ -409,10 +409,13 @@ async def _process_single_batch(
             # Check if user is premium (for memory feature)
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]
             
-            # Get user's language preference and name for prompt selection
+            # Get user's language preference for prompt selection
             user = db.query(User).filter(User.id == user_id).first()
             user_language = user.locale if user and user.locale else "en"
-            user_first_name = user.first_name if user and user.first_name else None
+            
+            # Get per-chat discovered name (from chat.ext, NOT Telegram's first_name)
+            user_display_name = chat.ext.get("user_display_name") if chat.ext else None
+            name_known = bool(user_display_name)
         
         pipeline_timer.end_stage()
         
@@ -568,7 +571,8 @@ async def _process_single_batch(
             mood=chat_mood,  # Chat mood (0-100)
             purchases=chat_purchases,  # Recent purchases for context
             gift_hint=gift_hint,  # Gift suggestion hint for AI to incorporate naturally
-            user_name=user_first_name  # User's first name for personalized responses
+            user_name=user_display_name,  # Per-chat discovered name (not Telegram first_name)
+            name_known=name_known  # Whether name has been discovered for this chat
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -780,6 +784,12 @@ async def _process_single_batch(
             log_verbose(f"[BATCH] 🧠 Memory update triggered (background) - premium user")
         else:
             log_verbose(f"[BATCH] ⏭️ Memory update skipped (free user - premium feature)")
+        
+        # 5.55. Trigger background name extraction (fire and forget) - only if name not yet known
+        if not name_known:
+            from app.core.memory_service import trigger_name_extraction
+            asyncio.create_task(trigger_name_extraction(chat_id=chat_id))
+            log_verbose(f"[BATCH] 🏷️ Name extraction triggered (background)")
         
         # 5.6. Trigger background context summary update (fire and forget)
         # Update summary with new messages for next round
@@ -1246,9 +1256,10 @@ async def process_gift_purchase(
             
             escaped_system = escape_markdown_v2(system_text)
             await bot.send_message(tg_chat_id, escaped_system, parse_mode="MarkdownV2")
-            user = db.query(User).filter(User.id == user_id).first()
-            user_first_name = user.first_name if user else None
             is_premium = crud.check_user_premium(db, user_id)["is_premium"]
+            
+            # Get per-chat discovered name (from chat.ext, NOT Telegram's first_name)
+            gift_user_display_name = chat.ext.get("user_display_name") if chat.ext else None
             
             # Get chat history for context
             messages = crud.get_chat_messages(db, chat_id, limit=10)
@@ -1297,7 +1308,7 @@ async def process_gift_purchase(
             mood=new_mood,
             purchases=chat_purchases,
             gift_hint=gift_reaction_hint,
-            user_name=user_first_name
+            user_name=gift_user_display_name
         )
         log_always(f"[GIFT-PURCHASE] ✅ Gift reaction generated: {dialogue_response[:80]}...")
         

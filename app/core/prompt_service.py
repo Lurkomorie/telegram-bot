@@ -9,7 +9,8 @@ from config.prompts import (
     MEMORY_EXTRACTOR_GPT,
     IMAGE_DECISION_GPT,
     VOICE_PROCESSOR_GPT,
-    CONTEXT_SUMMARY_GPT
+    CONTEXT_SUMMARY_GPT,
+    NAME_EXTRACTOR_GPT
 )
 
 
@@ -25,6 +26,7 @@ class PromptService:
         "IMAGE_DECISION_GPT": IMAGE_DECISION_GPT,
         "VOICE_PROCESSOR_GPT": VOICE_PROCESSOR_GPT,
         "CONTEXT_SUMMARY_GPT": CONTEXT_SUMMARY_GPT,
+        "NAME_EXTRACTOR_GPT": NAME_EXTRACTOR_GPT,
     }
     
     # Language-specific prompt mapping

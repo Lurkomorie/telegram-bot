@@ -4509,7 +4509,7 @@ SHOP_ITEMS = {
         "emoji": "🍷",
         "price": 60,
         "mood_boost": 15,
-        "context_effect": "drinking wine, holding wine glass, tipsy expression, flushed cheeks"
+        "context_effect": "holding_cup, wine_glass, drinking, blush, flushed"
     },
     "lipstick": {
         "name": "Lipstick",
@@ -4517,7 +4517,7 @@ SHOP_ITEMS = {
         "emoji": "💄",
         "price": 40,
         "mood_boost": 10,
-        "context_effect": "applying lipstick, glossy red lips, looking in mirror, pouting"
+        "context_effect": "lipstick, red_lips, mirror, looking_at_mirror, pout"
     },
     "rose": {
         "name": "Rose Bouquet",
@@ -4525,7 +4525,7 @@ SHOP_ITEMS = {
         "emoji": "🌹",
         "price": 50,
         "mood_boost": 12,
-        "context_effect": "holding roses, smelling roses, romantic setting, eyes closed"
+        "context_effect": "holding_flower, bouquet, rose, closed_eyes, smile, smell"
     },
     "mystery": {
         "name": "Mystery Gift",
@@ -4533,7 +4533,7 @@ SHOP_ITEMS = {
         "emoji": "🎁",
         "price": 100,
         "mood_boost": 20,
-        "context_effect": "opening gift box, excited, surprised expression, hands on box"
+        "context_effect": "gift_box, holding_box, open_mouth, surprised, smile"
     },
     "vibrator": {
         "name": "Vibrator",
@@ -4541,7 +4541,7 @@ SHOP_ITEMS = {
         "emoji": "💜",
         "price": 160,
         "mood_boost": 25,
-        "context_effect": "using vibrator, masturbating, pleasuring herself, moaning, intimate bedroom"
+        "context_effect": "vibrator, masturbation, spread_legs, blush, half-closed_eyes, parted_lips, on_bed, bedroom"
     },
     "anal_beads": {
         "name": "Anal Beads",
@@ -4549,7 +4549,7 @@ SHOP_ITEMS = {
         "emoji": "💎",
         "price": 200,
         "mood_boost": 30,
-        "context_effect": "using anal beads, anal insertion, from behind, intimate bedroom"
+        "context_effect": "anal_beads, anal_object_insertion, ass, from_behind, blush, on_bed, bedroom"
     }
 }
 
