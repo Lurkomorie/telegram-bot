@@ -14,9 +14,9 @@ import {
 } from "./api";
 import "./App.css";
 import clockIcon from "./assets/clock.svg";
-import giftIconPng from "./assets/gift-icon.png";
 import giftIcon from "./assets/gift.webp";
 import lightningIcon from "./assets/lightning.webp";
+import premiumIcon from "./assets/premium.webp";
 import BonusCalendar from "./components/BonusCalendar";
 import BottomNav from "./components/BottomNav";
 import CheckoutPage from "./components/CheckoutPage";
@@ -696,19 +696,41 @@ function App() {
               )}
             </button>
             <button
-              className="action-button shop-button"
-              onClick={() => handleNavigate("shop")}
+              className="action-button subscription-button"
+              onClick={() => handleNavigate("premium")}
             >
               <div className="button-content">
-                <img
-                  src={giftIconPng}
-                  alt="shop"
-                  className="shop-button-icon"
-                />
-                <span className="button-label">{t("shop.bannerTitle")}</span>
+                {tokens.is_premium ? (
+                  <>
+                    <span
+                      className="button-icon-large"
+                      style={{ fontSize: "16px", lineHeight: "1" }}
+                    >
+                      {premiumTiers[tokens.premium_tier]?.icon || "💎"}
+                    </span>
+                    <span className="button-label">
+                      {premiumTiers[tokens.premium_tier]?.name ||
+                        tokens.premium_tier.charAt(0).toUpperCase() +
+                          tokens.premium_tier.slice(1)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <img
+                      src={premiumIcon}
+                      alt="premium"
+                      className="button-icon-large"
+                    />
+                    <span className="button-label">
+                      {t("app.dailyBonus.subscription")}
+                    </span>
+                  </>
+                )}
               </div>
-              <div className="button-subtitle shop-button-action">
-                {t("shop.bannerSubtitle")}
+              <div className="button-subtitle">
+                {tokens.is_premium
+                  ? t("app.subscriptionTexts.enjoy")
+                  : t(`app.subscriptionTexts.${subscriptionText}`)}
               </div>
             </button>
           </div>
@@ -764,7 +786,7 @@ function App() {
             tokens={tokens}
             onRefresh={() => loadPersonas(true)}
             onNavigateToTokens={() => setCurrentPage("tokens")}
-            onNavigateToPremium={() => setCurrentPage("premium")}
+            onNavigateToShop={() => setCurrentPage("shop")}
           />
         ) : currentPage === "history" ? (
           <HistorySelection

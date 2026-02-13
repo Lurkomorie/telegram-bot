@@ -8,6 +8,9 @@ from typing import Optional, Dict, Any
 # Gift suggestion probability (5-10%)
 SUGGESTION_PROBABILITY = 0.3  # 7%
 
+# Minimum total message count before gifts can be suggested (~15 AI messages)
+MIN_MESSAGES_FOR_GIFTS = 30
+
 # Cumulative gift tiers — higher mood unlocks more items
 # Low tier items are always available, higher tiers add to the pool
 GIFT_TIERS = {
@@ -37,13 +40,14 @@ def _get_mood_tier(mood: int) -> str:
         return "high"
 
 
-def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None) -> Dict[str, Any]:
+def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None, message_count: int = 0) -> Dict[str, Any]:
     """
     Determine if we should suggest a gift and which one
     
     Args:
         mood: Current mood value (0-100)
         last_suggested_gift: Last suggested item key (to avoid repeating)
+        message_count: Total chat message count (user + assistant)
     
     Returns:
         {
@@ -53,6 +57,15 @@ def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None) ->
             "reason": str
         }
     """
+    # Don't suggest gifts until enough conversation has happened
+    if message_count < MIN_MESSAGES_FOR_GIFTS:
+        return {
+            "should_suggest": False,
+            "item_key": None,
+            "item_info": None,
+            "reason": "too_early"
+        }
+    
     # Random probability check (7%)
     if random.random() > SUGGESTION_PROBABILITY:
         return {

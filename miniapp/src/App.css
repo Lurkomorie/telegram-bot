@@ -555,18 +555,6 @@ body {
   font-weight: 600 !important;
 }
 
-/* Shop Button Specific Styles */
-.shop-button-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-
-.shop-button-action {
-  color: #a855f7 !important;
-  font-weight: 600 !important;
-}
-
 /* Bonus Animation */
 .bonus-animation {
   position: fixed;

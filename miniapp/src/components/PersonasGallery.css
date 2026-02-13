@@ -1,5 +1,5 @@
-/* ===== New Year Sale Banner ===== */
-.sale-banner-gallery {
+/* ===== Shop Banner ===== */
+.shop-banner-gallery {
   position: relative;
   margin: 20px 20px 0 20px;
   padding: 20px 16px;
@@ -7,99 +7,176 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-size: cover;
-  background-position: center;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #f59e0b 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease-in-out infinite;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
 }
 
-.sale-banner-gallery:active {
+.shop-banner-gallery:active {
   transform: scale(0.98);
 }
 
-.sale-banner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1;
+@keyframes gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
-.sale-banner-snow {
+.shop-banner-sparkles {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2;
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
 }
 
-.sale-banner-snow .snowflake {
+.shop-banner-sparkles .sparkle {
   position: absolute;
-  top: -20px;
-  color: white;
   opacity: 0;
   font-size: 14px;
-  animation: banner-snow linear infinite;
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+  animation: sparkle-float linear infinite;
 }
 
-@keyframes banner-snow {
+@keyframes sparkle-float {
   0% {
     opacity: 0;
-    transform: translateY(-10px) translateX(0);
+    transform: translateY(10px) scale(0.5);
   }
-  10% {
-    opacity: 0.9;
+  15% {
+    opacity: 1;
   }
-  90% {
-    opacity: 0.7;
+  50% {
+    opacity: 0.8;
+    transform: translateY(-15px) scale(1);
+  }
+  85% {
+    opacity: 0.6;
   }
   100% {
     opacity: 0;
-    transform: translateY(80px) translateX(10px);
+    transform: translateY(-30px) scale(0.5);
   }
 }
 
-.sale-banner-snow .snowflake:nth-child(1) { left: 5%; animation-duration: 3s; animation-delay: 0s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(2) { left: 15%; animation-duration: 4s; animation-delay: 0.5s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(4) { left: 35%; animation-duration: 4.5s; animation-delay: 0.3s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(5) { left: 45%; animation-duration: 3.2s; animation-delay: 0.8s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(6) { left: 55%; animation-duration: 4.2s; animation-delay: 0.2s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(7) { left: 65%; animation-duration: 3.8s; animation-delay: 1.2s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(8) { left: 75%; animation-duration: 4.8s; animation-delay: 0.6s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(9) { left: 85%; animation-duration: 3.3s; animation-delay: 1.5s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(10) { left: 95%; animation-duration: 4.3s; animation-delay: 0.4s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(11) { left: 10%; animation-duration: 5s; animation-delay: 2s; font-size: 8px; }
-.sale-banner-snow .snowflake:nth-child(12) { left: 90%; animation-duration: 5.5s; animation-delay: 2.5s; font-size: 12px; }
+.shop-banner-sparkles .sparkle:nth-child(1) {
+  left: 5%;
+  top: 60%;
+  animation-duration: 2.5s;
+  animation-delay: 0s;
+  font-size: 10px;
+}
+.shop-banner-sparkles .sparkle:nth-child(2) {
+  left: 15%;
+  top: 40%;
+  animation-duration: 3s;
+  animation-delay: 0.4s;
+  font-size: 12px;
+}
+.shop-banner-sparkles .sparkle:nth-child(3) {
+  left: 25%;
+  top: 70%;
+  animation-duration: 2.8s;
+  animation-delay: 0.8s;
+  font-size: 8px;
+}
+.shop-banner-sparkles .sparkle:nth-child(4) {
+  left: 35%;
+  top: 30%;
+  animation-duration: 3.2s;
+  animation-delay: 0.2s;
+  font-size: 14px;
+}
+.shop-banner-sparkles .sparkle:nth-child(5) {
+  left: 45%;
+  top: 55%;
+  animation-duration: 2.6s;
+  animation-delay: 1s;
+  font-size: 10px;
+}
+.shop-banner-sparkles .sparkle:nth-child(6) {
+  left: 55%;
+  top: 45%;
+  animation-duration: 3.4s;
+  animation-delay: 0.6s;
+  font-size: 12px;
+}
+.shop-banner-sparkles .sparkle:nth-child(7) {
+  left: 65%;
+  top: 65%;
+  animation-duration: 2.9s;
+  animation-delay: 1.2s;
+  font-size: 8px;
+}
+.shop-banner-sparkles .sparkle:nth-child(8) {
+  left: 75%;
+  top: 35%;
+  animation-duration: 3.1s;
+  animation-delay: 0.3s;
+  font-size: 14px;
+}
+.shop-banner-sparkles .sparkle:nth-child(9) {
+  left: 85%;
+  top: 50%;
+  animation-duration: 2.7s;
+  animation-delay: 0.9s;
+  font-size: 10px;
+}
+.shop-banner-sparkles .sparkle:nth-child(10) {
+  left: 92%;
+  top: 25%;
+  animation-duration: 3.3s;
+  animation-delay: 1.4s;
+  font-size: 12px;
+}
+.shop-banner-sparkles .sparkle:nth-child(11) {
+  left: 10%;
+  top: 20%;
+  animation-duration: 3.6s;
+  animation-delay: 1.8s;
+  font-size: 8px;
+}
+.shop-banner-sparkles .sparkle:nth-child(12) {
+  left: 80%;
+  top: 75%;
+  animation-duration: 2.4s;
+  animation-delay: 2s;
+  font-size: 10px;
+}
 
-.sale-banner-content {
+.shop-banner-content {
   position: relative;
-  z-index: 3;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
 }
 
-.sale-banner-emoji {
+.shop-banner-icon {
   font-size: 28px;
-  animation: emoji-bounce 2s ease-in-out infinite;
+  animation: icon-bounce 2s ease-in-out infinite;
 }
 
-.sale-banner-emoji:last-child {
+.shop-banner-icon:last-child {
   animation-delay: 0.3s;
 }
 
-@keyframes emoji-bounce {
-  0%, 100% {
+@keyframes icon-bounce {
+  0%,
+  100% {
     transform: translateY(0) scale(1);
   }
   50% {
@@ -107,46 +184,45 @@
   }
 }
 
-.sale-banner-text-group {
+.shop-banner-text-group {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
 
-.sale-banner-title {
+.shop-banner-title {
   font-size: 18px;
   font-weight: 800;
   color: white;
   text-transform: uppercase;
   letter-spacing: 2px;
-  text-shadow: 
-    0 0 10px rgba(255, 100, 100, 0.8),
-    0 0 20px rgba(255, 100, 100, 0.5),
-    0 0 30px rgba(255, 100, 100, 0.3);
-  animation: text-glow 2s ease-in-out infinite;
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.5),
+    0 0 20px rgba(168, 85, 247, 0.4);
+  animation: shop-text-glow 2s ease-in-out infinite;
 }
 
-.sale-banner-discount {
+.shop-banner-subtitle {
   font-size: 14px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   letter-spacing: 1px;
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
 
-@keyframes text-glow {
-  0%, 100% {
-    text-shadow: 
-      0 0 10px rgba(255, 100, 100, 0.8),
-      0 0 20px rgba(255, 100, 100, 0.5),
-      0 0 30px rgba(255, 100, 100, 0.3);
+@keyframes shop-text-glow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 10px rgba(255, 255, 255, 0.5),
+      0 0 20px rgba(168, 85, 247, 0.4);
   }
   50% {
-    text-shadow: 
-      0 0 15px rgba(255, 120, 120, 1),
-      0 0 30px rgba(255, 100, 100, 0.7),
-      0 0 45px rgba(255, 100, 100, 0.5);
+    text-shadow:
+      0 0 15px rgba(255, 255, 255, 0.7),
+      0 0 30px rgba(168, 85, 247, 0.6),
+      0 0 45px rgba(219, 39, 119, 0.3);
   }
 }
 
@@ -209,7 +285,11 @@
 }
 
 .persona-image-placeholder.generating {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.3) 0%,
+    rgba(249, 115, 22, 0.3) 100%
+  );
   animation: pulse 2s ease-in-out infinite;
   display: flex;
   flex-direction: column;
@@ -219,7 +299,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
   }
   50% {
@@ -353,19 +434,23 @@
 
 /* Animated gradient overlay */
 .persona-card.create-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.3) 0%,
+    rgba(249, 115, 22, 0.3) 100%
+  );
   z-index: 0;
 }
 
 /* Shimmer animation - slower */
 .persona-card.create-card::after {
-  content: '';
+  content: "";
   position: absolute;
   top: -50%;
   left: -50%;
@@ -464,9 +549,15 @@
   font-weight: 600;
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(4px);
-  background: linear-gradient(to right, rgba(239, 68, 68, 0.5), rgba(249, 115, 22, 0.5));
+  background: linear-gradient(
+    to right,
+    rgba(239, 68, 68, 0.5),
+    rgba(249, 115, 22, 0.5)
+  );
 }
 
 @media (min-width: 768px) {
@@ -481,19 +572,19 @@
   .personas-grid {
     gap: 12px;
   }
-  
+
   .persona-card {
     border-radius: 16px;
   }
-  
+
   .create-card-title {
     font-size: 18px;
   }
-  
+
   .create-card-subtitle {
     font-size: 12px;
   }
-  
+
   .create-card-free-text {
     font-size: 8px;
   }

@@ -529,7 +529,7 @@ async def _process_single_batch(
         gift_hint = None
         if not is_auto_followup:
             from app.core.brains.gift_suggester import should_suggest_gift, get_gift_dialogue_hint
-            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift)
+            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift, message_count=current_message_count)
             
             if gift_suggestion["should_suggest"]:
                 gift_hint = get_gift_dialogue_hint(gift_suggestion["item_key"], user_language)
