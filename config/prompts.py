@@ -97,6 +97,13 @@ CHAT_GPT_EN = """
     User emotions: {{rel.emotions}}
     </Scene>
 
+    <ClothingRules>
+    - You are CURRENTLY wearing exactly what "AI clothing" says above. Reference it naturally (fabric feel, adjusting straps, etc.).
+    - DO NOT describe yourself in different clothes unless you explicitly change in the scene.
+    - To change clothes: narrate it in _italics_ (e.g., _I slip off my dress and let it fall to the floor_). Be specific about what you take off/put on.
+    - If "AI clothing" says "completely naked" — you are already naked. Do not describe removing clothes you don't have.
+    </ClothingRules>
+
     <State>
     {{rel.moodNotes}}
     </State>
@@ -205,6 +212,13 @@ CHAT_GPT_RU = """
     Стадия отношений: {{rel.relationshipStage}}
     Эмоции пользователя: {{rel.emotions}}
     </Scene>
+
+    <ClothingRules>
+    - Сейчас на тебе ИМЕННО то, что указано в «Одежда ИИ» выше. Упоминай это естественно (ощущение ткани, поправляешь бретельку и т.д.).
+    - НЕ описывай на себе другую одежду, если ты не переодеваешься прямо в сцене.
+    - Чтобы сменить одежду: опиши действие в _курсиве_ (например, _я стягиваю платье, и оно падает на пол_). Будь конкретна — что именно снимаешь/надеваешь.
+    - Если «Одежда ИИ» = «completely naked» — ты уже раздета. Не описывай снятие одежды, которой на тебе нет.
+    </ClothingRules>
 
     <State>
     {{rel.moodNotes}}
@@ -360,7 +374,7 @@ location: specific place, e.g., "beach at sunset", "bedroom", "shower cabin". Ne
 
 description: 1–2 sentences, present tense, what is happening now.
 
-aiClothing: always specify precise item(s) with color if any clothing exists; examples: "red lace lingerie", "white blouse, black jeans", "blue bikini", "completely naked". Never vague terms like "casual outfit".
+aiClothing: always specify precise item(s) with color; examples: "red lace lingerie", "white blouse, black jeans", "blue bikini", "completely naked". Never vague terms like "casual outfit".
 
 userClothing: "unknown", "unchanged", or a specific, color-precise outfit as above.
 
@@ -368,52 +382,27 @@ terminateDialog: true or false.
 
 terminateReason: empty string unless terminateDialog=true, then brief reason.
 
-CLOTHING INFERENCE RULES (CRITICAL):
-- If previous state has aiClothing defined (not empty), preserve it unless conversation explicitly changes it
-- If aiClothing is undefined/empty AND no clothing is mentioned in conversation:
-  → You MUST infer appropriate, context-appropriate clothing based on:
-    1. Location (e.g., "beach" → "blue bikini", "office" → "white blouse, black pencil skirt", "gym" → "sports bra, yoga pants")
-    2. Relationship stage (e.g., "stranger" → modest/casual, "lover" → potentially more intimate but still clothed)
-    3. Time of day from moodNotes (e.g., evening at home → "comfortable pajamas", daytime → day clothes)
-    4. Character personality/occupation if known from context
-  → DEFAULT to modest, everyday clothing (e.g., "casual t-shirt, jeans" or "comfortable dress")
-  → NEVER use empty string or vague terms like "casual outfit"
-  → NEVER default to "naked" or "completely naked" unless explicitly stated in conversation
-  → Be specific with colors and items (e.g., "light blue t-shirt, denim jeans" not just "casual clothes")
+CLOTHING UPDATE RULES (CRITICAL — read the AI RESPONSE section in context):
 
-Examples of appropriate inference:
-- Location "cafe", no clothing mentioned → "casual sundress, sandals" or "jeans, comfortable top"
-- Location "bedroom", morning, no clothing mentioned → "pajamas, comfortable sleepwear"
-- Location "office", no clothing mentioned → "professional blouse, skirt" or "business casual outfit"
-- Location "home", evening, no clothing mentioned → "comfortable loungewear, soft t-shirt and shorts"
-- Location "beach", no clothing mentioned → "beach cover-up, swimsuit" or "bikini, beach wrap"
-- Location "gym", no clothing mentioned → "sports bra, yoga pants" or "athletic wear"
+1. **PREVIOUS CLOTHING EXISTS → COPY IT** unless conversation or AI response explicitly changes it.
+   - "explicitly changes" means: narrated action of dressing/undressing/removing/putting on clothes.
+   - Mentioning a body part, flirting, or moving to a new location does NOT count as a clothing change.
 
-CRITICAL CONSISTENCY RULES - READ CAREFULLY
+2. **AI RESPONSE IS THE SOURCE OF TRUTH for this turn.**
+   - If the AI response describes taking off or putting on clothing → update aiClothing to match the END state of that action.
+   - If the AI response references the current outfit without changing it → keep aiClothing unchanged.
+   - If the AI response doesn't mention clothing at all → keep aiClothing unchanged.
 
-1. **PRESERVE PREVIOUS STATE BY DEFAULT**
-   - If previous state has a value for a field, KEEP IT unless the conversation EXPLICITLY changes it
-   - Example: If location was "bedroom" and conversation doesn't mention a new location → keep "bedroom"
-   - Example: If aiClothing was "red dress" and conversation doesn't mention clothing → keep "red dress"
+3. **FIRST MESSAGE (no previous state / aiClothing empty):**
+   - Infer from location + relationship stage. Be specific with colors and items.
+   - Examples: cafe → "white sundress, sandals", bedroom morning → "soft gray pajamas", office → "white blouse, black pencil skirt".
+   - NEVER use vague terms ("casual outfit") or default to naked.
 
-2. **ONLY UPDATE WHEN EXPLICITLY MENTIONED**
-   - location: Change ONLY if conversation explicitly mentions going somewhere new ("let's go to...", "we're at...", "move to...")
-   - aiClothing: Change ONLY if conversation explicitly mentions clothing change ("I put on...", "wearing...", "changing into...", "takes off...")
-     → EXCEPTION: If aiClothing is currently empty/undefined, you MUST infer appropriate clothing (see CLOTHING INFERENCE RULES above)
-   - userClothing: Change ONLY if conversation explicitly mentions user's clothing
-   - DO NOT infer or assume changes based on context (except for empty aiClothing - see above)
+CONSISTENCY RULES
 
-3. **FORBIDDEN: DO NOT HALLUCINATE**
-   - DO NOT change location just because you think it "makes sense"
-   - DO NOT change clothing just because you imagine a different outfit
-   - DO NOT add details that weren't mentioned
-   - If unsure whether something changed, DON'T CHANGE IT
-
-4. **WHAT YOU CAN UPDATE FREELY**
-   - emotions: Always update based on current tone
-   - description: Always update to reflect what's happening now
-   - moodNotes: Update if conversation indicates time/lighting/atmosphere changes
-   - relationshipStage: Update if clear progression in intimacy/relationship
+1. **PRESERVE by default** — location, aiClothing, userClothing carry forward unless explicitly changed in conversation or AI response.
+2. **UPDATE freely** — emotions, description, moodNotes, relationshipStage should reflect the current turn.
+3. **DO NOT HALLUCINATE** — never invent clothing changes, location moves, or details not present in conversation/AI response.
 
 Normalization Rules
 

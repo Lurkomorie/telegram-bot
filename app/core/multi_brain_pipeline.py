@@ -600,7 +600,8 @@ async def _process_single_batch(
             user_message=batched_text,
             persona_name=persona_data["name"],
             previous_image_prompt=previous_image_prompt,
-            context_summary=context_summary
+            context_summary=context_summary,
+            dialogue_response=dialogue_response
         )
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
