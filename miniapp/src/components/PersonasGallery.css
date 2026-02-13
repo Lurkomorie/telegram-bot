@@ -1,7 +1,7 @@
 /* ===== Shop Banner ===== */
 .shop-banner-gallery {
   margin: 20px 20px 0 20px;
-  padding: 12px;
+  padding: 8px;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -16,7 +16,7 @@
     0 0 8px rgba(255, 23, 68, 0.3),
     0 0 20px rgba(255, 23, 68, 0.15),
     inset 0 0 8px rgba(255, 23, 68, 0.05);
-  animation: neon-border-pulse 2s ease-in-out infinite;
+  animation: neon-border-pulse 3s ease-in-out infinite;
 }
 
 .shop-banner-gallery:active {
@@ -27,10 +27,10 @@
   0%,
   100% {
     box-shadow:
-      0 0 8px rgba(255, 23, 68, 0.3),
-      0 0 20px rgba(255, 23, 68, 0.15),
-      inset 0 0 8px rgba(255, 23, 68, 0.05);
-    border-color: #ff1744;
+      0 0 4px rgba(255, 23, 68, 0.15),
+      0 0 10px rgba(255, 23, 68, 0.08),
+      inset 0 0 4px rgba(255, 23, 68, 0.02);
+    border-color: rgba(255, 23, 68, 0.5);
   }
   50% {
     box-shadow:
@@ -43,25 +43,26 @@
 }
 
 .shop-banner-title {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 20px;
+  font-weight: 400;
   color: #ff1744;
   text-transform: uppercase;
   letter-spacing: 4px;
   text-shadow:
-    0 0 7px rgba(255, 23, 68, 0.6),
-    0 0 15px rgba(255, 23, 68, 0.4),
-    0 0 30px rgba(255, 23, 68, 0.2);
-  animation: neon-text-pulse 2s ease-in-out infinite;
+    0 0 4px rgba(255, 23, 68, 0.3),
+    0 0 8px rgba(255, 23, 68, 0.15),
+    0 0 15px rgba(255, 23, 68, 0.08);
+  animation: neon-text-pulse 3s ease-in-out infinite;
 }
 
 @keyframes neon-text-pulse {
   0%,
   100% {
     text-shadow:
-      0 0 7px rgba(255, 23, 68, 0.6),
-      0 0 15px rgba(255, 23, 68, 0.4),
-      0 0 30px rgba(255, 23, 68, 0.2);
+      0 0 4px rgba(255, 23, 68, 0.3),
+      0 0 8px rgba(255, 23, 68, 0.15),
+      0 0 15px rgba(255, 23, 68, 0.08);
+    color: rgba(255, 23, 68, 0.7);
   }
   50% {
     text-shadow:
@@ -69,6 +70,7 @@
       0 0 25px rgba(255, 23, 68, 0.6),
       0 0 45px rgba(255, 23, 68, 0.3),
       0 0 60px rgba(255, 23, 68, 0.15);
+    color: #ff1744;
   }
 }
 
