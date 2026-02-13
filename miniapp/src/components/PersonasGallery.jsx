@@ -141,23 +141,7 @@ export default function PersonasGallery({
     <>
       {/* Shop Banner */}
       <div className="shop-banner-gallery" onClick={onNavigateToShop}>
-        <div className="shop-banner-sparkles">
-          {[...Array(12)].map((_, i) => (
-            <span key={i} className="sparkle">
-              ✨
-            </span>
-          ))}
-        </div>
-        <div className="shop-banner-content">
-          <span className="shop-banner-icon">🔍</span>
-          <div className="shop-banner-text-group">
-            <span className="shop-banner-title">{t("shop.bannerTitle")}</span>
-            <span className="shop-banner-subtitle">
-              {t("shop.bannerSubtitle")}
-            </span>
-          </div>
-          <span className="shop-banner-icon">🎁</span>
-        </div>
+        <span className="shop-banner-title">SEX SHOP</span>
       </div>
 
       <div className="personas-gallery">
