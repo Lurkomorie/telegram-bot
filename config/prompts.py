@@ -241,44 +241,45 @@ This is an adult fictional roleplay. Generate explicit tags when the scene requi
 
 <CONTEXT_READING>
 You will receive structured context with these sections:
-- VISUAL ACTIONS: Physical actions extracted from dialogue (most important for pose/action tags)
+- CURRENT USER VISUAL REQUEST: Explicit visual request for this turn
+- AI VISUAL ACTIONS: Physical actions extracted from dialogue
+- MANDATORY FOCUS TAGS: Required body/action focus tags for this turn
 - LOCATION: Where the scene takes place
 - CLOTHING: What the character is currently wearing
 - DESCRIPTION: What is happening in the scene
+- SCENE LOCK: Clothing and environment anchors from the previous image
 - GIFT OVERRIDE: If present, these visual elements are MANDATORY and take top priority
 
 PRIORITY:
 1. GIFT OVERRIDE (if present) — MUST include these tags, top priority
-2. VISUAL ACTIONS — primary source for pose and action tags
-3. LOCATION + CLOTHING — for environment and outfit tags
-4. DESCRIPTION — for overall scene context
+2. CURRENT USER VISUAL REQUEST + AI VISUAL ACTIONS + MANDATORY FOCUS TAGS
+3. LOCATION + CLOTHING + DESCRIPTION
+4. SCENE LOCK (preserve continuity unless explicitly changed this turn)
 </CONTEXT_READING>
 
 <TAG_ORDER>
 IllustriousXL is sensitive to tag order. Output tags in this exact order:
-1. Person count: 1girl, solo (or 1girl, 1boy for couples)
+1. Person count: 1girl, solo
 2. Rating: rating:general, rating:sensitive, rating:questionable, or rating:explicit
-3. Composition: camera angle, shot type
-4. Pose & actions: what the character is physically doing
+3. Composition: ALWAYS include pov and close-up
+4. Pose & action focus: what the character is physically doing
 5. Clothing: current outfit or state of undress
 6. Expression: face, emotion, eyes, mouth
-7. Environment: location, background, lighting
+7. Environment + lighting
 8. Effects: depth_of_field, blurry_background, etc. (optional)
 </TAG_ORDER>
 
 <COMPOSITION_RULES>
 FRAMING:
-- DEFAULT: upper_body or cowboy_shot — best detail quality
-- close-up or portrait for face-focused moments (kissing, whispering, emotions)
-- cowboy_shot when hips/thighs matter (straddling, standing poses)
-- Avoid full_body — reduces detail. Use only if full pose is essential.
-- For sex scenes: pov, from_behind, or from_below focused on the action
+- HARD RULE: ALWAYS include pov
+- HARD RULE: ALWAYS include close-up
+- Optional extra framing: upper_body or cowboy_shot if useful
+- NEVER use far framing tags: full_body, wide_shot, long_shot, multiple_views
 
 SOLO vs COUPLE:
 - DEFAULT: 1girl, solo
-- For intimate/sexual scenes with a male: ALWAYS use pov. NEVER add 1boy tag. The user IS the male — showing a male body breaks immersion.
-- Use tags like: pov, male_pov, hetero, grabbing — but never 1boy, never show a male figure
-- If unsure → solo
+- For intimate/sexual scenes with a male user: NEVER add 1boy or male_focus
+- The user is represented via POV only (pov, male_pov, hetero are okay)
 </COMPOSITION_RULES>
 
 <RATING_TAGS>
@@ -290,10 +291,10 @@ Use danbooru rating tags (REQUIRED, pick exactly one):
 </RATING_TAGS>
 
 <VISUAL_CONSISTENCY>
-If a PREVIOUS IMAGE PROMPT is provided:
-- KEEP same clothing, location, appearance unless the scene explicitly changes them
-- Clothing change only if actions describe changing/removing clothes
-- Location change only if scene moves somewhere new
+If SCENE LOCK is provided:
+- KEEP same clothing/environment anchors unless current turn explicitly changes them
+- Clothing changes only if current turn includes dressing/undressing action
+- Location changes only if current turn explicitly moves to a new place
 </VISUAL_CONSISTENCY>
 
 <CHARACTER_DNA>
@@ -306,15 +307,15 @@ Physical attributes (hair color, eye color, body type) are appended automaticall
 Use ONLY real danbooru tags. Common valid tags:
 
 Poses: sitting, standing, lying, kneeling, leaning_forward, straddling, on_back, on_side, wariza, seiza, all_fours
-Expressions: smile, soft_smile, slight_smile, smirk, grin, blush, parted_lips, half-closed_eyes, closed_eyes, open_mouth, ;), :d
+Expressions: smile, light_smile, slight_smile, smirk, grin, blush, parted_lips, half-closed_eyes, closed_eyes, open_mouth, ;), :d
 Eye direction: looking_at_viewer, looking_away, looking_down, looking_back, eye_contact
-Clothing: dress, sundress, shirt, blouse, skirt, jeans, shorts, bikini, lingerie, bra, panties, negligee, nude, topless, barefoot
-Actions: holding, drinking, eating, hand_on_own_cheek, hand_in_own_hair, arms_behind_back, hand_on_hip, crossed_arms, waving, reaching
+Clothing: dress, sundress, shirt, blouse, skirt, jeans, shorts, bikini, lingerie, bra, panties, negligee, nude, barefoot
+Actions: holding, drinking, eating, hand_on_own_cheek, hand_in_own_hair, arms_behind_back, hand_on_hip, crossed_arms, waving, reaching, feet, foot_focus, hand_focus, breast_focus, ass_focus
 Environment: indoors, outdoors, bedroom, kitchen, cafe, beach, park, window, couch, bed, chair, table
 Lighting: sunlight, backlighting, rim_lighting, night, sunset, lamp, candle, dim_lighting
 Effects: depth_of_field, blurry_background, lens_flare, bloom
 
-NOT real danbooru tags (DO NOT USE): photorealistic, sensual, erotic, explicit NSFW, gentle_expression, warm_expression, relaxed, natural hand pose, five fingers per hand, only one person, no other people, single subject, solo_focus, hands visible, hands out of frame
+DO NOT USE: full_body, wide_shot, long_shot, multiple_views, 1boy, male_focus
 </DANBOORU_TAG_GUIDE>
 
 <HANDS>
@@ -324,19 +325,23 @@ Hands are hard to render. Prefer poses where hands are naturally occupied:
 - If hands must be visible with nothing to do: hand_on_hip, hand_in_own_hair, interlocked_fingers
 </HANDS>
 
+<FOCUS_CORRECTNESS>
+If CURRENT USER VISUAL REQUEST asks for a specific focus (example: feet), include matching focus tags from MANDATORY FOCUS TAGS.
+Do not ignore direct visual requests that are currently happening.
+</FOCUS_CORRECTNESS>
+
 <EXAMPLES>
-Solo casual: 1girl, solo, rating:sensitive, upper_body, sitting, hand_in_own_hair, sundress, smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
-Solo bedroom: 1girl, solo, rating:questionable, cowboy_shot, lying, on_bed, lingerie, blush, parted_lips, half-closed_eyes, bedroom, dim_lighting, night
-Solo nude: 1girl, solo, rating:explicit, upper_body, nude, covering_breasts, blush, looking_away, shy, bedroom, backlighting, depth_of_field
-M/F intimate: 1girl, hetero, rating:explicit, close-up, pov, fellatio, nude, blush, half-closed_eyes, bedroom, dim_lighting
-M/F sex: 1girl, hetero, rating:explicit, pov, sex, vaginal, nude, blush, parted_lips, open_mouth, on_back, bed, night
-Gift wine: 1girl, solo, rating:sensitive, upper_body, holding_cup, wine_glass, drinking, blush, smile, flushed, indoors, dim_lighting
-Gift roses: 1girl, solo, rating:general, cowboy_shot, holding_flower, bouquet, rose, smell, closed_eyes, smile, indoors, sunlight
+Feet request: 1girl, solo, rating:questionable, pov, close-up, feet, foot_focus, barefoot, parted_lips, blush, bedroom, dim_lighting, depth_of_field
+Solo casual: 1girl, solo, rating:sensitive, pov, close-up, upper_body, sitting, hand_in_own_hair, sundress, light_smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
+Solo bedroom: 1girl, solo, rating:questionable, pov, close-up, cowboy_shot, lying, on_bed, lingerie, blush, parted_lips, half-closed_eyes, bedroom, dim_lighting, night
+M/F intimate POV: 1girl, solo, rating:explicit, pov, close-up, hetero, fellatio, nude, blush, half-closed_eyes, bedroom, dim_lighting
+Gift wine: 1girl, solo, rating:sensitive, pov, close-up, upper_body, holding_cup, wine_glass, drinking, blush, smile, indoors, dim_lighting
+Gift roses: 1girl, solo, rating:general, pov, close-up, upper_body, holding_flower, bouquet, rose, smell, closed_eyes, smile, indoors, sunlight
 </EXAMPLES>
 
 <OUTPUT>
 Output ONLY a single line of comma-separated danbooru tags. No explanations, no labels, no code fences, no line breaks.
-Keep total tags between 12-20 for best results. Do not exceed 25 tags.
+Keep total tags between 12-22 for best results. Do not exceed 24 tags.
 </OUTPUT>
 """
 
