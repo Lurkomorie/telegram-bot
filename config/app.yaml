@@ -41,3 +41,9 @@ features:
 
 miniapp:
   menu_button_name: "App"
+
+gift:
+  cadence_user_messages: 20
+  purchase_cooldown_user_messages: 20
+  min_user_messages_before_suggestions: 20
+  suggestion_probability: 1.0

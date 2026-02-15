@@ -10,6 +10,7 @@ from app.db.models import (
     PersonaTranslation, PersonaHistoryTranslation, SystemMessage, SystemMessageTemplate, SystemMessageDelivery
 )
 from datetime import datetime, date
+from app.core.catalog.gifts import get_shop_items_map
 
 
 def apply_date_filter(query, model_field, start_date: Optional[str] = None, end_date: Optional[str] = None):
@@ -784,6 +785,14 @@ def get_chat_messages(db: Session, chat_id: UUID, limit: int = None) -> List[Mes
         return db.query(Message).filter(
             Message.chat_id == chat_id
         ).order_by(Message.created_at).all()
+
+
+def get_chat_user_message_count(db: Session, chat_id: UUID) -> int:
+    """Get count of user-role messages for cadence/cooldown logic."""
+    return db.query(func.count(Message.id)).filter(
+        Message.chat_id == chat_id,
+        Message.role == "user"
+    ).scalar() or 0
 
 
 def get_message_by_id(db: Session, message_id: UUID) -> Message | None:
@@ -4501,57 +4510,8 @@ def get_deliveries_by_message(
 
 # ========== SHOP OPERATIONS ==========
 
-# Shop items configuration
-SHOP_ITEMS = {
-    "wine": {
-        "name": "Wine Bottle",
-        "name_ru": "Бутылка вина",
-        "emoji": "🍷",
-        "price": 60,
-        "mood_boost": 15,
-        "context_effect": "holding_cup, wine_glass, drinking, blush, flushed"
-    },
-    "lipstick": {
-        "name": "Lipstick",
-        "name_ru": "Помада",
-        "emoji": "💄",
-        "price": 40,
-        "mood_boost": 10,
-        "context_effect": "lipstick, red_lips, mirror, looking_at_mirror, pout"
-    },
-    "rose": {
-        "name": "Rose Bouquet",
-        "name_ru": "Букет роз",
-        "emoji": "🌹",
-        "price": 50,
-        "mood_boost": 12,
-        "context_effect": "holding_flower, bouquet, rose, closed_eyes, smile, smell"
-    },
-    "mystery": {
-        "name": "Mystery Gift",
-        "name_ru": "Загадочный подарок",
-        "emoji": "🎁",
-        "price": 100,
-        "mood_boost": 20,
-        "context_effect": "gift_box, holding_box, open_mouth, surprised, smile"
-    },
-    "vibrator": {
-        "name": "Vibrator",
-        "name_ru": "Вибратор",
-        "emoji": "💜",
-        "price": 160,
-        "mood_boost": 25,
-        "context_effect": "vibrator, masturbation, spread_legs, blush, half-closed_eyes, parted_lips, on_bed, bedroom"
-    },
-    "anal_beads": {
-        "name": "Anal Beads",
-        "name_ru": "Анальные шарики",
-        "emoji": "💎",
-        "price": 200,
-        "mood_boost": 30,
-        "context_effect": "anal_beads, anal_object_insertion, ass, from_behind, blush, on_bed, bedroom"
-    }
-}
+# Shop items configuration (single source of truth: config/gifts.yaml)
+SHOP_ITEMS = get_shop_items_map(include_scene_override=False)
 
 
 def get_shop_items() -> list:
@@ -4652,12 +4612,18 @@ def get_chat_purchases(db: Session, chat_id: UUID) -> list:
             Message.chat_id == chat_id,
             Message.created_at > p.purchased_at
         ).count() if p.purchased_at else 999
+        user_messages_since = db.query(Message).filter(
+            Message.chat_id == chat_id,
+            Message.role == "user",
+            Message.created_at > p.purchased_at
+        ).count() if p.purchased_at else 999
         result.append({
             "item_key": p.item_key,
             "item_name": p.item_name,
             "context_effect": p.context_effect,
             "purchased_at": p.purchased_at,
-            "messages_since": messages_since
+            "messages_since": messages_since,
+            "user_messages_since": user_messages_since,
         })
     return result
 
@@ -4704,5 +4670,3 @@ def update_chat_mood(db: Session, chat_id: UUID, mood_change: int, is_cold: bool
         "mood": chat.mood,
         "coldness_streak": chat.coldness_streak
     }
-
-

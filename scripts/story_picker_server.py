@@ -46,6 +46,31 @@ def _normalize_cf_url(url: str) -> str:
     return url
 
 
+def _enforce_closeup_pov(prompt: str) -> str:
+    p = (prompt or "").strip()
+    if not p:
+        return "close-up shot, POV perspective"
+
+    p_lower = p.lower()
+    if "close-up shot" not in p_lower:
+        if "medium shot" in p_lower:
+            idx = p_lower.index("medium shot")
+            p = p[:idx] + "close-up shot" + p[idx + len("medium shot"):]
+        else:
+            p = f"close-up shot, {p}"
+        p_lower = p.lower()
+
+    if "pov perspective" not in p_lower and "pov style" not in p_lower:
+        idx = p_lower.find("close-up shot")
+        if idx >= 0:
+            insert_at = idx + len("close-up shot")
+            p = p[:insert_at] + ", POV perspective" + p[insert_at:]
+        else:
+            p = f"POV perspective, {p}"
+
+    return p
+
+
 def _load_round2_data() -> list[dict]:
     with open(RESULTS_PATH, "r", encoding="utf-8") as f:
         all_stories = json.load(f)
@@ -66,13 +91,15 @@ def _load_round2_data() -> list[dict]:
         if story_id in selected_ids:
             continue
 
+        old_prompt = story.get("image_prompt", "")
+
         remaining.append({
             "id": story_id,
             "name": story.get("name"),
             "persona_name": story.get("persona_name"),
             "old_image_url": _normalize_cf_url(story.get("old_image_url")),
-            "old_prompt": story.get("image_prompt", ""),
-            "round2_prompt": prompts_map.get(story_id, story.get("image_prompt", "")),
+            "old_prompt": old_prompt,
+            "round2_prompt": prompts_map.get(story_id, _enforce_closeup_pov(old_prompt)),
             "new_image_urls": [u for u in story.get("new_image_urls", []) if u],
         })
     return remaining

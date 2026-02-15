@@ -4,6 +4,7 @@ from app.core.brains.image_prompt_engineer import (
     _build_image_context,
     _detect_mandatory_focus_tags,
     _enforce_tag_policy,
+    _sanitize_forced_gift_tags,
     _should_use_scene_lock,
 )
 
@@ -117,6 +118,19 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         )
         self.assertIn("GIFT OVERRIDE", context)
         self.assertIn("vibrator, masturbation", context)
+
+    def test_forced_gift_tags_strip_scene_tags_by_default(self):
+        cleaned = _sanitize_forced_gift_tags(
+            "vibrator, masturbation, on_bed, bedroom, close-up, lingerie",
+            allow_scene_override=False,
+        )
+        tags = set(_split(cleaned))
+        self.assertIn("vibrator", tags)
+        self.assertIn("masturbation", tags)
+        self.assertNotIn("on_bed", tags)
+        self.assertNotIn("bedroom", tags)
+        self.assertNotIn("close-up", tags)
+        self.assertNotIn("lingerie", tags)
 
     def test_refusal_suppresses_user_focus_tags(self):
         _, mandatory_focus_tags, _, _, observability = _build_image_context(

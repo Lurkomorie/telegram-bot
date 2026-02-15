@@ -4,6 +4,7 @@ Determines when to suggest a gift and which item based on mood
 """
 import random
 from typing import Optional, Dict, Any
+from app.core.catalog.gifts import get_shop_items_map
 
 # Gift suggestion probability (5-10%)
 SUGGESTION_PROBABILITY = 0.3  # 7%
@@ -19,14 +20,16 @@ GIFT_TIERS = {
     "high": ["wine", "lipstick", "rose", "mystery", "vibrator", "anal_beads"]  # 61-100 mood: all gifts unlocked
 }
 
-# Gift display names and emojis
+# Gift display names and emojis from shared catalog (config/gifts.yaml)
+_SHOP_ITEMS = get_shop_items_map(include_scene_override=False)
 GIFT_INFO = {
-    "wine": {"name": "Wine", "name_ru": "Вино", "emoji": "🍷", "price": 60},
-    "lipstick": {"name": "Lipstick", "name_ru": "Помада", "emoji": "💄", "price": 40},
-    "rose": {"name": "Rose", "name_ru": "Роза", "emoji": "🌹", "price": 50},
-    "mystery": {"name": "Mystery Gift", "name_ru": "Подарок", "emoji": "🎁", "price": 100},
-    "vibrator": {"name": "Vibrator", "name_ru": "Вибратор", "emoji": "💜", "price": 160},
-    "anal_beads": {"name": "Anal Beads", "name_ru": "Шарики", "emoji": "💎", "price": 200},
+    key: {
+        "name": item.get("name", key),
+        "name_ru": item.get("name_ru", item.get("name", key)),
+        "emoji": item.get("emoji", "🎁"),
+        "price": item.get("price", 0),
+    }
+    for key, item in _SHOP_ITEMS.items()
 }
 
 
@@ -124,5 +127,4 @@ def get_gift_dialogue_hint(item_key: str, language: str = "en") -> str:
         ]
     
     return random.choice(hints)
-
 

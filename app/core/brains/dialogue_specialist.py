@@ -118,6 +118,7 @@ async def generate_dialogue(
     mood: int = 50,  # Chat mood (0-100, affects character warmth)
     purchases: List[Dict] = None,  # Recent gifts/purchases for context
     gift_hint: str = None,  # Gift suggestion hint for AI to weave naturally into response
+    force_gift_hint: bool = False,  # Force gift hint usage (gift purchase reaction flow only)
     user_name: str = None,  # User's display name (discovered from conversation, per-chat)
     name_known: bool = False  # Whether user's name has been discovered for this chat
 ) -> str:
@@ -239,31 +240,27 @@ You are reaching out after a period of silence. Follow these rules:
     # Build mood and gifts context
     mood_description = _get_mood_description(mood)
     length_modifier = _get_response_length_modifier(mood)
-    gifts_text = ""
-    if purchases:
-        recent_gifts = purchases[:3]  # Last 3 gifts
-        gift_names = [p.get("item_name", "gift") for p in recent_gifts]
-        gifts_text = f"\nRecent gifts received: {', '.join(gift_names)} - express gratitude!"
-    
     mood_context = f"""
 
-# EMOTIONAL STATE & GIFTS
+# EMOTIONAL STATE
 Current mood: {mood_description}
-Warmth level: {mood}/100{gifts_text}
+Warmth level: {mood}/100
 {length_modifier}
 
 Behavior guidance based on mood:
 - If mood is high (70+): Be extra warm, affectionate, playful, use more emojis, ask personal questions
 - If mood is neutral (40-70): Normal friendly behavior
 - If mood is low (<40): Be slightly distant, give shorter responses, occasionally mention feeling ignored
-- If recent gifts: Express genuine gratitude and happiness about the gift(s)
 """
     print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
     
     # Gift hint as a separate, high-priority instruction appended last
     gift_hint_section = ""
     if gift_hint:
-        gift_hint_section = f"\n\n# IMPORTANT — GIFT HINT\n{gift_hint}\nThis is a MANDATORY part of your response. You MUST include this hint naturally in your message."
+        if force_gift_hint:
+            gift_hint_section = f"\n\n# IMPORTANT — GIFT HINT\n{gift_hint}\nThis is a MANDATORY part of your response. You MUST include this hint naturally in your message."
+        else:
+            gift_hint_section = f"\n\n# OPTIONAL GIFT HINT\n{gift_hint}\nUse this only if it fits the current turn naturally."
     
     # Name discovery hint — only when name is not yet known for this chat
     name_discovery_section = ""
@@ -382,4 +379,3 @@ You don't know the user's name yet. Within the first few messages, naturally int
     
     # Final fallback
     return "I'm having trouble finding the right words. Can you give me a moment?"
-

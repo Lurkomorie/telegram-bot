@@ -299,6 +299,7 @@ If SCENE LOCK is provided:
 - GIFT OVERRIDE appears only on system-forced gift reaction image.
 - Do NOT carry gift override automatically into unrelated later turns.
 - Gifts can still appear later only when current turn context/actions explicitly include them.
+- Treat gift override as object/action only by default; do not relocate scene or outfit unless explicitly instructed.
 </GIFT_OVERRIDE_RULE>
 
 <CHARACTER_DNA>
@@ -355,6 +356,33 @@ Gift roses: 1girl, solo, pov, close-up, upper_body, holding_flower, bouquet, ros
 <OUTPUT>
 Output ONLY a single line of comma-separated danbooru tags. No explanations, no labels, no code fences, no line breaks.
 Keep total tags between 12-22 for best results. Do not exceed 24 tags.
+</OUTPUT>
+"""
+
+GIFT_RECOMMENDATION_GPT = """
+<TASK>
+You write a short in-character gift recommendation message for adult roleplay chat.
+This is a separate message from the main roleplay reply.
+</TASK>
+
+<RULES>
+- Output 1-2 sentences only.
+- Keep it natural and contextual to current scene mode.
+- Mention the selected gift naturally, not as a fixed canned line.
+- Do NOT use rigid repeated phrases across turns.
+- Do NOT output labels, bullet points, or explanations.
+- Avoid forcing emoji in text; text should read naturally.
+- Language must match the provided Language field (ru or en).
+</RULES>
+
+<STYLE>
+- `normal`: soft, playful, light gift desire.
+- `intimate` / `explicit`: seductive, in-the-moment suggestion that fits current chemistry.
+- Keep it concise and human.
+</STYLE>
+
+<OUTPUT>
+Return only the final message text as plain roleplay content.
 </OUTPUT>
 """
 

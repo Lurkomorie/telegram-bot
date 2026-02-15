@@ -1,0 +1,61 @@
+gifts:
+  wine:
+    key: wine
+    name: "Wine Bottle"
+    name_ru: "Бутылка вина"
+    emoji: "🍷"
+    price: 60
+    mood_boost: 15
+    category: light
+    visual_effect_tags: "holding_cup, wine_glass, drinking, blush, flushed"
+    scene_override_tags: ""
+  lipstick:
+    key: lipstick
+    name: "Lipstick"
+    name_ru: "Помада"
+    emoji: "💄"
+    price: 40
+    mood_boost: 10
+    category: light
+    visual_effect_tags: "lipstick, red_lips, mirror, looking_at_mirror, pout"
+    scene_override_tags: ""
+  rose:
+    key: rose
+    name: "Rose Bouquet"
+    name_ru: "Букет роз"
+    emoji: "🌹"
+    price: 50
+    mood_boost: 12
+    category: light
+    visual_effect_tags: "holding_flower, bouquet, rose, closed_eyes, smile, smell"
+    scene_override_tags: ""
+  mystery:
+    key: mystery
+    name: "Mystery Gift"
+    name_ru: "Загадочный подарок"
+    emoji: "🎁"
+    price: 100
+    mood_boost: 20
+    category: light
+    visual_effect_tags: "gift_box, holding_box, open_mouth, surprised, smile"
+    scene_override_tags: ""
+  vibrator:
+    key: vibrator
+    name: "Vibrator"
+    name_ru: "Вибратор"
+    emoji: "💜"
+    price: 160
+    mood_boost: 25
+    category: adult
+    visual_effect_tags: "vibrator, masturbation, spread_legs, blush, half-closed_eyes, parted_lips"
+    scene_override_tags: ""
+  anal_beads:
+    key: anal_beads
+    name: "Anal Beads"
+    name_ru: "Анальные шарики"
+    emoji: "💎"
+    price: 200
+    mood_boost: 30
+    category: adult
+    visual_effect_tags: "anal_beads, anal_object_insertion, ass, from_behind, blush"
+    scene_override_tags: ""

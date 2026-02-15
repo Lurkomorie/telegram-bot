@@ -190,6 +190,77 @@ def _log_brain_inputs(brain_name: str, **kwargs):
     print(f"{'='*60}\n")
 
 
+async def _send_gift_recommendation_message(
+    chat_id: UUID,
+    tg_chat_id: int,
+    user_id: int,
+    language: str,
+    gift_recommendation: dict,
+    current_user_message_count: int,
+):
+    """Send separate contextual gift recommendation message + button and persist tracking."""
+    if not gift_recommendation or not gift_recommendation.get("should_suggest"):
+        return
+
+    item_key = gift_recommendation.get("item_key")
+    item_info = gift_recommendation.get("item_info") or {}
+    suggestion_text = (gift_recommendation.get("suggestion_text") or "").strip()
+    if not item_key or not suggestion_text:
+        return
+
+    from app.bot.keyboards.inline import build_gift_suggestion_keyboard
+    from app.settings import settings
+
+    item_name = item_info.get("name_ru" if language == "ru" else "name", item_info.get("name", "Gift"))
+    item_emoji = item_info.get("emoji", "🎁")
+    keyboard = build_gift_suggestion_keyboard(
+        item_key=item_key,
+        item_emoji=item_emoji,
+        item_name=item_name,
+        miniapp_url=settings.miniapp_url,
+        chat_id=str(chat_id),
+        language=language,
+    )
+
+    escaped_text = escape_markdown_v2(suggestion_text)
+    await bot.send_message(
+        tg_chat_id,
+        escaped_text,
+        parse_mode="MarkdownV2",
+        reply_markup=keyboard,
+    )
+    log_always(f"[BATCH] 🎁 Sent separate gift recommendation: {item_key}")
+
+    with get_db() as db:
+        crud.create_message_with_state(
+            db,
+            chat_id,
+            "assistant",
+            suggestion_text,
+            state_snapshot=None,
+            is_processed=True,
+        )
+        chat = crud.get_chat_by_id(db, chat_id)
+        if chat:
+            from sqlalchemy.orm.attributes import flag_modified
+            if not chat.ext:
+                chat.ext = {}
+            chat.ext["last_gift_suggestion_user_count"] = int(current_user_message_count)
+            chat.ext["last_gift_suggested_item_key"] = item_key
+            chat.ext["last_suggested_gift"] = item_key  # Backward compatibility.
+            chat.ext["last_gift_suggestion_at"] = datetime.utcnow().isoformat()
+            flag_modified(chat, "ext")
+            db.commit()
+
+    from app.core.memory_service import trigger_memory_update
+    asyncio.create_task(trigger_memory_update(
+        chat_id=chat_id,
+        user_message=f"[Gift suggestion opportunity: {item_key}]",
+        ai_message=suggestion_text,
+    ))
+    log_verbose("[BATCH] 🧠 Gift suggestion memory update triggered (background)")
+
+
 async def process_message_pipeline(
     chat_id: UUID,
     user_id: int,
@@ -383,11 +454,11 @@ async def _process_single_batch(
             # Extract context summary and gift suggestion tracking from chat.ext
             context_summary = None
             messages_since_last_image = 0
-            last_suggested_gift = None
+            chat_ext_snapshot = {}
             if chat.ext and isinstance(chat.ext, dict):
+                chat_ext_snapshot = dict(chat.ext)
                 context_summary = chat.ext.get("context_summary")
                 messages_since_last_image = chat.ext.get("messages_since_last_image", 0)
-                last_suggested_gift = chat.ext.get("last_suggested_gift")
             
             # Build chat history (all existing processed messages - up to 20 for summary)
             chat_history = [
@@ -426,6 +497,7 @@ async def _process_single_batch(
         log_verbose(f"[BATCH]    Memory: {len(memory) if memory else 0} chars")
         log_verbose(f"[BATCH]    Context summary: {'Found (' + str(len(context_summary)) + ' chars)' if context_summary else 'None'}")
         log_verbose(f"[BATCH]    Message count: {current_message_count}")
+        current_user_message_count = 0
         
         # Log conversation history for debugging
         if chat_history:
@@ -524,29 +596,7 @@ async def _process_single_batch(
             log_verbose(f"[BATCH]    For message: {batched_text[:50]}...")
             user_message_for_ai = batched_text
         
-        # Check for gift suggestion BEFORE dialogue (7% probability, mood-based)
-        gift_suggestion = {"should_suggest": False}
-        gift_keyboard = None
-        gift_hint = None
-        if not is_auto_followup:
-            from app.core.brains.gift_suggester import should_suggest_gift, get_gift_dialogue_hint
-            gift_suggestion = should_suggest_gift(chat_mood, last_suggested_gift, message_count=current_message_count)
-            
-            if gift_suggestion["should_suggest"]:
-                gift_hint = get_gift_dialogue_hint(gift_suggestion["item_key"], user_language)
-                
-                from app.bot.keyboards.inline import build_gift_suggestion_keyboard
-                from app.settings import settings
-                item_info = gift_suggestion["item_info"]
-                gift_keyboard = build_gift_suggestion_keyboard(
-                    item_key=gift_suggestion["item_key"],
-                    item_emoji=item_info["emoji"],
-                    item_name=item_info["name"] if user_language == "en" else item_info["name_ru"],
-                    miniapp_url=settings.miniapp_url,
-                    chat_id=str(chat_id),
-                    language=user_language
-                )
-                log_always(f"[BATCH] 🎁 Gift suggestion: {gift_suggestion['item_key']} (tier: {gift_suggestion['reason']})")
+        gift_recommendation = {"should_suggest": False}
         
         _log_brain_inputs(
             "Brain 1 (Dialogue)",
@@ -571,7 +621,8 @@ async def _process_single_batch(
             language=user_language,  # User's language for prompt selection
             mood=chat_mood,  # Chat mood (0-100)
             purchases=chat_purchases,  # Recent purchases for context
-            gift_hint=gift_hint,  # Gift suggestion hint for AI to incorporate naturally
+            gift_hint=None,  # Gift recommendation now sent as a separate message
+            force_gift_hint=False,
             user_name=user_display_name,  # Per-chat discovered name (not Telegram first_name)
             name_known=name_known  # Whether name has been discovered for this chat
         )
@@ -629,6 +680,7 @@ async def _process_single_batch(
                 crud.create_batch_messages(db, chat_id, messages_to_save)
             else:
                 log_verbose(f"[BATCH]    No user messages to save")
+            current_user_message_count = crud.get_chat_user_message_count(db, chat_id)
             
             # Save assistant message with state and capture the ID for voice button
             assistant_message = crud.create_message_with_state(
@@ -673,18 +725,6 @@ async def _process_single_batch(
             else:
                 log_always(f"[BATCH] ℹ️  No refresh button to remove")
             
-            # Update last_suggested_gift if a gift was suggested
-            if gift_suggestion["should_suggest"]:
-                from sqlalchemy.orm.attributes import flag_modified
-                chat_for_gift = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
-                if chat_for_gift:
-                    if not chat_for_gift.ext:
-                        chat_for_gift.ext = {}
-                    chat_for_gift.ext["last_suggested_gift"] = gift_suggestion["item_key"]
-                    flag_modified(chat_for_gift, "ext")
-                    db.commit()
-                    log_verbose(f"[BATCH] 🎁 Updated last_suggested_gift to {gift_suggestion['item_key']}")
-        
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         
         # 5.5 Update mood based on user engagement
@@ -700,6 +740,30 @@ async def _process_single_batch(
                 log_verbose(f"[BATCH] 💭 Mood updated: change={mood_change}, is_cold={is_cold}")
         except Exception as mood_error:
             log_verbose(f"[BATCH] ⚠️ Failed to update mood: {mood_error}")
+
+        # 5.65 Gift Recommendation Brain (separate message flow, cadence by user messages)
+        if not is_auto_followup and not is_resume:
+            try:
+                from app.core.brains.gift_recommendation_brain import generate_gift_recommendation
+                gift_recommendation = await generate_gift_recommendation(
+                    state=new_state,
+                    dialogue_response=dialogue_response,
+                    user_message=batched_text,
+                    language=user_language,
+                    chat_history=chat_history,
+                    chat_ext=chat_ext_snapshot,
+                    current_user_message_count=current_user_message_count,
+                    recent_purchases=chat_purchases,
+                    user_id=user_id,
+                )
+                log_verbose(
+                    f"[BATCH] 🎁 Gift Recommendation: should={gift_recommendation.get('should_suggest')} "
+                    f"reason={gift_recommendation.get('reason')} scene={gift_recommendation.get('scene_mode')} "
+                    f"item={gift_recommendation.get('item_key')} user_count={current_user_message_count}"
+                )
+            except Exception as gift_error:
+                gift_recommendation = {"should_suggest": False, "reason": "error"}
+                log_always(f"[BATCH] ⚠️ Gift recommendation failed: {gift_error}")
         
         pipeline_timer.end_stage()
         
@@ -753,10 +817,20 @@ async def _process_single_batch(
                 tg_chat_id, 
                 escaped_response, 
                 parse_mode="MarkdownV2",
-                reply_markup=gift_keyboard  # Gift suggestion button (None if no suggestion)
             )
-            log_always(f"[BATCH] ✅ Response sent to user{' (with gift button)' if gift_keyboard else ''}")
+            log_always(f"[BATCH] ✅ Response sent to user")
             log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+
+        # Gift recommendation is sent as a separate message from main roleplay response.
+        if gift_recommendation.get("should_suggest"):
+            await _send_gift_recommendation_message(
+                chat_id=chat_id,
+                tg_chat_id=tg_chat_id,
+                user_id=user_id,
+                language=user_language,
+                gift_recommendation=gift_recommendation,
+                current_user_message_count=current_user_message_count,
+            )
         
         pipeline_timer.end_stage()
         
@@ -828,7 +902,6 @@ async def _process_single_batch(
                 context_summary=context_summary,  # Pass summary for efficient context
                 mood=chat_mood,  # Chat mood for image context
                 purchases=chat_purchases,  # Recent purchases for image context
-                gift_suggestion=gift_suggestion  # Gift suggestion for button on image
             ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
@@ -903,7 +976,6 @@ async def _background_image_generation(
     context_summary: str = None,  # Pre-generated context summary for efficiency
     mood: int = 50,  # Chat mood for image context
     purchases: list = None,  # Recent purchases for image context
-    gift_suggestion: dict = None  # Gift suggestion data for button on image
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1087,16 +1159,6 @@ async def _background_image_generation(
             job_ext["pending_caption"] = dialogue_response
             log_always(f"[IMAGE-BG] 📝 Storing dialogue text as pending caption")
         
-        # Store gift suggestion data for button on image
-        if gift_suggestion and gift_suggestion.get("should_suggest"):
-            job_ext["gift_suggestion"] = {
-                "item_key": gift_suggestion["item_key"],
-                "item_emoji": gift_suggestion["item_info"]["emoji"],
-                "item_name": gift_suggestion["item_info"]["name"],
-                "item_name_ru": gift_suggestion["item_info"]["name_ru"],
-            }
-            log_always(f"[IMAGE-BG] 🎁 Storing gift suggestion for image button")
-        
         # Increment concurrent image counter (track that we incremented for error handling)
         new_count = await redis_queue.increment_user_image_count(user_id)
         counter_incremented = True
@@ -1256,8 +1318,8 @@ async def process_gift_purchase(
             # Build and send system message
             persona_name = persona.name
             if user_language == "ru":
-                from app.db.crud import SHOP_ITEMS
-                item_name_localized = SHOP_ITEMS.get(item_key, {}).get("name_ru", item_name)
+                from app.core.catalog.gifts import get_shop_items_map
+                item_name_localized = get_shop_items_map().get(item_key, {}).get("name_ru", item_name)
                 system_text = f"{item_emoji} Вы подарили {persona_name} подарок — {item_name_localized}"
             else:
                 system_text = f"{item_emoji} You bought {persona_name} a {item_name}"
@@ -1293,6 +1355,15 @@ async def process_gift_purchase(
             previous_state = chat.state_snapshot.get("state", "chatting") if chat.state_snapshot else "chatting"
             memory = chat.memory
             context_summary = chat.ext.get("context_summary") if chat.ext else None
+
+            # Persist purchase counter in user-message units for recommendation blackout.
+            current_user_message_count = crud.get_chat_user_message_count(db, chat_id)
+            from sqlalchemy.orm.attributes import flag_modified
+            if not chat.ext:
+                chat.ext = {}
+            chat.ext["last_gift_purchase_user_count"] = int(current_user_message_count)
+            flag_modified(chat, "ext")
+            db.commit()
         
         # Show typing indicator
         action_mgr = ChatActionManager(bot, tg_chat_id)
@@ -1317,6 +1388,7 @@ async def process_gift_purchase(
             mood=new_mood,
             purchases=chat_purchases,
             gift_hint=gift_reaction_hint,
+            force_gift_hint=True,
             user_name=gift_user_display_name
         )
         log_always(f"[GIFT-PURCHASE] ✅ Gift reaction generated: {dialogue_response[:80]}...")
@@ -1359,6 +1431,7 @@ async def process_gift_purchase(
             purchases=chat_purchases,
             force_gift_override=True,
             forced_gift_tags=context_effect,
+            allow_scene_override=False,
         )
         log_always(f"[GIFT-PURCHASE] ✅ Image plan generated")
         

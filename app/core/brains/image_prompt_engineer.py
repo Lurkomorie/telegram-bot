@@ -55,6 +55,13 @@ HEAVY_BODY_FOCUS_TAGS = {"foot_focus", "feet", "ass_focus", "breast_focus", "han
 SCENE_LOCK_CLOTHING_TAGS = CLOTHING_TAGS | {"cleavage"}
 SCENE_LOCK_ENV_TAGS = ENVIRONMENT_TAGS | EFFECT_TAGS
 NO_SCENE_LOCK_SOURCES = {"history_start", "ai_initial_story", "gift_purchase"}
+FORCED_GIFT_SCENE_TAGS = (
+    FRAMING_TAGS
+    | CLOTHING_TAGS
+    | ENVIRONMENT_TAGS
+    | EFFECT_TAGS
+    | {"on_bed", "bedroom", "indoors", "outdoors", "window", "couch", "bed", "chair", "table"}
+)
 
 FOCUS_RULES = [
     (("feet", "foot", "soles", "toes", "barefoot"), ["feet", "foot_focus"]),
@@ -187,6 +194,25 @@ def _extract_scene_lock_anchors(previous_image_prompt: Optional[str]) -> Dict[st
             anchors["environment"].append(tag)
 
     return anchors
+
+
+def _sanitize_forced_gift_tags(forced_gift_tags: str, allow_scene_override: bool = False) -> str:
+    """
+    Keep gift override focused on object/action by default.
+    Scene or outfit overrides are stripped unless explicitly allowed.
+    """
+    cleaned: List[str] = []
+    seen = set()
+    for raw_tag in _split_tags(forced_gift_tags or ""):
+        tag = _canonicalize_tag(raw_tag)
+        if not tag or tag in FORBIDDEN_TAGS:
+            continue
+        if not allow_scene_override and tag in FORCED_GIFT_SCENE_TAGS:
+            continue
+        if tag not in seen:
+            seen.add(tag)
+            cleaned.append(tag)
+    return ", ".join(cleaned)
 
 
 def _bucket_for_tag(tag: str) -> str:
@@ -391,6 +417,7 @@ def _build_image_context(
     purchases: list[dict] = None,
     force_gift_override: bool = False,
     forced_gift_tags: str = "",
+    allow_scene_override: bool = False,
 ) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
@@ -419,13 +446,17 @@ def _build_image_context(
     # Build gift override section (top priority)
     gift_section = ""
     gift_override_mode = "off"
-    if force_gift_override and forced_gift_tags.strip():
+    sanitized_forced_tags = _sanitize_forced_gift_tags(
+        forced_gift_tags,
+        allow_scene_override=allow_scene_override,
+    )
+    if force_gift_override and sanitized_forced_tags.strip():
         gift_override_mode = "forced"
         forced_gift_name = purchases[0].get("item_name", "gift") if purchases else "gift"
         gift_section = f"""
 # GIFT OVERRIDE (MANDATORY — top priority)
 Gift: {forced_gift_name}
-Required tags: {forced_gift_tags}
+Required tags: {sanitized_forced_tags}
 """
     
     # Build mood hint
@@ -479,6 +510,8 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
         "scene_lock_enabled": scene_lock_enabled,
         "gift_override_mode": gift_override_mode,
         "refusal_detected": refusal_detected,
+        "gift_override_allow_scene": allow_scene_override,
+        "gift_override_tags": sanitized_forced_tags,
     }
 
     return context, mandatory_focus_tags, scene_lock, scene_change_flags, observability
@@ -528,6 +561,7 @@ async def generate_image_plan(
     purchases: list[dict] = None,
     force_gift_override: bool = False,
     forced_gift_tags: str = "",
+    allow_scene_override: bool = False,
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -560,6 +594,7 @@ async def generate_image_plan(
         purchases,
         force_gift_override=force_gift_override,
         forced_gift_tags=forced_gift_tags,
+        allow_scene_override=allow_scene_override,
     )
     
     # Retry with exponential backoff
