@@ -34,6 +34,48 @@ POLL_INTERVAL = 2
 POLL_TIMEOUT = 120
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_PATH = os.path.join(SCRIPT_DIR, "story_regen_results.json")
+ROUND1_SELECTED_PATH = os.path.join(SCRIPT_DIR, "story_selected_round1.json")
+ROUND2_PROMPTS_PATH = os.path.join(os.path.dirname(SCRIPT_DIR), "config", "story_round2_prompts.json")
+
+
+def _normalize_cf_url(url: str) -> str:
+    if not url:
+        return url
+    if url.endswith("/admin"):
+        return url[:-6] + "/public"
+    return url
+
+
+def _load_round2_data() -> list[dict]:
+    with open(RESULTS_PATH, "r", encoding="utf-8") as f:
+        all_stories = json.load(f)
+
+    selected_ids = set()
+    if os.path.exists(ROUND1_SELECTED_PATH):
+        with open(ROUND1_SELECTED_PATH, "r", encoding="utf-8") as f:
+            selected_ids = set(json.load(f).keys())
+
+    prompts_map = {}
+    if os.path.exists(ROUND2_PROMPTS_PATH):
+        with open(ROUND2_PROMPTS_PATH, "r", encoding="utf-8") as f:
+            prompts_map = json.load(f)
+
+    remaining = []
+    for story in all_stories:
+        story_id = story.get("id")
+        if story_id in selected_ids:
+            continue
+
+        remaining.append({
+            "id": story_id,
+            "name": story.get("name"),
+            "persona_name": story.get("persona_name"),
+            "old_image_url": _normalize_cf_url(story.get("old_image_url")),
+            "old_prompt": story.get("image_prompt", ""),
+            "round2_prompt": prompts_map.get(story_id, story.get("image_prompt", "")),
+            "new_image_urls": [u for u in story.get("new_image_urls", []) if u],
+        })
+    return remaining
 
 
 def _get_base_url() -> str:
@@ -144,6 +186,18 @@ async def index():
 
     json_str = json.dumps(data, ensure_ascii=False)
     return HTML_TEMPLATE.replace("__STORY_DATA__", json_str)
+
+
+@app.get("/round2", response_class=HTMLResponse)
+async def round2_page():
+    data = _load_round2_data()
+    json_str = json.dumps(data, ensure_ascii=False)
+    return HTML_TEMPLATE_ROUND2.replace("__ROUND2_STORY_DATA__", json_str)
+
+
+@app.get("/api/round2/remaining")
+async def round2_remaining():
+    return {"stories": _load_round2_data()}
 
 
 @app.post("/api/save")
@@ -453,6 +507,271 @@ function closeModal() {
   document.getElementById('modalImg').src = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+render();
+</script>
+</body>
+</html>"""
+
+
+HTML_TEMPLATE_ROUND2 = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Story Image Picker - Round 2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #151825; color: #e8ebf3; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 6px; color: #fff; }
+  .sub { text-align: center; color: #90a2c5; margin-bottom: 24px; font-size: 13px; }
+
+  .story-card { background: #1d2437; border-radius: 14px; padding: 18px; margin-bottom: 18px; border: 1px solid #2d3954; }
+  .story-header { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .story-header h2 { font-size: 18px; color: #6fb2ff; }
+  .story-header .persona { font-size: 13px; color: #8d9db8; }
+
+  .images-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .old-image-col { flex-shrink: 0; }
+  .old-image-col .label { font-size: 12px; color: #8d9db8; margin-bottom: 4px; text-align: center; }
+  .new-images-col { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+
+  .img-card { display: flex; flex-direction: column; align-items: center; }
+  .img-card img { border-radius: 8px; cursor: pointer; object-fit: cover; background: #101b2f; }
+  .img-card img.old { width: 300px; height: auto; }
+  .img-card img.new { width: 180px; height: auto; }
+  .select-btn { margin-top: 6px; padding: 4px 14px; border-radius: 6px; border: 2px solid #6fb2ff; background: transparent; color: #6fb2ff; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .select-btn.selected { background: #6fb2ff; color: #0d1628; }
+
+  .prompt-editor { margin-top: 12px; background: #121c31; border: 1px solid #2d3954; border-radius: 10px; padding: 10px; }
+  .prompt-editor label { display: block; font-size: 12px; color: #9fb0cf; margin-bottom: 6px; }
+  .prompt-editor textarea { width: 100%; height: 110px; background: #0e1628; color: #e8ebf3; border: 1px solid #41557d; border-radius: 6px; padding: 8px; font-size: 12px; resize: vertical; font-family: inherit; }
+  .old-prompt { margin-top: 8px; font-size: 11px; color: #97a6c1; }
+  .old-prompt summary { cursor: pointer; color: #7f96bd; }
+  .old-prompt pre { margin-top: 5px; white-space: pre-wrap; word-break: break-word; background: #0c1424; border-radius: 6px; padding: 8px; }
+
+  .regen-controls { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  .regen-controls select { background: #0e1628; color: #e8ebf3; border: 1px solid #41557d; border-radius: 6px; padding: 5px 8px; }
+  .regen-go { background: #2dbb7f; color: #fff; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .regen-go:disabled { opacity: 0.6; cursor: not-allowed; }
+  .regen-status { font-size: 11px; color: #90a2c5; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.active { display: flex; }
+  .modal-overlay img { max-width: 95vw; max-height: 95vh; border-radius: 8px; }
+
+  .json-output { background: #101b30; border-radius: 12px; padding: 18px; margin-top: 24px; position: relative; border: 1px solid #2d3954; }
+  .json-output h3 { margin-bottom: 10px; color: #6fb2ff; }
+  .json-output pre { background: #0b1221; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12px; min-height: 80px; white-space: pre-wrap; word-break: break-all; }
+  .copy-btn { position: absolute; top: 14px; right: 14px; background: #6fb2ff; color: #0d1628; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .no-img { width: 300px; height: 200px; background: #101b2f; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #667a9e; }
+</style>
+</head>
+<body>
+
+<h1>Story Image Picker — Round 2</h1>
+<div class="sub">Only remaining stories. Final JSON includes <code>new_prompt</code> + <code>new_image_url</code>.</div>
+<div id="container"></div>
+
+<div class="json-output">
+  <h3>Round 2 Selection JSON</h3>
+  <button class="copy-btn" onclick="copyJson()">Copy</button>
+  <pre id="jsonOutput">{}</pre>
+</div>
+
+<div class="modal-overlay" id="modal" onclick="closeModal()">
+  <img id="modalImg" src="" alt="Full size">
+</div>
+
+<script>
+const data = __ROUND2_STORY_DATA__;
+const selections = {}; // storyId -> { new_prompt, new_image_url }
+const promptDrafts = {};
+
+function render() {
+  const c = document.getElementById('container');
+  c.innerHTML = '';
+
+  data.forEach((story, si) => {
+    const card = document.createElement('div');
+    card.className = 'story-card';
+    card.id = 'card-' + si;
+
+    const hdr = document.createElement('div');
+    hdr.className = 'story-header';
+    hdr.innerHTML = `<h2>${esc(story.name || 'Untitled')}</h2><span class="persona">${esc(story.persona_name || '')}</span>`;
+    card.appendChild(hdr);
+
+    const row = document.createElement('div');
+    row.className = 'images-row';
+
+    const oldCol = document.createElement('div');
+    oldCol.className = 'old-image-col';
+    oldCol.innerHTML = '<div class="label">Current</div>';
+    const oldCard = document.createElement('div');
+    oldCard.className = 'img-card';
+    if (story.old_image_url) {
+      const img = document.createElement('img');
+      img.className = 'old';
+      img.src = story.old_image_url;
+      img.loading = 'lazy';
+      img.onclick = () => openModal(story.old_image_url);
+      oldCard.appendChild(img);
+    } else {
+      oldCard.innerHTML = '<div class="no-img">No image</div>';
+    }
+    oldCol.appendChild(oldCard);
+    row.appendChild(oldCol);
+
+    const newCol = document.createElement('div');
+    newCol.className = 'new-images-col';
+    newCol.id = 'candidates-' + si;
+    row.appendChild(newCol);
+    card.appendChild(row);
+
+    const editor = document.createElement('div');
+    editor.className = 'prompt-editor';
+    editor.innerHTML = `
+      <label>Round 2 prompt</label>
+      <textarea id="prompt-${si}"></textarea>
+      <div class="regen-controls">
+        <span style="font-size:12px;color:#9fb0cf;">Generate</span>
+        <select id="count-${si}">${[1,2,3,4,5].map(n => `<option value="${n}"${n===3?' selected':''}>${n}</option>`).join('')}</select>
+        <button class="regen-go" id="regen-${si}" onclick="doRegen(${si})">Generate</button>
+        <span class="regen-status" id="status-${si}"></span>
+      </div>
+      <details class="old-prompt"><summary>Show old prompt</summary><pre>${esc(story.old_prompt || '')}</pre></details>
+    `;
+    card.appendChild(editor);
+
+    c.appendChild(card);
+
+    const initialPrompt = promptDrafts[story.id] || story.round2_prompt || '';
+    const ta = document.getElementById(`prompt-${si}`);
+    ta.value = initialPrompt;
+    ta.addEventListener('input', () => {
+      promptDrafts[story.id] = ta.value;
+      if (selections[story.id]) {
+        selections[story.id].new_prompt = ta.value.trim();
+        updateJson();
+      }
+    });
+
+    renderCandidates(si);
+  });
+
+  updateJson();
+}
+
+function renderCandidates(si) {
+  const story = data[si];
+  const container = document.getElementById('candidates-' + si);
+  container.innerHTML = '';
+  (story.new_image_urls || []).forEach((url) => {
+    if (!url) return;
+    const card = document.createElement('div');
+    card.className = 'img-card';
+
+    const img = document.createElement('img');
+    img.className = 'new';
+    img.src = url;
+    img.loading = 'lazy';
+    img.onclick = () => openModal(url);
+    card.appendChild(img);
+
+    const btn = document.createElement('button');
+    const selected = selections[story.id] && selections[story.id].new_image_url === url;
+    btn.className = 'select-btn' + (selected ? ' selected' : '');
+    btn.textContent = selected ? '✓ Selected' : 'Select';
+    btn.onclick = () => selectImage(si, url);
+    card.appendChild(btn);
+
+    container.appendChild(card);
+  });
+}
+
+function selectImage(si, url) {
+  const story = data[si];
+  const prompt = (document.getElementById('prompt-' + si).value || '').trim();
+  selections[story.id] = {
+    new_prompt: prompt,
+    new_image_url: url,
+  };
+  renderCandidates(si);
+  updateJson();
+}
+
+async function doRegen(si) {
+  const story = data[si];
+  const prompt = (document.getElementById('prompt-' + si).value || '').trim();
+  const count = parseInt(document.getElementById('count-' + si).value, 10);
+  const btn = document.getElementById('regen-' + si);
+  const status = document.getElementById('status-' + si);
+
+  if (!prompt) {
+    alert('Prompt is empty');
+    return;
+  }
+
+  promptDrafts[story.id] = prompt;
+  btn.disabled = true;
+  status.textContent = 'Generating...';
+
+  try {
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, count }),
+    });
+    const json = await resp.json();
+    const urls = (json.urls || []).filter(Boolean);
+
+    if (!urls.length) {
+      status.textContent = 'No images generated';
+      btn.disabled = false;
+      return;
+    }
+
+    story.new_image_urls = [...(story.new_image_urls || []), ...urls];
+    renderCandidates(si);
+    status.textContent = `Generated ${urls.length}`;
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+function updateJson() {
+  document.getElementById('jsonOutput').textContent = JSON.stringify(selections, null, 2);
+}
+
+function copyJson() {
+  navigator.clipboard.writeText(JSON.stringify(selections, null, 2)).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+function openModal(url) {
+  document.getElementById('modalImg').src = url;
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+  document.getElementById('modalImg').src = '';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
 
 function esc(s) {
   const d = document.createElement('div');

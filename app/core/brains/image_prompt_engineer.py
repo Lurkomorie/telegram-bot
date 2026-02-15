@@ -4,21 +4,13 @@ Generates IllustriousXL-format image prompts from conversation context
 """
 import asyncio
 import re
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Any
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
 from app.core.constants import IMAGE_ENGINEER_MAX_RETRIES, IMAGE_ENGINEER_BASE_DELAY
 from app.core.logging_utils import log_messages_array, log_dev_request, log_dev_response, log_dev_context_breakdown, is_development
 import time
-
-RATING_TAGS: List[str] = [
-    "rating:general",
-    "rating:sensitive",
-    "rating:questionable",
-    "rating:explicit",
-]
-RATING_PRIORITY = {tag: idx for idx, tag in enumerate(RATING_TAGS)}
 
 REQUIRED_CORE_TAGS: List[str] = ["1girl", "solo", "pov", "close-up"]
 
@@ -58,11 +50,11 @@ ENVIRONMENT_TAGS = {
 EFFECT_TAGS = {"depth_of_field", "blurry_background", "lens_flare", "bloom", "rim_lighting", "backlighting"}
 FOCUS_TAGS = {"foot_focus", "feet", "hand_focus", "breast_focus", "ass_focus", "eye_contact"}
 DEFAULT_FILLER_TAGS = ["upper_body", "looking_at_viewer", "blush", "parted_lips", "depth_of_field", "blurry_background"]
-EXPLICIT_MARKERS = {"nude", "sex", "vaginal", "fellatio", "oral", "penetration", "cum", "missionary", "cowgirl_position", "doggystyle"}
-QUESTIONABLE_MARKERS = {"lingerie", "bra", "panties", "underwear", "breast_focus", "ass_focus", "nipples"}
-SENSITIVE_MARKERS = {"cleavage", "bikini", "thighhighs", "swimsuit"}
+EYE_DIRECTION_TAGS = {"looking_at_viewer", "eye_contact", "looking_away", "looking_down", "looking_back"}
+HEAVY_BODY_FOCUS_TAGS = {"foot_focus", "feet", "ass_focus", "breast_focus", "hand_focus"}
 SCENE_LOCK_CLOTHING_TAGS = CLOTHING_TAGS | {"cleavage"}
 SCENE_LOCK_ENV_TAGS = ENVIRONMENT_TAGS | EFFECT_TAGS
+NO_SCENE_LOCK_SOURCES = {"history_start", "ai_initial_story", "gift_purchase"}
 
 FOCUS_RULES = [
     (("feet", "foot", "soles", "toes", "barefoot"), ["feet", "foot_focus"]),
@@ -81,6 +73,33 @@ CLOTHING_CHANGE_MARKERS = (
     "changed clothes", "dress up", "naked now",
 )
 
+REFUSAL_MARKERS = [
+    # English
+    "i won't",
+    "i will not",
+    "i can't",
+    "cannot",
+    "not in public",
+    "too rough",
+    "not like that",
+    "only if",
+    "catch me first",
+    "i pull back",
+    "i recoil",
+    "i step back",
+    # Russian
+    "не буду",
+    "не хочу",
+    "не могу",
+    "не публич",
+    "только если",
+    "сначала поймай",
+    "слишком грубо",
+    "отшатываюсь",
+    "отступаю",
+    "резко отшатываюсь",
+]
+
 
 def _split_tags(tags_text: str) -> List[str]:
     return [tag.strip() for tag in tags_text.split(",") if tag.strip()]
@@ -92,7 +111,6 @@ def _canonicalize_tag(tag: str) -> str:
     t = re.sub(r'^`+|`+$', '', t)
     t = re.sub(r"^['\"]+|['\"]+$", "", t)
     t = re.sub(r'^<[^>]+>$', '', t)
-    t = re.sub(r"rating:\s*", "rating:", t)
     weighted = re.match(r'^\(([^:()]+):[\d.]+\)$', t)
     if weighted:
         t = weighted.group(1)
@@ -121,6 +139,34 @@ def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[
     }
 
 
+def _should_use_scene_lock(previous_image_meta: Optional[Dict[str, Any]]) -> bool:
+    """
+    Decide if previous-image anchors are safe to use for continuity.
+    Disabled for non-conversational starter/special images.
+    """
+    if not previous_image_meta:
+        return True  # Legacy rows and unknowns default to continuity on.
+
+    meta = previous_image_meta
+    if isinstance(meta.get("ext"), dict):
+        meta = meta["ext"]
+
+    source = (meta.get("source") or "").strip().lower()
+    if source in NO_SCENE_LOCK_SOURCES:
+        return False
+    if meta.get("is_gift_purchase") is True:
+        return False
+    return True
+
+
+def _detect_refusal_or_deflection(dialogue_response: str) -> bool:
+    """Detect turns where AI behavior should override explicit user visual request."""
+    if not dialogue_response:
+        return False
+    text = dialogue_response.lower()
+    return any(marker in text for marker in REFUSAL_MARKERS)
+
+
 def _extract_scene_lock_anchors(previous_image_prompt: Optional[str]) -> Dict[str, List[str]]:
     """Extract only continuity-relevant clothing/environment tags from previous prompt."""
     anchors: Dict[str, List[str]] = {"clothing": [], "environment": []}
@@ -141,17 +187,6 @@ def _extract_scene_lock_anchors(previous_image_prompt: Optional[str]) -> Dict[st
             anchors["environment"].append(tag)
 
     return anchors
-
-
-def _infer_rating(tags: List[str]) -> str:
-    tag_set = set(tags)
-    if tag_set & EXPLICIT_MARKERS:
-        return "rating:explicit"
-    if tag_set & QUESTIONABLE_MARKERS:
-        return "rating:questionable"
-    if tag_set & SENSITIVE_MARKERS:
-        return "rating:sensitive"
-    return "rating:general"
 
 
 def _bucket_for_tag(tag: str) -> str:
@@ -183,32 +218,16 @@ def _enforce_tag_policy(
 
     cleaned_tags: List[str] = []
     seen = set()
-    rating_candidates: List[str] = []
 
     for raw_tag in _split_tags(raw_tags):
         tag = _canonicalize_tag(raw_tag)
         if not tag or tag in FORBIDDEN_TAGS:
             continue
-        if tag in RATING_PRIORITY:
-            rating_candidates.append(tag)
+        if tag.startswith("rating:"):
             continue
         if tag not in seen:
             seen.add(tag)
             cleaned_tags.append(tag)
-
-    if preserve_scene_lock_clothing:
-        for tag in scene_lock.get("clothing", []):
-            norm = _canonicalize_tag(tag)
-            if norm and norm not in FORBIDDEN_TAGS and norm not in seen:
-                seen.add(norm)
-                cleaned_tags.append(norm)
-
-    if preserve_scene_lock_environment:
-        for tag in scene_lock.get("environment", []):
-            norm = _canonicalize_tag(tag)
-            if norm and norm not in FORBIDDEN_TAGS and norm not in seen:
-                seen.add(norm)
-                cleaned_tags.append(norm)
 
     for tag in REQUIRED_CORE_TAGS:
         norm = _canonicalize_tag(tag)
@@ -225,11 +244,6 @@ def _enforce_tag_policy(
         if norm not in seen:
             seen.add(norm)
             cleaned_tags.append(norm)
-
-    if rating_candidates:
-        selected_rating = max(rating_candidates, key=lambda tag: RATING_PRIORITY.get(tag, -1))
-    else:
-        selected_rating = _infer_rating(cleaned_tags)
 
     buckets = {
         "person": [],
@@ -258,9 +272,31 @@ def _enforce_tag_policy(
         if focus_tag not in buckets["action"] and focus_tag not in buckets["expression"]:
             buckets["action"].insert(0, focus_tag)
 
+    # Eye detail booster: keeps eyes sharper in typical close-up portraits.
+    # Skip when eyes are intentionally closed or turn is dominated by non-face body focus.
+    has_closed_eyes = "closed_eyes" in buckets["expression"]
+    has_heavy_body_focus = any(tag in HEAVY_BODY_FOCUS_TAGS for tag in buckets["action"])
+    if not has_closed_eyes and not has_heavy_body_focus:
+        if "eye_focus" not in buckets["action"]:
+            buckets["action"].append("eye_focus")
+        if not any(tag in EYE_DIRECTION_TAGS for tag in buckets["expression"]):
+            buckets["expression"].append("looking_at_viewer")
+
+    # Scene lock should act as fallback only (never hard-override current turn).
+    if preserve_scene_lock_clothing and not buckets["clothing"]:
+        for tag in scene_lock.get("clothing", []):
+            norm = _canonicalize_tag(tag)
+            if norm and norm not in buckets["clothing"]:
+                buckets["clothing"].append(norm)
+
+    if preserve_scene_lock_environment and not buckets["environment"]:
+        for tag in scene_lock.get("environment", []):
+            norm = _canonicalize_tag(tag)
+            if norm and norm not in buckets["environment"]:
+                buckets["environment"].append(norm)
+
     ordered_tags = (
         buckets["person"]
-        + [selected_rating]
         + buckets["framing"]
         + buckets["action"]
         + buckets["clothing"]
@@ -276,7 +312,7 @@ def _enforce_tag_policy(
             deduped_seen.add(tag)
             deduped_ordered.append(tag)
 
-    essential_tags = set(REQUIRED_CORE_TAGS + normalized_mandatory_focus + [selected_rating])
+    essential_tags = set(REQUIRED_CORE_TAGS + normalized_mandatory_focus)
     trimmed: List[str] = []
     for tag in deduped_ordered:
         if tag in essential_tags and tag not in trimmed:
@@ -349,10 +385,13 @@ def _build_image_context(
     persona: dict,
     chat_history: list[dict],
     previous_image_prompt: str = None,
+    previous_image_meta: Optional[Dict[str, Any]] = None,
     context_summary: str = None,
     mood: int = 50,
-    purchases: list[dict] = None
-) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool]]:
+    purchases: list[dict] = None,
+    force_gift_override: bool = False,
+    forced_gift_tags: str = "",
+) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
     Parses state into labeled fields and extracts visual actions from dialogue
@@ -369,30 +408,41 @@ def _build_image_context(
     # Extract visual actions and intent
     visual_actions = _extract_visual_actions(dialogue_response)
     mandatory_focus_tags = _detect_mandatory_focus_tags(user_message, visual_actions)
+    refusal_detected = _detect_refusal_or_deflection(dialogue_response)
+    if refusal_detected:
+        # AI actions are authoritative on refusal/deflection turns.
+        mandatory_focus_tags = []
     scene_change_flags = _detect_scene_change_intent(user_message, visual_actions)
-    scene_lock = _extract_scene_lock_anchors(previous_image_prompt)
+    scene_lock_enabled = _should_use_scene_lock(previous_image_meta)
+    scene_lock = _extract_scene_lock_anchors(previous_image_prompt) if scene_lock_enabled else {"clothing": [], "environment": []}
     
     # Build gift override section (top priority)
     gift_section = ""
-    if purchases:
-        recent_purchase = purchases[0]
-        gift_hint = recent_purchase.get("context_effect", "")
-        messages_since = recent_purchase.get("messages_since", 999)
-        if gift_hint and messages_since <= 6:
-            gift_name = recent_purchase.get("item_name", "gift")
-            gift_section = f"""
+    gift_override_mode = "off"
+    if force_gift_override and forced_gift_tags.strip():
+        gift_override_mode = "forced"
+        forced_gift_name = purchases[0].get("item_name", "gift") if purchases else "gift"
+        gift_section = f"""
 # GIFT OVERRIDE (MANDATORY — top priority)
-Gift: {gift_name}
-Required tags: {gift_hint}
+Gift: {forced_gift_name}
+Required tags: {forced_gift_tags}
 """
     
     # Build mood hint
     mood_hint = ""
     if mood >= 70:
         mood_hint = "\n# MOOD: Character is happy — use smile or warm expression tags"
-    
+
+    action_truth_section = f"""
+# ACTION TRUTH POLICY
+AI actions authoritative this turn: {"yes" if refusal_detected else "no"}
+Refusal/deflection detected: {"yes" if refusal_detected else "no"}
+If refusal is detected, depict hesitation/recoil/distance from AI actions, not explicit user request.
+"""
+
     scene_lock_section = f"""
 # SCENE LOCK (maintain continuity unless explicitly changed this turn)
+Scene lock enabled: {"yes" if scene_lock_enabled else "no"}
 Clothing anchors: {", ".join(scene_lock.get("clothing", [])[:6]) or "none"}
 Environment anchors: {", ".join(scene_lock.get("environment", [])[:6]) or "none"}
 Explicit clothing change detected: {"yes" if scene_change_flags["clothing_changed"] else "no"}
@@ -422,9 +472,16 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 
 # ATMOSPHERE
 {mood_notes or "not specified"}
-{scene_lock_section}{mood_hint}"""
+{action_truth_section}{scene_lock_section}{mood_hint}"""
     
-    return context, mandatory_focus_tags, scene_lock, scene_change_flags
+    observability = {
+        "previous_image_source": (previous_image_meta or {}).get("source") if isinstance(previous_image_meta, dict) else "unknown",
+        "scene_lock_enabled": scene_lock_enabled,
+        "gift_override_mode": gift_override_mode,
+        "refusal_detected": refusal_detected,
+    }
+
+    return context, mandatory_focus_tags, scene_lock, scene_change_flags, observability
 
 
 def _sanitize_tags(raw_output: str) -> str:
@@ -465,9 +522,12 @@ async def generate_image_plan(
     persona: Dict[str, str],
     chat_history: list[dict],
     previous_image_prompt: str = None,
+    previous_image_meta: Optional[Dict[str, Any]] = None,
     context_summary: str = None,
     mood: int = 50,
-    purchases: list[dict] = None
+    purchases: list[dict] = None,
+    force_gift_override: bool = False,
+    forced_gift_tags: str = "",
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -487,16 +547,19 @@ async def generate_image_plan(
     use_reasoning = config["llm"].get("image_model_reasoning", False)
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
-    context, mandatory_focus_tags, scene_lock, scene_change_flags = _build_image_context(
+    context, mandatory_focus_tags, scene_lock, scene_change_flags, observability = _build_image_context(
         state,
         dialogue_response,
         user_message,
         persona,
         chat_history,
         previous_image_prompt,
+        previous_image_meta,
         context_summary,
         mood,
         purchases,
+        force_gift_override=force_gift_override,
+        forced_gift_tags=forced_gift_tags,
     )
     
     # Retry with exponential backoff
@@ -561,8 +624,8 @@ async def generate_image_plan(
                 raw_tags=sanitized_tags,
                 mandatory_focus_tags=mandatory_focus_tags,
                 scene_lock=scene_lock,
-                preserve_scene_lock_clothing=not scene_change_flags["clothing_changed"],
-                preserve_scene_lock_environment=not scene_change_flags["location_changed"],
+                preserve_scene_lock_clothing=observability["scene_lock_enabled"] and not scene_change_flags["clothing_changed"],
+                preserve_scene_lock_environment=observability["scene_lock_enabled"] and not scene_change_flags["location_changed"],
             )
 
             # Development-only: Log full response
@@ -570,6 +633,10 @@ async def generate_image_plan(
                 print(f"[IMAGE-PLAN][DEV] Raw tag output: {raw_result}")
                 print(f"[IMAGE-PLAN][DEV] Sanitized tags: {sanitized_tags}")
                 print(f"[IMAGE-PLAN][DEV] Mandatory focus: {mandatory_focus_tags}")
+                print(f"[IMAGE-PLAN][DEV] previous_image_source: {observability['previous_image_source']}")
+                print(f"[IMAGE-PLAN][DEV] scene_lock_enabled: {observability['scene_lock_enabled']}")
+                print(f"[IMAGE-PLAN][DEV] gift_override_mode: {observability['gift_override_mode']}")
+                print(f"[IMAGE-PLAN][DEV] refusal_detected: {observability['refusal_detected']}")
                 print(f"[IMAGE-PLAN][DEV] Enforced tags: {result_text}")
                 log_dev_response(
                     brain_name="Image Prompt Engineer",

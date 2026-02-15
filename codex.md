@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-15
+Last updated: 2026-02-15 (regression fixes + rating-tag removal)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -12,21 +12,41 @@ Last updated: 2026-02-15
 
 ## Decisions From This Task
 - Framing policy: strict POV close-up by default (`pov` + `close-up` always enforced).
-- Visual intent source: combined user request + AI visual actions.
+- Visual truth policy: AI visual actions are authoritative when they conflict with user request (refusal/deflection turns).
 - Continuity: preserve clothing/location unless explicit change is detected in current turn.
 - Tag quality strategy: curated local normalization/enforcement (no runtime Danbooru API calls).
 - Enforced forbidden tags: `1boy`, `male_focus`, and far-framing tags (`full_body`, `wide_shot`, `long_shot`, `multiple_views`).
+- Remove all `rating:*` tags from generated prompt tags (LLM output and deterministic post-process strip them).
 - Canonical alias normalization currently includes:
   - `soft_smile -> light_smile`
   - `flushed -> blush`
+- Scene lock is source-aware:
+  - Disabled for previous image source `history_start`, `ai_initial_story`, and `gift_purchase`.
+  - Enabled for regular message-response continuity.
+- Gift visual override is one-shot:
+  - Forced only for immediate gift reaction image.
+  - Not auto-persisted to subsequent unrelated turns.
+- Eye fidelity booster:
+  - `_enforce_tag_policy` now injects `eye_focus` (+ eye direction when missing) for normal portrait turns.
+  - Skips eye-force when `closed_eyes` is intentional or when heavy non-face body focus is requested.
+- Product positioning preference:
+  - Keep explicit 18+ NSFW danbooru tag examples/guidance in `IMAGE_TAG_GENERATOR_GPT` (no tone-down for minor-safe style).
 
 ## Known Pitfalls + Fixes
 - Pitfall: direct user visual requests (for example feet focus) were not included in image context.
   - Fix: context now includes `CURRENT USER VISUAL REQUEST` and `MANDATORY FOCUS TAGS`.
 - Pitfall: previous image prompt was passed as raw broad context, causing stale framing/action bleed.
   - Fix: only continuity anchors are extracted from previous prompt (`SCENE LOCK`: clothing/environment).
-- Pitfall: model output could include inconsistent or forbidden tags.
-  - Fix: deterministic `_enforce_tag_policy` now canonicalizes, removes forbidden tags, ensures one rating, enforces core tags, reorders categories, and bounds total tag count.
+- Pitfall: scene lock forced from starter images (history/start/gift) caused first post-story drift.
+  - Fix: source-aware scene lock gate + fallback-only anchor injection.
+- Pitfall: gift visuals persisted for multiple messages/images.
+  - Fix: removed implicit multi-message gift override; explicit forced override only on gift reaction image.
+- Pitfall: images could show requested explicit act even when AI response deflected/refused.
+  - Fix: refusal detector suppresses request-derived focus tags and enforces AI-action truth.
+- Pitfall: eyes can appear mashed/blurry even with close-up framing.
+  - Fix: deterministic eye quality boost in final tag policy + stronger base quality/negative eye prompts.
+- Pitfall: model output could include inconsistent, forbidden, or unwanted rating tags.
+  - Fix: deterministic `_enforce_tag_policy` now canonicalizes, removes forbidden tags and all `rating:*` tags, enforces core tags, reorders categories, and bounds total tag count.
 
 ## Tests Added
 - `app/tests/test_image_prompt_engineer.py` covers:
@@ -35,7 +55,7 @@ Last updated: 2026-02-15
   - scene-lock continuity,
   - male-body tag stripping,
   - alias normalization,
-  - single rating + required core tags,
+  - no `rating:*` output + required core tags,
   - max tag bound enforcement.
 
 ## Maintenance Rule

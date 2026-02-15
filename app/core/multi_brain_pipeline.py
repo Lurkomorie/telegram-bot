@@ -357,6 +357,7 @@ async def _process_single_batch(
             log_verbose(f"[BATCH] 🔍 Looking up previous image job...")
             previous_image_job = crud.get_last_completed_image_job(db, chat_id)
             previous_image_prompt = previous_image_job.prompt if previous_image_job else None
+            previous_image_meta = previous_image_job.ext if (previous_image_job and previous_image_job.ext) else {}
             if previous_image_prompt:
                 log_verbose(f"[BATCH] ✅ Found previous image prompt ({len(previous_image_prompt)} chars)")
                 if previous_image_job:
@@ -820,6 +821,7 @@ async def _process_single_batch(
                 action_mgr=action_mgr,
                 chat_history=chat_history,
                 previous_image_prompt=previous_image_prompt,
+                previous_image_meta=previous_image_meta,
                 is_auto_followup=is_auto_followup,
                 followup_type=followup_type,
                 should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
@@ -894,6 +896,7 @@ async def _background_image_generation(
     action_mgr: ChatActionManager,  # Reused to show upload_photo action
     chat_history: list[dict],  # Add chat history parameter
     previous_image_prompt: str = None,  # Add previous image prompt parameter
+    previous_image_meta: dict = None,  # Metadata (ext/source) of previous image for continuity policy
     is_auto_followup: bool = False,  # Track if image is from scheduler
     followup_type: str = None,  # Type of followup ("30min" or "24h")
     should_send_as_caption: bool = False,  # If True, send dialogue_response as photo caption
@@ -960,6 +963,7 @@ async def _background_image_generation(
             persona=persona,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
+            previous_image_meta=previous_image_meta,
             context_summary=context_summary
         )
         
@@ -970,9 +974,11 @@ async def _background_image_generation(
             persona=persona,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
+            previous_image_meta=previous_image_meta,
             context_summary=context_summary,
             mood=mood,
-            purchases=purchases
+            purchases=purchases,
+            force_gift_override=False,
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
@@ -1072,7 +1078,8 @@ async def _background_image_generation(
         
         # Build ext metadata
         job_ext = {
-            "is_auto_followup": is_auto_followup
+            "is_auto_followup": is_auto_followup,
+            "source": "message_response",
         }
         
         # Store dialogue text to send as caption with the image
@@ -1269,6 +1276,7 @@ async def process_gift_purchase(
             # Get previous image prompt
             previous_image_job = crud.get_last_completed_image_job(db, chat_id)
             previous_image_prompt = previous_image_job.prompt if previous_image_job else None
+            previous_image_meta = previous_image_job.ext if (previous_image_job and previous_image_job.ext) else {}
             
             # Get recent purchases for context
             chat_purchases = crud.get_chat_purchases(db, chat_id)
@@ -1345,9 +1353,12 @@ async def process_gift_purchase(
             persona=persona_data,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
+            previous_image_meta=previous_image_meta,
             context_summary=context_summary,
             mood=new_mood,
-            purchases=chat_purchases
+            purchases=chat_purchases,
+            force_gift_override=True,
+            forced_gift_tags=context_effect,
         )
         log_always(f"[GIFT-PURCHASE] ✅ Image plan generated")
         
@@ -1395,7 +1406,7 @@ async def process_gift_purchase(
             job = crud.create_image_job(
                 db, user_id, UUID(persona_data["id"]),
                 positive, negative, chat_id,
-                ext={"pending_caption": dialogue_response, "is_gift_purchase": True}
+                ext={"pending_caption": dialogue_response, "is_gift_purchase": True, "source": "gift_purchase"}
             )
             job_id = job.id
         
@@ -1440,4 +1451,3 @@ async def process_gift_purchase(
             await stop_and_remove_action(tg_chat_id)
         except Exception:
             pass
-

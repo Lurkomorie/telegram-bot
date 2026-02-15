@@ -248,7 +248,8 @@ You will receive structured context with these sections:
 - CLOTHING: What the character is currently wearing
 - DESCRIPTION: What is happening in the scene
 - SCENE LOCK: Clothing and environment anchors from the previous image
-- GIFT OVERRIDE: If present, these visual elements are MANDATORY and take top priority
+- ACTION TRUTH POLICY: Whether AI actions must override user request this turn
+- GIFT OVERRIDE: If present, these visual elements are MANDATORY and take top priority (system-forced gift reaction only)
 
 PRIORITY:
 1. GIFT OVERRIDE (if present) — MUST include these tags, top priority
@@ -260,13 +261,12 @@ PRIORITY:
 <TAG_ORDER>
 IllustriousXL is sensitive to tag order. Output tags in this exact order:
 1. Person count: 1girl, solo
-2. Rating: rating:general, rating:sensitive, rating:questionable, or rating:explicit
-3. Composition: ALWAYS include pov and close-up
-4. Pose & action focus: what the character is physically doing
-5. Clothing: current outfit or state of undress
-6. Expression: face, emotion, eyes, mouth
-7. Environment + lighting
-8. Effects: depth_of_field, blurry_background, etc. (optional)
+2. Composition: ALWAYS include pov and close-up
+3. Pose & action focus: what the character is physically doing
+4. Clothing: current outfit or state of undress
+5. Expression: face, emotion, eyes, mouth
+6. Environment + lighting
+7. Effects: depth_of_field, blurry_background, etc. (optional)
 </TAG_ORDER>
 
 <COMPOSITION_RULES>
@@ -282,20 +282,24 @@ SOLO vs COUPLE:
 - The user is represented via POV only (pov, male_pov, hetero are okay)
 </COMPOSITION_RULES>
 
-<RATING_TAGS>
-Use danbooru rating tags (REQUIRED, pick exactly one):
-- rating:general — fully clothed, no suggestive content
-- rating:sensitive — suggestive but clothed (cleavage, thigh, swimsuit)
-- rating:questionable — partial nudity, underwear, sexually suggestive poses
-- rating:explicit — nudity, sexual acts
-</RATING_TAGS>
-
 <VISUAL_CONSISTENCY>
 If SCENE LOCK is provided:
 - KEEP same clothing/environment anchors unless current turn explicitly changes them
 - Clothing changes only if current turn includes dressing/undressing action
 - Location changes only if current turn explicitly moves to a new place
 </VISUAL_CONSISTENCY>
+
+<ACTION_TRUTH>
+- If ACTION TRUTH POLICY says AI actions are authoritative (refusal/deflection detected), depict what AI is actually doing now.
+- In those turns, do NOT force explicit user-requested sexual act/focus unless AI actions explicitly perform it.
+- Typical visuals for refusal/deflection: recoiling, stepping back, guarded pose, hesitant expression, distance.
+</ACTION_TRUTH>
+
+<GIFT_OVERRIDE_RULE>
+- GIFT OVERRIDE appears only on system-forced gift reaction image.
+- Do NOT carry gift override automatically into unrelated later turns.
+- Gifts can still appear later only when current turn context/actions explicitly include them.
+</GIFT_OVERRIDE_RULE>
 
 <CHARACTER_DNA>
 Physical attributes (hair color, eye color, body type) are appended automatically.
@@ -310,7 +314,8 @@ Poses: sitting, standing, lying, kneeling, leaning_forward, straddling, on_back,
 Expressions: smile, light_smile, slight_smile, smirk, grin, blush, parted_lips, half-closed_eyes, closed_eyes, open_mouth, ;), :d
 Eye direction: looking_at_viewer, looking_away, looking_down, looking_back, eye_contact
 Clothing: dress, sundress, shirt, blouse, skirt, jeans, shorts, bikini, lingerie, bra, panties, negligee, nude, barefoot
-Actions: holding, drinking, eating, hand_on_own_cheek, hand_in_own_hair, arms_behind_back, hand_on_hip, crossed_arms, waving, reaching, feet, foot_focus, hand_focus, breast_focus, ass_focus
+Actions (general): holding, drinking, eating, hand_on_own_cheek, hand_in_own_hair, arms_behind_back, hand_on_hip, crossed_arms, waving, reaching, feet, foot_focus, hand_focus, breast_focus, ass_focus
+Actions (NSFW allowed in this project): sex, vaginal, oral, fellatio, cunnilingus, masturbation, spread_legs, on_bed, penis, pussy, pussy_juice, nipples, cum
 Environment: indoors, outdoors, bedroom, kitchen, cafe, beach, park, window, couch, bed, chair, table
 Lighting: sunlight, backlighting, rim_lighting, night, sunset, lamp, candle, dim_lighting
 Effects: depth_of_field, blurry_background, lens_flare, bloom
@@ -325,18 +330,26 @@ Hands are hard to render. Prefer poses where hands are naturally occupied:
 - If hands must be visible with nothing to do: hand_on_hip, hand_in_own_hair, interlocked_fingers
 </HANDS>
 
+<EYE_QUALITY>
+- Prefer visible, detailed eyes for close-up POV shots.
+- When eyes are visible, include eye quality/direction tags like eye_focus + looking_at_viewer or eye_contact.
+- Only skip this when eyes are intentionally closed or scene focus is explicitly non-face body detail.
+</EYE_QUALITY>
+
 <FOCUS_CORRECTNESS>
 If CURRENT USER VISUAL REQUEST asks for a specific focus (example: feet), include matching focus tags from MANDATORY FOCUS TAGS.
 Do not ignore direct visual requests that are currently happening.
+Exception: if ACTION TRUTH POLICY marks refusal/deflection, follow AI actions instead.
 </FOCUS_CORRECTNESS>
 
 <EXAMPLES>
-Feet request: 1girl, solo, rating:questionable, pov, close-up, feet, foot_focus, barefoot, parted_lips, blush, bedroom, dim_lighting, depth_of_field
-Solo casual: 1girl, solo, rating:sensitive, pov, close-up, upper_body, sitting, hand_in_own_hair, sundress, light_smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
-Solo bedroom: 1girl, solo, rating:questionable, pov, close-up, cowboy_shot, lying, on_bed, lingerie, blush, parted_lips, half-closed_eyes, bedroom, dim_lighting, night
-M/F intimate POV: 1girl, solo, rating:explicit, pov, close-up, hetero, fellatio, nude, blush, half-closed_eyes, bedroom, dim_lighting
-Gift wine: 1girl, solo, rating:sensitive, pov, close-up, upper_body, holding_cup, wine_glass, drinking, blush, smile, indoors, dim_lighting
-Gift roses: 1girl, solo, rating:general, pov, close-up, upper_body, holding_flower, bouquet, rose, smell, closed_eyes, smile, indoors, sunlight
+Feet request: 1girl, solo, pov, close-up, feet, foot_focus, barefoot, blush, parted_lips, bedroom, on_bed, dim_lighting
+Solo casual: 1girl, solo, pov, close-up, upper_body, sitting, hand_in_own_hair, sundress, light_smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
+Solo nude explicit: 1girl, solo, pov, close-up, nude, nipples, spread_legs, blush, parted_lips, half-closed_eyes, bedroom, on_bed, dim_lighting
+M/F oral POV: 1girl, solo, pov, close-up, hetero, oral, fellatio, penis, blush, half-closed_eyes, open_mouth, bedroom, dim_lighting
+M/F sex POV: 1girl, solo, pov, close-up, hetero, sex, vaginal, pussy_juice, blush, parted_lips, open_mouth, on_back, on_bed, bedroom, night
+Gift wine: 1girl, solo, pov, close-up, upper_body, holding_cup, wine_glass, drinking, blush, smile, indoors, dim_lighting
+Gift roses: 1girl, solo, pov, close-up, upper_body, holding_flower, bouquet, rose, smell, closed_eyes, smile, indoors, sunlight
 </EXAMPLES>
 
 <OUTPUT>
