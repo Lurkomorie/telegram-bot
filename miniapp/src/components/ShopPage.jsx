@@ -1,7 +1,7 @@
 import WebApp from "@twa-dev/sdk";
-import { Gem } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import lightningIcon from "../assets/lightning.webp";
 import { fetchShopItems, fetchUserActiveChat } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
 import "./ShopPage.css";
@@ -20,22 +20,28 @@ export default function ShopPage({
   const [isPurchasing, setIsPurchasing] = useState(null);
   const [mood, setMood] = useState(50);
   const [chatId, setChatId] = useState(initialChatId);
+  const [personaName, setPersonaName] = useState("");
+  const [personaAvatarUrl, setPersonaAvatarUrl] = useState("");
+  const [avatarLoading, setAvatarLoading] = useState(true);
   const [shopItems, setShopItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [failedImageKeys, setFailedImageKeys] = useState({});
 
-  // Self-fetch active chat if not provided
+  // Fetch active chat meta for shop context panel
   useEffect(() => {
-    if (chatId) return;
     const loadChat = async () => {
       try {
         const initData = WebApp.initData;
         const data = await fetchUserActiveChat(initData);
-        if (data.chatId) {
+        if (!chatId && data.chatId) {
           setChatId(data.chatId);
         }
+        setPersonaName(data.personaName || "");
+        setPersonaAvatarUrl(data.personaAvatarUrl || "");
       } catch (err) {
         console.error("Failed to fetch active chat for shop:", err);
+      } finally {
+        setAvatarLoading(false);
       }
     };
     loadChat();
@@ -211,12 +217,29 @@ export default function ShopPage({
     <div className="shop-page">
       {chatId && (
         <div className="shop-mood-card">
-          <div className="mood-bar-header">
-            <span className="mood-bar-label">
-              {getMoodEmoji()} {getMoodLabel()}
-            </span>
+          <div className="shop-character-row">
+            <div className={`shop-character-avatar ${avatarLoading ? "skeleton-wave" : ""}`}>
+              {personaAvatarUrl ? (
+                <img
+                  src={personaAvatarUrl}
+                  alt={personaName || "Character"}
+                  className="shop-character-avatar-image"
+                  onLoad={() => setAvatarLoading(false)}
+                  onError={() => setAvatarLoading(false)}
+                />
+              ) : (
+                <span className="shop-character-avatar-fallback">
+                  {personaName ? personaName.charAt(0).toUpperCase() : "❤"}
+                </span>
+              )}
+            </div>
+            <div className="shop-character-meta">
+              <span className="shop-character-name">{personaName || t("shop.bannerTitle")}</span>
+              <span className="shop-character-mood">{getMoodEmoji()} {getMoodLabel()}</span>
+            </div>
             <span className="mood-bar-percent">{mood}%</span>
           </div>
+
           <div className="mood-bar-track">
             <div className="mood-bar-fill" style={{ width: `${mood}%` }} />
           </div>
@@ -274,7 +297,7 @@ export default function ShopPage({
                   ) : (
                     <>
                       <span className="shop-price-value">{item.price}</span>
-                      <Gem className="shop-price-icon" strokeWidth={2} />
+                      <img src={lightningIcon} alt="tokens" className="shop-price-icon" />
                     </>
                   )}
                 </button>

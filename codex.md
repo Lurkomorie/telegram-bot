@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-17 (semantic mandatory-focus inference for image prompting)
+Last updated: 2026-02-17 (shop UI game-panel + red/orange compact cards)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -41,6 +41,9 @@ Last updated: 2026-02-17 (semantic mandatory-focus inference for image prompting
   - Mood boost is derived from price in loader (`_derive_mood_boost`) instead of manually maintained per gift.
   - Shop UI currently uses icon-first rendering (Lucide + emoji fallback); later PNG swap is config-only via `ui.image_path`.
   - Gift/shop locale policy is EN/RU only with EN fallback.
+  - Miniapp shop visuals are compact 2-column cards in red/orange palette; price pill uses local lightning asset icon (not gem).
+  - Shop mood/info panel is game-like with circular active-persona avatar (with skeleton loading), mood label, percent, and progress bar.
+  - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
 - Gift image continuity hardening:
   - Forced gift tags are sanitized in `image_prompt_engineer` to strip scene/outfit/framing by default.
   - Scene override is opt-in (`allow_scene_override=False` default), preventing forced beach->bedroom jumps.
@@ -81,6 +84,8 @@ Last updated: 2026-02-17 (semantic mandatory-focus inference for image prompting
   - Fix: deterministic gift-usage constraints now suppress oral/licking tags and enforce object-specific usage tags (dildo/anal_plug + legacy aliases).
 - Pitfall: shop card content and gift metadata drifted between frontend/backend constants.
   - Fix: centralized catalog fields power `/shop/items` and miniapp rendering; no local hardcoded `SHOP_ITEMS` in frontend.
+- Pitfall: shop panel lacked character context and felt disconnected from current chat.
+  - Fix: `/api/miniapp/user/active-chat` now returns additive persona metadata (`personaName`, `personaAvatarUrl`) for contextual shop header UI.
 - Pitfall: monetization text could intrude into main roleplay line.
   - Fix: gift recommendation moved to separate message flow (gift brain) with contextual short text + button.
 - Pitfall: images could show requested explicit act even when AI response deflected/refused.

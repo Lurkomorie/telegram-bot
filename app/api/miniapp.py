@@ -190,14 +190,23 @@ async def get_user_active_chat(
     
     user_id = extract_user_id_from_init_data(x_telegram_init_data)
     if not user_id:
-        return {"chatId": None}
+        return {"chatId": None, "personaName": None, "personaAvatarUrl": None}
     
     with get_db() as db:
         chat = crud.get_user_latest_active_chat(db, user_id)
         if chat:
-            return {"chatId": str(chat.id)}
+            persona_name = None
+            persona_avatar_url = None
+            if chat.persona:
+                persona_name = chat.persona.name
+                persona_avatar_url = chat.persona.avatar_url
+            return {
+                "chatId": str(chat.id),
+                "personaName": persona_name,
+                "personaAvatarUrl": persona_avatar_url,
+            }
     
-    return {"chatId": None}
+    return {"chatId": None, "personaName": None, "personaAvatarUrl": None}
 
 
 @router.get("/personas/{persona_id}/active-chat")

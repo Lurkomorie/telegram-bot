@@ -1,5 +1,5 @@
 import WebApp from "@twa-dev/sdk";
-import { Gem, ChevronRight } from "lucide-react";
+import { Heart, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { deleteCharacter } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
@@ -143,9 +143,7 @@ export default function PersonasGallery({
       {/* Shop Banner */}
       <div className="shop-banner-gallery" onClick={onNavigateToShop}>
         <div className="shop-banner-left">
-          <span className="shop-banner-icon-wrap">
-            <Gem className="shop-banner-icon" strokeWidth={2} />
-          </span>
+          <Heart className="shop-banner-icon" strokeWidth={2.2} />
           <span className="shop-banner-copy">
             <span className="shop-banner-title">{t("shop.bannerTitle")}</span>
             <span className="shop-banner-subtitle">{t("shop.bannerSubtitle")}</span>

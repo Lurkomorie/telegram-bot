@@ -462,7 +462,7 @@ export async function fetchReferralStats(initData) {
 /**
  * Fetch user's current active chat ID (any persona)
  * @param {string} initData - Telegram WebApp initData for authentication
- * @returns {Promise<Object>} Object {chatId: string|null}
+ * @returns {Promise<Object>} Object {chatId: string|null, personaName: string|null, personaAvatarUrl: string|null}
  */
 export async function fetchUserActiveChat(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/active-chat`, {
@@ -472,7 +472,7 @@ export async function fetchUserActiveChat(initData) {
   });
 
   if (!response.ok) {
-    return { chatId: null };
+    return { chatId: null, personaName: null, personaAvatarUrl: null };
   }
 
   return response.json();
