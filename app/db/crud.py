@@ -4516,15 +4516,28 @@ SHOP_ITEMS = get_shop_items_map(include_scene_override=False)
 
 def get_shop_items() -> list:
     """Get all shop items for display"""
+    sorted_items = sorted(
+        SHOP_ITEMS.items(),
+        key=lambda kv: int(kv[1].get("sort_order", 1000) or 1000)
+    )
     return [
         {
             "key": key,
-            "name": item["name"],
+            "name": item["name"],  # Backward compatibility
+            "name_en": item.get("name_en", item["name"]),
             "name_ru": item["name_ru"],
+            "subtitle_en": item.get("subtitle_en", ""),
+            "subtitle_ru": item.get("subtitle_ru", ""),
             "price": item["price"],
-            "mood_boost": item["mood_boost"]
+            "mood_boost": item["mood_boost"],
+            "category": item.get("category", "light"),
+            "emoji": item.get("emoji", "🎁"),
+            "icon_lucide": item.get("icon_lucide", ""),
+            "icon_emoji_fallback": item.get("icon_emoji_fallback", item.get("emoji", "🎁")),
+            "image_path": item.get("image_path", ""),
+            "sort_order": int(item.get("sort_order", 1000) or 1000),
         }
-        for key, item in SHOP_ITEMS.items()
+        for key, item in sorted_items
     ]
 
 

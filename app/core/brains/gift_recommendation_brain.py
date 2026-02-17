@@ -64,6 +64,11 @@ def _contains_any(text: str, markers: set[str]) -> bool:
     return any(marker in lower for marker in markers)
 
 
+def _normalize_language(language: str | None) -> str:
+    code = (language or "").strip().lower()
+    return "ru" if code.startswith("ru") else "en"
+
+
 def classify_scene_mode(state: str, dialogue_response: str, user_message: str) -> str:
     """Classify scene into normal/intimate/explicit from current turn + state."""
     state_fields = _parse_state_fields(state)
@@ -90,6 +95,19 @@ def _adult_pool(shop_items: Dict[str, Dict[str, Any]]) -> List[str]:
 
 def _light_pool(shop_items: Dict[str, Dict[str, Any]]) -> List[str]:
     return [key for key, item in shop_items.items() if item.get("category") != "adult"]
+
+
+def _ordered_pool(shop_items: Dict[str, Dict[str, Any]], keys: List[str]) -> List[str]:
+    """Stable priority ordering from catalog (lower value => higher priority)."""
+    return sorted(
+        keys,
+        key=lambda k: (
+            int(shop_items.get(k, {}).get("recommendation_priority", 1000) or 1000),
+            int(shop_items.get(k, {}).get("sort_order", 1000) or 1000),
+            int(shop_items.get(k, {}).get("price", 0) or 0),
+            k,
+        ),
+    )
 
 
 def decide_gift_recommendation(
@@ -182,10 +200,9 @@ def decide_gift_recommendation(
     last_item_key = ext.get("last_gift_suggested_item_key") or ext.get("last_suggested_gift")
 
     if scene_mode in {"intimate", "explicit"}:
-        preferred = [k for k in ["anal_beads", "vibrator"] if k in adult]
-        pool = preferred + [k for k in adult if k not in preferred]
+        pool = _ordered_pool(shop_items, adult) if adult else _ordered_pool(shop_items, list(shop_items.keys()))
     else:
-        pool = light[:] if light else list(shop_items.keys())
+        pool = _ordered_pool(shop_items, light) if light else _ordered_pool(shop_items, list(shop_items.keys()))
 
     if not pool:
         return {
@@ -225,14 +242,14 @@ def _sanitize_generated_suggestion(text: str) -> str:
 
 
 def _fallback_suggestion_text(scene_mode: str, language: str, item_key: str, item_info: Dict[str, Any]) -> str:
+    language = _normalize_language(language)
     name_en = item_info.get("name", item_key)
     name_ru = item_info.get("name_ru", name_en)
+    category = item_info.get("category", "light")
 
     if language == "ru":
-        if item_key == "anal_beads":
-            alias = random.choice(["новую игрушку", "анальную игрушку", "нежную игрушку для нас"])
-        elif item_key == "vibrator":
-            alias = random.choice(["вибратор", "маленькую игрушку", "взрослую игрушку"])
+        if category == "adult":
+            alias = random.choice([name_ru.lower(), "новую игрушку", "пикантный подарок"])
         else:
             alias = random.choice([name_ru.lower(), "милый подарок", "приятный сюрприз"])
 
@@ -240,10 +257,8 @@ def _fallback_suggestion_text(scene_mode: str, language: str, item_key: str, ite
             return f"_Я прижимаюсь ближе и шепчу._ Знаешь, я бы очень хотела попробовать {alias} с тобой…" 
         return f"_Я улыбаюсь и касаюсь твоей руки._ Мне было бы приятно получить {alias}."
 
-    if item_key == "anal_beads":
-        alias_en = random.choice(["a new toy", "an anal toy", "something adventurous for us"])
-    elif item_key == "vibrator":
-        alias_en = random.choice(["a vibrator", "a little toy", "a naughty toy"])
+    if category == "adult":
+        alias_en = random.choice([name_en.lower(), "a new toy", "something adventurous for us"])
     else:
         alias_en = random.choice([name_en.lower(), "a sweet gift", "a little surprise"])
 
@@ -264,6 +279,7 @@ async def generate_gift_recommendation(
     user_id: int | None = None,
 ) -> Dict[str, Any]:
     """Generate scene-aware separate-message recommendation with fallback text."""
+    language = _normalize_language(language)
     decision = decide_gift_recommendation(
         state=state,
         dialogue_response=dialogue_response,

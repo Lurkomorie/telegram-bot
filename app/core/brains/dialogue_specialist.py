@@ -3,7 +3,9 @@ Brain 1: Dialogue Specialist
 Generates natural, in-character dialogue responses (uses previous state)
 """
 import asyncio
-from typing import List, Dict
+import re
+from difflib import SequenceMatcher
+from typing import List, Dict, Optional, Tuple
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
 from app.settings import get_app_config
@@ -105,6 +107,99 @@ def _is_valid_response(text: str) -> bool:
     return True
 
 
+def _normalize_for_similarity(text: str) -> str:
+    """Normalize text for cross-language near-duplicate checks."""
+    if not text:
+        return ""
+
+    normalized = text.lower().replace("ё", "е")
+    # Strip markdown-ish symbols and punctuation, preserve letters/numbers/spaces.
+    normalized = re.sub(r"[*_`~>#\[\]\(\)]", " ", normalized)
+    normalized = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def _tokenize_for_similarity(text: str) -> set[str]:
+    normalized = _normalize_for_similarity(text)
+    return {token for token in normalized.split() if len(token) >= 3}
+
+
+def _jaccard_similarity(text_a: str, text_b: str) -> float:
+    tokens_a = _tokenize_for_similarity(text_a)
+    tokens_b = _tokenize_for_similarity(text_b)
+    if not tokens_a or not tokens_b:
+        return 0.0
+    return len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+
+
+def _clip_for_prompt(text: str, max_chars: int = 260) -> str:
+    cleaned = " ".join((text or "").split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[: max_chars - 3].rstrip() + "..."
+
+
+def _recent_assistant_messages(chat_history: List[Dict[str, str]], limit: int = 2) -> List[str]:
+    """Return most recent assistant messages (oldest -> newest)."""
+    collected: List[str] = []
+    for msg in reversed(chat_history):
+        if msg.get("role") != "assistant":
+            continue
+        content = (msg.get("content") or "").strip()
+        if not content:
+            continue
+        collected.append(content)
+        if len(collected) >= limit:
+            break
+    return list(reversed(collected))
+
+
+def _find_similar_recent_assistant_message(
+    candidate_response: str,
+    chat_history: List[Dict[str, str]],
+    limit: int = 3
+) -> Tuple[bool, Optional[str], float]:
+    """
+    Detect if candidate is too close to a recent assistant message.
+    Used as deterministic guard for auto-followup re-engagement messages.
+    """
+    normalized_candidate = _normalize_for_similarity(candidate_response)
+    if len(normalized_candidate) < 35:
+        return False, None, 0.0
+
+    best_match: Optional[str] = None
+    best_score = 0.0
+
+    recent_assistant = _recent_assistant_messages(chat_history, limit=limit)
+    for prev_message in recent_assistant:
+        normalized_prev = _normalize_for_similarity(prev_message)
+        if len(normalized_prev) < 25:
+            continue
+
+        sequence_score = SequenceMatcher(None, normalized_candidate, normalized_prev).ratio()
+        token_score = _jaccard_similarity(normalized_candidate, normalized_prev)
+        shorter_len = min(len(normalized_candidate), len(normalized_prev))
+        containment_match = (
+            shorter_len >= 40
+            and (normalized_candidate in normalized_prev or normalized_prev in normalized_candidate)
+        )
+
+        score = max(sequence_score, token_score)
+        if score > best_score:
+            best_score = score
+            best_match = prev_message
+
+        if (
+            sequence_score >= 0.86
+            or (sequence_score >= 0.78 and token_score >= 0.68)
+            or containment_match
+        ):
+            return True, prev_message, score
+
+    return False, best_match, best_score
+
+
 async def generate_dialogue(
     state: str,
     chat_history: List[Dict[str, str]],
@@ -112,6 +207,7 @@ async def generate_dialogue(
     persona: Dict[str, str],  # {name, prompt}
     memory: str = None,  # Optional conversation memory
     is_auto_followup: bool = False,  # Use cheaper model for scheduled followups
+    followup_type: str = None,  # Auto-followup stage ("3min", "30min", "24h", "3day")
     user_id: int = None,  # Optional user_id for cost tracking
     context_summary: str = None,  # Pre-generated summary of conversation history
     language: str = "en",  # User's language for prompt selection
@@ -143,7 +239,7 @@ async def generate_dialogue(
         dialogue_model = config["llm"]["model"]
         print(f"[DIALOGUE] 💬 Using main dialogue model: {dialogue_model}")
     
-    max_retries = DIALOGUE_SPECIALIST_MAX_RETRIES
+    max_retries = DIALOGUE_SPECIALIST_MAX_RETRIES + 2 if is_auto_followup else DIALOGUE_SPECIALIST_MAX_RETRIES
     
     # Build system prompt with replacements (select by language)
     base_prompt = PromptService.get("CHAT_GPT", language=language)
@@ -190,6 +286,36 @@ Note: This memory contains important facts about the user and past interactions.
     # Add enhanced instructions for auto-followup messages
     followup_guidance = ""
     if is_auto_followup:
+        followup_stage_guidance = ""
+        if followup_type == "3min":
+            followup_stage_guidance = """
+- Stage: 3min follow-up (first nudge). Keep it short and light.
+- Make it feel immediate and playful. 1-2 sentences preferred.
+"""
+        elif followup_type == "30min":
+            followup_stage_guidance = """
+- Stage: 30min follow-up (second nudge). Bring a NEW angle.
+- Ask one fresh question that is different from your previous check-in.
+"""
+        elif followup_type == "24h":
+            followup_stage_guidance = """
+- Stage: 24h re-engagement. Re-open warmly with a fresh hook.
+- Do not recycle yesterday's wording or action sequence.
+"""
+        elif followup_type == "3day":
+            followup_stage_guidance = """
+- Stage: 3day re-engagement. Use a strong, fresh opener and a new topic.
+- Avoid sounding like a reminder; sound like a real new moment.
+"""
+
+        recent_assistant = _recent_assistant_messages(chat_history, limit=2)
+        avoid_repeat_block = ""
+        if recent_assistant:
+            avoid_repeat_block = "\n# RECENT ASSISTANT MESSAGES (DO NOT PARAPHRASE)\n" + "\n".join(
+                f"- { _clip_for_prompt(message) }"
+                for message in recent_assistant
+            )
+
         followup_guidance = f"""
 
 # IMPORTANT - AUTO-FOLLOWUP RULES
@@ -203,6 +329,8 @@ You are reaching out after a period of silence. Follow these rules:
 - Create intrigue or warmth to draw them back into conversation
 - Be flirty/playful when appropriate to your character
 - Don't apologize for the silence - just naturally re-engage
+{followup_stage_guidance}
+{avoid_repeat_block}
 """
     
     # Build conversation context block based on whether we have a summary
@@ -279,6 +407,7 @@ You don't know the user's name yet. Within the first few messages, naturally int
 """
     
     full_system_prompt = system_prompt + memory_context + state_context + mood_context + conversation_context + followup_guidance + name_discovery_section + gift_hint_section
+    retry_feedback = ""
     
     # Retry with temperature variation
     for attempt in range(1, max_retries + 1):
@@ -290,7 +419,7 @@ You don't know the user's name yet. Within the first few messages, naturally int
             
             # Build messages: system prompt + current user message (context is in system prompt now)
             messages = [
-                {"role": "system", "content": full_system_prompt},
+                {"role": "system", "content": full_system_prompt + retry_feedback},
                 {"role": "user", "content": user_message}  # Current message - ALWAYS LAST
             ]
             
@@ -365,14 +494,38 @@ You don't know the user's name yet. Within the first few messages, naturally int
                 )
             
             if _is_valid_response(response_text):
+                if is_auto_followup:
+                    is_similar, matched_message, similarity_score = _find_similar_recent_assistant_message(
+                        response_text,
+                        chat_history,
+                    )
+                    if is_similar and attempt < max_retries:
+                        print(
+                            "[DIALOGUE] ⚠️ Auto-followup draft too similar to recent assistant message "
+                            f"(score={similarity_score:.2f}), retrying"
+                        )
+                        retry_feedback = f"""
+
+# RETRY CONSTRAINT (MANDATORY)
+Your previous draft was too close to an earlier assistant message.
+Do NOT mirror or paraphrase this previous line:
+"{_clip_for_prompt(matched_message or '')}"
+
+For the new draft:
+- Use a different opening action and different verbs.
+- Ask a different question angle.
+- Keep same language, but change sentence structure and rhythm.
+"""
+                        continue
+
                 print(f"[DIALOGUE] ✅ Generated response ({len(response_text)} chars)")
                 return response_text
             else:
                 print(f"[DIALOGUE] ⚠️ Invalid response: {response_text[:50]}")
                 
         except Exception as e:
-            print(f"[DIALOGUE] ⚠️ Attempt {attempt}/3 failed: {e}")
-            if attempt == 3:
+            print(f"[DIALOGUE] ⚠️ Attempt {attempt}/{max_retries} failed: {e}")
+            if attempt == max_retries:
                 # Fallback message
                 return "I'm having trouble finding the right words. Can you give me a moment?"
             await asyncio.sleep(0.5)

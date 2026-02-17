@@ -97,7 +97,7 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
             chat_history=[],
             previous_image_prompt="1girl, solo, bedroom",
             previous_image_meta={"source": "message_response"},
-            purchases=[{"item_name": "Vibrator", "context_effect": "vibrator, masturbation", "messages_since": 0}],
+            purchases=[{"item_name": "Dildo", "context_effect": "dildo, masturbation", "messages_since": 0}],
             force_gift_override=False,
             forced_gift_tags="",
         )
@@ -112,25 +112,66 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
             chat_history=[],
             previous_image_prompt="1girl, solo, bedroom",
             previous_image_meta={"source": "message_response"},
-            purchases=[{"item_name": "Vibrator", "context_effect": "vibrator, masturbation", "messages_since": 0}],
+            purchases=[{"item_name": "Dildo", "context_effect": "dildo, masturbation", "messages_since": 0}],
             force_gift_override=True,
-            forced_gift_tags="vibrator, masturbation",
+            forced_gift_tags="dildo, masturbation",
         )
         self.assertIn("GIFT OVERRIDE", context)
-        self.assertIn("vibrator, masturbation", context)
+        self.assertIn("dildo, masturbation", context)
 
     def test_forced_gift_tags_strip_scene_tags_by_default(self):
         cleaned = _sanitize_forced_gift_tags(
-            "vibrator, masturbation, on_bed, bedroom, close-up, lingerie",
+            "dildo, masturbation, on_bed, bedroom, close-up, lingerie",
             allow_scene_override=False,
         )
         tags = set(_split(cleaned))
-        self.assertIn("vibrator", tags)
+        self.assertIn("dildo", tags)
         self.assertIn("masturbation", tags)
         self.assertNotIn("on_bed", tags)
         self.assertNotIn("bedroom", tags)
         self.assertNotIn("close-up", tags)
         self.assertNotIn("lingerie", tags)
+
+    def test_forced_dildo_blocks_oral_and_enforces_usage_tags(self):
+        output = _enforce_tag_policy(
+            "1girl, solo, pov, close-up, oral, fellatio, open_mouth, blush",
+            forced_gift_tags=["dildo"],
+        )
+        tags = set(_split(output))
+
+        self.assertIn("dildo", tags)
+        self.assertIn("masturbation", tags)
+        self.assertIn("pussy", tags)
+        self.assertNotIn("oral", tags)
+        self.assertNotIn("fellatio", tags)
+
+    def test_forced_anal_plug_blocks_oral_and_enforces_usage_tags(self):
+        output = _enforce_tag_policy(
+            "1girl, solo, pov, close-up, oral, licking, blush",
+            forced_gift_tags=["anal_plug"],
+        )
+        tags = set(_split(output))
+
+        self.assertIn("anal_plug", tags)
+        self.assertIn("anal_object_insertion", tags)
+        self.assertNotIn("oral", tags)
+        self.assertNotIn("licking", tags)
+
+    def test_gift_override_adds_usage_constraints_to_context(self):
+        context, _, _, _, _ = _build_image_context(
+            state='relationshipStage="lover" | emotions="happy" | moodNotes="" | location="bedroom" | description="" | aiClothing="lingerie" | userClothing="unknown" | terminateDialog=false | terminateReason=""',
+            dialogue_response="_I smile softly_",
+            user_message="hello",
+            persona={},
+            chat_history=[],
+            previous_image_prompt="1girl, solo, bedroom",
+            previous_image_meta={"source": "message_response"},
+            purchases=[{"item_name": "Dildo", "context_effect": "dildo, masturbation", "messages_since": 0}],
+            force_gift_override=True,
+            forced_gift_tags="dildo, masturbation",
+        )
+        self.assertIn("GIFT USAGE CONSTRAINTS", context)
+        self.assertIn("never oral/licking use", context)
 
     def test_refusal_suppresses_user_focus_tags(self):
         _, mandatory_focus_tags, _, _, observability = _build_image_context(

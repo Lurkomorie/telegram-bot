@@ -265,15 +265,32 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
         # Store the count we just set for potential rollback on error
         committed_count = new_count
     
-    # Create varied, context-aware follow-up prompts
+    # Create varied, stage-aware follow-up prompts
     import random
-    followup_prompts = [
-        "[AUTO_FOLLOWUP] The user hasn't replied in a while. Reach out naturally - ask what they've been up to, share a playful thought, or tease them gently about the silence. Keep it light, flirty, and conversational. Respond in the dialog's language.",
-        "[AUTO_FOLLOWUP] It's been quiet for a bit. Send a message that picks up naturally from your last conversation - reference what you were talking about, ask a curious question, or create a new hook to draw them back in. Respond in the dialog's language.",
-        "[AUTO_FOLLOWUP] Time to re-engage. Send a natural, spontaneous message - maybe share what you've been thinking about, tease them playfully, or suggest something fun. Make it feel organic, not forced. Respond in the dialog's language.",
-        "[AUTO_FOLLOWUP] The conversation paused. Reach out with genuine curiosity - ask about their day, bring up something from earlier, or shift the mood with a flirty or playful comment. Respond in the dialog's language.",
-    ]
-    
+    followup_prompts_by_type = {
+        "3min": [
+            "[AUTO_FOLLOWUP] Stage: 3min. Send a quick, playful nudge right after the pause. Keep it light and short (1-2 sentences), with one natural hook to continue. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 3min. The pause is recent. Send a warm check-in that feels spontaneous, flirty, and concise. Avoid heavy recap. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 3min. Re-open smoothly with a small tease or curious question tied to the mood. Keep it breezy and short. Respond in the dialog's language.",
+        ],
+        "30min": [
+            "[AUTO_FOLLOWUP] Stage: 30min (second follow-up). Re-engage from a fresh angle - use different wording from your last message and ask one new concrete question. Keep it natural and flirty. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 30min (second follow-up). Create a NEW hook (not a paraphrase of your previous line): shift topic slightly, tease gently, and invite a reply. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 30min (second follow-up). Keep momentum without repeating yourself: different opening action, different phrasing, and one curious prompt. Respond in the dialog's language.",
+        ],
+        "24h": [
+            "[AUTO_FOLLOWUP] Stage: 24h re-engagement. Re-open warmly with fresh energy and a new idea. Do not repeat your last check-in wording. Keep it organic and inviting. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 24h re-engagement. Send a message that feels like a new moment: playful, personal, and clearly different from prior follow-ups. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 24h re-engagement. Use a vivid, natural opener and one question that reconnects emotionally. Avoid reminder-style phrasing. Respond in the dialog's language.",
+        ],
+        "3day": [
+            "[AUTO_FOLLOWUP] Stage: 3day re-engagement. Start with a bold, fresh opener and a clearly new conversational direction. Keep it warm and magnetic, not repetitive. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 3day re-engagement. Treat this as a new spark: use different structure, different verbs, and a compelling hook to pull them back in. Respond in the dialog's language.",
+            "[AUTO_FOLLOWUP] Stage: 3day re-engagement. Reconnect naturally with a fresh playful tone and one strong invitation to reply. Avoid repeating earlier follow-up lines. Respond in the dialog's language.",
+        ],
+    }
+    default_prompts = followup_prompts_by_type["30min"]
+    followup_prompts = followup_prompts_by_type.get(followup_type, default_prompts)
     selected_prompt = random.choice(followup_prompts)
     
     # Add a special system message to the queue that triggers AI-initiated conversation

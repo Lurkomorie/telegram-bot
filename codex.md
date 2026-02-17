@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
+Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -10,6 +10,7 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
 - Prompt templates are centralized in `config/prompts.py` and loaded via `app/core/prompt_service.py`.
 - Runtime base quality/negative strings come from `config/app.yaml` (`image.quality_prompt`, `image.negative_prompt`).
 - Shared gift metadata now lives in `config/gifts.yaml` and is loaded by `app/core/catalog/gifts.py`.
+- Shop and recommendation flows must read gift metadata from catalog-derived loaders (`get_gift_catalog`, `get_shop_items_map`) instead of hardcoded gift arrays.
 
 ## Decisions From This Task
 - Framing policy: strict POV close-up by default (`pov` + `close-up` always enforced).
@@ -32,6 +33,12 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
   - Cadence and cooldown use **user-message count** (`get_chat_user_message_count`) with strict 20-message rules (first suggestion at exact boundary, then every +20 user messages).
   - Recommendation tracking lives in `chat.ext` (`last_gift_suggestion_user_count`, `last_gift_suggested_item_key`, `last_gift_purchase_user_count`).
   - No same gift twice in a row.
+- Gift catalog + miniapp shop unification:
+  - `config/gifts.yaml` is the source of truth for backend and miniapp shop metadata.
+  - Catalog schema includes translations (`en`, `ru`) and UI metadata (`icon_lucide`, `icon_emoji_fallback`, optional `image_path`, `sort_order`).
+  - Mood boost is derived from price in loader (`_derive_mood_boost`) instead of manually maintained per gift.
+  - Shop UI currently uses icon-first rendering (Lucide + emoji fallback); later PNG swap is config-only via `ui.image_path`.
+  - Gift/shop locale policy is EN/RU only with EN fallback.
 - Gift image continuity hardening:
   - Forced gift tags are sanitized in `image_prompt_engineer` to strip scene/outfit/framing by default.
   - Scene override is opt-in (`allow_scene_override=False` default), preventing forced beach->bedroom jumps.
@@ -40,6 +47,20 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
   - Skips eye-force when `closed_eyes` is intentional or when heavy non-face body focus is requested.
 - Product positioning preference:
   - Keep explicit 18+ NSFW danbooru tag examples/guidance in `IMAGE_TAG_GENERATOR_GPT` (no tone-down for minor-safe style).
+- Auto-followup anti-repeat hardening:
+  - Scheduler prompts are now stage-aware by followup type (`3min`, `30min`, `24h`, `3day`) instead of one shared pool.
+  - `dialogue_specialist.generate_dialogue` now receives `followup_type` and applies stage-specific style guidance.
+  - Added deterministic near-duplicate guard for auto-followups:
+    - compares generated draft against recent assistant messages via normalized sequence + token overlap similarity,
+    - if too similar, adds retry constraint and regenerates (auto-followups get extra retries).
+- Gift usage correctness hardening (forced gift reaction images):
+  - Forced gift tags are now deterministically injected in `_enforce_tag_policy` (not LLM-only).
+  - Item-specific constraints enforce correct toy usage:
+    - `dildo`: requires `masturbation` + `pussy`, strips oral/licking tags.
+    - `anal_plug`: requires `anal_object_insertion`, strips oral/licking tags.
+    - legacy aliases (`vibrator`, `anal_beads`) are still supported for old purchase rows.
+  - `image_prompt_engineer` context now includes `GIFT USAGE CONSTRAINTS (MANDATORY)` when applicable.
+  - `config/gifts.yaml` adult toy visual tags are object/action-focused and scene-safe by default.
 
 ## Known Pitfalls + Fixes
 - Pitfall: direct user visual requests (for example feet focus) were not included in image context.
@@ -52,6 +73,10 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
   - Fix: removed implicit multi-message gift override; explicit forced override only on gift reaction image.
 - Pitfall: gift purchase image could relocate scene due hardcoded environment tags in gift effects.
   - Fix: gift catalog now stores action/object `visual_effect_tags`; forced-tag sanitizer strips scene tags by default.
+- Pitfall: vibrator gift image could be generated with incorrect oral-style interaction.
+  - Fix: deterministic gift-usage constraints now suppress oral/licking tags and enforce object-specific usage tags (dildo/anal_plug + legacy aliases).
+- Pitfall: shop card content and gift metadata drifted between frontend/backend constants.
+  - Fix: centralized catalog fields power `/shop/items` and miniapp rendering; no local hardcoded `SHOP_ITEMS` in frontend.
 - Pitfall: monetization text could intrude into main roleplay line.
   - Fix: gift recommendation moved to separate message flow (gift brain) with contextual short text + button.
 - Pitfall: images could show requested explicit act even when AI response deflected/refused.
@@ -70,6 +95,7 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
   - alias normalization,
   - no `rating:*` output + required core tags,
   - forced gift tag scene stripping,
+  - forced vibrator/anal-beads usage correctness constraints,
   - max tag bound enforcement.
 - `app/tests/test_gift_recommendation_brain.py` covers:
   - 20-user-message cadence gate,
@@ -77,6 +103,15 @@ Last updated: 2026-02-15 (gift brain rollout + gift scene-lock fix)
   - explicit/intimate adult-gift preference with no-repeat,
   - normal-scene light-gift selection,
   - refusal downgrade to normal scene mode.
+- `app/tests/test_gift_catalog.py` covers:
+  - exact 10-gift keyset,
+  - required EN/RU translation + icon metadata presence,
+  - shop-map additive metadata,
+  - CRUD shop ordering/count expectations.
+- `app/tests/test_dialogue_specialist_followup_dedup.py` covers:
+  - Russian near-duplicate followup detection,
+  - acceptance of genuinely fresh followup phrasing,
+  - normalization behavior for markdown/`ё` variants.
 
 ## Maintenance Rule
 - At start of each new request, read this file first.

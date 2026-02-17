@@ -300,6 +300,7 @@ If SCENE LOCK is provided:
 - Do NOT carry gift override automatically into unrelated later turns.
 - Gifts can still appear later only when current turn context/actions explicitly include them.
 - Treat gift override as object/action only by default; do not relocate scene or outfit unless explicitly instructed.
+- If `GIFT USAGE CONSTRAINTS` section is present, follow it strictly (example: dildo/anal plug must be shown with correct toy usage, not oral/licking use).
 </GIFT_OVERRIDE_RULE>
 
 <CHARACTER_DNA>

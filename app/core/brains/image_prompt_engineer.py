@@ -107,6 +107,30 @@ REFUSAL_MARKERS = [
     "резко отшатываюсь",
 ]
 
+GIFT_USAGE_RULES = {
+    "dildo": {
+        "required_tags": ["masturbation", "pussy"],
+        "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking", "dildo_in_mouth"},
+        "context_rule": "If dildo gift is forced, depict active genital use (masturbation/pussy focus), never oral/licking use.",
+    },
+    "anal_plug": {
+        "required_tags": ["anal_object_insertion"],
+        "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking"},
+        "context_rule": "If anal plug gift is forced, depict anal insertion use, never oral/licking use.",
+    },
+    # Legacy key aliases for old purchase history rows.
+    "vibrator": {
+        "required_tags": ["masturbation", "pussy"],
+        "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking", "vibrator_in_mouth"},
+        "context_rule": "If vibrator gift is forced, depict active genital use (masturbation/pussy focus), never oral/licking use.",
+    },
+    "anal_beads": {
+        "required_tags": ["anal_object_insertion"],
+        "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking"},
+        "context_rule": "If anal beads gift is forced, depict anal insertion use, never oral/licking use.",
+    },
+}
+
 
 def _split_tags(tags_text: str) -> List[str]:
     return [tag.strip() for tag in tags_text.split(",") if tag.strip()]
@@ -215,6 +239,43 @@ def _sanitize_forced_gift_tags(forced_gift_tags: str, allow_scene_override: bool
     return ", ".join(cleaned)
 
 
+def _derive_gift_usage_constraints(forced_gift_tags: Optional[List[str]]) -> Tuple[List[str], set[str], List[str]]:
+    """Derive deterministic gift usage requirements and conflicting tags to suppress."""
+    normalized: List[str] = []
+    seen = set()
+    for raw_tag in forced_gift_tags or []:
+        norm = _canonicalize_tag(raw_tag)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        normalized.append(norm)
+
+    normalized_set = set(normalized)
+    required_tags: List[str] = []
+    forbidden_tags: set[str] = set()
+    context_rules: List[str] = []
+
+    for trigger_tag, rule in GIFT_USAGE_RULES.items():
+        if trigger_tag not in normalized_set:
+            continue
+
+        for tag in rule.get("required_tags", []):
+            norm = _canonicalize_tag(tag)
+            if norm and norm not in required_tags:
+                required_tags.append(norm)
+
+        for tag in rule.get("forbidden_tags", set()):
+            norm = _canonicalize_tag(tag)
+            if norm:
+                forbidden_tags.add(norm)
+
+        context_rule = (rule.get("context_rule") or "").strip()
+        if context_rule:
+            context_rules.append(context_rule)
+
+    return required_tags, forbidden_tags, context_rules
+
+
 def _bucket_for_tag(tag: str) -> str:
     if tag in PERSON_TAGS:
         return "person"
@@ -237,9 +298,11 @@ def _enforce_tag_policy(
     scene_lock: Optional[Dict[str, List[str]]] = None,
     preserve_scene_lock_clothing: bool = True,
     preserve_scene_lock_environment: bool = True,
+    forced_gift_tags: Optional[List[str]] = None,
 ) -> str:
     """Deterministic post-processing: canonicalize, enforce, reorder, and bound output size."""
     mandatory_focus_tags = mandatory_focus_tags or []
+    forced_gift_tags = forced_gift_tags or []
     scene_lock = scene_lock or {"clothing": [], "environment": []}
 
     cleaned_tags: List[str] = []
@@ -261,6 +324,25 @@ def _enforce_tag_policy(
             seen.add(norm)
             cleaned_tags.append(norm)
 
+    normalized_forced_gift = []
+    for tag in forced_gift_tags:
+        norm = _canonicalize_tag(tag)
+        if not norm or norm in FORBIDDEN_TAGS:
+            continue
+        if norm not in normalized_forced_gift:
+            normalized_forced_gift.append(norm)
+        if norm not in seen:
+            seen.add(norm)
+            cleaned_tags.append(norm)
+
+    required_gift_usage_tags, forbidden_gift_usage_tags, _ = _derive_gift_usage_constraints(normalized_forced_gift)
+    for tag in required_gift_usage_tags:
+        if tag in FORBIDDEN_TAGS:
+            continue
+        if tag not in seen:
+            seen.add(tag)
+            cleaned_tags.append(tag)
+
     normalized_mandatory_focus = []
     for tag in mandatory_focus_tags:
         norm = _canonicalize_tag(tag)
@@ -270,6 +352,11 @@ def _enforce_tag_policy(
         if norm not in seen:
             seen.add(norm)
             cleaned_tags.append(norm)
+
+    if forbidden_gift_usage_tags:
+        cleaned_tags = [tag for tag in cleaned_tags if tag not in forbidden_gift_usage_tags]
+        normalized_mandatory_focus = [tag for tag in normalized_mandatory_focus if tag not in forbidden_gift_usage_tags]
+        normalized_forced_gift = [tag for tag in normalized_forced_gift if tag not in forbidden_gift_usage_tags]
 
     buckets = {
         "person": [],
@@ -297,6 +384,16 @@ def _enforce_tag_policy(
     for focus_tag in normalized_mandatory_focus:
         if focus_tag not in buckets["action"] and focus_tag not in buckets["expression"]:
             buckets["action"].insert(0, focus_tag)
+
+    gift_priority_tags: List[str] = []
+    for gift_tag in normalized_forced_gift + required_gift_usage_tags:
+        if gift_tag in forbidden_gift_usage_tags or gift_tag in gift_priority_tags:
+            continue
+        gift_priority_tags.append(gift_tag)
+
+    for gift_tag in reversed(gift_priority_tags):
+        if gift_tag not in buckets["action"] and gift_tag not in buckets["expression"]:
+            buckets["action"].insert(0, gift_tag)
 
     # Eye detail booster: keeps eyes sharper in typical close-up portraits.
     # Skip when eyes are intentionally closed or turn is dominated by non-face body focus.
@@ -338,7 +435,9 @@ def _enforce_tag_policy(
             deduped_seen.add(tag)
             deduped_ordered.append(tag)
 
-    essential_tags = set(REQUIRED_CORE_TAGS + normalized_mandatory_focus)
+    essential_tags = set(REQUIRED_CORE_TAGS + normalized_mandatory_focus + gift_priority_tags)
+    if forbidden_gift_usage_tags:
+        essential_tags = {tag for tag in essential_tags if tag not in forbidden_gift_usage_tags}
     trimmed: List[str] = []
     for tag in deduped_ordered:
         if tag in essential_tags and tag not in trimmed:
@@ -450,6 +549,7 @@ def _build_image_context(
         forced_gift_tags,
         allow_scene_override=allow_scene_override,
     )
+    _, _, gift_usage_rules = _derive_gift_usage_constraints(_split_tags(sanitized_forced_tags))
     if force_gift_override and sanitized_forced_tags.strip():
         gift_override_mode = "forced"
         forced_gift_name = purchases[0].get("item_name", "gift") if purchases else "gift"
@@ -458,6 +558,11 @@ def _build_image_context(
 Gift: {forced_gift_name}
 Required tags: {sanitized_forced_tags}
 """
+    gift_usage_section = ""
+    if gift_override_mode == "forced" and gift_usage_rules:
+        gift_usage_section = "# GIFT USAGE CONSTRAINTS (MANDATORY)\n" + "\n".join(
+            f"- {rule}" for rule in gift_usage_rules
+        ) + "\n\n"
     
     # Build mood hint
     mood_hint = ""
@@ -480,7 +585,7 @@ Explicit clothing change detected: {"yes" if scene_change_flags["clothing_change
 Explicit location change detected: {"yes" if scene_change_flags["location_changed"] else "no"}
 """
     
-    context = f"""{gift_section}# CURRENT USER VISUAL REQUEST
+    context = f"""{gift_section}{gift_usage_section}# CURRENT USER VISUAL REQUEST
 {user_message or "not specified"}
 
 # AI VISUAL ACTIONS (primary source for pose/action tags)
@@ -512,6 +617,7 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
         "refusal_detected": refusal_detected,
         "gift_override_allow_scene": allow_scene_override,
         "gift_override_tags": sanitized_forced_tags,
+        "gift_usage_constraints": gift_usage_rules,
     }
 
     return context, mandatory_focus_tags, scene_lock, scene_change_flags, observability
@@ -661,6 +767,9 @@ async def generate_image_plan(
                 scene_lock=scene_lock,
                 preserve_scene_lock_clothing=observability["scene_lock_enabled"] and not scene_change_flags["clothing_changed"],
                 preserve_scene_lock_environment=observability["scene_lock_enabled"] and not scene_change_flags["location_changed"],
+                forced_gift_tags=_split_tags(observability["gift_override_tags"])
+                if observability["gift_override_mode"] == "forced"
+                else [],
             )
 
             # Development-only: Log full response
@@ -671,6 +780,7 @@ async def generate_image_plan(
                 print(f"[IMAGE-PLAN][DEV] previous_image_source: {observability['previous_image_source']}")
                 print(f"[IMAGE-PLAN][DEV] scene_lock_enabled: {observability['scene_lock_enabled']}")
                 print(f"[IMAGE-PLAN][DEV] gift_override_mode: {observability['gift_override_mode']}")
+                print(f"[IMAGE-PLAN][DEV] gift_usage_constraints: {observability['gift_usage_constraints']}")
                 print(f"[IMAGE-PLAN][DEV] refusal_detected: {observability['refusal_detected']}")
                 print(f"[IMAGE-PLAN][DEV] Enforced tags: {result_text}")
                 log_dev_response(

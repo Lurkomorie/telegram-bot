@@ -616,6 +616,7 @@ async def _process_single_batch(
             persona=persona_data,
             memory=memory,  # Pass conversation memory
             is_auto_followup=is_auto_followup,  # Use cheaper model with enhanced prompt for followups
+            followup_type=followup_type,
             user_id=user_id,
             context_summary=context_summary,  # Use summary for context efficiency
             language=user_language,  # User's language for prompt selection

@@ -2011,7 +2011,9 @@ async def get_shop_items(
 ) -> List[Dict[str, Any]]:
     """
     Get all available shop items
-    Returns: List of items with key, name, name_ru, price, mood_boost
+    Returns additive metadata for miniapp cards:
+    key, name_en/name_ru, subtitle_en/subtitle_ru, icon fields, optional image_path,
+    plus price/mood/category.
     """
     if not settings.SKIP_MINIAPP_AUTH:
         if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
@@ -2159,4 +2161,3 @@ async def get_bonus_calendar(
             "can_claim": bonus_info["can_claim"],
             "next_bonus_in_seconds": bonus_info["next_claim_seconds"]
         }
-

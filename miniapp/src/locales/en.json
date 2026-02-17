@@ -324,10 +324,12 @@
     "success": "{name} created successfully! 💕\nGenerating portrait..."
   },
   "shop": {
-    "title": "Gift Shop",
-    "subtitle": "Make her happy with a gift",
-    "bannerTitle": "Gift Shop",
-    "bannerSubtitle": "Make her happy",
+    "title": "Sex Shop",
+    "subtitle": "Pick a gift she'll love",
+    "bannerTitle": "Sex Shop",
+    "bannerSubtitle": "Toys and gifts",
+    "loading": "Loading gifts...",
+    "empty": "No gifts available right now",
     "insufficientTokens": "Insufficient tokens",
     "needMoreTokens": "Need {need}, have {have}",
     "buyTokens": "Buy tokens",

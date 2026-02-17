@@ -572,7 +572,7 @@ class ChatPurchase(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
-    item_key = Column(String(50), nullable=False)  # wine, lipstick, rose, mystery, vibrator, anal_beads
+    item_key = Column(String(50), nullable=False)  # Catalog key from config/gifts.yaml
     item_name = Column(String(100), nullable=False)
     price_paid = Column(Integer, nullable=False)
     mood_boost = Column(Integer, nullable=False)

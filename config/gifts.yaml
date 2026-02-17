@@ -1,61 +1,220 @@
 gifts:
-  wine:
-    key: wine
-    name: "Wine Bottle"
-    name_ru: "Бутылка вина"
-    emoji: "🍷"
-    price: 60
-    mood_boost: 15
+  flower_bouquet:
+    key: flower_bouquet
+    price: 5
     category: light
-    visual_effect_tags: "holding_cup, wine_glass, drinking, blush, flushed"
-    scene_override_tags: ""
-  lipstick:
-    key: lipstick
-    name: "Lipstick"
-    name_ru: "Помада"
-    emoji: "💄"
-    price: 40
-    mood_boost: 10
-    category: light
-    visual_effect_tags: "lipstick, red_lips, mirror, looking_at_mirror, pout"
-    scene_override_tags: ""
-  rose:
-    key: rose
-    name: "Rose Bouquet"
-    name_ru: "Букет роз"
     emoji: "🌹"
+    visual_effect_tags: "holding_flower, bouquet, rose, smile"
+    scene_override_tags: ""
+    recommendation_priority: 30
+    translations:
+      name:
+        en: "Flower Bouquet"
+        ru: "Букет цветов"
+      subtitle:
+        en: "A sweet romantic gesture"
+        ru: "Нежный романтичный подарок"
+    ui:
+      icon_lucide: "Flower2"
+      icon_emoji_fallback: "🌹"
+      image_path: ""
+      sort_order: 10
+      style: "gift_v1"
+
+  wine_bottle:
+    key: wine_bottle
+    price: 12
+    category: light
+    emoji: "🍷"
+    visual_effect_tags: "wine_bottle, wine_glass, drinking, blush"
+    scene_override_tags: ""
+    recommendation_priority: 35
+    translations:
+      name:
+        en: "Wine Bottle"
+        ru: "Бутылка вина"
+      subtitle:
+        en: "For a warm evening together"
+        ru: "Для тёплого вечера вдвоём"
+    ui:
+      icon_lucide: "Wine"
+      icon_emoji_fallback: "🍷"
+      image_path: ""
+      sort_order: 20
+      style: "gift_v1"
+
+  dildo:
+    key: dildo
+    price: 35
+    category: adult
+    emoji: "🍆"
+    visual_effect_tags: "dildo, masturbation, pussy, blush"
+    scene_override_tags: ""
+    recommendation_priority: 10
+    translations:
+      name:
+        en: "Dildo"
+        ru: "Дилдо"
+      subtitle:
+        en: "A bold toy for intense fun"
+        ru: "Смелая игрушка для ярких ощущений"
+    ui:
+      icon_lucide: "Wand"
+      icon_emoji_fallback: "🍆"
+      image_path: ""
+      sort_order: 30
+      style: "gift_v1"
+
+  anal_plug:
+    key: anal_plug
+    price: 45
+    category: adult
+    emoji: "💠"
+    visual_effect_tags: "anal_plug, anal_object_insertion, blush"
+    scene_override_tags: ""
+    recommendation_priority: 11
+    translations:
+      name:
+        en: "Anal Plug"
+        ru: "Анальная пробка"
+      subtitle:
+        en: "Elegant toy with extra tension"
+        ru: "Элегантная игрушка для пикантных игр"
+    ui:
+      icon_lucide: "Plug"
+      icon_emoji_fallback: "💠"
+      image_path: ""
+      sort_order: 40
+      style: "gift_v1"
+
+  cute_pajamas:
+    key: cute_pajamas
     price: 50
-    mood_boost: 12
     category: light
-    visual_effect_tags: "holding_flower, bouquet, rose, closed_eyes, smile, smell"
+    emoji: "🩷"
+    visual_effect_tags: "pajamas, long_sleeves, smile, blush"
     scene_override_tags: ""
-  mystery:
-    key: mystery
-    name: "Mystery Gift"
-    name_ru: "Загадочный подарок"
-    emoji: "🎁"
-    price: 100
-    mood_boost: 20
+    recommendation_priority: 40
+    translations:
+      name:
+        en: "Cute Pajamas"
+        ru: "Милая пижама"
+      subtitle:
+        en: "Soft and cozy home look"
+        ru: "Мягкий и уютный домашний образ"
+    ui:
+      icon_lucide: "BedSingle"
+      icon_emoji_fallback: "🩷"
+      image_path: ""
+      sort_order: 50
+      style: "gift_v1"
+
+  engagement_ring:
+    key: engagement_ring
+    price: 55
     category: light
-    visual_effect_tags: "gift_box, holding_box, open_mouth, surprised, smile"
+    emoji: "💍"
+    visual_effect_tags: "ring, hand_focus, blush, smile"
     scene_override_tags: ""
-  vibrator:
-    key: vibrator
-    name: "Vibrator"
-    name_ru: "Вибратор"
-    emoji: "💜"
-    price: 160
-    mood_boost: 25
+    recommendation_priority: 45
+    translations:
+      name:
+        en: "Engagement Ring"
+        ru: "Обручальное кольцо"
+      subtitle:
+        en: "A promise with sparkle"
+        ru: "Обещание, которое сияет"
+    ui:
+      icon_lucide: "Gem"
+      icon_emoji_fallback: "💍"
+      image_path: ""
+      sort_order: 60
+      style: "gift_v1"
+
+  bondage_rope:
+    key: bondage_rope
+    price: 70
     category: adult
-    visual_effect_tags: "vibrator, masturbation, spread_legs, blush, half-closed_eyes, parted_lips"
+    emoji: "🪢"
+    visual_effect_tags: "rope, bondage, tied_up, blush"
     scene_override_tags: ""
-  anal_beads:
-    key: anal_beads
-    name: "Anal Beads"
-    name_ru: "Анальные шарики"
-    emoji: "💎"
-    price: 200
-    mood_boost: 30
+    recommendation_priority: 12
+    translations:
+      name:
+        en: "Bondage Rope"
+        ru: "Веревка для бондажа"
+      subtitle:
+        en: "For playful control"
+        ru: "Для игривого контроля"
+    ui:
+      icon_lucide: "Cable"
+      icon_emoji_fallback: "🪢"
+      image_path: ""
+      sort_order: 70
+      style: "gift_v1"
+
+  lace_lingerie:
+    key: lace_lingerie
+    price: 75
     category: adult
-    visual_effect_tags: "anal_beads, anal_object_insertion, ass, from_behind, blush"
+    emoji: "🖤"
+    visual_effect_tags: "lingerie, panties, bra, blush"
     scene_override_tags: ""
+    recommendation_priority: 13
+    translations:
+      name:
+        en: "Lace Lingerie"
+        ru: "Кружевное белье"
+      subtitle:
+        en: "Delicate and seductive set"
+        ru: "Нежный и соблазнительный комплект"
+    ui:
+      icon_lucide: "Shirt"
+      icon_emoji_fallback: "🖤"
+      image_path: ""
+      sort_order: 80
+      style: "gift_v1"
+
+  fox_ears_headband:
+    key: fox_ears_headband
+    price: 190
+    category: adult
+    emoji: "🦊"
+    visual_effect_tags: "animal_ears, headband, blush, smile"
+    scene_override_tags: ""
+    recommendation_priority: 14
+    translations:
+      name:
+        en: "Fox Ears Headband"
+        ru: "Ободок с ушками"
+      subtitle:
+        en: "Cosplay mood switch"
+        ru: "Переключатель в режим косплея"
+    ui:
+      icon_lucide: "Cat"
+      icon_emoji_fallback: "🦊"
+      image_path: ""
+      sort_order: 90
+      style: "gift_v1"
+
+  control_orb:
+    key: control_orb
+    price: 300
+    category: light
+    emoji: "🔮"
+    visual_effect_tags: "crystal_ball, holding, looking_at_viewer, smile"
+    scene_override_tags: ""
+    recommendation_priority: 50
+    translations:
+      name:
+        en: "Control Orb"
+        ru: "Контрольный шар"
+      subtitle:
+        en: "A mysterious premium artifact"
+        ru: "Загадочный премиальный артефакт"
+    ui:
+      icon_lucide: "Orbit"
+      icon_emoji_fallback: "🔮"
+      image_path: ""
+      sort_order: 100
+      style: "gift_v1"

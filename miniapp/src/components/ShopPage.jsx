@@ -1,71 +1,14 @@
 import WebApp from "@twa-dev/sdk";
+import { Gem } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { fetchUserActiveChat } from "../api";
+import { fetchShopItems, fetchUserActiveChat } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
 import "./ShopPage.css";
-
-import analBeadsImg from "../assets/anal-beads.avif";
-import giftImg from "../assets/gift.webp";
-import lightningIcon from "../assets/lightning.webp";
-import lipstickImg from "../assets/lipstick.png";
-import roseImg from "../assets/rose.png";
-import vibratorImg from "../assets/vibrator.png";
-import wineImg from "../assets/wine.png";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? "http://localhost:8000" : "");
-
-const SHOP_ITEMS = [
-  {
-    key: "lipstick",
-    name: "Lipstick",
-    nameRu: "Помада",
-    price: 40,
-    moodBoost: 10,
-    image: lipstickImg,
-  },
-  {
-    key: "rose",
-    name: "Rose Bouquet",
-    nameRu: "Букет роз",
-    price: 50,
-    moodBoost: 12,
-    image: roseImg,
-  },
-  {
-    key: "wine",
-    name: "Wine Bottle",
-    nameRu: "Бутылка вина",
-    price: 60,
-    moodBoost: 15,
-    image: wineImg,
-  },
-  {
-    key: "mystery",
-    name: "Mystery Gift",
-    nameRu: "Загадочный подарок",
-    price: 100,
-    moodBoost: 20,
-    image: giftImg,
-  },
-  {
-    key: "vibrator",
-    name: "Vibrator",
-    nameRu: "Вибратор",
-    price: 160,
-    moodBoost: 25,
-    image: vibratorImg,
-  },
-  {
-    key: "anal_beads",
-    name: "Anal Beads",
-    nameRu: "Анальные шарики",
-    price: 200,
-    moodBoost: 30,
-    image: analBeadsImg,
-  },
-];
 
 export default function ShopPage({
   chatId: initialChatId,
@@ -77,6 +20,9 @@ export default function ShopPage({
   const [isPurchasing, setIsPurchasing] = useState(null);
   const [mood, setMood] = useState(50);
   const [chatId, setChatId] = useState(initialChatId);
+  const [shopItems, setShopItems] = useState([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [failedImageKeys, setFailedImageKeys] = useState({});
 
   // Self-fetch active chat if not provided
   useEffect(() => {
@@ -99,6 +45,29 @@ export default function ShopPage({
   useEffect(() => {
     if (initialChatId) setChatId(initialChatId);
   }, [initialChatId]);
+
+  // Fetch shop items from backend catalog
+  useEffect(() => {
+    const loadShopItems = async () => {
+      setIsLoadingItems(true);
+      try {
+        const initData = WebApp.initData;
+        const items = await fetchShopItems(initData);
+        if (Array.isArray(items)) {
+          setShopItems(items);
+        } else {
+          setShopItems([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch shop items:", error);
+        setShopItems([]);
+      } finally {
+        setIsLoadingItems(false);
+      }
+    };
+
+    loadShopItems();
+  }, []);
 
   // Fetch mood when chatId is available
   const fetchMood = useCallback(async () => {
@@ -135,11 +104,11 @@ export default function ShopPage({
     }
 
     // Check if user has enough tokens
-    if (tokens < item.price) {
+    if ((tokens || 0) < item.price) {
       WebApp.showPopup(
         {
           title: t("shop.insufficientTokens"),
-          message: t("shop.needMoreTokens", { need: item.price, have: tokens }),
+          message: t("shop.needMoreTokens", { need: item.price, have: tokens || 0 }),
           buttons: [
             { id: "buy", type: "default", text: t("shop.buyTokens") },
             { id: "cancel", type: "cancel", text: t("shop.cancel") },
@@ -177,7 +146,6 @@ export default function ShopPage({
 
       const result = await response.json();
 
-      // Notify parent of purchase (update token count)
       if (onPurchase) {
         onPurchase(result);
       }
@@ -193,7 +161,28 @@ export default function ShopPage({
   };
 
   const getItemName = (item) => {
-    return language === "ru" ? item.nameRu : item.name;
+    if (language === "ru") {
+      return item.name_ru || item.name_en || item.name || item.key;
+    }
+    return item.name_en || item.name || item.name_ru || item.key;
+  };
+
+  const getItemSubtitle = (item) => {
+    if (language === "ru") {
+      return item.subtitle_ru || item.subtitle_en || "";
+    }
+    return item.subtitle_en || item.subtitle_ru || "";
+  };
+
+  const getItemIconComponent = (item) => {
+    const name = item.icon_lucide;
+    if (!name) return null;
+    const Icon = LucideIcons[name];
+    return typeof Icon === "function" ? Icon : null;
+  };
+
+  const markImageAsFailed = (key) => {
+    setFailedImageKeys((prev) => ({ ...prev, [key]: true }));
   };
 
   const getMoodEmoji = () => {
@@ -220,7 +209,6 @@ export default function ShopPage({
 
   return (
     <div className="shop-page">
-      {/* Mood bar */}
       {chatId && (
         <div className="shop-mood-card">
           <div className="mood-bar-header">
@@ -238,46 +226,63 @@ export default function ShopPage({
 
       <p className="shop-subtitle">{t("shop.subtitle")}</p>
 
-      {/* Items list */}
-      <div className="shop-items-list">
-        {SHOP_ITEMS.map((item) => (
-          <div
-            key={item.key}
-            className={`shop-item ${isPurchasing === item.key ? "purchasing" : ""}`}
-            onClick={() => handlePurchase(item)}
-          >
-            <div className="shop-item-left">
-              <div className="shop-item-image-wrap">
-                <img
-                  src={item.image}
-                  alt={item.name}
-                  className="shop-item-image"
-                />
-              </div>
-              <div className="shop-item-info">
-                <span className="shop-item-name">{getItemName(item)}</span>
-                <div className="shop-item-mood">
-                  <span className="mood-heart">❤️</span>
-                  <span className="mood-boost-value">+{item.moodBoost}</span>
+      {isLoadingItems ? (
+        <div className="shop-empty-state">{t("shop.loading")}</div>
+      ) : shopItems.length === 0 ? (
+        <div className="shop-empty-state">{t("shop.empty")}</div>
+      ) : (
+        <div className="shop-items-grid">
+          {shopItems.map((item) => {
+            const IconComponent = getItemIconComponent(item);
+            const hasImage = !!item.image_path && !failedImageKeys[item.key];
+            const subtitle = getItemSubtitle(item);
+
+            return (
+              <div
+                key={item.key}
+                className={`shop-item-card ${isPurchasing === item.key ? "purchasing" : ""}`}
+                onClick={() => handlePurchase(item)}
+              >
+                <div className="shop-item-content">
+                  <div className="shop-item-header">
+                    <h3 className="shop-item-name">{getItemName(item)}</h3>
+                    {subtitle ? <p className="shop-item-subtitle">{subtitle}</p> : null}
+                  </div>
+
+                  <div className="shop-item-visual-zone">
+                    {hasImage ? (
+                      <img
+                        src={item.image_path}
+                        alt={getItemName(item)}
+                        className="shop-item-image"
+                        onError={() => markImageAsFailed(item.key)}
+                      />
+                    ) : IconComponent ? (
+                      <IconComponent className="shop-item-icon" strokeWidth={1.8} />
+                    ) : (
+                      <span className="shop-item-emoji">{item.icon_emoji_fallback || item.emoji || "🎁"}</span>
+                    )}
+                  </div>
                 </div>
+
+                <button
+                  className={`shop-price-pill ${isPurchasing === item.key ? "buying" : ""}`}
+                  disabled={isPurchasing === item.key}
+                >
+                  {isPurchasing === item.key ? (
+                    <div className="buy-spinner"></div>
+                  ) : (
+                    <>
+                      <span className="shop-price-value">{item.price}</span>
+                      <Gem className="shop-price-icon" strokeWidth={2} />
+                    </>
+                  )}
+                </button>
               </div>
-            </div>
-            <button
-              className={`shop-buy-button ${isPurchasing === item.key ? "buying" : ""}`}
-              disabled={isPurchasing === item.key}
-            >
-              {isPurchasing === item.key ? (
-                <div className="buy-spinner"></div>
-              ) : (
-                <>
-                  <img src={lightningIcon} alt="tokens" className="buy-icon" />
-                  <span className="buy-price">{item.price}</span>
-                </>
-              )}
-            </button>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

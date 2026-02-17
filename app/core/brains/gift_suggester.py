@@ -12,14 +12,6 @@ SUGGESTION_PROBABILITY = 0.3  # 7%
 # Minimum total message count before gifts can be suggested (~15 AI messages)
 MIN_MESSAGES_FOR_GIFTS = 30
 
-# Cumulative gift tiers — higher mood unlocks more items
-# Low tier items are always available, higher tiers add to the pool
-GIFT_TIERS = {
-    "low": ["wine", "lipstick", "rose"],                              # 0-30 mood: basic gifts only
-    "mid": ["wine", "lipstick", "rose", "mystery"],                   # 31-60 mood: + mystery
-    "high": ["wine", "lipstick", "rose", "mystery", "vibrator", "anal_beads"]  # 61-100 mood: all gifts unlocked
-}
-
 # Gift display names and emojis from shared catalog (config/gifts.yaml)
 _SHOP_ITEMS = get_shop_items_map(include_scene_override=False)
 GIFT_INFO = {
@@ -31,16 +23,37 @@ GIFT_INFO = {
     }
     for key, item in _SHOP_ITEMS.items()
 }
+_DEFAULT_GIFT_KEY = next(iter(GIFT_INFO.keys()), None)
 
 
-def _get_mood_tier(mood: int) -> str:
-    """Get mood tier for gift selection"""
+def _ordered_keys(keys: list[str]) -> list[str]:
+    return sorted(
+        keys,
+        key=lambda k: (
+            int(_SHOP_ITEMS.get(k, {}).get("recommendation_priority", 1000) or 1000),
+            int(_SHOP_ITEMS.get(k, {}).get("sort_order", 1000) or 1000),
+            int(_SHOP_ITEMS.get(k, {}).get("price", 0) or 0),
+            k,
+        ),
+    )
+
+
+def _pool_by_mood(mood: int) -> list[str]:
+    """
+    Backward-compatible tiering without hardcoded gift keys.
+    low  (<=30): affordable light gifts
+    mid  (<=60): all light gifts
+    high (>60): full catalog
+    """
+    all_keys = list(_SHOP_ITEMS.keys())
+    light_keys = [k for k, v in _SHOP_ITEMS.items() if v.get("category") != "adult"]
+    low_keys = [k for k in light_keys if int(_SHOP_ITEMS.get(k, {}).get("price", 0) or 0) <= 50]
+
     if mood <= 30:
-        return "low"
-    elif mood <= 60:
-        return "mid"
-    else:
-        return "high"
+        return _ordered_keys(low_keys or light_keys or all_keys)
+    if mood <= 60:
+        return _ordered_keys(light_keys or all_keys)
+    return _ordered_keys(all_keys)
 
 
 def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None, message_count: int = 0) -> Dict[str, Any]:
@@ -78,9 +91,15 @@ def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None, me
             "reason": "probability_miss"
         }
     
-    # Select item based on mood tier
-    tier = _get_mood_tier(mood)
-    available_items = GIFT_TIERS[tier].copy()
+    # Select item based on mood tier (catalog-driven)
+    available_items = _pool_by_mood(mood)
+    if not available_items:
+        return {
+            "should_suggest": False,
+            "item_key": None,
+            "item_info": None,
+            "reason": "no_items"
+        }
     
     # Exclude last suggested item to avoid repetition
     if last_suggested_gift and last_suggested_gift in available_items:
@@ -88,7 +107,7 @@ def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None, me
     
     # If no items left after exclusion, use full tier list
     if not available_items:
-        available_items = GIFT_TIERS[tier].copy()
+        available_items = _pool_by_mood(mood)
     
     selected_item = random.choice(available_items)
     
@@ -96,7 +115,7 @@ def should_suggest_gift(mood: int, last_suggested_gift: Optional[str] = None, me
         "should_suggest": True,
         "item_key": selected_item,
         "item_info": GIFT_INFO[selected_item],
-        "reason": f"mood_tier_{tier}"
+        "reason": "mood_tier_catalog"
     }
 
 
@@ -111,7 +130,8 @@ def get_gift_dialogue_hint(item_key: str, language: str = "en") -> str:
     Returns:
         Dialogue hint string
     """
-    info = GIFT_INFO.get(item_key, GIFT_INFO["wine"])
+    fallback_info = GIFT_INFO.get(_DEFAULT_GIFT_KEY, {"name": "gift", "name_ru": "подарок", "emoji": "🎁"})
+    info = GIFT_INFO.get(item_key, fallback_info)
     
     if language == "ru":
         hints = [
@@ -127,4 +147,3 @@ def get_gift_dialogue_hint(item_key: str, language: str = "en") -> str:
         ]
     
     return random.choice(hints)
-

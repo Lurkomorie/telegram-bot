@@ -63,14 +63,15 @@ class TestGiftRecommendationBrain(unittest.TestCase):
             user_message="let's fuck harder",
             chat_ext={
                 "last_gift_suggestion_user_count": 0,
-                "last_gift_suggested_item_key": "anal_beads",
+                "last_gift_suggested_item_key": "dildo",
             },
             current_user_message_count=60,
             recent_purchases=[],
         )
         self.assertTrue(result["should_suggest"])
-        self.assertIn(result["item_key"], {"anal_beads", "vibrator"})
-        self.assertNotEqual(result["item_key"], "anal_beads")
+        self.assertNotEqual(result["item_key"], "dildo")
+        shop_items = get_shop_items_map()
+        self.assertEqual(shop_items[result["item_key"]].get("category"), "adult")
 
     def test_normal_scene_uses_light_pool(self):
         result = decide_gift_recommendation(

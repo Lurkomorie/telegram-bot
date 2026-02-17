@@ -406,7 +406,7 @@ def build_gift_suggestion_keyboard(
     """Build keyboard for gift suggestion with shop button
     
     Args:
-        item_key: Gift item key (wine, rose, etc.)
+        item_key: Gift item key from shared catalog (for example flower_bouquet)
         item_emoji: Emoji for the gift
         item_name: Display name of the gift
         miniapp_url: Base miniapp URL
@@ -427,4 +427,3 @@ def build_gift_suggestion_keyboard(
             web_app=WebAppInfo(url=url)
         )]
     ])
-
