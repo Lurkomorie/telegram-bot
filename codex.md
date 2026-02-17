@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-17 (shop banner alignment + alembic revision-id length fix)
+Last updated: 2026-02-17 (gift/custom-character implementation audit)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -97,6 +97,13 @@ Last updated: 2026-02-17 (shop banner alignment + alembic revision-id length fix
   - Fix: deterministic eye quality boost in final tag policy + stronger base quality/negative eye prompts.
 - Pitfall: model output could include inconsistent, forbidden, or unwanted rating tags.
   - Fix: deterministic `_enforce_tag_policy` now canonicalizes, removes forbidden tags and all `rating:*` tags, enforces core tags, reorders categories, and bounds total tag count.
+- Pitfall: shop purchase/mood endpoints currently trust client-provided `chat_id` without ownership checks.
+  - Status: identified in audit; not fixed yet.
+  - Risk: if a valid chat UUID is known, one user can target another user's chat context (purchase side effects + chat mood/purchase reads).
+- Pitfall: shop UI persona header may not match purchase target when `chatId` comes from URL.
+  - Status: identified in audit; not fixed yet.
+  - Cause: `ShopPage` fetches persona metadata from `/user/active-chat` even when a specific `chatId` is already provided.
+  - Effect: user can see one character in header while purchase is applied to another chat.
 
 ## Tests Added
 - `app/tests/test_image_prompt_engineer.py` covers:
@@ -126,6 +133,12 @@ Last updated: 2026-02-17 (shop banner alignment + alembic revision-id length fix
   - Russian near-duplicate followup detection,
   - acceptance of genuinely fresh followup phrasing,
   - normalization behavior for markdown/`ё` variants.
+
+## Audit Notes (2026-02-17)
+- Gift-related tests pass (`test_gift_catalog.py`, `test_gift_recommendation_brain.py`, `test_image_prompt_engineer.py`) but do not cover:
+  - chat ownership enforcement for `/api/miniapp/shop/purchase`,
+  - ownership checks for `/api/miniapp/shop/purchases/{chat_id}` and `/api/miniapp/chat/{chat_id}/mood`,
+  - UI consistency when shop is opened with URL `chatId`.
 
 ## Maintenance Rule
 - At start of each new request, read this file first.
