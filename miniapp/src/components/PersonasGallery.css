@@ -1,8 +1,8 @@
 /* ===== Shop Banner ===== */
 .shop-banner-gallery {
   margin: 20px 20px 0 20px;
-  min-height: 96px;
-  padding: 16px;
+  height: 76px;
+  padding: 12px;
   border-radius: 12px;
   position: relative;
   display: flex;
@@ -32,11 +32,11 @@
 }
 
 .shop-banner-icon {
-  width: 30px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   color: #ff7e79;
   position: absolute;
-  left: 28px;
+  left: 20px;
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;
@@ -51,22 +51,22 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0 72px;
+  padding: 0 52px;
   min-width: 0;
   text-align: center;
 }
 
 .shop-banner-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: #fff4ef;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   line-height: 1.05;
 }
 
 .shop-banner-subtitle {
-  margin-top: 3px;
+  margin-top: 2px;
   color: rgba(255, 202, 180, 0.82);
   font-size: 11px;
   line-height: 1.2;
@@ -80,7 +80,7 @@
   height: 20px;
   color: rgba(255, 197, 163, 0.95);
   position: absolute;
-  right: 28px;
+  right: 20px;
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;

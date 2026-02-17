@@ -142,12 +142,12 @@ export default function PersonasGallery({
     <>
       {/* Shop Banner */}
       <div className="shop-banner-gallery" onClick={onNavigateToShop}>
-        <Heart className="shop-banner-icon" strokeWidth={2.2} />
+        <Heart className="shop-banner-icon" strokeWidth={1.8} />
         <span className="shop-banner-copy">
           <span className="shop-banner-title">{t("shop.bannerTitle")}</span>
           <span className="shop-banner-subtitle">{t("shop.bannerSubtitle")}</span>
         </span>
-        <ChevronRight className="shop-banner-arrow" strokeWidth={2} />
+        <ChevronRight className="shop-banner-arrow" strokeWidth={1.8} />
       </div>
 
       <div className="personas-gallery">
