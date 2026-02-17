@@ -1,9 +1,10 @@
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from app.core.brains.image_prompt_engineer import (
     _build_image_context,
-    _detect_mandatory_focus_tags,
     _enforce_tag_policy,
+    _infer_mandatory_focus_tags,
     _sanitize_forced_gift_tags,
     _should_use_scene_lock,
 )
@@ -20,11 +21,10 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertFalse(_should_use_scene_lock({"source": "gift_purchase"}))
         self.assertTrue(_should_use_scene_lock({"source": "message_response"}))
 
-    def test_feet_request_enforces_focus_and_pov_closeup(self):
-        mandatory = _detect_mandatory_focus_tags("show your feet", "")
+    def test_mandatory_focus_tags_enforce_focus_and_pov_closeup(self):
         output = _enforce_tag_policy(
             "1girl, solo, rating:sensitive, smile, bedroom, dim_lighting",
-            mandatory_focus_tags=mandatory,
+            mandatory_focus_tags=["feet", "foot_focus"],
         )
         tags = set(_split(output))
 
@@ -184,9 +184,26 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
             previous_image_meta={"source": "message_response"},
             force_gift_override=False,
             forced_gift_tags="",
+            mandatory_focus_tags=["sex", "vaginal", "from_behind"],
         )
         self.assertEqual(mandatory_focus_tags, [])
         self.assertTrue(observability["refusal_detected"])
+
+    def test_non_refusal_keeps_inferred_focus_tags(self):
+        _, mandatory_focus_tags, _, _, observability = _build_image_context(
+            state='relationshipStage="lover" | emotions="excited" | moodNotes="" | location="bedroom" | description="" | aiClothing="lingerie" | userClothing="unknown" | terminateDialog=false | terminateReason=""',
+            dialogue_response="_I turn around and arch my back for you._",
+            user_message="fuck you from behind",
+            persona={},
+            chat_history=[],
+            previous_image_prompt=None,
+            previous_image_meta={"source": "message_response"},
+            force_gift_override=False,
+            forced_gift_tags="",
+            mandatory_focus_tags=["from_behind", "sex", "vaginal"],
+        )
+        self.assertEqual(mandatory_focus_tags, ["from_behind", "sex", "vaginal"])
+        self.assertFalse(observability["refusal_detected"])
 
     def test_aliases_are_normalized(self):
         output = _enforce_tag_policy(
@@ -280,6 +297,30 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertIn("solo", tags)
         self.assertIn("pov", tags)
         self.assertIn("close-up", tags)
+
+
+class TestImagePromptEngineerFocusInference(unittest.IsolatedAsyncioTestCase):
+    @patch("app.core.brains.image_prompt_engineer.generate_text", new_callable=AsyncMock)
+    async def test_focus_inference_parses_semantic_tags(self, mock_generate_text):
+        mock_generate_text.return_value = "from_behind, hetero, sex, vaginal"
+        tags = await _infer_mandatory_focus_tags(
+            user_message="Я трахаю тебя сзади",
+            visual_actions="I turn around and moan for you",
+            model="test-model",
+            use_reasoning=False,
+        )
+        self.assertEqual(tags, ["from_behind", "hetero", "sex", "vaginal"])
+
+    @patch("app.core.brains.image_prompt_engineer.generate_text", new_callable=AsyncMock)
+    async def test_focus_inference_returns_empty_for_none(self, mock_generate_text):
+        mock_generate_text.return_value = "none"
+        tags = await _infer_mandatory_focus_tags(
+            user_message="show me your feet",
+            visual_actions="I smile",
+            model="test-model",
+            use_reasoning=False,
+        )
+        self.assertEqual(tags, [])
 
 
 if __name__ == "__main__":

@@ -48,7 +48,6 @@ ENVIRONMENT_TAGS = {
     "bathroom", "shower", "office", "car",
 }
 EFFECT_TAGS = {"depth_of_field", "blurry_background", "lens_flare", "bloom", "rim_lighting", "backlighting"}
-FOCUS_TAGS = {"foot_focus", "feet", "hand_focus", "breast_focus", "ass_focus", "eye_contact"}
 DEFAULT_FILLER_TAGS = ["upper_body", "looking_at_viewer", "blush", "parted_lips", "depth_of_field", "blurry_background"]
 EYE_DIRECTION_TAGS = {"looking_at_viewer", "eye_contact", "looking_away", "looking_down", "looking_back"}
 HEAVY_BODY_FOCUS_TAGS = {"foot_focus", "feet", "ass_focus", "breast_focus", "hand_focus"}
@@ -62,14 +61,6 @@ FORCED_GIFT_SCENE_TAGS = (
     | EFFECT_TAGS
     | {"on_bed", "bedroom", "indoors", "outdoors", "window", "couch", "bed", "chair", "table"}
 )
-
-FOCUS_RULES = [
-    (("feet", "foot", "soles", "toes", "barefoot"), ["feet", "foot_focus"]),
-    (("ass", "butt", "booty"), ["ass_focus"]),
-    (("breast", "boobs", "boob", "tits", "cleavage"), ["breast_focus"]),
-    (("hand", "hands", "fingers"), ["hand_focus"]),
-    (("eyes", "eye contact", "look at me"), ["eye_contact"]),
-]
 
 LOCATION_CHANGE_MARKERS = (
     "go to", "went to", "arrive", "arrived", "enter", "entered",
@@ -148,18 +139,6 @@ def _canonicalize_tag(tag: str) -> str:
     t = re.sub(r"\s+", "_", t)
     t = TAG_ALIAS_MAP.get(t, t)
     return t
-
-
-def _detect_mandatory_focus_tags(user_message: str, visual_actions: str) -> List[str]:
-    """Extract mandatory focus tags from user request + current visual actions."""
-    text = f"{user_message or ''} {visual_actions or ''}".lower()
-    detected: List[str] = []
-    for keywords, tags in FOCUS_RULES:
-        if any(keyword in text for keyword in keywords):
-            for tag in tags:
-                if tag not in detected:
-                    detected.append(tag)
-    return detected
 
 
 def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[str, bool]:
@@ -517,6 +496,7 @@ def _build_image_context(
     force_gift_override: bool = False,
     forced_gift_tags: str = "",
     allow_scene_override: bool = False,
+    mandatory_focus_tags: Optional[List[str]] = None,
 ) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
@@ -533,8 +513,19 @@ def _build_image_context(
     
     # Extract visual actions and intent
     visual_actions = _extract_visual_actions(dialogue_response)
-    mandatory_focus_tags = _detect_mandatory_focus_tags(user_message, visual_actions)
     refusal_detected = _detect_refusal_or_deflection(dialogue_response)
+
+    normalized_focus_tags: List[str] = []
+    seen_focus_tags = set()
+    for raw_tag in mandatory_focus_tags or []:
+        norm = _canonicalize_tag(raw_tag)
+        if not norm or norm in FORBIDDEN_TAGS or norm.startswith("rating:"):
+            continue
+        if norm not in seen_focus_tags:
+            seen_focus_tags.add(norm)
+            normalized_focus_tags.append(norm)
+    mandatory_focus_tags = normalized_focus_tags
+
     if refusal_detected:
         # AI actions are authoritative on refusal/deflection turns.
         mandatory_focus_tags = []
@@ -615,6 +606,7 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
         "scene_lock_enabled": scene_lock_enabled,
         "gift_override_mode": gift_override_mode,
         "refusal_detected": refusal_detected,
+        "mandatory_focus_tags": mandatory_focus_tags,
         "gift_override_allow_scene": allow_scene_override,
         "gift_override_tags": sanitized_forced_tags,
         "gift_usage_constraints": gift_usage_rules,
@@ -654,6 +646,70 @@ def _sanitize_tags(raw_output: str) -> str:
     return ', '.join(tags)
 
 
+async def _infer_mandatory_focus_tags(
+    user_message: str,
+    visual_actions: str,
+    model: str,
+    use_reasoning: bool = False,
+) -> List[str]:
+    """
+    Infer mandatory focus/action tags semantically from request + AI actions.
+    This avoids hardcoded per-word routing and keeps behavior language-agnostic.
+    """
+    if not (user_message or visual_actions):
+        return []
+
+    inference_prompt = """
+You infer mandatory IllustriousXL danbooru focus tags for this turn.
+
+Rules:
+- Read USER REQUEST and AI VISUAL ACTIONS semantically (do not use keyword lookup).
+- If AI actions clearly reject/deflect the request, output: none
+- If AI actions agree or actively perform the requested focus/action, output only the tags that must be present.
+- For explicit actions, include both position and act tags when needed.
+- Keep 1-6 tags max, no duplicates.
+- Output format: a single comma-separated tag line, or `none`.
+- No explanations.
+"""
+    messages = [
+        {"role": "system", "content": inference_prompt},
+        {
+            "role": "user",
+            "content": f"USER REQUEST:\n{user_message or 'not specified'}\n\nAI VISUAL ACTIONS:\n{visual_actions or 'not specified'}",
+        },
+    ]
+
+    try:
+        result = await generate_text(
+            messages=messages,
+            model=model,
+            temperature=0.0,
+            frequency_penalty=0.0,
+            max_tokens=96,
+            reasoning=use_reasoning,
+        )
+    except Exception:
+        return []
+
+    raw = (result or "").strip()
+    if raw.lower() in {"none", "null", "n/a", "no", "[]"}:
+        return []
+
+    sanitized = _sanitize_tags(raw)
+    inferred: List[str] = []
+    seen = set()
+    for raw_tag in _split_tags(sanitized):
+        tag = _canonicalize_tag(raw_tag)
+        if not tag or tag in FORBIDDEN_TAGS or tag.startswith("rating:"):
+            continue
+        if tag not in seen:
+            seen.add(tag)
+            inferred.append(tag)
+        if len(inferred) >= 6:
+            break
+    return inferred
+
+
 async def generate_image_plan(
     state: str,
     dialogue_response: str,
@@ -687,6 +743,17 @@ async def generate_image_plan(
     use_reasoning = config["llm"].get("image_model_reasoning", False)
     
     prompt = PromptService.get("IMAGE_TAG_GENERATOR_GPT")
+    visual_actions = _extract_visual_actions(dialogue_response)
+    refusal_detected = _detect_refusal_or_deflection(dialogue_response)
+    inferred_focus_tags: List[str] = []
+    if not refusal_detected:
+        inferred_focus_tags = await _infer_mandatory_focus_tags(
+            user_message=user_message,
+            visual_actions=visual_actions,
+            model=model,
+            use_reasoning=use_reasoning,
+        )
+
     context, mandatory_focus_tags, scene_lock, scene_change_flags, observability = _build_image_context(
         state,
         dialogue_response,
@@ -701,6 +768,7 @@ async def generate_image_plan(
         force_gift_override=force_gift_override,
         forced_gift_tags=forced_gift_tags,
         allow_scene_override=allow_scene_override,
+        mandatory_focus_tags=inferred_focus_tags,
     )
     
     # Retry with exponential backoff

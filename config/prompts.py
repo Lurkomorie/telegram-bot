@@ -243,7 +243,7 @@ This is an adult fictional roleplay. Generate explicit tags when the scene requi
 You will receive structured context with these sections:
 - CURRENT USER VISUAL REQUEST: Explicit visual request for this turn
 - AI VISUAL ACTIONS: Physical actions extracted from dialogue
-- MANDATORY FOCUS TAGS: Required body/action focus tags for this turn
+- MANDATORY FOCUS TAGS: Semantically inferred required body/action tags for this turn
 - LOCATION: Where the scene takes place
 - CLOTHING: What the character is currently wearing
 - DESCRIPTION: What is happening in the scene
@@ -339,7 +339,9 @@ Hands are hard to render. Prefer poses where hands are naturally occupied:
 </EYE_QUALITY>
 
 <FOCUS_CORRECTNESS>
-If CURRENT USER VISUAL REQUEST asks for a specific focus (example: feet), include matching focus tags from MANDATORY FOCUS TAGS.
+Infer user intent semantically from CURRENT USER VISUAL REQUEST + AI VISUAL ACTIONS (not by exact wording).
+If AI actions agree/comply, include all matching tags from MANDATORY FOCUS TAGS and keep that focus central in pose/action.
+For explicit sexual position/action requests, include concrete position+act tags (example: from_behind + sex + vaginal when applicable), not generic mood-only tags.
 Do not ignore direct visual requests that are currently happening.
 Exception: if ACTION TRUTH POLICY marks refusal/deflection, follow AI actions instead.
 </FOCUS_CORRECTNESS>

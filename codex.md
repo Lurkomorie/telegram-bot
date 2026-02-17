@@ -1,10 +1,11 @@
 # Codex Memory
 
-Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
+Last updated: 2026-02-17 (semantic mandatory-focus inference for image prompting)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
   - `app/core/brains/image_prompt_engineer.py` (`generate_image_plan`) generates Illustrious SDXL danbooru tags.
+  - `generate_image_plan` now runs semantic mandatory-focus inference (`_infer_mandatory_focus_tags`) from user request + AI visual actions before final tag generation.
   - `assemble_final_prompt` appends persona DNA (`persona.image_prompt`) and `image.quality_prompt`.
   - Resulting positive/negative prompts are sent to Runpod through `app/core/img_runpod.py`.
 - Prompt templates are centralized in `config/prompts.py` and loaded via `app/core/prompt_service.py`.
@@ -15,6 +16,7 @@ Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
 ## Decisions From This Task
 - Framing policy: strict POV close-up by default (`pov` + `close-up` always enforced).
 - Visual truth policy: AI visual actions are authoritative when they conflict with user request (refusal/deflection turns).
+- Mandatory focus extraction is semantic (LLM pre-pass), not hardcoded keyword maps; it uses request meaning + AI visual compliance.
 - Continuity: preserve clothing/location unless explicit change is detected in current turn.
 - Tag quality strategy: curated local normalization/enforcement (no runtime Danbooru API calls).
 - Enforced forbidden tags: `1boy`, `male_focus`, and far-framing tags (`full_body`, `wide_shot`, `long_shot`, `multiple_views`).
@@ -47,6 +49,8 @@ Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
   - Skips eye-force when `closed_eyes` is intentional or when heavy non-face body focus is requested.
 - Product positioning preference:
   - Keep explicit 18+ NSFW danbooru tag examples/guidance in `IMAGE_TAG_GENERATOR_GPT` (no tone-down for minor-safe style).
+- Prompt focus policy hardening:
+  - `IMAGE_TAG_GENERATOR_GPT` now explicitly requires semantic intent matching and concrete position+act tags for compliant explicit requests.
 - Auto-followup anti-repeat hardening:
   - Scheduler prompts are now stage-aware by followup type (`3min`, `30min`, `24h`, `3day`) instead of one shared pool.
   - `dialogue_specialist.generate_dialogue` now receives `followup_type` and applies stage-specific style guidance.
@@ -63,8 +67,8 @@ Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
   - `config/gifts.yaml` adult toy visual tags are object/action-focused and scene-safe by default.
 
 ## Known Pitfalls + Fixes
-- Pitfall: direct user visual requests (for example feet focus) were not included in image context.
-  - Fix: context now includes `CURRENT USER VISUAL REQUEST` and `MANDATORY FOCUS TAGS`.
+- Pitfall: direct user visual requests (including multilingual/novel phrasing) could be missed by keyword-only focus routing.
+  - Fix: semantic mandatory-focus inference now derives `MANDATORY FOCUS TAGS` from request meaning + AI actions, then deterministic policy enforces them.
 - Pitfall: previous image prompt was passed as raw broad context, causing stale framing/action bleed.
   - Fix: only continuity anchors are extracted from previous prompt (`SCENE LOCK`: clothing/environment).
 - Pitfall: scene lock forced from starter images (history/start/gift) caused first post-story drift.
@@ -89,6 +93,8 @@ Last updated: 2026-02-17 (gift catalog unification + icon-first shop UI)
 ## Tests Added
 - `app/tests/test_image_prompt_engineer.py` covers:
   - feet focus enforcement,
+  - semantic mandatory-focus inference output parsing (`none` vs tag list),
+  - refusal gate clearing inferred focus tags, and non-refusal preserving them,
   - far-framing tag removal,
   - scene-lock continuity,
   - male-body tag stripping,
