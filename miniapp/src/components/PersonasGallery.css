@@ -50,22 +50,24 @@
 .shop-banner-copy {
   display: flex;
   flex-direction: column;
+  align-items: center;
   min-width: 0;
+  text-align: center;
 }
 
 .shop-banner-title {
-  font-size: 28px;
+  font-size: 18px;
   font-weight: 700;
   color: #fff4ef;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   line-height: 1.05;
 }
 
 .shop-banner-subtitle {
   margin-top: 4px;
   color: rgba(255, 202, 180, 0.82);
-  font-size: 22px;
+  font-size: 14px;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
