@@ -2,7 +2,7 @@
 
 Purchases must survive chat deletion (daily cleanup job).
 
-Revision ID: 034_chat_purchase_nullable_chat_id
+Revision ID: 034_chat_purchase_nullable_chat
 Revises: 033_add_persona_starting_mood
 Create Date: 2026-02-17
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
-revision = '034_chat_purchase_nullable_chat_id'
+revision = '034_chat_purchase_nullable_chat'
 down_revision = '033_add_persona_starting_mood'
 branch_labels = None
 depends_on = None
