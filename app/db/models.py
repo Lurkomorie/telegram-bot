@@ -232,7 +232,7 @@ class Chat(Base):
     user = relationship("User", back_populates="chats")
     persona = relationship("Persona", back_populates="chats")
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
-    purchases = relationship("ChatPurchase", back_populates="chat", cascade="all, delete-orphan")
+    purchases = relationship("ChatPurchase", back_populates="chat", passive_deletes=True)
     
     __table_args__ = (
         Index("ix_chats_tg_chat_id", "tg_chat_id"),
@@ -570,7 +570,7 @@ class ChatPurchase(Base):
     __tablename__ = "chat_purchases"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True)
     user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     item_key = Column(String(50), nullable=False)  # Catalog key from config/gifts.yaml
     item_name = Column(String(100), nullable=False)

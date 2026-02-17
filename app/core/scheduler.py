@@ -348,6 +348,16 @@ async def send_auto_message(chat_id, tg_chat_id, followup_type: str = "30min"):
                     print(f"[SCHEDULER] ↩️  Reset auto_message_count to {previous_count} for retry")
 
 
+async def daily_cleanup_old_chats():
+    """Delete chats inactive for >30 days with all related data (messages, images, CF images)"""
+    print("[SCHEDULER] 🧹 Running daily old chat cleanup...")
+    try:
+        from app.core.cleanup import cleanup_old_chats
+        await cleanup_old_chats()
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error in daily cleanup: {e}")
+
+
 async def check_scheduled_messages():
     """
     Check for scheduled messages ready to send
@@ -457,6 +467,10 @@ def start_scheduler():
     # Note: Auto-retry disabled - use manual retry button in UI instead
     # scheduler.add_job(retry_failed_deliveries_task, 'interval', minutes=5)
     # print("[SCHEDULER] ⚠️  Auto-retry disabled (use manual retry in UI)")
+    
+    # Daily cleanup: delete chats inactive >30 days (runs at 4:00 AM UTC)
+    scheduler.add_job(daily_cleanup_old_chats, 'cron', hour=4, minute=0)
+    print("[SCHEDULER] ✅ Daily old chat cleanup enabled (04:00 UTC)")
     
     scheduler.start()
     
