@@ -1,12 +1,13 @@
 /* ===== Shop Banner ===== */
 .shop-banner-gallery {
   margin: 20px 20px 0 20px;
-  height: 92px;
-  min-height: 92px;
-  max-height: 92px;
-  padding: 14px 16px;
+  height: 76px !important;
+  min-height: 76px !important;
+  max-height: 76px !important;
+  padding: 10px 12px;
   border-radius: 14px;
   position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,11 +35,11 @@
 }
 
 .shop-banner-icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   color: #ff7e79;
   position: absolute;
-  left: 22px;
+  left: 18px;
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;
@@ -53,13 +54,13 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0 62px;
+  padding: 0 46px;
   min-width: 0;
   text-align: center;
 }
 
 .shop-banner-title {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
   color: #fff4ef;
   text-transform: uppercase;
@@ -70,7 +71,7 @@
 .shop-banner-subtitle {
   margin-top: 2px;
   color: rgba(255, 202, 180, 0.82);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -78,11 +79,11 @@
 }
 
 .shop-banner-arrow {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   color: rgba(255, 197, 163, 0.95);
   position: absolute;
-  right: 22px;
+  right: 18px;
   top: 50%;
   transform: translateY(-50%);
   flex-shrink: 0;
