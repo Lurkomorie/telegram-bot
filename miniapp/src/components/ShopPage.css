@@ -162,11 +162,8 @@
   min-height: 238px;
   border-radius: 16px;
   padding: 10px;
-  border: 1px solid rgba(249, 115, 22, 0.3);
-  background:
-    radial-gradient(circle at 68% 16%, rgba(239, 68, 68, 0.2), transparent 58%),
-    radial-gradient(circle at 14% 82%, rgba(249, 115, 22, 0.16), transparent 48%),
-    linear-gradient(165deg, #261313 0%, #171010 64%, #0b0909 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #000000;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
     0 8px 14px rgba(0, 0, 0, 0.34);
@@ -226,8 +223,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(239, 68, 68, 0.24), rgba(48, 19, 19, 0.12) 62%, rgba(16, 9, 9, 0) 82%);
+  background: #000000;
 }
 
 .shop-item-image {

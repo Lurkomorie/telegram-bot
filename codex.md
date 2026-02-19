@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-19 (shibari full-body framing override)
+Last updated: 2026-02-19 (shop image refresh + anal_plug removal)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -39,9 +39,11 @@ Last updated: 2026-02-19 (shibari full-body framing override)
   - `config/gifts.yaml` is the source of truth for backend and miniapp shop metadata.
   - Catalog schema includes translations (`en`, `ru`) and UI metadata (`icon_lucide`, `icon_emoji_fallback`, optional `image_path`, `sort_order`).
   - Mood boost is derived from price in loader (`_derive_mood_boost`) instead of manually maintained per gift.
-  - Shop UI currently uses icon-first rendering (Lucide + emoji fallback); later PNG swap is config-only via `ui.image_path`.
+  - Shop UI supports image-first rendering via `ui.image_path` with icon/emoji fallback on image load failure.
   - Gift/shop locale policy is EN/RU only with EN fallback.
-  - Miniapp shop visuals are compact 2-column cards in red/orange palette; price pill uses local lightning asset icon (not gem).
+  - Miniapp shop visuals are compact 2-column cards with black product-card backgrounds; price pill uses local lightning asset icon (not gem).
+  - Adult `anal_plug` product was removed from `config/gifts.yaml`; catalog/shop now contain 9 gift items.
+  - Shop product images now come from `miniapp/public/assets/shop/*` and are mapped in `config/gifts.yaml` (`ui.image_path`).
   - Shop mood/info panel is game-like with circular active-persona avatar (with skeleton loading), mood label, percent, and progress bar.
   - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
   - Banner text centering in `PersonasGallery` now uses a strict 3-column grid (`56px / 1fr / 56px`) so the title/subtitle block is centered independently of side icons.
@@ -82,7 +84,6 @@ Last updated: 2026-02-19 (shibari full-body framing override)
   - Forced gift tags are now deterministically injected in `_enforce_tag_policy` (not LLM-only).
   - Item-specific constraints enforce correct toy usage:
     - `dildo`: requires `masturbation` + `pussy`, strips oral/licking tags.
-    - `anal_plug`: requires `anal_object_insertion`, strips oral/licking tags.
     - legacy aliases (`vibrator`, `anal_beads`) are still supported for old purchase rows.
   - `image_prompt_engineer` context now includes `GIFT USAGE CONSTRAINTS (MANDATORY)` when applicable.
   - `config/gifts.yaml` adult toy visual tags are object/action-focused and scene-safe by default.
@@ -103,7 +104,7 @@ Last updated: 2026-02-19 (shibari full-body framing override)
 - Pitfall: gift purchase image could relocate scene due hardcoded environment tags in gift effects.
   - Fix: gift catalog now stores action/object `visual_effect_tags`; forced-tag sanitizer strips scene tags by default.
 - Pitfall: vibrator gift image could be generated with incorrect oral-style interaction.
-  - Fix: deterministic gift-usage constraints now suppress oral/licking tags and enforce object-specific usage tags (dildo/anal_plug + legacy aliases).
+  - Fix: deterministic gift-usage constraints now suppress oral/licking tags and enforce object-specific usage tags (dildo + legacy aliases).
 - Pitfall: shop card content and gift metadata drifted between frontend/backend constants.
   - Fix: centralized catalog fields power `/shop/items` and miniapp rendering; no local hardcoded `SHOP_ITEMS` in frontend.
 - Pitfall: shop panel lacked character context and felt disconnected from current chat.
@@ -147,7 +148,7 @@ Last updated: 2026-02-19 (shibari full-body framing override)
   - normal-scene light-gift selection,
   - refusal downgrade to normal scene mode.
 - `app/tests/test_gift_catalog.py` covers:
-  - exact 10-gift keyset,
+  - exact 9-gift keyset (after `anal_plug` removal),
   - required EN/RU translation + icon metadata presence,
   - shop-map additive metadata,
   - CRUD shop ordering/count expectations.

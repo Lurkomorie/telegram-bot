@@ -8,7 +8,6 @@ EXPECTED_GIFT_KEYS = {
     "flower_bouquet",
     "wine_bottle",
     "dildo",
-    "anal_plug",
     "cute_pajamas",
     "engagement_ring",
     "bondage_rope",
@@ -19,10 +18,10 @@ EXPECTED_GIFT_KEYS = {
 
 
 class TestGiftCatalog(unittest.TestCase):
-    def test_catalog_contains_exactly_10_expected_gifts(self):
+    def test_catalog_contains_exactly_9_expected_gifts(self):
         catalog = get_gift_catalog()
         self.assertEqual(set(catalog.keys()), EXPECTED_GIFT_KEYS)
-        self.assertEqual(len(catalog), 10)
+        self.assertEqual(len(catalog), 9)
 
     def test_catalog_items_have_required_translation_and_icon_fields(self):
         catalog = get_gift_catalog()
@@ -57,12 +56,11 @@ class TestGiftCatalog(unittest.TestCase):
 
     def test_crud_shop_items_sorted_and_counted(self):
         items = get_shop_items()
-        self.assertEqual(len(items), 10)
+        self.assertEqual(len(items), 9)
         self.assertEqual([item["key"] for item in items], [
             "flower_bouquet",
             "wine_bottle",
             "dildo",
-            "anal_plug",
             "cute_pajamas",
             "engagement_ring",
             "bondage_rope",

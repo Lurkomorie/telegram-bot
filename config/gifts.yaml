@@ -17,7 +17,7 @@ gifts:
     ui:
       icon_lucide: "Flower2"
       icon_emoji_fallback: "🌹"
-      image_path: ""
+      image_path: "/assets/shop/flower-bouquet.jpg"
       sort_order: 10
       style: "gift_v1"
 
@@ -39,7 +39,7 @@ gifts:
     ui:
       icon_lucide: "Wine"
       icon_emoji_fallback: "🍷"
-      image_path: ""
+      image_path: "/assets/shop/wine-bottle.jpg"
       sort_order: 20
       style: "gift_v1"
 
@@ -61,30 +61,8 @@ gifts:
     ui:
       icon_lucide: "Wand"
       icon_emoji_fallback: "🍆"
-      image_path: ""
+      image_path: "/assets/shop/dildo-pink.png"
       sort_order: 30
-      style: "gift_v1"
-
-  anal_plug:
-    key: anal_plug
-    price: 45
-    category: adult
-    emoji: "💠"
-    visual_effect_tags: "anal_plug, anal_object_insertion, ass_focus, blush, parted_lips"
-    scene_override_tags: ""
-    recommendation_priority: 11
-    translations:
-      name:
-        en: "Anal Plug"
-        ru: "Анальная пробка"
-      subtitle:
-        en: "Elegant toy with extra tension"
-        ru: "Элегантная игрушка для пикантных игр"
-    ui:
-      icon_lucide: "Plug"
-      icon_emoji_fallback: "💠"
-      image_path: ""
-      sort_order: 40
       style: "gift_v1"
 
   cute_pajamas:
@@ -105,7 +83,7 @@ gifts:
     ui:
       icon_lucide: "BedSingle"
       icon_emoji_fallback: "🩷"
-      image_path: ""
+      image_path: "/assets/shop/pink-panties.png"
       sort_order: 50
       style: "gift_v1"
 
@@ -127,7 +105,7 @@ gifts:
     ui:
       icon_lucide: "Gem"
       icon_emoji_fallback: "💍"
-      image_path: ""
+      image_path: "/assets/shop/engagement-ring.jpg"
       sort_order: 60
       style: "gift_v1"
 
@@ -149,7 +127,7 @@ gifts:
     ui:
       icon_lucide: "Cable"
       icon_emoji_fallback: "🪢"
-      image_path: ""
+      image_path: "/assets/shop/bondage-rope.jpg"
       sort_order: 70
       style: "gift_v1"
 
@@ -171,7 +149,7 @@ gifts:
     ui:
       icon_lucide: "Shirt"
       icon_emoji_fallback: "🖤"
-      image_path: ""
+      image_path: "/assets/shop/pink-panties.png"
       sort_order: 80
       style: "gift_v1"
 
@@ -193,7 +171,7 @@ gifts:
     ui:
       icon_lucide: "Cat"
       icon_emoji_fallback: "🦊"
-      image_path: ""
+      image_path: "/assets/shop/fox-ears-headband.jpg"
       sort_order: 90
       style: "gift_v1"
 
@@ -215,6 +193,6 @@ gifts:
     ui:
       icon_lucide: "Orbit"
       icon_emoji_fallback: "🔮"
-      image_path: ""
+      image_path: "/assets/shop/control-orb.jpg"
       sort_order: 100
       style: "gift_v1"

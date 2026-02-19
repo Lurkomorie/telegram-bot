@@ -107,11 +107,6 @@ GIFT_USAGE_RULES = {
         "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking", "dildo_in_mouth"},
         "context_rule": "If dildo gift is forced, depict active genital use (masturbation/pussy focus), never oral/licking use.",
     },
-    "anal_plug": {
-        "required_tags": ["anal_object_insertion"],
-        "forbidden_tags": {"oral", "fellatio", "cunnilingus", "licking"},
-        "context_rule": "If anal plug gift is forced, depict anal insertion use, never oral/licking use.",
-    },
     # Legacy key aliases for old purchase history rows.
     "vibrator": {
         "required_tags": ["masturbation", "pussy"],

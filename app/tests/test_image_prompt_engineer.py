@@ -155,18 +155,6 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertNotIn("oral", tags)
         self.assertNotIn("fellatio", tags)
 
-    def test_forced_anal_plug_blocks_oral_and_enforces_usage_tags(self):
-        output = _enforce_tag_policy(
-            "1girl, solo, pov, close-up, oral, licking, blush",
-            forced_gift_tags=["anal_plug"],
-        )
-        tags = set(_split(output))
-
-        self.assertIn("anal_plug", tags)
-        self.assertIn("anal_object_insertion", tags)
-        self.assertNotIn("oral", tags)
-        self.assertNotIn("licking", tags)
-
     def test_shibari_forces_full_body_framing(self):
         output = _enforce_tag_policy(
             "1girl, solo, pov, close-up, upper_body, shibari, rope, bondage, blush",
