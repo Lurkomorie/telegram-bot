@@ -4,6 +4,7 @@ Coordinates Dialogue Specialist → State Resolver → Image Generation
 """
 import asyncio
 import json
+import re
 from datetime import datetime
 from uuid import UUID
 from app.core.brains.state_resolver import resolve_state
@@ -20,6 +21,143 @@ from app.db.models import User
 from app.bot.loader import bot
 from app.core import analytics_service_tg
 from app.settings import get_ui_text
+
+CONTROL_ORB_TOTAL_MESSAGES = 10
+
+
+def _parse_state_line(state: str) -> dict:
+    """Parse strict state line into dict, keeping defaults for missing fields."""
+    parsed = {
+        "relationshipStage": "friend",
+        "emotions": "",
+        "moodNotes": "",
+        "location": "",
+        "description": "",
+        "aiClothing": "",
+        "userClothing": "unknown",
+        "terminateDialog": False,
+        "terminateReason": "",
+    }
+    if not state:
+        return parsed
+
+    for key, value in re.findall(r'(\w+)="(.*?)"', state):
+        if key in parsed:
+            parsed[key] = value
+
+    for key, value in re.findall(r'(\w+)=(true|false)', state):
+        if key == "terminateDialog":
+            parsed[key] = value == "true"
+
+    return parsed
+
+
+def _escape_state_value(value: str) -> str:
+    return str(value or "").replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _build_state_line(fields: dict) -> str:
+    return (
+        f'relationshipStage="{_escape_state_value(fields.get("relationshipStage", ""))}"'
+        f' | emotions="{_escape_state_value(fields.get("emotions", ""))}"'
+        f' | moodNotes="{_escape_state_value(fields.get("moodNotes", ""))}"'
+        f' | location="{_escape_state_value(fields.get("location", ""))}"'
+        f' | description="{_escape_state_value(fields.get("description", ""))}"'
+        f' | aiClothing="{_escape_state_value(fields.get("aiClothing", ""))}"'
+        f' | userClothing="{_escape_state_value(fields.get("userClothing", ""))}"'
+        f' | terminateDialog={"true" if bool(fields.get("terminateDialog")) else "false"}'
+        f' | terminateReason="{_escape_state_value(fields.get("terminateReason", ""))}"'
+    )
+
+
+def _append_unique(existing: str, addition: str, sep: str = "; ") -> str:
+    current = (existing or "").strip()
+    extra = (addition or "").strip()
+    if not extra:
+        return current
+    if not current:
+        return extra
+    if extra.lower() in current.lower():
+        return current
+    return f"{current}{sep}{extra}"
+
+
+def _apply_gift_state_override(previous_state: str, item_key: str, item_name: str) -> str:
+    """
+    Apply deterministic gift-driven state updates so wearable/effect gifts persist.
+    Produces a valid state line even if previous state was in legacy/freeform format.
+    """
+    if previous_state and "relationshipStage=" in previous_state:
+        fields = _parse_state_line(previous_state)
+    else:
+        fields = _parse_state_line("")
+        if previous_state:
+            fields["moodNotes"] = _append_unique(fields.get("moodNotes", ""), f"Legacy state: {previous_state}")
+
+    key = (item_key or "").strip()
+
+    if key == "cute_pajamas":
+        fields["aiClothing"] = "cute pink pajamas"
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I am wearing the gifted cute pajamas right now.",
+            sep=" ",
+        )
+    elif key == "lace_lingerie":
+        fields["aiClothing"] = "black lace lingerie"
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I changed into the gifted lace lingerie.",
+            sep=" ",
+        )
+    elif key == "fox_ears_headband":
+        clothing = fields.get("aiClothing", "")
+        if clothing and clothing.lower() not in {"unknown", "unchanged"}:
+            fields["aiClothing"] = _append_unique(clothing, "fox ears headband", sep=", ")
+        else:
+            fields["aiClothing"] = "fox ears headband"
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I am wearing the gifted fox ears headband.",
+            sep=" ",
+        )
+    elif key == "control_orb":
+        fields["moodNotes"] = _append_unique(
+            fields.get("moodNotes", ""),
+            "A glowing control orb binds my will to the user",
+        )
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I am visibly entranced by the orb and magically compelled to obey.",
+            sep=" ",
+        )
+    elif key == "bondage_rope":
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I am wrapped in the gifted rope in a shibari-style bind.",
+            sep=" ",
+        )
+    elif key == "engagement_ring":
+        fields["description"] = _append_unique(
+            fields.get("description", ""),
+            "I proudly show the gifted ring on my hand.",
+            sep=" ",
+        )
+    else:
+        if item_name:
+            fields["description"] = _append_unique(
+                fields.get("description", ""),
+                f"I am actively enjoying the gifted {item_name}.",
+                sep=" ",
+            )
+
+    return _build_state_line(fields)
+
+
+def _control_orb_expired_text(language: str) -> str:
+    if (language or "").lower().startswith("ru"):
+        return "💡 Система: Сияние Контрольного шара угасло. Чары рассеялись, и её воля снова принадлежит ей."
+    return "💡 System: The Control Orb's glow has faded. The enchantment is broken, and her free will has returned."
 
 
 def _is_explicit_visual_request(text: str) -> bool:
@@ -454,11 +592,13 @@ async def _process_single_batch(
             # Extract context summary and gift suggestion tracking from chat.ext
             context_summary = None
             messages_since_last_image = 0
+            control_orb_messages_left = 0
             chat_ext_snapshot = {}
             if chat.ext and isinstance(chat.ext, dict):
                 chat_ext_snapshot = dict(chat.ext)
                 context_summary = chat.ext.get("context_summary")
                 messages_since_last_image = chat.ext.get("messages_since_last_image", 0)
+                control_orb_messages_left = int(chat.ext.get("control_orb_messages_left", 0) or 0)
             
             # Build chat history (all existing processed messages - up to 20 for summary)
             chat_history = [
@@ -497,6 +637,7 @@ async def _process_single_batch(
         log_verbose(f"[BATCH]    Memory: {len(memory) if memory else 0} chars")
         log_verbose(f"[BATCH]    Context summary: {'Found (' + str(len(context_summary)) + ' chars)' if context_summary else 'None'}")
         log_verbose(f"[BATCH]    Message count: {current_message_count}")
+        log_verbose(f"[BATCH]    Control orb messages left: {control_orb_messages_left}")
         current_user_message_count = 0
         
         # Log conversation history for debugging
@@ -583,6 +724,9 @@ async def _process_single_batch(
         followup_type = None
         if batch_messages and batch_messages[0].get("context"):
             followup_type = batch_messages[0]["context"].get("followup_type")
+
+        control_orb_active = control_orb_messages_left > 0
+        control_orb_turn_active = control_orb_active and not is_auto_followup and not is_resume
         
         if is_resume:
             log_verbose(f"[BATCH]    Resume mode: AI initiating conversation")
@@ -597,7 +741,8 @@ async def _process_single_batch(
             user_message_for_ai = batched_text
         
         gift_recommendation = {"should_suggest": False}
-        
+        control_orb_expired_now = False
+
         _log_brain_inputs(
             "Brain 1 (Dialogue)",
             state=previous_state,
@@ -606,7 +751,9 @@ async def _process_single_batch(
             persona=persona_data,
             memory=memory,
             is_auto_followup=is_auto_followup,
-            context_summary=context_summary
+            context_summary=context_summary,
+            control_orb_active=control_orb_turn_active,
+            control_orb_messages_left=control_orb_messages_left,
         )
         
         dialogue_response = await generate_dialogue(
@@ -625,7 +772,9 @@ async def _process_single_batch(
             gift_hint=None,  # Gift recommendation now sent as a separate message
             force_gift_hint=False,
             user_name=user_display_name,  # Per-chat discovered name (not Telegram first_name)
-            name_known=name_known  # Whether name has been discovered for this chat
+            name_known=name_known,  # Whether name has been discovered for this chat
+            control_orb_active=control_orb_turn_active,
+            control_orb_messages_left=control_orb_messages_left,
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -725,6 +874,32 @@ async def _process_single_batch(
                     log_always(f"[BATCH] ✅ Cleared last_image_msg_id from database")
             else:
                 log_always(f"[BATCH] ℹ️  No refresh button to remove")
+
+            # Control Orb turn consumption: consume one controlled response on normal user turns.
+            if control_orb_turn_active:
+                chat_for_orb = crud.get_chat_by_id(db, chat_id)
+                if chat_for_orb:
+                    from sqlalchemy.orm.attributes import flag_modified
+                    if not chat_for_orb.ext:
+                        chat_for_orb.ext = {}
+
+                    remaining_before = int(
+                        chat_for_orb.ext.get("control_orb_messages_left", control_orb_messages_left) or 0
+                    )
+                    if remaining_before > 0:
+                        remaining_after = max(0, remaining_before - 1)
+                        chat_for_orb.ext["control_orb_messages_left"] = remaining_after
+                        chat_for_orb.ext["control_orb_active"] = remaining_after > 0
+                        chat_for_orb.ext["control_orb_last_turn_at"] = datetime.utcnow().isoformat()
+                        if remaining_after == 0:
+                            chat_for_orb.ext["control_orb_expired_at"] = datetime.utcnow().isoformat()
+                            control_orb_expired_now = True
+
+                        flag_modified(chat_for_orb, "ext")
+                        db.commit()
+                        log_verbose(
+                            f"[BATCH] 🪄 Control Orb progress: {remaining_before} -> {remaining_after} messages left"
+                        )
             
         log_verbose(f"[BATCH] ✅ Batch saved to database")
         
@@ -832,7 +1007,16 @@ async def _process_single_batch(
                 gift_recommendation=gift_recommendation,
                 current_user_message_count=current_user_message_count,
             )
-        
+
+        if control_orb_expired_now:
+            orb_expired_text = escape_markdown_v2(_control_orb_expired_text(user_language))
+            await bot.send_message(
+                tg_chat_id,
+                orb_expired_text,
+                parse_mode="MarkdownV2",
+            )
+            log_always("[BATCH] 🪄 Control Orb expired notice sent")
+
         pipeline_timer.end_stage()
         
         # Track AI message (distinguish auto-followup from regular messages)
@@ -903,6 +1087,8 @@ async def _process_single_batch(
                 context_summary=context_summary,  # Pass summary for efficient context
                 mood=chat_mood,  # Chat mood for image context
                 purchases=chat_purchases,  # Recent purchases for image context
+                control_orb_active=control_orb_turn_active,
+                control_orb_messages_left=control_orb_messages_left,
             ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
@@ -977,6 +1163,8 @@ async def _background_image_generation(
     context_summary: str = None,  # Pre-generated context summary for efficiency
     mood: int = 50,  # Chat mood for image context
     purchases: list = None,  # Recent purchases for image context
+    control_orb_active: bool = False,
+    control_orb_messages_left: int = 0,
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1037,7 +1225,9 @@ async def _background_image_generation(
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
             previous_image_meta=previous_image_meta,
-            context_summary=context_summary
+            context_summary=context_summary,
+            control_orb_active=control_orb_active,
+            control_orb_messages_left=control_orb_messages_left,
         )
         
         image_prompt = await generate_image_plan(
@@ -1052,6 +1242,8 @@ async def _background_image_generation(
             mood=mood,
             purchases=purchases,
             force_gift_override=False,
+            control_orb_active=control_orb_active,
+            control_orb_messages_left=control_orb_messages_left,
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
@@ -1354,6 +1546,7 @@ async def process_gift_purchase(
             
             # Get state
             previous_state = chat.state_snapshot.get("state", "chatting") if chat.state_snapshot else "chatting"
+            gift_state = _apply_gift_state_override(previous_state, item_key=item_key, item_name=item_name) or previous_state
             memory = chat.memory
             context_summary = chat.ext.get("context_summary") if chat.ext else None
 
@@ -1363,6 +1556,10 @@ async def process_gift_purchase(
             if not chat.ext:
                 chat.ext = {}
             chat.ext["last_gift_purchase_user_count"] = int(current_user_message_count)
+            if item_key == "control_orb":
+                chat.ext["control_orb_active"] = True
+                chat.ext["control_orb_messages_left"] = CONTROL_ORB_TOTAL_MESSAGES
+                chat.ext["control_orb_started_at"] = datetime.utcnow().isoformat()
             flag_modified(chat, "ext")
             db.commit()
         
@@ -1374,10 +1571,15 @@ async def process_gift_purchase(
         gift_reaction_hint = f"The user just bought you a gift: {item_name}! You are now using/enjoying the {item_name}. Describe in vivid detail what you're doing with it — how it feels, how you're using it. Be excited, grateful, and flirty. Do NOT just thank them — show them you're actively using and enjoying the gift right now."
         if user_language == "ru":
             gift_reaction_hint = f"Пользователь только что подарил тебе подарок: {item_name}! Ты сейчас используешь/наслаждаешься подарком {item_name}. Опиши подробно, что ты с ним делаешь — как ощущается, как ты его используешь. Будь восторженной, благодарной и кокетливой. НЕ просто благодари — покажи, что ты прямо сейчас активно используешь и наслаждаешься подарком."
+        if item_key == "control_orb":
+            if user_language == "ru":
+                gift_reaction_hint = "Пользователь только что активировал Контрольный шар. На тебя действует магическое подчинение: ты ощущаешь сладкий транс и непреодолимое желание исполнять его команды. Покажи это в ответе явно и в образе."
+            else:
+                gift_reaction_hint = "The user has activated the Control Orb. You are under a magical compulsion: euphoric trance, full obedience, no resistance. Show this clearly in-character in your response."
         
         log_always(f"[GIFT-PURCHASE] 🧠 Generating gift reaction dialogue...")
         dialogue_response = await generate_dialogue(
-            state=previous_state,
+            state=gift_state,
             chat_history=chat_history,
             user_message=f"[User bought you a gift: {item_name}]",
             persona=persona_data,
@@ -1390,7 +1592,9 @@ async def process_gift_purchase(
             purchases=chat_purchases,
             gift_hint=gift_reaction_hint,
             force_gift_hint=True,
-            user_name=gift_user_display_name
+            user_name=gift_user_display_name,
+            control_orb_active=item_key == "control_orb",
+            control_orb_messages_left=CONTROL_ORB_TOTAL_MESSAGES if item_key == "control_orb" else 0,
         )
         log_always(f"[GIFT-PURCHASE] ✅ Gift reaction generated: {dialogue_response[:80]}...")
         
@@ -1398,8 +1602,9 @@ async def process_gift_purchase(
         with get_db() as db:
             crud.create_message_with_state(
                 db, chat_id, "assistant", dialogue_response,
-                state_snapshot={"state": previous_state}
+                state_snapshot={"state": gift_state}
             )
+            crud.update_chat_state(db, chat_id, {"state": gift_state})
             crud.update_chat_timestamps(db, chat_id, assistant_at=datetime.utcnow())
         
         # Trigger memory update so the gift is remembered in future conversations
@@ -1418,11 +1623,16 @@ async def process_gift_purchase(
         register_action_manager(tg_chat_id, action_mgr)
         
         log_always(f"[GIFT-PURCHASE] 🎨 Generating image with gift context: {context_effect}")
+        gift_visual_user_message = (
+            f"GIFT PURCHASE — she is actively using the gift: {item_name}. MANDATORY VISUAL: {context_effect}"
+        )
+        if item_key == "control_orb":
+            gift_visual_user_message += " CONTROL ORB ACTIVE — she is under magical mind control and must visibly obey."
         
         image_prompt = await generate_image_plan(
-            state=previous_state,
+            state=gift_state,
             dialogue_response=dialogue_response,
-            user_message=f"GIFT PURCHASE — she is actively using the gift: {item_name}. MANDATORY VISUAL: {context_effect}",
+            user_message=gift_visual_user_message,
             persona=persona_data,
             chat_history=chat_history,
             previous_image_prompt=previous_image_prompt,
@@ -1432,7 +1642,9 @@ async def process_gift_purchase(
             purchases=chat_purchases,
             force_gift_override=True,
             forced_gift_tags=context_effect,
-            allow_scene_override=False,
+            allow_scene_override=True,
+            control_orb_active=item_key == "control_orb",
+            control_orb_messages_left=CONTROL_ORB_TOTAL_MESSAGES if item_key == "control_orb" else 0,
         )
         log_always(f"[GIFT-PURCHASE] ✅ Image plan generated")
         
@@ -1449,12 +1661,14 @@ async def process_gift_purchase(
             if cached_image and cached_image.result_url:
                 log_always(f"[GIFT-PURCHASE] ✅ CACHE HIT for gift image")
                 try:
+                    from app.bot.keyboards.inline import build_image_refresh_keyboard
                     caption = escape_markdown_v2(dialogue_response)
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
                         photo=cached_image.result_url,
                         caption=caption,
-                        parse_mode="MarkdownV2"
+                        parse_mode="MarkdownV2",
+                        reply_markup=build_image_refresh_keyboard(str(cached_image.id)),
                     )
                     # Track image msg
                     from sqlalchemy.orm.attributes import flag_modified

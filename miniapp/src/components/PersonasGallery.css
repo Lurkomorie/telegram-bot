@@ -66,6 +66,9 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   line-height: 1.05;
+  display: inline-block;
+  transform: scale(2);
+  transform-origin: center bottom;
 }
 
 .shop-banner-subtitle {

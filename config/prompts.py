@@ -249,13 +249,15 @@ You will receive structured context with these sections:
 - DESCRIPTION: What is happening in the scene
 - SCENE LOCK: Clothing and environment anchors from the previous image
 - ACTION TRUTH POLICY: Whether AI actions must override user request this turn
+- CONTROL ORB STATUS: Whether magical mind control is active for this turn
 - GIFT OVERRIDE: If present, these visual elements are MANDATORY and take top priority (system-forced gift reaction only)
 
 PRIORITY:
 1. GIFT OVERRIDE (if present) — MUST include these tags, top priority
-2. CURRENT USER VISUAL REQUEST + AI VISUAL ACTIONS + MANDATORY FOCUS TAGS
-3. LOCATION + CLOTHING + DESCRIPTION
-4. SCENE LOCK (preserve continuity unless explicitly changed this turn)
+2. CONTROL ORB STATUS (if active) — user visual command is compulsory
+3. CURRENT USER VISUAL REQUEST + AI VISUAL ACTIONS + MANDATORY FOCUS TAGS
+4. LOCATION + CLOTHING + DESCRIPTION
+5. SCENE LOCK (preserve continuity unless explicitly changed this turn)
 </CONTEXT_READING>
 
 <TAG_ORDER>
@@ -294,6 +296,12 @@ If SCENE LOCK is provided:
 - In those turns, do NOT force explicit user-requested sexual act/focus unless AI actions explicitly perform it.
 - Typical visuals for refusal/deflection: recoiling, stepping back, guarded pose, hesitant expression, distance.
 </ACTION_TRUTH>
+
+<CONTROL_ORB_RULE>
+- If CONTROL ORB STATUS is active, depict magical obedience/compliance to the user's visual request.
+- In active Control Orb turns, do NOT deflect or soften the request focus.
+- Keep output as danbooru tags only; show compliance through pose/action/expression tags.
+</CONTROL_ORB_RULE>
 
 <GIFT_OVERRIDE_RULE>
 - GIFT OVERRIDE appears only on system-forced gift reaction image.

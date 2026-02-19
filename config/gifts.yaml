@@ -4,7 +4,7 @@ gifts:
     price: 5
     category: light
     emoji: "🌹"
-    visual_effect_tags: "holding_flower, bouquet, rose, smile"
+    visual_effect_tags: "holding_flower, bouquet, rose, smell, closed_eyes, light_smile, blush"
     scene_override_tags: ""
     recommendation_priority: 30
     translations:
@@ -26,7 +26,7 @@ gifts:
     price: 12
     category: light
     emoji: "🍷"
-    visual_effect_tags: "wine_bottle, wine_glass, drinking, blush"
+    visual_effect_tags: "wine_bottle, wine_glass, drinking, blush, parted_lips, half-closed_eyes"
     scene_override_tags: ""
     recommendation_priority: 35
     translations:
@@ -48,7 +48,7 @@ gifts:
     price: 35
     category: adult
     emoji: "🍆"
-    visual_effect_tags: "dildo, masturbation, pussy, blush"
+    visual_effect_tags: "dildo, masturbation, pussy, spread_legs, parted_lips, half-closed_eyes"
     scene_override_tags: ""
     recommendation_priority: 10
     translations:
@@ -70,7 +70,7 @@ gifts:
     price: 45
     category: adult
     emoji: "💠"
-    visual_effect_tags: "anal_plug, anal_object_insertion, blush"
+    visual_effect_tags: "anal_plug, anal_object_insertion, ass_focus, blush, parted_lips"
     scene_override_tags: ""
     recommendation_priority: 11
     translations:
@@ -92,7 +92,7 @@ gifts:
     price: 50
     category: light
     emoji: "🩷"
-    visual_effect_tags: "pajamas, long_sleeves, smile, blush"
+    visual_effect_tags: "pajamas, long_sleeves, holding_pillow, sleepy, light_smile, blush"
     scene_override_tags: ""
     recommendation_priority: 40
     translations:
@@ -114,7 +114,7 @@ gifts:
     price: 55
     category: light
     emoji: "💍"
-    visual_effect_tags: "ring, hand_focus, blush, smile"
+    visual_effect_tags: "ring, hand_focus, hand_up, blush, light_smile, looking_at_viewer"
     scene_override_tags: ""
     recommendation_priority: 45
     translations:
@@ -136,7 +136,7 @@ gifts:
     price: 70
     category: adult
     emoji: "🪢"
-    visual_effect_tags: "rope, bondage, tied_up, blush"
+    visual_effect_tags: "shibari, rope, bondage, tied_up, spread_legs, blush, parted_lips, half-closed_eyes"
     scene_override_tags: ""
     recommendation_priority: 12
     translations:
@@ -158,7 +158,7 @@ gifts:
     price: 75
     category: adult
     emoji: "🖤"
-    visual_effect_tags: "lingerie, panties, bra, blush"
+    visual_effect_tags: "lingerie, bra, panties, cleavage, blush, parted_lips, half-closed_eyes, smirk"
     scene_override_tags: ""
     recommendation_priority: 13
     translations:
@@ -180,7 +180,7 @@ gifts:
     price: 190
     category: adult
     emoji: "🦊"
-    visual_effect_tags: "animal_ears, headband, blush, smile"
+    visual_effect_tags: "animal_ears, headband, blush, light_smile, looking_at_viewer, smirk"
     scene_override_tags: ""
     recommendation_priority: 14
     translations:
@@ -202,7 +202,7 @@ gifts:
     price: 300
     category: light
     emoji: "🔮"
-    visual_effect_tags: "crystal_ball, holding, looking_at_viewer, smile"
+    visual_effect_tags: "crystal_ball, holding, hand_focus, looking_at_viewer, light_smile, blush, open_mouth"
     scene_override_tags: ""
     recommendation_priority: 50
     translations:

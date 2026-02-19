@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-17 (gift/custom-character implementation audit)
+Last updated: 2026-02-19 (gift override + control orb flow)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -45,9 +45,21 @@ Last updated: 2026-02-17 (gift/custom-character implementation audit)
   - Shop mood/info panel is game-like with circular active-persona avatar (with skeleton loading), mood label, percent, and progress bar.
   - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
   - Banner text centering in `PersonasGallery` uses absolute-positioned left/right icons and a true centered text block.
+  - Banner title (`shop-banner-title`, "Sex Shop") is visually doubled using `transform: scale(2)` so text appears 2x larger without changing parent banner dimensions.
 - Gift image continuity hardening:
   - Forced gift tags are sanitized in `image_prompt_engineer` to strip scene/outfit/framing by default.
   - Scene override is opt-in (`allow_scene_override=False` default), preventing forced beach->bedroom jumps.
+- Gift purchase hard-override policy:
+  - `process_gift_purchase` now calls image generation with `allow_scene_override=True`, so gift visual tags can override scene/outfit for purchase reaction images.
+  - Gift purchase state is now deterministically updated and persisted (`chat.state_snapshot`) to reflect wearable/effect gifts (e.g., pajamas/lingerie/headband/control-orb trance).
+- Control Orb gameplay mode:
+  - Buying `control_orb` activates per-chat hard mode in `chat.ext` (`control_orb_active=true`, `control_orb_messages_left=10`).
+  - For normal user turns while active, dialogue prompt injects mandatory magical obedience instructions (no refusal/deflection).
+  - Image context now includes `CONTROL ORB STATUS`; refusal gate is disabled during active orb turns so visuals stay compliant.
+  - Orb turn budget decrements per normal AI reply in pipeline; when it reaches 0, a fantasy-styled system expiration message is sent to chat.
+- Refresh policy split:
+  - Image refresh callback now allows 2 image refreshes for ordinary images, 10 for gift-purchase images (`is_gift_purchase` in job ext), then falls back to text-only refresh.
+  - Refresh-generated jobs now preserve `is_gift_purchase` metadata.
 - Eye fidelity booster:
   - `_enforce_tag_policy` now injects `eye_focus` (+ eye direction when missing) for normal portrait turns.
   - Skips eye-force when `closed_eyes` is intentional or when heavy non-face body focus is requested.
@@ -139,6 +151,19 @@ Last updated: 2026-02-17 (gift/custom-character implementation audit)
   - chat ownership enforcement for `/api/miniapp/shop/purchase`,
   - ownership checks for `/api/miniapp/shop/purchases/{chat_id}` and `/api/miniapp/chat/{chat_id}/mood`,
   - UI consistency when shop is opened with URL `chatId`.
+
+## Prompt Quality Notes (2026-02-19)
+- Gift recommendation copy quality is currently limited by prompt design:
+  - `GIFT_RECOMMENDATION_GPT` is broad and under-constrained for variation and contextual grounding.
+  - LLM context lines in `gift_recommendation_brain.generate_gift_recommendation` currently omit helpful catalog hints (category/subtitle) and anti-repeat inputs.
+  - `_fallback_suggestion_text` has a narrow phrase pool and tends to repeat shape/opening.
+- Proposed direction (proposal only, not yet implemented):
+  - Replace gift recommendation system prompt with stricter output contract + scene/category style matrix.
+  - Pass richer context fields (gift category/subtitle, relationship stage, recent gift suggestion samples).
+  - Expand deterministic fallback message banks by language + scene mode to improve non-LLM quality.
+- Gift image prompt quality note:
+  - `config/gifts.yaml` visual tag sets were strengthened, including explicit shibari-focused `bondage_rope` tags and richer wearable gift tags.
+  - Forced gift sanitization still strips scene/clothing by default globally, but gift-purchase flow now explicitly opts into scene/clothing override.
 
 ## Maintenance Rule
 - At start of each new request, read this file first.

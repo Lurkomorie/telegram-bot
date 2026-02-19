@@ -421,6 +421,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         user_prompt = original_ext.get("user_prompt", "")
         pending_caption = original_ext.get("pending_caption")  # Preserve caption for refresh
         refresh_count = original_ext.get("refresh_count", 0)
+        is_gift_purchase = bool(original_ext.get("is_gift_purchase"))
         
         print(f"[REFRESH-IMAGE] 🔄 Reusing exact prompts from job {original_job_id}")
         print(f"[REFRESH-IMAGE]    Positive: {positive_prompt[:100]}...")
@@ -437,6 +438,9 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
             "refreshed_from": original_job_id,
             "refresh_count": refresh_count + 1  # Increment refresh count
         }
+        if is_gift_purchase:
+            new_ext["is_gift_purchase"] = True
+            new_ext["source"] = "gift_purchase"
         if pending_caption:
             new_ext["pending_caption"] = pending_caption  # Copy caption to new job
         
@@ -502,7 +506,7 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
 
 
 async def generate_text_only_refresh(user_id: int, original_job_id: str, tg_chat_id: int):
-    """Generate text-only response for second+ refresh - no image
+    """Generate text-only response after image-refresh limit is reached.
     
     Uses dialogue specialist to generate a new response based on the original context.
     Increments refresh_count in job ext.
@@ -597,8 +601,8 @@ async def generate_text_only_refresh(user_id: int, original_job_id: str, tg_chat
 async def refresh_image_callback(callback: types.CallbackQuery):
     """Handle refresh image button click - costs 3 energy for free, 0 for premium
     
-    First refresh: generates new image
-    Second+ refresh: sends text-only response (no image)
+    Normal images: first 2 refreshes generate image, then text-only.
+    Gift-purchase images: first 10 refreshes generate image, then text-only.
     """
     job_id_str = callback.data.split(":")[1]
     user_id = callback.from_user.id
@@ -616,8 +620,13 @@ async def refresh_image_callback(callback: types.CallbackQuery):
         refresh_count = job.refresh_count if job.refresh_count else 0
         if refresh_count == 0 and job.ext:
             refresh_count = job.ext.get("refresh_count", 0)
+        is_gift_purchase = bool(job.ext.get("is_gift_purchase")) if job.ext else False
+        max_image_refreshes = 10 if is_gift_purchase else 2
         
-        print(f"[REFRESH-IMAGE] 📊 Current refresh count: {refresh_count}")
+        print(
+            f"[REFRESH-IMAGE] 📊 Current refresh count: {refresh_count} "
+            f"(gift={is_gift_purchase}, max_image_refreshes={max_image_refreshes})"
+        )
         
         # Increment refresh count on the image (tracks quality)
         crud.increment_refresh_count(db, job.id)
@@ -651,7 +660,7 @@ async def refresh_image_callback(callback: types.CallbackQuery):
         )
     
     # Answer the callback first
-    if refresh_count == 0:
+    if refresh_count < max_image_refreshes:
         await callback.answer("🔄 Refreshing image...")
     else:
         await callback.answer("🔄 Generating text response...")
@@ -674,9 +683,8 @@ async def refresh_image_callback(callback: types.CallbackQuery):
     except Exception as e:
         print(f"[REFRESH-IMAGE] ⚠️  Could not delete original image: {e}")
     
-    # First refresh: generate new image
-    # Second+ refresh: send text-only response
-    if refresh_count == 0:
+    # Image refreshes until max limit, then text-only fallback.
+    if refresh_count < max_image_refreshes:
         # Generate new image with EXACT same prompts from original job (only seed changes)
         await generate_image_for_refresh(user_id, job_id_str, callback.message.chat.id)
     else:
@@ -1130,4 +1138,3 @@ async def upsell_click_callback(callback: types.CallbackQuery):
         pass
     
     await callback.answer()
-

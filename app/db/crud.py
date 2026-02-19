@@ -4584,6 +4584,16 @@ def purchase_shop_item(db: Session, user_id: int, chat_id: UUID, item_key: str) 
     old_mood = chat.mood or 50
     chat.mood = min(100, old_mood + item["mood_boost"])
     chat.coldness_streak = 0  # Reset coldness streak on purchase
+
+    # Control Orb is a timed hard-mode gift: enable 10-command obedience window immediately.
+    if item_key == "control_orb":
+        from sqlalchemy.orm.attributes import flag_modified
+        if not chat.ext:
+            chat.ext = {}
+        chat.ext["control_orb_active"] = True
+        chat.ext["control_orb_messages_left"] = 10
+        chat.ext["control_orb_started_at"] = datetime.utcnow().isoformat()
+        flag_modified(chat, "ext")
     
     # Create purchase record
     purchase = ChatPurchase(

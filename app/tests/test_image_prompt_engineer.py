@@ -205,6 +205,25 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertEqual(mandatory_focus_tags, ["from_behind", "sex", "vaginal"])
         self.assertFalse(observability["refusal_detected"])
 
+    def test_control_orb_turn_disables_refusal_gate(self):
+        _, mandatory_focus_tags, _, _, observability = _build_image_context(
+            state='relationshipStage="lover" | emotions="entranced" | moodNotes="" | location="bedroom" | description="" | aiClothing="lingerie" | userClothing="unknown" | terminateDialog=false | terminateReason=""',
+            dialogue_response="_I step back and whisper: I won't do that._",
+            user_message="fuck me from behind",
+            persona={},
+            chat_history=[],
+            previous_image_prompt=None,
+            previous_image_meta={"source": "message_response"},
+            force_gift_override=False,
+            forced_gift_tags="",
+            mandatory_focus_tags=["from_behind", "sex", "vaginal"],
+            control_orb_active=True,
+            control_orb_messages_left=7,
+        )
+        self.assertEqual(mandatory_focus_tags, ["from_behind", "sex", "vaginal"])
+        self.assertFalse(observability["refusal_detected"])
+        self.assertTrue(observability["control_orb_active"])
+
     def test_aliases_are_normalized(self):
         output = _enforce_tag_policy(
             "1girl, solo, rating:sensitive, soft_smile, flushed, bedroom"

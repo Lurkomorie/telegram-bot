@@ -497,6 +497,8 @@ def _build_image_context(
     forced_gift_tags: str = "",
     allow_scene_override: bool = False,
     mandatory_focus_tags: Optional[List[str]] = None,
+    control_orb_active: bool = False,
+    control_orb_messages_left: int = 0,
 ) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
@@ -514,6 +516,9 @@ def _build_image_context(
     # Extract visual actions and intent
     visual_actions = _extract_visual_actions(dialogue_response)
     refusal_detected = _detect_refusal_or_deflection(dialogue_response)
+    if control_orb_active:
+        # Control Orb turns are hard-compliance turns.
+        refusal_detected = False
 
     normalized_focus_tags: List[str] = []
     seen_focus_tags = set()
@@ -567,6 +572,13 @@ Refusal/deflection detected: {"yes" if refusal_detected else "no"}
 If refusal is detected, depict hesitation/recoil/distance from AI actions, not explicit user request.
 """
 
+    control_orb_section = f"""
+# CONTROL ORB STATUS
+Active: {"yes" if control_orb_active else "no"}
+Turns left: {max(0, int(control_orb_messages_left or 0))}
+If active, the character is under magical mind control and must comply with the user's visual command.
+"""
+
     scene_lock_section = f"""
 # SCENE LOCK (maintain continuity unless explicitly changed this turn)
 Scene lock enabled: {"yes" if scene_lock_enabled else "no"}
@@ -599,7 +611,7 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 
 # ATMOSPHERE
 {mood_notes or "not specified"}
-{action_truth_section}{scene_lock_section}{mood_hint}"""
+{action_truth_section}{control_orb_section}{scene_lock_section}{mood_hint}"""
     
     observability = {
         "previous_image_source": (previous_image_meta or {}).get("source") if isinstance(previous_image_meta, dict) else "unknown",
@@ -610,6 +622,8 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
         "gift_override_allow_scene": allow_scene_override,
         "gift_override_tags": sanitized_forced_tags,
         "gift_usage_constraints": gift_usage_rules,
+        "control_orb_active": control_orb_active,
+        "control_orb_messages_left": max(0, int(control_orb_messages_left or 0)),
     }
 
     return context, mandatory_focus_tags, scene_lock, scene_change_flags, observability
@@ -724,6 +738,8 @@ async def generate_image_plan(
     force_gift_override: bool = False,
     forced_gift_tags: str = "",
     allow_scene_override: bool = False,
+    control_orb_active: bool = False,
+    control_orb_messages_left: int = 0,
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -769,6 +785,8 @@ async def generate_image_plan(
         forced_gift_tags=forced_gift_tags,
         allow_scene_override=allow_scene_override,
         mandatory_focus_tags=inferred_focus_tags,
+        control_orb_active=control_orb_active,
+        control_orb_messages_left=control_orb_messages_left,
     )
     
     # Retry with exponential backoff
@@ -849,6 +867,10 @@ async def generate_image_plan(
                 print(f"[IMAGE-PLAN][DEV] scene_lock_enabled: {observability['scene_lock_enabled']}")
                 print(f"[IMAGE-PLAN][DEV] gift_override_mode: {observability['gift_override_mode']}")
                 print(f"[IMAGE-PLAN][DEV] gift_usage_constraints: {observability['gift_usage_constraints']}")
+                print(
+                    f"[IMAGE-PLAN][DEV] control_orb: active={observability['control_orb_active']}, "
+                    f"left={observability['control_orb_messages_left']}"
+                )
                 print(f"[IMAGE-PLAN][DEV] refusal_detected: {observability['refusal_detected']}")
                 print(f"[IMAGE-PLAN][DEV] Enforced tags: {result_text}")
                 log_dev_response(
