@@ -138,6 +138,7 @@
       "premium": "Premium",
       "energy": "Energy",
       "referrals": "Referrals",
+      "shop": "Gift Shop",
       "checkoutTitle": "Purchase {icon} {name}"
     },
     "energy": {
@@ -148,7 +149,8 @@
       "retryButton": "Retry"
     },
     "dailyBonus": {
-      "referralBonus": "Friend Bonus",
+      "referralBonus": "Invite Friends",
+      "friendBonus": "Bonus",
       "gift": "Gift",
       "day": "Day {day}",
       "clickToClaim": "Click to claim",
@@ -320,5 +322,42 @@
       "creationFailed": "Failed to create character. Please try again."
     },
     "success": "{name} created successfully! 💕\nGenerating portrait..."
+  },
+  "shop": {
+    "title": "Sex Shop",
+    "subtitle": "Pick a gift she'll love",
+    "bannerTitle": "Sex Shop",
+    "bannerSubtitle": "Toys and gifts",
+    "loading": "Loading gifts...",
+    "empty": "No gifts available right now",
+    "insufficientTokens": "Insufficient tokens",
+    "needMoreTokens": "Need {need}, have {have}",
+    "buyTokens": "Buy tokens",
+    "cancel": "Cancel",
+    "purchaseSuccess": "Purchased: {item}!",
+    "purchaseFailed": "Purchase failed",
+    "selectChatFirst": "Select a chat first",
+    "moodHintLow": "🎁 Send a gift to warm her up!",
+    "moodHintMid": "🎁 A gift would make her day!",
+    "moodHintHigh": "💕 She loves your gifts! Keep it up!"
+  },
+  "bonusCalendar": {
+    "title": "Bonus Calendar",
+    "subtitle": "Claim your daily reward",
+    "day": "Day {day}",
+    "claimButton": "Claim Bonus",
+    "claiming": "Claiming...",
+    "claimSuccess": "Claimed {amount} tokens!",
+    "claimFailed": "Failed to claim bonus",
+    "nextBonus": "Next bonus in:",
+    "calendarComplete": "🎉 Day 30 complete! Claimed {amount} tokens (including +{bonus} bonus)! Calendar reset!"
+  },
+  "mood": {
+    "veryHappy": "Very happy",
+    "happy": "Happy",
+    "neutral": "Neutral",
+    "cold": "Cold",
+    "veryCold": "Very cold",
+    "herMood": "Her mood"
   }
 }

@@ -24,7 +24,12 @@ MODEL_PRICING = {
     "thedrummer/cydonia-24b-v4.1": (0.30, 0.50),
     "mistralai/ministral-3b": (0.04, 0.04),
     "moonshotai/kimi-k2:nitro": (0.50, 2.40),
+    "mistralai/ministral-3b-2512": (0.04, 0.04),
 }
+
+
+class NonRetryableOpenRouterError(Exception):
+    """Raised for deterministic OpenRouter failures (e.g., 404 model not found)."""
 
 
 async def generate_text(
@@ -75,6 +80,8 @@ async def generate_text(
         "max_tokens": max_tokens if max_tokens is not None else llm_config["max_tokens"],
         "transforms": ["middle-out"]  # Bypass OpenRouter's moderation for adult content
     }
+    fallback_model = llm_config.get("model")
+    fallback_switched = False
     
     # Add optional parameters if provided
     if top_p is not None:
@@ -126,7 +133,8 @@ async def generate_text(
         presence_penalty=presence_penalty
     )
     
-    # Retry logic for 5xx errors and timeouts
+    # Retry logic for transient errors. For deterministic 404 model-not-found,
+    # auto-switch once to fallback model (llm.model) when possible.
     max_retries = 3
     request_start = time.time()
     
@@ -137,6 +145,16 @@ async def generate_text(
                 response.raise_for_status()
                 
                 data = response.json()
+                
+                # Check for API error response
+                if "error" in data:
+                    error_msg = data["error"].get("message", str(data["error"]))
+                    raise Exception(f"OpenRouter API returned error: {error_msg}")
+                
+                if "choices" not in data or not data["choices"]:
+                    log_always(f"[LLM] ⚠️ Unexpected response structure: {data}")
+                    raise Exception(f"OpenRouter API returned invalid response (no choices). Response: {str(data)[:500]}")
+                
                 result = data["choices"][0]["message"]["content"]
                 
                 # Track token usage and cost if user_id is provided
@@ -188,18 +206,56 @@ async def generate_text(
                 
                 return result
                 
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+        except httpx.TimeoutException as e:
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
             
             # Exponential backoff
             wait_time = (attempt + 1) * 1.5
-            print(f"[LLM] Retry {attempt + 1}/{max_retries} after {wait_time}s...")
+            log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
+
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response is not None else None
+
+            if status_code == 404:
+                if not fallback_switched and fallback_model and body["model"] != fallback_model:
+                    previous_model = body["model"]
+                    body["model"] = fallback_model
+                    fallback_switched = True
+                    log_always(
+                        f"[LLM] ⚠️ Model '{previous_model}' returned 404. "
+                        f"Switching to fallback model '{fallback_model}'."
+                    )
+                    continue
+
+                detail = ""
+                try:
+                    detail = (e.response.text or "")[:300]
+                except Exception:
+                    detail = ""
+                raise NonRetryableOpenRouterError(
+                    f"OpenRouter 404 for model '{body['model']}' at '{url}'. "
+                    f"{('Response: ' + detail) if detail else ''}".strip()
+                )
+
+            if attempt == max_retries - 1:
+                raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
+
+            wait_time = (attempt + 1) * 1.5
+            log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
+            await asyncio.sleep(wait_time)
+
+        except NonRetryableOpenRouterError:
+            raise
         
         except Exception as e:
-            raise Exception(f"OpenRouter API error: {str(e)}")
+            # Retry on API errors (invalid response, no choices, etc.)
+            if attempt == max_retries - 1:
+                raise Exception(f"OpenRouter API error after {max_retries} attempts: {str(e)}")
+            
+            wait_time = (attempt + 1) * 1.5
+            log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {str(e)[:200]}")
+            await asyncio.sleep(wait_time)
     
     raise Exception("OpenRouter API failed unexpectedly")
-
-

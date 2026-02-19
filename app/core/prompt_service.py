@@ -5,11 +5,13 @@ from config.prompts import (
     CHAT_GPT_EN,
     CHAT_GPT_RU,
     IMAGE_TAG_GENERATOR_GPT,
+    GIFT_RECOMMENDATION_GPT,
     CONVERSATION_STATE_GPT,
     MEMORY_EXTRACTOR_GPT,
     IMAGE_DECISION_GPT,
     VOICE_PROCESSOR_GPT,
-    CONTEXT_SUMMARY_GPT
+    CONTEXT_SUMMARY_GPT,
+    NAME_EXTRACTOR_GPT
 )
 
 
@@ -20,11 +22,13 @@ class PromptService:
         "CHAT_GPT_EN": CHAT_GPT_EN,
         "CHAT_GPT_RU": CHAT_GPT_RU,
         "IMAGE_TAG_GENERATOR_GPT": IMAGE_TAG_GENERATOR_GPT,
+        "GIFT_RECOMMENDATION_GPT": GIFT_RECOMMENDATION_GPT,
         "CONVERSATION_STATE_GPT": CONVERSATION_STATE_GPT,
         "MEMORY_EXTRACTOR_GPT": MEMORY_EXTRACTOR_GPT,
         "IMAGE_DECISION_GPT": IMAGE_DECISION_GPT,
         "VOICE_PROCESSOR_GPT": VOICE_PROCESSOR_GPT,
         "CONTEXT_SUMMARY_GPT": CONTEXT_SUMMARY_GPT,
+        "NAME_EXTRACTOR_GPT": NAME_EXTRACTOR_GPT,
     }
     
     # Language-specific prompt mapping
@@ -60,5 +64,4 @@ class PromptService:
         if not prompt:
             raise ValueError(f"Unknown prompt: {name}")
         return prompt
-
 

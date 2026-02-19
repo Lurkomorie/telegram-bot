@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Story Image Picker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 24px; color: #fff; }
+  .load-section { text-align: center; margin-bottom: 24px; }
+  .load-section input[type="file"] { display: none; }
+  .load-btn { background: #4a6cf7; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .load-btn:hover { background: #3a5ce5; }
+
+  .story-card { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .story-header { margin-bottom: 12px; }
+  .story-header h2 { font-size: 18px; color: #4a6cf7; }
+  .story-header .persona { font-size: 13px; color: #888; }
+  .story-header .prompt { font-size: 11px; color: #666; margin-top: 4px; word-break: break-all; max-height: 40px; overflow: hidden; cursor: pointer; }
+  .story-header .prompt.expanded { max-height: none; }
+
+  .images-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .old-image-col { flex-shrink: 0; }
+  .old-image-col .label { font-size: 12px; color: #888; margin-bottom: 4px; text-align: center; }
+  .new-images-col { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+
+  .img-card { display: flex; flex-direction: column; align-items: center; }
+  .img-card img { border-radius: 8px; cursor: pointer; object-fit: cover; background: #0f3460; }
+  .img-card img.old { width: 300px; height: auto; }
+  .img-card img.new { width: 180px; height: auto; }
+  .img-card .select-btn { margin-top: 6px; padding: 4px 16px; border-radius: 6px; border: 2px solid #4a6cf7; background: transparent; color: #4a6cf7; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .img-card .select-btn:hover { background: #4a6cf720; }
+  .img-card .select-btn.selected { background: #4a6cf7; color: #fff; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.active { display: flex; }
+  .modal-overlay img { max-width: 95vw; max-height: 95vh; border-radius: 8px; }
+
+  /* JSON output */
+  .json-output { background: #0f3460; border-radius: 12px; padding: 20px; margin-top: 32px; position: relative; }
+  .json-output h3 { margin-bottom: 12px; color: #4a6cf7; }
+  .json-output pre { background: #1a1a2e; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; color: #e0e0e0; min-height: 60px; white-space: pre-wrap; word-break: break-all; }
+  .copy-btn { position: absolute; top: 16px; right: 16px; background: #4a6cf7; color: #fff; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .copy-btn:hover { background: #3a5ce5; }
+
+  .no-data { text-align: center; color: #888; padding: 60px 0; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<h1>Story Image Picker</h1>
+
+<div class="load-section">
+  <button class="load-btn" onclick="document.getElementById('fileInput').click()">Load story_regen_results.json</button>
+  <input type="file" id="fileInput" accept=".json" onchange="loadFile(event)">
+</div>
+
+<div id="container"><div class="no-data">Load the JSON results file to begin.</div></div>
+
+<div class="json-output" id="jsonOutputSection" style="display:none;">
+  <h3>Selection JSON</h3>
+  <button class="copy-btn" onclick="copyJson()">Copy</button>
+  <pre id="jsonOutput">{}</pre>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal" onclick="closeModal()">
+  <img id="modalImg" src="" alt="Full size">
+</div>
+
+<script>
+let data = [];
+let selections = {}; // storyId -> newImageUrl
+
+function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      data = JSON.parse(e.target.result);
+      render();
+    } catch (err) {
+      alert('Invalid JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function render() {
+  const container = document.getElementById('container');
+  if (!data.length) {
+    container.innerHTML = '<div class="no-data">No stories found in JSON.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  document.getElementById('jsonOutputSection').style.display = 'block';
+
+  data.forEach((story, si) => {
+    const card = document.createElement('div');
+    card.className = 'story-card';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'story-header';
+    header.innerHTML = `
+      <h2>${esc(story.name)}</h2>
+      <div class="persona">${esc(story.persona_name)}</div>
+      <div class="prompt" onclick="this.classList.toggle('expanded')" title="Click to expand">${esc(story.image_prompt || '')}</div>
+    `;
+    card.appendChild(header);
+
+    // Images row
+    const row = document.createElement('div');
+    row.className = 'images-row';
+
+    // Old image
+    const oldCol = document.createElement('div');
+    oldCol.className = 'old-image-col';
+    oldCol.innerHTML = `<div class="label">Current</div>`;
+    const oldCard = document.createElement('div');
+    oldCard.className = 'img-card';
+    if (story.old_image_url) {
+      oldCard.innerHTML = `<img class="old" src="${esc(story.old_image_url)}" onclick="openModal('${esc(story.old_image_url)}')" loading="lazy">`;
+    } else {
+      oldCard.innerHTML = `<div style="width:300px;height:200px;background:#0f3460;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#666;">No image</div>`;
+    }
+    oldCol.appendChild(oldCard);
+    row.appendChild(oldCol);
+
+    // New images
+    const newCol = document.createElement('div');
+    newCol.className = 'new-images-col';
+
+    (story.new_image_urls || []).forEach((url, ii) => {
+      if (!url) return;
+      const nc = document.createElement('div');
+      nc.className = 'img-card';
+      const isSelected = selections[story.id] === url;
+      nc.innerHTML = `
+        <img class="new" src="${esc(url)}" onclick="openModal('${esc(url)}')" loading="lazy">
+        <button class="select-btn ${isSelected ? 'selected' : ''}" onclick="toggleSelect('${esc(story.id)}', '${esc(url)}', this)">${isSelected ? '✓ Selected' : 'Select'}</button>
+      `;
+      newCol.appendChild(nc);
+    });
+
+    row.appendChild(newCol);
+    card.appendChild(row);
+    container.appendChild(card);
+  });
+
+  updateJson();
+}
+
+function toggleSelect(storyId, url, btn) {
+  // Deselect if already selected
+  if (selections[storyId] === url) {
+    delete selections[storyId];
+  } else {
+    selections[storyId] = url;
+  }
+  // Re-render buttons in this card
+  const card = btn.closest('.story-card');
+  card.querySelectorAll('.select-btn').forEach(b => {
+    const bUrl = b.getAttribute('onclick').match(/'([^']+)'/g)[1].slice(1, -1);
+    if (selections[storyId] === bUrl) {
+      b.className = 'select-btn selected';
+      b.textContent = '✓ Selected';
+    } else {
+      b.className = 'select-btn';
+      b.textContent = 'Select';
+    }
+  });
+  updateJson();
+}
+
+function updateJson() {
+  document.getElementById('jsonOutput').textContent = JSON.stringify(selections, null, 2);
+}
+
+function copyJson() {
+  navigator.clipboard.writeText(JSON.stringify(selections, null, 2)).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+function openModal(url) {
+  document.getElementById('modalImg').src = url;
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+  document.getElementById('modalImg').src = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>

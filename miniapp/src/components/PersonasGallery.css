@@ -1,153 +1,89 @@
-/* ===== New Year Sale Banner ===== */
-.sale-banner-gallery {
-  position: relative;
+/* ===== Shop Banner ===== */
+.shop-banner-gallery {
   margin: 20px 20px 0 20px;
-  padding: 20px 16px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-size: cover;
-  background-position: center;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.sale-banner-gallery:active {
-  transform: scale(0.98);
-}
-
-.sale-banner-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1;
-}
-
-.sale-banner-snow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.sale-banner-snow .snowflake {
-  position: absolute;
-  top: -20px;
-  color: white;
-  opacity: 0;
-  font-size: 14px;
-  animation: banner-snow linear infinite;
-  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
-}
-
-@keyframes banner-snow {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px) translateX(0);
-  }
-  10% {
-    opacity: 0.9;
-  }
-  90% {
-    opacity: 0.7;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(80px) translateX(10px);
-  }
-}
-
-.sale-banner-snow .snowflake:nth-child(1) { left: 5%; animation-duration: 3s; animation-delay: 0s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(2) { left: 15%; animation-duration: 4s; animation-delay: 0.5s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(3) { left: 25%; animation-duration: 3.5s; animation-delay: 1s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(4) { left: 35%; animation-duration: 4.5s; animation-delay: 0.3s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(5) { left: 45%; animation-duration: 3.2s; animation-delay: 0.8s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(6) { left: 55%; animation-duration: 4.2s; animation-delay: 0.2s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(7) { left: 65%; animation-duration: 3.8s; animation-delay: 1.2s; font-size: 12px; }
-.sale-banner-snow .snowflake:nth-child(8) { left: 75%; animation-duration: 4.8s; animation-delay: 0.6s; font-size: 16px; }
-.sale-banner-snow .snowflake:nth-child(9) { left: 85%; animation-duration: 3.3s; animation-delay: 1.5s; font-size: 10px; }
-.sale-banner-snow .snowflake:nth-child(10) { left: 95%; animation-duration: 4.3s; animation-delay: 0.4s; font-size: 14px; }
-.sale-banner-snow .snowflake:nth-child(11) { left: 10%; animation-duration: 5s; animation-delay: 2s; font-size: 8px; }
-.sale-banner-snow .snowflake:nth-child(12) { left: 90%; animation-duration: 5.5s; animation-delay: 2.5s; font-size: 12px; }
-
-.sale-banner-content {
+  height: 76px !important;
+  min-height: 76px !important;
+  max-height: 76px !important;
+  padding: 10px 8px;
+  border-radius: 14px;
   position: relative;
-  z-index: 3;
-  display: flex;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  background:
+    radial-gradient(circle at 16% 48%, rgba(239, 68, 68, 0.28), transparent 52%),
+    radial-gradient(circle at 86% 28%, rgba(249, 115, 22, 0.18), transparent 56%),
+    linear-gradient(145deg, rgba(37, 20, 20, 0.95), rgba(17, 10, 10, 0.98));
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 10px 20px rgba(30, 9, 9, 0.42);
 }
 
-.sale-banner-emoji {
-  font-size: 28px;
-  animation: emoji-bounce 2s ease-in-out infinite;
+.shop-banner-gallery:active {
+  transform: scale(0.985);
 }
 
-.sale-banner-emoji:last-child {
-  animation-delay: 0.3s;
+.shop-banner-gallery:hover {
+  border-color: rgba(249, 115, 22, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 14px 24px rgba(37, 11, 11, 0.55);
 }
 
-@keyframes emoji-bounce {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-4px) scale(1.1);
-  }
+.shop-banner-icon {
+  width: 20px;
+  height: 20px;
+  color: #ff7e79;
+  justify-self: center;
+  align-self: center;
+  flex-shrink: 0;
+  filter:
+    drop-shadow(0 0 6px rgba(239, 68, 68, 0.9))
+    drop-shadow(0 0 12px rgba(249, 115, 22, 0.62));
 }
 
-.sale-banner-text-group {
+.shop-banner-copy {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  text-align: center;
 }
 
-.sale-banner-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: white;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  text-shadow: 
-    0 0 10px rgba(255, 100, 100, 0.8),
-    0 0 20px rgba(255, 100, 100, 0.5),
-    0 0 30px rgba(255, 100, 100, 0.3);
-  animation: text-glow 2s ease-in-out infinite;
-}
-
-.sale-banner-discount {
-  font-size: 14px;
+.shop-banner-title {
+  font-size: 26px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 1px;
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  color: #fff4ef;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
 }
 
-@keyframes text-glow {
-  0%, 100% {
-    text-shadow: 
-      0 0 10px rgba(255, 100, 100, 0.8),
-      0 0 20px rgba(255, 100, 100, 0.5),
-      0 0 30px rgba(255, 100, 100, 0.3);
-  }
-  50% {
-    text-shadow: 
-      0 0 15px rgba(255, 120, 120, 1),
-      0 0 30px rgba(255, 100, 100, 0.7),
-      0 0 45px rgba(255, 100, 100, 0.5);
-  }
+.shop-banner-subtitle {
+  margin-top: 2px;
+  color: rgba(255, 202, 180, 0.82);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shop-banner-arrow {
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 197, 163, 0.95);
+  justify-self: center;
+  align-self: center;
+  flex-shrink: 0;
 }
 
 .personas-gallery {
@@ -209,7 +145,11 @@
 }
 
 .persona-image-placeholder.generating {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.3) 0%,
+    rgba(249, 115, 22, 0.3) 100%
+  );
   animation: pulse 2s ease-in-out infinite;
   display: flex;
   flex-direction: column;
@@ -219,7 +159,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.8;
   }
   50% {
@@ -353,19 +294,23 @@
 
 /* Animated gradient overlay */
 .persona-card.create-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(239, 68, 68, 0.3) 0%,
+    rgba(249, 115, 22, 0.3) 100%
+  );
   z-index: 0;
 }
 
 /* Shimmer animation - slower */
 .persona-card.create-card::after {
-  content: '';
+  content: "";
   position: absolute;
   top: -50%;
   left: -50%;
@@ -464,9 +409,15 @@
   font-weight: 600;
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(4px);
-  background: linear-gradient(to right, rgba(239, 68, 68, 0.5), rgba(249, 115, 22, 0.5));
+  background: linear-gradient(
+    to right,
+    rgba(239, 68, 68, 0.5),
+    rgba(249, 115, 22, 0.5)
+  );
 }
 
 @media (min-width: 768px) {
@@ -481,19 +432,19 @@
   .personas-grid {
     gap: 12px;
   }
-  
+
   .persona-card {
     border-radius: 16px;
   }
-  
+
   .create-card-title {
     font-size: 18px;
   }
-  
+
   .create-card-subtitle {
     font-size: 12px;
   }
-  
+
   .create-card-free-text {
     font-size: 8px;
   }

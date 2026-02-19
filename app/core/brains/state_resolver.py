@@ -28,7 +28,8 @@ def _build_state_context(
     chat_history: list[dict],
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
-    context_summary: Optional[str] = None
+    context_summary: Optional[str] = None,
+    dialogue_response: Optional[str] = None
 ) -> str:
     """Build context for state resolver
     
@@ -81,6 +82,8 @@ Note: This is what was visually depicted in the last image. Consider this contex
 especially for location, clothing, and scene details that may have been shown visually and shoud not be changed.
 """
     
+    dialogue_text = dialogue_response if dialogue_response else "(not available)"
+    
     context = f"""
 # CONVERSATION CONTEXT
 {history_text}
@@ -91,12 +94,16 @@ especially for location, clothing, and scene details that may have been shown vi
 # CHARACTER INFO
 - Name: {persona_name}
 
+# CURRENT AI RESPONSE (what the character just said/did THIS turn)
+{dialogue_text}
+
 # STATE UPDATE RULES
 - Update state to reflect NEW developments in the conversation
 - Track relationship progression naturally based on dialogue
 - Note any changes in location, clothing, mood, or emotions
 - If the conversation is evolving, the state MUST evolve too
 - Each user message may introduce new context - capture it
+- CRITICAL: The AI RESPONSE above is what ACTUALLY happened this turn. Base your state update on it.
 """
     return context
 
@@ -107,7 +114,8 @@ async def resolve_state(
     user_message: str,
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
-    context_summary: Optional[str] = None
+    context_summary: Optional[str] = None,
+    dialogue_response: Optional[str] = None
 ) -> str:
     """
     Brain 2: Update conversation state (runs after dialogue generation)
@@ -126,7 +134,7 @@ async def resolve_state(
     
     # Build context
     prompt = PromptService.get("CONVERSATION_STATE_GPT")
-    context = _build_state_context(previous_state, chat_history, persona_name, previous_image_prompt, context_summary)
+    context = _build_state_context(previous_state, chat_history, persona_name, previous_image_prompt, context_summary, dialogue_response)
     
     # Retry logic
     for attempt in range(1, STATE_RESOLVER_MAX_RETRIES + 1):

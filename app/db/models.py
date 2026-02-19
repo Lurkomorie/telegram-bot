@@ -98,6 +98,9 @@ class Persona(Base):
     order = Column(BigInteger, nullable=True, default=999)  # Sort order (lower appears first)
     main_menu = Column(Boolean, nullable=True, default=True)  # Show in chat main menu
     
+    # Starting mood for new chats (public personas can have different defaults)
+    starting_mood = Column(Integer, nullable=True, default=50)  # 0-100, default 50 (neutral)
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
@@ -209,6 +212,10 @@ class Chat(Base):
     # Message counter for image generation decisions
     message_count = Column(BigInteger, default=0, nullable=False)
     
+    # Mood system for relationship tracking (0-100, 50=neutral)
+    mood = Column(Integer, default=50, nullable=False)
+    coldness_streak = Column(Integer, default=0, nullable=False)  # Consecutive cold/dismissive messages
+    
     # Timestamps for auto-message tracking
     last_user_message_at = Column(DateTime, nullable=True)
     last_assistant_message_at = Column(DateTime, nullable=True)
@@ -225,6 +232,7 @@ class Chat(Base):
     user = relationship("User", back_populates="chats")
     persona = relationship("Persona", back_populates="chats")
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
+    purchases = relationship("ChatPurchase", back_populates="chat", passive_deletes=True)
     
     __table_args__ = (
         Index("ix_chats_tg_chat_id", "tg_chat_id"),
@@ -554,4 +562,29 @@ class SystemMessageDelivery(Base):
         Index("ix_system_message_deliveries_user_id", "user_id"),
         Index("ix_system_message_deliveries_status", "status"),
         Index("ix_system_message_deliveries_retry_count", "retry_count"),
+    )
+
+
+class ChatPurchase(Base):
+    """Shop purchases per chat for mood system and image context"""
+    __tablename__ = "chat_purchases"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    chat_id = Column(UUID(as_uuid=True), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
+    item_key = Column(String(50), nullable=False)  # Catalog key from config/gifts.yaml
+    item_name = Column(String(100), nullable=False)
+    price_paid = Column(Integer, nullable=False)
+    mood_boost = Column(Integer, nullable=False)
+    context_effect = Column(Text, nullable=True)  # Image prompt addition
+    purchased_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    chat = relationship("Chat", back_populates="purchases")
+    user = relationship("User")
+    
+    __table_args__ = (
+        Index("ix_chat_purchases_chat_id", "chat_id"),
+        Index("ix_chat_purchases_user_id", "user_id"),
+        Index("ix_chat_purchases_item_key", "item_key"),
     )

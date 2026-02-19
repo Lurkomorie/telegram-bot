@@ -3,8 +3,9 @@
  * Handles communication with the FastAPI backend
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  || (import.meta.env.DEV ? 'http://localhost:8000' : '');
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 /**
  * Fetch personas from the backend
@@ -14,14 +15,14 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
 export async function fetchPersonas(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/personas`, {
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to fetch personas');
+    throw new Error("Failed to fetch personas");
   }
-  
+
   return response.json();
 }
 
@@ -32,16 +33,19 @@ export async function fetchPersonas(initData) {
  * @returns {Promise<Array>} Array of history objects
  */
 export async function fetchPersonaHistories(personaId, initData) {
-  const response = await fetch(`${API_BASE}/api/miniapp/personas/${personaId}/histories`, {
-    headers: {
-      'X-Telegram-Init-Data': initData || '',
+  const response = await fetch(
+    `${API_BASE}/api/miniapp/personas/${personaId}/histories`,
+    {
+      headers: {
+        "X-Telegram-Init-Data": initData || "",
+      },
     },
-  });
-  
+  );
+
   if (!response.ok) {
-    throw new Error('Failed to fetch histories');
+    throw new Error("Failed to fetch histories");
   }
-  
+
   return response.json();
 }
 
@@ -52,16 +56,19 @@ export async function fetchPersonaHistories(personaId, initData) {
  * @returns {Promise<Object>} Object {hasActiveChat: bool, chatId: string|null}
  */
 export async function fetchActiveChat(personaId, initData) {
-  const response = await fetch(`${API_BASE}/api/miniapp/personas/${personaId}/active-chat`, {
-    headers: {
-      'X-Telegram-Init-Data': initData || '',
+  const response = await fetch(
+    `${API_BASE}/api/miniapp/personas/${personaId}/active-chat`,
+    {
+      headers: {
+        "X-Telegram-Init-Data": initData || "",
+      },
     },
-  });
-  
+  );
+
   if (!response.ok) {
     return { hasActiveChat: false, chatId: null };
   }
-  
+
   return response.json();
 }
 
@@ -73,14 +80,14 @@ export async function fetchActiveChat(personaId, initData) {
 export async function fetchUserEnergy(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/energy`, {
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to fetch energy');
+    throw new Error("Failed to fetch energy");
   }
-  
+
   return response.json();
 }
 
@@ -92,14 +99,14 @@ export async function fetchUserEnergy(initData) {
 export async function fetchUserLanguage(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/language`, {
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to fetch language');
+    throw new Error("Failed to fetch language");
   }
-  
+
   return response.json();
 }
 
@@ -111,18 +118,18 @@ export async function fetchUserLanguage(initData) {
  */
 export async function updateUserLanguage(language, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/update-language`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify({ language }),
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to update language');
+    throw new Error("Failed to update language");
   }
-  
+
   return response.json();
 }
 
@@ -134,14 +141,14 @@ export async function updateUserLanguage(language, initData) {
 export async function checkAgeVerification(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/age-status`, {
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to check age verification');
+    throw new Error("Failed to check age verification");
   }
-  
+
   return response.json();
 }
 
@@ -152,16 +159,16 @@ export async function checkAgeVerification(initData) {
  */
 export async function verifyAge(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/verify-age`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to verify age');
+    throw new Error("Failed to verify age");
   }
-  
+
   return response.json();
 }
 
@@ -174,12 +181,18 @@ export async function verifyAge(initData) {
  * @param {boolean} continueExisting - Continue existing chat instead of starting new (optional)
  * @returns {Promise<Object>} Result object {success, message}
  */
-export async function selectScenario(personaId, historyId, initData, location = null, continueExisting = false) {
+export async function selectScenario(
+  personaId,
+  historyId,
+  initData,
+  location = null,
+  continueExisting = false,
+) {
   const response = await fetch(`${API_BASE}/api/miniapp/select-scenario`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify({
       persona_id: personaId,
@@ -188,12 +201,14 @@ export async function selectScenario(personaId, historyId, initData, location = 
       continue_existing: continueExisting,
     }),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Failed to select scenario' }));
-    throw new Error(error.detail || 'Failed to select scenario');
+    const error = await response
+      .json()
+      .catch(() => ({ detail: "Failed to select scenario" }));
+    throw new Error(error.detail || "Failed to select scenario");
   }
-  
+
   return response.json();
 }
 
@@ -207,19 +222,23 @@ export async function selectScenario(personaId, historyId, initData, location = 
  */
 export async function generateStories(characterData, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/generate-stories`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify(characterData),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to generate stories' }));
-    throw new Error(error.message || error.error || 'Failed to generate stories');
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Failed to generate stories" }));
+    throw new Error(
+      error.message || error.error || "Failed to generate stories",
+    );
   }
-  
+
   return response.json();
 }
 
@@ -231,19 +250,23 @@ export async function generateStories(characterData, initData) {
  */
 export async function createCharacter(selections, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/create-character`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify(selections),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to create character' }));
-    throw new Error(error.message || error.error || 'Failed to create character');
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Failed to create character" }));
+    throw new Error(
+      error.message || error.error || "Failed to create character",
+    );
   }
-  
+
   return response.json();
 }
 
@@ -254,18 +277,23 @@ export async function createCharacter(selections, initData) {
  * @returns {Promise<Object>} Result object {success, message}
  */
 export async function deleteCharacter(personaId, initData) {
-  const response = await fetch(`${API_BASE}/api/miniapp/characters/${personaId}`, {
-    method: 'DELETE',
-    headers: {
-      'X-Telegram-Init-Data': initData || '',
+  const response = await fetch(
+    `${API_BASE}/api/miniapp/characters/${personaId}`,
+    {
+      method: "DELETE",
+      headers: {
+        "X-Telegram-Init-Data": initData || "",
+      },
     },
-  });
-  
+  );
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to delete character' }));
-    throw new Error(error.message || 'Failed to delete character');
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Failed to delete character" }));
+    throw new Error(error.message || "Failed to delete character");
   }
-  
+
   return response.json();
 }
 
@@ -277,19 +305,21 @@ export async function deleteCharacter(personaId, initData) {
  */
 export async function createCustomStory(storyData, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/create-custom-story`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify(storyData),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Failed to create story' }));
-    throw new Error(error.message || error.error || 'Failed to create story');
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Failed to create story" }));
+    throw new Error(error.message || error.error || "Failed to create story");
   }
-  
+
   return response.json();
 }
 
@@ -300,34 +330,44 @@ export async function createCustomStory(storyData, initData) {
  * @returns {Promise<Object>} Invoice object {invoice_link} or simulated result {success, simulated, ...}
  */
 export async function createInvoice(productId, initData) {
-  console.log('[API] Creating invoice for product:', productId);
-  console.log('[API] Init data present:', !!initData, 'length:', initData?.length || 0);
-  console.log('[API] Init data preview:', initData?.substring(0, 100) || 'EMPTY');
-  
+  console.log("[API] Creating invoice for product:", productId);
+  console.log(
+    "[API] Init data present:",
+    !!initData,
+    "length:",
+    initData?.length || 0,
+  );
+  console.log(
+    "[API] Init data preview:",
+    initData?.substring(0, 100) || "EMPTY",
+  );
+
   const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify({ product_id: productId }),
   });
-  
-  console.log('[API] Response status:', response.status);
-  
+
+  console.log("[API] Response status:", response.status);
+
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[API] Error response:', errorText);
-    throw new Error(`Failed to create invoice: ${response.status} ${errorText}`);
+    console.error("[API] Error response:", errorText);
+    throw new Error(
+      `Failed to create invoice: ${response.status} ${errorText}`,
+    );
   }
-  
+
   const data = await response.json();
-  
+
   // Check if this is a simulated payment
   if (data.simulated) {
-    console.log('[SIMULATED PAYMENT] Payment processed immediately:', data);
+    console.log("[SIMULATED PAYMENT] Payment processed immediately:", data);
   }
-  
+
   return data;
 }
 
@@ -338,16 +378,16 @@ export async function createInvoice(productId, initData) {
  */
 export async function claimDailyBonus(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/claim-daily-bonus`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to claim daily bonus');
+    throw new Error("Failed to claim daily bonus");
   }
-  
+
   return response.json();
 }
 
@@ -357,16 +397,19 @@ export async function claimDailyBonus(initData) {
  * @returns {Promise<Object>} Result object {can_claim: bool, next_claim_seconds: int}
  */
 export async function canClaimDailyBonus(initData) {
-  const response = await fetch(`${API_BASE}/api/miniapp/can-claim-daily-bonus`, {
-    headers: {
-      'X-Telegram-Init-Data': initData || '',
+  const response = await fetch(
+    `${API_BASE}/api/miniapp/can-claim-daily-bonus`,
+    {
+      headers: {
+        "X-Telegram-Init-Data": initData || "",
+      },
     },
-  });
-  
+  );
+
   if (!response.ok) {
-    throw new Error('Failed to check bonus eligibility');
+    throw new Error("Failed to check bonus eligibility");
   }
-  
+
   return response.json();
 }
 
@@ -379,21 +422,21 @@ export async function canClaimDailyBonus(initData) {
  */
 export async function trackEvent(eventName, metadata, initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/track-event`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData || '',
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
     },
     body: JSON.stringify({
       event_name: eventName,
       metadata: metadata || {},
     }),
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to track event');
+    throw new Error("Failed to track event");
   }
-  
+
   return response.json();
 }
 
@@ -405,14 +448,115 @@ export async function trackEvent(eventName, metadata, initData) {
 export async function fetchReferralStats(initData) {
   const response = await fetch(`${API_BASE}/api/miniapp/user/referrals`, {
     headers: {
-      'X-Telegram-Init-Data': initData || '',
+      "X-Telegram-Init-Data": initData || "",
     },
   });
-  
+
   if (!response.ok) {
-    throw new Error('Failed to fetch referral stats');
+    throw new Error("Failed to fetch referral stats");
   }
-  
+
   return response.json();
 }
 
+/**
+ * Fetch user's current active chat ID (any persona)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Object {chatId: string|null, personaName: string|null, personaAvatarUrl: string|null}
+ */
+export async function fetchUserActiveChat(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/user/active-chat`, {
+    headers: {
+      "X-Telegram-Init-Data": initData || "",
+    },
+  });
+
+  if (!response.ok) {
+    return { chatId: null, personaName: null, personaAvatarUrl: null };
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch shop items
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Shop items list
+ */
+export async function fetchShopItems(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/shop/items`, {
+    headers: {
+      "X-Telegram-Init-Data": initData || "",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch shop items");
+  }
+
+  return response.json();
+}
+
+/**
+ * Purchase a shop item
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @param {string} chatId - Chat ID to associate purchase with
+ * @param {string} itemId - Item ID to purchase
+ * @returns {Promise<Object>} Purchase result
+ */
+export async function purchaseShopItem(initData, chatId, itemId) {
+  const response = await fetch(`${API_BASE}/api/miniapp/shop/purchase`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
+    },
+    body: JSON.stringify({ chat_id: chatId, item_key: itemId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Failed to purchase item");
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch bonus calendar data
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Bonus calendar data
+ */
+export async function fetchBonusCalendar(initData) {
+  const response = await fetch(`${API_BASE}/api/miniapp/bonus-calendar`, {
+    headers: {
+      "X-Telegram-Init-Data": initData || "",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch bonus calendar");
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetch chat mood for displaying mood indicator
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @param {string} chatId - Chat ID to get mood for
+ * @returns {Promise<Object>} Mood data {mood: number, coldness_streak: number}
+ */
+export async function fetchChatMood(initData, chatId) {
+  const response = await fetch(`${API_BASE}/api/miniapp/chat/${chatId}/mood`, {
+    headers: {
+      "X-Telegram-Init-Data": initData || "",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch chat mood");
+  }
+
+  return response.json();
+}
