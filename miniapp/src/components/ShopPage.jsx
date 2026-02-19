@@ -10,6 +10,35 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV ? "http://localhost:8000" : "");
 
+const SHOP_IMAGE_FALLBACKS = {
+  flower_bouquet: "assets/shop/flower-bouquet.jpg",
+  wine_bottle: "assets/shop/wine-bottle.jpg",
+  dildo: "assets/shop/dildo-pink.png",
+  cute_pajamas: "assets/shop/cute-pajamas.jpg",
+  engagement_ring: "assets/shop/engagement-ring.jpg",
+  bondage_rope: "assets/shop/bondage-rope.jpg",
+  lace_lingerie: "assets/shop/pink-panties.png",
+  fox_ears_headband: "assets/shop/fox-ears-headband.jpg",
+  control_orb: "assets/shop/control-orb.jpg",
+};
+
+const normalizeImagePath = (rawPath) => {
+  if (!rawPath) return "";
+
+  if (
+    rawPath.startsWith("http://") ||
+    rawPath.startsWith("https://") ||
+    rawPath.startsWith("data:")
+  ) {
+    return rawPath;
+  }
+
+  const baseUrl = import.meta.env.BASE_URL || "/";
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const normalizedPath = rawPath.startsWith("/") ? rawPath.slice(1) : rawPath;
+  return `${normalizedBase}${normalizedPath}`;
+};
+
 export default function ShopPage({
   chatId: initialChatId,
   tokens,
@@ -25,7 +54,7 @@ export default function ShopPage({
   const [avatarLoading, setAvatarLoading] = useState(true);
   const [shopItems, setShopItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
-  const [failedImageKeys, setFailedImageKeys] = useState({});
+  const [imageAttemptStage, setImageAttemptStage] = useState({});
 
   // Fetch active chat meta for shop context panel
   useEffect(() => {
@@ -100,6 +129,10 @@ export default function ShopPage({
   useEffect(() => {
     fetchMood();
   }, [fetchMood]);
+
+  useEffect(() => {
+    setImageAttemptStage({});
+  }, [shopItems]);
 
   const handlePurchase = async (item) => {
     if (isPurchasing) return;
@@ -188,7 +221,23 @@ export default function ShopPage({
   };
 
   const markImageAsFailed = (key) => {
-    setFailedImageKeys((prev) => ({ ...prev, [key]: true }));
+    setImageAttemptStage((prev) => ({ ...prev, [key]: (prev[key] || 0) + 1 }));
+  };
+
+  const getItemImagePath = (item) => {
+    const backendPath = normalizeImagePath(item.image_path || "");
+    const fallbackPath = normalizeImagePath(SHOP_IMAGE_FALLBACKS[item.key] || "");
+    const stage = imageAttemptStage[item.key] || 0;
+
+    if (stage === 0) {
+      return backendPath || fallbackPath || "";
+    }
+
+    if (stage === 1 && backendPath && fallbackPath && backendPath !== fallbackPath) {
+      return fallbackPath;
+    }
+
+    return "";
   };
 
   const getMoodEmoji = () => {
@@ -257,7 +306,8 @@ export default function ShopPage({
         <div className="shop-items-grid">
           {shopItems.map((item) => {
             const IconComponent = getItemIconComponent(item);
-            const hasImage = !!item.image_path && !failedImageKeys[item.key];
+            const imagePath = getItemImagePath(item);
+            const hasImage = !!imagePath;
             const subtitle = getItemSubtitle(item);
 
             return (
@@ -275,7 +325,7 @@ export default function ShopPage({
                   <div className="shop-item-visual-zone">
                     {hasImage ? (
                       <img
-                        src={item.image_path}
+                        src={imagePath}
                         alt={getItemName(item)}
                         className="shop-item-image"
                         onError={() => markImageAsFailed(item.key)}

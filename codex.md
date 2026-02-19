@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-19 (shop image refresh + anal_plug removal)
+Last updated: 2026-02-19 (cute_pajamas image swap)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -44,6 +44,8 @@ Last updated: 2026-02-19 (shop image refresh + anal_plug removal)
   - Miniapp shop visuals are compact 2-column cards with black product-card backgrounds; price pill uses local lightning asset icon (not gem).
   - Adult `anal_plug` product was removed from `config/gifts.yaml`; catalog/shop now contain 9 gift items.
   - Shop product images now come from `miniapp/public/assets/shop/*` and are mapped in `config/gifts.yaml` (`ui.image_path`).
+  - `cute_pajamas` now uses dedicated asset `/assets/shop/cute-pajamas.jpg` (no longer reused from lingerie/panties art).
+  - `ShopPage` now has frontend-safe image fallback by `item.key` + `BASE_URL` normalization, so cards still show images if backend returns empty/stale `image_path` or absolute-root paths break under subpath hosting.
   - Shop mood/info panel is game-like with circular active-persona avatar (with skeleton loading), mood label, percent, and progress bar.
   - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
   - Banner text centering in `PersonasGallery` now uses a strict 3-column grid (`56px / 1fr / 56px`) so the title/subtitle block is centered independently of side icons.

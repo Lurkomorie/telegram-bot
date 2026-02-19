@@ -83,7 +83,7 @@ gifts:
     ui:
       icon_lucide: "BedSingle"
       icon_emoji_fallback: "🩷"
-      image_path: "/assets/shop/pink-panties.png"
+      image_path: "/assets/shop/cute-pajamas.jpg"
       sort_order: 50
       style: "gift_v1"
 
