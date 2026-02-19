@@ -263,7 +263,7 @@ PRIORITY:
 <TAG_ORDER>
 IllustriousXL is sensitive to tag order. Output tags in this exact order:
 1. Person count: 1girl, solo
-2. Composition: ALWAYS include pov and close-up
+2. Composition: default pov + close-up, but for shibari scenes use full_body instead
 3. Pose & action focus: what the character is physically doing
 4. Clothing: current outfit or state of undress
 5. Expression: face, emotion, eyes, mouth
@@ -273,10 +273,11 @@ IllustriousXL is sensitive to tag order. Output tags in this exact order:
 
 <COMPOSITION_RULES>
 FRAMING:
-- HARD RULE: ALWAYS include pov
-- HARD RULE: ALWAYS include close-up
+- HARD RULE (default): include pov + close-up
+- HARD RULE (shibari): include full_body and avoid portrait-only framing
 - Optional extra framing: upper_body or cowboy_shot if useful
-- NEVER use far framing tags: full_body, wide_shot, long_shot, multiple_views
+- NEVER use far framing tags: wide_shot, long_shot, multiple_views
+- `full_body` is allowed only when shibari is a mandatory focus.
 
 SOLO vs COUPLE:
 - DEFAULT: 1girl, solo
@@ -330,7 +331,8 @@ Environment: indoors, outdoors, bedroom, kitchen, cafe, beach, park, window, cou
 Lighting: sunlight, backlighting, rim_lighting, night, sunset, lamp, candle, dim_lighting
 Effects: depth_of_field, blurry_background, lens_flare, bloom
 
-DO NOT USE: full_body, wide_shot, long_shot, multiple_views, 1boy, male_focus
+DO NOT USE: wide_shot, long_shot, multiple_views, 1boy, male_focus
+Use `full_body` only for shibari-focused turns.
 </DANBOORU_TAG_GUIDE>
 
 <HANDS>
@@ -358,6 +360,7 @@ Exception: if ACTION TRUTH POLICY marks refusal/deflection, follow AI actions in
 Feet request: 1girl, solo, pov, close-up, feet, foot_focus, barefoot, blush, parted_lips, bedroom, on_bed, dim_lighting
 Solo casual: 1girl, solo, pov, close-up, upper_body, sitting, hand_in_own_hair, sundress, light_smile, looking_at_viewer, blush, cafe, indoors, sunlight, depth_of_field
 Solo nude explicit: 1girl, solo, pov, close-up, nude, nipples, spread_legs, blush, parted_lips, half-closed_eyes, bedroom, on_bed, dim_lighting
+Shibari gift: 1girl, solo, full_body, shibari, rope, bondage, tied_up, spread_legs, blush, parted_lips, half-closed_eyes, outdoors, rain, depth_of_field
 M/F oral POV: 1girl, solo, pov, close-up, hetero, oral, fellatio, penis, blush, half-closed_eyes, open_mouth, bedroom, dim_lighting
 M/F sex POV: 1girl, solo, pov, close-up, hetero, sex, vaginal, pussy_juice, blush, parted_lips, open_mouth, on_back, on_bed, bedroom, night
 Gift wine: 1girl, solo, pov, close-up, upper_body, holding_cup, wine_glass, drinking, blush, smile, indoors, dim_lighting

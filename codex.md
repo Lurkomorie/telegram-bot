@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-19 (openrouter 404 model fallback fix)
+Last updated: 2026-02-19 (shibari full-body framing override)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -14,12 +14,12 @@ Last updated: 2026-02-19 (openrouter 404 model fallback fix)
 - Shop and recommendation flows must read gift metadata from catalog-derived loaders (`get_gift_catalog`, `get_shop_items_map`) instead of hardcoded gift arrays.
 
 ## Decisions From This Task
-- Framing policy: strict POV close-up by default (`pov` + `close-up` always enforced).
+- Framing policy: strict POV close-up by default (`pov` + `close-up` enforced), with a deterministic exception for `shibari` scenes to force `full_body`.
 - Visual truth policy: AI visual actions are authoritative when they conflict with user request (refusal/deflection turns).
 - Mandatory focus extraction is semantic (LLM pre-pass), not hardcoded keyword maps; it uses request meaning + AI visual compliance.
 - Continuity: preserve clothing/location unless explicit change is detected in current turn.
 - Tag quality strategy: curated local normalization/enforcement (no runtime Danbooru API calls).
-- Enforced forbidden tags: `1boy`, `male_focus`, and far-framing tags (`full_body`, `wide_shot`, `long_shot`, `multiple_views`).
+- Enforced forbidden tags: `1boy`, `male_focus`, and far-framing tags (`wide_shot`, `long_shot`, `multiple_views`); `full_body` is still blocked by default but explicitly allowed in `shibari` full-body mode.
 - Remove all `rating:*` tags from generated prompt tags (LLM output and deterministic post-process strip them).
 - Canonical alias normalization currently includes:
   - `soft_smile -> light_smile`
@@ -44,9 +44,8 @@ Last updated: 2026-02-19 (openrouter 404 model fallback fix)
   - Miniapp shop visuals are compact 2-column cards in red/orange palette; price pill uses local lightning asset icon (not gem).
   - Shop mood/info panel is game-like with circular active-persona avatar (with skeleton loading), mood label, percent, and progress bar.
   - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
-  - Banner text centering in `PersonasGallery` uses absolute-positioned left/right icons and a true centered text block.
-  - Banner title (`shop-banner-title`, "Sex Shop") is visually doubled using `transform: scale(2)` so text appears 2x larger without changing parent banner dimensions.
-  - Banner center fix: `.shop-banner-copy` is absolutely centered (`left/top: 50%` + translate) with `width: calc(100% - 92px)` and `box-sizing: border-box` for stable true-center title alignment.
+  - Banner text centering in `PersonasGallery` now uses a strict 3-column grid (`56px / 1fr / 56px`) so the title/subtitle block is centered independently of side icons.
+  - Banner title size is now set directly (`font-size: 26px`) instead of `transform: scale(2)` to avoid visual drift from transform-based scaling.
 - Gift image continuity hardening:
   - Forced gift tags are sanitized in `image_prompt_engineer` to strip scene/outfit/framing by default.
   - Scene override is opt-in (`allow_scene_override=False` default), preventing forced beach->bedroom jumps.
@@ -72,6 +71,7 @@ Last updated: 2026-02-19 (openrouter 404 model fallback fix)
   - Keep explicit 18+ NSFW danbooru tag examples/guidance in `IMAGE_TAG_GENERATOR_GPT` (no tone-down for minor-safe style).
 - Prompt focus policy hardening:
   - `IMAGE_TAG_GENERATOR_GPT` now explicitly requires semantic intent matching and concrete position+act tags for compliant explicit requests.
+  - `IMAGE_TAG_GENERATOR_GPT` composition rules now include explicit shibari exception (`full_body` for shibari, default remains `pov` + `close-up`).
 - Auto-followup anti-repeat hardening:
   - Scheduler prompts are now stage-aware by followup type (`3min`, `30min`, `24h`, `3day`) instead of one shared pool.
   - `dialogue_specialist.generate_dialogue` now receives `followup_type` and applies stage-specific style guidance.
@@ -86,6 +86,10 @@ Last updated: 2026-02-19 (openrouter 404 model fallback fix)
     - legacy aliases (`vibrator`, `anal_beads`) are still supported for old purchase rows.
   - `image_prompt_engineer` context now includes `GIFT USAGE CONSTRAINTS (MANDATORY)` when applicable.
   - `config/gifts.yaml` adult toy visual tags are object/action-focused and scene-safe by default.
+  - `shibari` gift framing now deterministically switches to full-body composition in `_enforce_tag_policy`:
+    - keeps `full_body`,
+    - removes conflicting portrait framing tags (`pov`, `close-up`, `upper_body`, etc.),
+    - avoids `upper_body` filler injection for that mode.
 
 ## Known Pitfalls + Fixes
 - Pitfall: direct user visual requests (including multilingual/novel phrasing) could be missed by keyword-only focus routing.
@@ -134,6 +138,7 @@ Last updated: 2026-02-19 (openrouter 404 model fallback fix)
   - no `rating:*` output + required core tags,
   - forced gift tag scene stripping,
   - forced vibrator/anal-beads usage correctness constraints,
+  - shibari full-body framing override behavior,
   - max tag bound enforcement.
 - `app/tests/test_gift_recommendation_brain.py` covers:
   - 20-user-message cadence gate,

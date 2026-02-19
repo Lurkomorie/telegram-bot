@@ -29,6 +29,9 @@ TAG_ALIAS_MAP = {
     "close_up": "close-up",
 }
 
+FULL_BODY_FRAMING_TRIGGER_TAGS = {"shibari"}
+FULL_BODY_CONFLICT_FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov"}
+
 PERSON_TAGS = {"1girl", "solo"}
 FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov", "from_behind", "from_below"}
 CLOTHING_TAGS = {
@@ -141,6 +144,26 @@ def _canonicalize_tag(tag: str) -> str:
     return t
 
 
+def _is_forbidden_tag(tag: str, allow_full_body: bool = False) -> bool:
+    if tag not in FORBIDDEN_TAGS:
+        return False
+    return not (allow_full_body and tag == "full_body")
+
+
+def _should_force_full_body_framing(
+    raw_tags: str,
+    mandatory_focus_tags: Optional[List[str]] = None,
+    forced_gift_tags: Optional[List[str]] = None,
+) -> bool:
+    """Use full-body framing for scenarios that semantically require body visibility."""
+    candidates = _split_tags(raw_tags or "") + (mandatory_focus_tags or []) + (forced_gift_tags or [])
+    for raw_tag in candidates:
+        tag = _canonicalize_tag(raw_tag)
+        if tag in FULL_BODY_FRAMING_TRIGGER_TAGS:
+            return True
+    return False
+
+
 def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[str, bool]:
     text = f"{user_message or ''} {visual_actions or ''}".lower()
     return {
@@ -206,9 +229,10 @@ def _sanitize_forced_gift_tags(forced_gift_tags: str, allow_scene_override: bool
     """
     cleaned: List[str] = []
     seen = set()
+    full_body_mode = _should_force_full_body_framing(forced_gift_tags)
     for raw_tag in _split_tags(forced_gift_tags or ""):
         tag = _canonicalize_tag(raw_tag)
-        if not tag or tag in FORBIDDEN_TAGS:
+        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode):
             continue
         if not allow_scene_override and tag in FORCED_GIFT_SCENE_TAGS:
             continue
@@ -283,13 +307,19 @@ def _enforce_tag_policy(
     mandatory_focus_tags = mandatory_focus_tags or []
     forced_gift_tags = forced_gift_tags or []
     scene_lock = scene_lock or {"clothing": [], "environment": []}
+    full_body_mode = _should_force_full_body_framing(
+        raw_tags,
+        mandatory_focus_tags=mandatory_focus_tags,
+        forced_gift_tags=forced_gift_tags,
+    )
+    required_core_tags = ["1girl", "solo", "full_body"] if full_body_mode else REQUIRED_CORE_TAGS
 
     cleaned_tags: List[str] = []
     seen = set()
 
     for raw_tag in _split_tags(raw_tags):
         tag = _canonicalize_tag(raw_tag)
-        if not tag or tag in FORBIDDEN_TAGS:
+        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode):
             continue
         if tag.startswith("rating:"):
             continue
@@ -297,7 +327,7 @@ def _enforce_tag_policy(
             seen.add(tag)
             cleaned_tags.append(tag)
 
-    for tag in REQUIRED_CORE_TAGS:
+    for tag in required_core_tags:
         norm = _canonicalize_tag(tag)
         if norm not in seen:
             seen.add(norm)
@@ -306,7 +336,7 @@ def _enforce_tag_policy(
     normalized_forced_gift = []
     for tag in forced_gift_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or norm in FORBIDDEN_TAGS:
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
             continue
         if norm not in normalized_forced_gift:
             normalized_forced_gift.append(norm)
@@ -316,7 +346,7 @@ def _enforce_tag_policy(
 
     required_gift_usage_tags, forbidden_gift_usage_tags, _ = _derive_gift_usage_constraints(normalized_forced_gift)
     for tag in required_gift_usage_tags:
-        if tag in FORBIDDEN_TAGS:
+        if _is_forbidden_tag(tag, allow_full_body=full_body_mode):
             continue
         if tag not in seen:
             seen.add(tag)
@@ -325,7 +355,7 @@ def _enforce_tag_policy(
     normalized_mandatory_focus = []
     for tag in mandatory_focus_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or norm in FORBIDDEN_TAGS:
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
             continue
         normalized_mandatory_focus.append(norm)
         if norm not in seen:
@@ -356,9 +386,18 @@ def _enforce_tag_policy(
         if required not in buckets["person"]:
             buckets["person"].insert(0, required)
 
-    for required in ["pov", "close-up"]:
-        if required not in buckets["framing"]:
-            buckets["framing"].insert(0, required)
+    if full_body_mode:
+        buckets["framing"] = [
+            tag
+            for tag in buckets["framing"]
+            if tag not in FULL_BODY_CONFLICT_FRAMING_TAGS
+        ]
+        if "full_body" not in buckets["framing"]:
+            buckets["framing"].insert(0, "full_body")
+    else:
+        for required in ["pov", "close-up"]:
+            if required not in buckets["framing"]:
+                buckets["framing"].insert(0, required)
 
     for focus_tag in normalized_mandatory_focus:
         if focus_tag not in buckets["action"] and focus_tag not in buckets["expression"]:
@@ -410,11 +449,11 @@ def _enforce_tag_policy(
     deduped_ordered: List[str] = []
     deduped_seen = set()
     for tag in ordered_tags:
-        if tag not in deduped_seen and tag not in FORBIDDEN_TAGS:
+        if tag not in deduped_seen and not _is_forbidden_tag(tag, allow_full_body=full_body_mode):
             deduped_seen.add(tag)
             deduped_ordered.append(tag)
 
-    essential_tags = set(REQUIRED_CORE_TAGS + normalized_mandatory_focus + gift_priority_tags)
+    essential_tags = set(required_core_tags + normalized_mandatory_focus + gift_priority_tags)
     if forbidden_gift_usage_tags:
         essential_tags = {tag for tag in essential_tags if tag not in forbidden_gift_usage_tags}
     trimmed: List[str] = []
@@ -429,10 +468,11 @@ def _enforce_tag_policy(
             break
         trimmed.append(tag)
 
-    for filler in DEFAULT_FILLER_TAGS:
+    filler_tags = [tag for tag in DEFAULT_FILLER_TAGS if not (full_body_mode and tag == "upper_body")]
+    for filler in filler_tags:
         if len(trimmed) >= 14:
             break
-        if filler not in trimmed and filler not in FORBIDDEN_TAGS:
+        if filler not in trimmed and not _is_forbidden_tag(filler, allow_full_body=full_body_mode):
             trimmed.append(filler)
 
     return ", ".join(trimmed[:24])

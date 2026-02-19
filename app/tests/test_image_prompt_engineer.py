@@ -132,6 +132,16 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertNotIn("close-up", tags)
         self.assertNotIn("lingerie", tags)
 
+    def test_shibari_forced_gift_can_keep_full_body_tag(self):
+        cleaned = _sanitize_forced_gift_tags(
+            "shibari, rope, full_body, close-up",
+            allow_scene_override=True,
+        )
+        tags = set(_split(cleaned))
+        self.assertIn("shibari", tags)
+        self.assertIn("rope", tags)
+        self.assertIn("full_body", tags)
+
     def test_forced_dildo_blocks_oral_and_enforces_usage_tags(self):
         output = _enforce_tag_policy(
             "1girl, solo, pov, close-up, oral, fellatio, open_mouth, blush",
@@ -156,6 +166,19 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertIn("anal_object_insertion", tags)
         self.assertNotIn("oral", tags)
         self.assertNotIn("licking", tags)
+
+    def test_shibari_forces_full_body_framing(self):
+        output = _enforce_tag_policy(
+            "1girl, solo, pov, close-up, upper_body, shibari, rope, bondage, blush",
+            forced_gift_tags=["shibari", "rope", "bondage"],
+        )
+        tags = set(_split(output))
+
+        self.assertIn("shibari", tags)
+        self.assertIn("full_body", tags)
+        self.assertNotIn("pov", tags)
+        self.assertNotIn("close-up", tags)
+        self.assertNotIn("upper_body", tags)
 
     def test_gift_override_adds_usage_constraints_to_context(self):
         context, _, _, _, _ = _build_image_context(

@@ -4,13 +4,13 @@
   height: 76px !important;
   min-height: 76px !important;
   max-height: 76px !important;
-  padding: 10px 12px;
+  padding: 10px 8px;
   border-radius: 14px;
   position: relative;
   overflow: hidden;
-  display: flex;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
-  justify-content: center;
   background:
     radial-gradient(circle at 16% 48%, rgba(239, 68, 68, 0.28), transparent 52%),
     radial-gradient(circle at 86% 28%, rgba(249, 115, 22, 0.18), transparent 56%),
@@ -38,10 +38,8 @@
   width: 20px;
   height: 20px;
   color: #ff7e79;
-  position: absolute;
-  left: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  justify-self: center;
+  align-self: center;
   flex-shrink: 0;
   filter:
     drop-shadow(0 0 6px rgba(239, 68, 68, 0.9))
@@ -53,11 +51,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: calc(100% - 92px);
+  width: 100%;
   padding: 0;
   box-sizing: border-box;
   min-width: 0;
@@ -65,15 +59,12 @@
 }
 
 .shop-banner-title {
-  font-size: 13px;
+  font-size: 26px;
   font-weight: 600;
   color: #fff4ef;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   line-height: 1.05;
-  display: inline-block;
-  transform: scale(2);
-  transform-origin: center bottom;
 }
 
 .shop-banner-subtitle {
@@ -90,10 +81,8 @@
   width: 20px;
   height: 20px;
   color: rgba(255, 197, 163, 0.95);
-  position: absolute;
-  right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  justify-self: center;
+  align-self: center;
   flex-shrink: 0;
 }
 
