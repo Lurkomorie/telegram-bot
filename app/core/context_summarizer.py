@@ -47,7 +47,7 @@ async def generate_context_summary(
         return ""
     
     config = get_app_config()
-    summary_model = config["llm"].get("summary_model", "mistralai/ministral-3b")
+    summary_model = config["llm"].get("summary_model") or config["llm"].get("model", "openrouter/auto")
     
     prompt = PromptService.get("CONTEXT_SUMMARY_GPT")
     history_text = format_history_for_summary(chat_history)
@@ -184,4 +184,3 @@ Respond to the user's CURRENT message below."""
         current_user_message=current_user_message,
         last_n_verbatim=2
     )
-

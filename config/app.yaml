@@ -6,8 +6,8 @@ llm:
   image_model: x-ai/grok-4-fast # Image tag generation
   image_model_reasoning: true # Disable reasoning to reduce costs
   memory_model: xiaomi/mimo-v2-flash # Memory extraction - uncensored, cheap, decent quality with good prompt
-  decision_model: mistralai/ministral-3b # Fast, uncensored model for image decisions
-  summary_model: mistralai/ministral-3b # Fast, cheap model for context summarization
+  decision_model: mistralai/ministral-3b-2512 # Fast, uncensored model for image decisions
+  summary_model: mistralai/ministral-3b-2512 # Fast, cheap model for context summarization
   temperature: 0.7
   max_tokens: 300
   timeout_sec: 40

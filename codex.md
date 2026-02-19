@@ -1,6 +1,6 @@
 # Codex Memory
 
-Last updated: 2026-02-19 (gift override + control orb flow)
+Last updated: 2026-02-19 (openrouter 404 model fallback fix)
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -46,6 +46,7 @@ Last updated: 2026-02-19 (gift override + control orb flow)
   - Gallery shop CTA (`PersonasGallery`) is styled as a red/orange action-pill with neon heart icon and height aligned with gallery action buttons.
   - Banner text centering in `PersonasGallery` uses absolute-positioned left/right icons and a true centered text block.
   - Banner title (`shop-banner-title`, "Sex Shop") is visually doubled using `transform: scale(2)` so text appears 2x larger without changing parent banner dimensions.
+  - Banner center fix: `.shop-banner-copy` is absolutely centered (`left/top: 50%` + translate) with `width: calc(100% - 92px)` and `box-sizing: border-box` for stable true-center title alignment.
 - Gift image continuity hardening:
   - Forced gift tags are sanitized in `image_prompt_engineer` to strip scene/outfit/framing by default.
   - Scene override is opt-in (`allow_scene_override=False` default), preventing forced beach->bedroom jumps.
@@ -60,6 +61,10 @@ Last updated: 2026-02-19 (gift override + control orb flow)
 - Refresh policy split:
   - Image refresh callback now allows 2 image refreshes for ordinary images, 10 for gift-purchase images (`is_gift_purchase` in job ext), then falls back to text-only refresh.
   - Refresh-generated jobs now preserve `is_gift_purchase` metadata.
+- OpenRouter model-availability hardening:
+  - `config/app.yaml` `decision_model` and `summary_model` now use active model ID `mistralai/ministral-3b-2512` (old `mistralai/ministral-3b` caused 404 in production logs).
+  - `llm_openrouter.generate_text` now auto-fallbacks once to primary `llm.model` when a non-primary model returns HTTP 404.
+  - Added non-retryable 404 error path with clearer model-specific diagnostics after fallback is exhausted.
 - Eye fidelity booster:
   - `_enforce_tag_policy` now injects `eye_focus` (+ eye direction when missing) for normal portrait turns.
   - Skips eye-force when `closed_eyes` is intentional or when heavy non-face body focus is requested.
@@ -164,6 +169,10 @@ Last updated: 2026-02-19 (gift override + control orb flow)
 - Gift image prompt quality note:
   - `config/gifts.yaml` visual tag sets were strengthened, including explicit shibari-focused `bondage_rope` tags and richer wearable gift tags.
   - Forced gift sanitization still strips scene/clothing by default globally, but gift-purchase flow now explicitly opts into scene/clothing override.
+
+## Reliability Notes (2026-02-19)
+- Added `app/tests/test_llm_openrouter.py` coverage for 404 model fallback behavior:
+  - if requested model returns 404, client retries with configured primary model and succeeds.
 
 ## Maintenance Rule
 - At start of each new request, read this file first.
