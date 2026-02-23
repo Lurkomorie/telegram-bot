@@ -418,6 +418,36 @@ def track_payment_initiated(
     )
 
 
+def track_gift_purchased(
+    client_id: int,
+    item_key: str,
+    item_name: str,
+    price_paid: int,
+    mood_boost: int,
+    chat_id: Optional[UUID] = None,
+    persona_id: Optional[UUID] = None,
+    persona_name: Optional[str] = None,
+    new_mood: Optional[int] = None,
+    new_tokens: Optional[int] = None,
+):
+    """Track successful gift purchase from mini app shop"""
+    track_event_tg(
+        client_id=client_id,
+        event_name="gift_purchased",
+        persona_id=persona_id,
+        persona_name=persona_name,
+        meta={
+            "chat_id": str(chat_id) if chat_id else None,
+            "item_key": item_key,
+            "item_name": item_name,
+            "price_paid": price_paid,
+            "mood_boost": mood_boost,
+            "new_mood": new_mood,
+            "new_tokens": new_tokens,
+        }
+    )
+
+
 def track_daily_bonus_claimed(client_id: int, tokens_awarded: int):
     """Track daily bonus claim"""
     track_event_tg(
@@ -473,5 +503,4 @@ def track_voice_generated(
             "is_free": is_free
         }
     )
-
 

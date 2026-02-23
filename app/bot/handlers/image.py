@@ -23,6 +23,16 @@ from app.core.logging_utils import log_always
 import random
 
 
+def _cached_image_photo_pointer(cached_image):
+    if not cached_image:
+        return None
+    if cached_image.result_file_id:
+        return cached_image.result_file_id
+    if cached_image.result_url and not cached_image.result_url.startswith("binary:"):
+        return cached_image.result_url
+    return None
+
+
 @router.message(Command("image"))
 async def cmd_image(message: types.Message):
     """Handle /image command"""
@@ -152,7 +162,8 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         prompt_hash = crud.compute_prompt_hash(positive_prompt)
         cached_image = crud.find_cached_image(db, prompt_hash, user_id)
         
-        if cached_image and cached_image.result_url:
+        cached_photo = _cached_image_photo_pointer(cached_image)
+        if cached_image and cached_photo:
             print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
             
             try:
@@ -176,7 +187,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
                 # Send cached image
                 sent_message = await bot.send_photo(
                     chat_id=message.chat.id,
-                    photo=cached_image.result_url,
+                    photo=cached_photo,
                     reply_markup=refresh_keyboard
                 )
                 
@@ -960,7 +971,8 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         prompt_hash = crud.compute_prompt_hash(positive_prompt)
         cached_image = crud.find_cached_image(db, prompt_hash, user_id)
         
-        if cached_image and cached_image.result_url:
+        cached_photo = _cached_image_photo_pointer(cached_image)
+        if cached_image and cached_photo:
             print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
             
             try:
@@ -979,7 +991,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
                 # Send cached image
                 sent_message = await bot.send_photo(
                     chat_id=message.chat.id,
-                    photo=cached_image.result_url,
+                    photo=cached_photo,
                     reply_markup=refresh_keyboard
                 )
                 

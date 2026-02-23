@@ -1105,6 +1105,257 @@ async def get_premium_purchases(
         raise HTTPException(status_code=500, detail=f"Error fetching premium purchases: {str(e)}")
 
 
+@router.get("/gift-purchase-stats")
+async def get_gift_purchase_stats(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter")
+) -> Dict[str, Any]:
+    """
+    Get gift purchase statistics from chat shop purchases.
+    """
+    from sqlalchemy import cast, Date, desc, distinct, func
+    from app.db.models import ChatPurchase, User, Chat, Persona
+    from app.db.crud import SHOP_ITEMS
+
+    try:
+        parsed_start = datetime.strptime(start_date, "%Y-%m-%d") if start_date else None
+        parsed_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1) if end_date else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    def apply_filters(query):
+        if acquisition_source:
+            query = query.filter(User.acquisition_source == acquisition_source)
+        if parsed_start:
+            query = query.filter(ChatPurchase.purchased_at >= parsed_start)
+        if parsed_end:
+            query = query.filter(ChatPurchase.purchased_at < parsed_end)
+        return query
+
+    try:
+        with get_db() as db:
+            totals_query = db.query(
+                func.count(ChatPurchase.id).label("total_purchases"),
+                func.coalesce(func.sum(ChatPurchase.price_paid), 0).label("total_tokens_spent"),
+                func.coalesce(func.sum(ChatPurchase.mood_boost), 0).label("total_mood_boost"),
+                func.count(distinct(ChatPurchase.user_id)).label("unique_buyers"),
+                func.count(distinct(ChatPurchase.chat_id)).label("unique_chats")
+            ).join(User, ChatPurchase.user_id == User.id)
+
+            totals = apply_filters(totals_query).first()
+
+            by_item_query = db.query(
+                ChatPurchase.item_key,
+                ChatPurchase.item_name,
+                func.count(ChatPurchase.id).label("purchase_count"),
+                func.coalesce(func.sum(ChatPurchase.price_paid), 0).label("tokens_spent"),
+                func.coalesce(func.sum(ChatPurchase.mood_boost), 0).label("mood_boost_sum")
+            ).join(User, ChatPurchase.user_id == User.id)
+
+            by_item_rows = apply_filters(by_item_query).group_by(
+                ChatPurchase.item_key,
+                ChatPurchase.item_name
+            ).order_by(desc("purchase_count")).all()
+
+            by_day_query = db.query(
+                cast(ChatPurchase.purchased_at, Date).label("date"),
+                func.count(ChatPurchase.id).label("purchase_count"),
+                func.coalesce(func.sum(ChatPurchase.price_paid), 0).label("tokens_spent")
+            ).join(User, ChatPurchase.user_id == User.id)
+
+            by_day_rows = apply_filters(by_day_query).group_by("date").order_by("date").all()
+
+            top_personas_query = db.query(
+                Persona.name.label("persona_name"),
+                func.count(ChatPurchase.id).label("purchase_count"),
+                func.coalesce(func.sum(ChatPurchase.price_paid), 0).label("tokens_spent")
+            ).join(User, ChatPurchase.user_id == User.id).outerjoin(
+                Chat, ChatPurchase.chat_id == Chat.id
+            ).outerjoin(
+                Persona, Chat.persona_id == Persona.id
+            )
+
+            top_personas_rows = apply_filters(top_personas_query).group_by(
+                Persona.name
+            ).order_by(desc("purchase_count")).limit(10).all()
+
+            total_purchases = int(totals.total_purchases or 0)
+            total_tokens_spent = int(totals.total_tokens_spent or 0)
+            total_mood_boost = int(totals.total_mood_boost or 0)
+            unique_buyers = int(totals.unique_buyers or 0)
+            unique_chats = int(totals.unique_chats or 0)
+
+            by_item = []
+            by_category: Dict[str, Dict[str, Any]] = {}
+            for row in by_item_rows:
+                item_meta = SHOP_ITEMS.get(row.item_key, {})
+                category = item_meta.get("category", "unknown")
+                emoji = item_meta.get("emoji", "🎁")
+
+                purchase_count = int(row.purchase_count or 0)
+                tokens_spent = int(row.tokens_spent or 0)
+                mood_boost_sum = int(row.mood_boost_sum or 0)
+
+                by_item.append({
+                    "item_key": row.item_key,
+                    "item_name": row.item_name,
+                    "category": category,
+                    "emoji": emoji,
+                    "purchase_count": purchase_count,
+                    "tokens_spent": tokens_spent,
+                    "mood_boost_sum": mood_boost_sum,
+                    "avg_price": round(tokens_spent / purchase_count, 2) if purchase_count > 0 else 0,
+                })
+
+                if category not in by_category:
+                    by_category[category] = {
+                        "category": category,
+                        "purchase_count": 0,
+                        "tokens_spent": 0,
+                    }
+                by_category[category]["purchase_count"] += purchase_count
+                by_category[category]["tokens_spent"] += tokens_spent
+
+            return {
+                "total_purchases": total_purchases,
+                "total_tokens_spent": total_tokens_spent,
+                "total_mood_boost": total_mood_boost,
+                "unique_buyers": unique_buyers,
+                "unique_chats": unique_chats,
+                "avg_price": round(total_tokens_spent / total_purchases, 2) if total_purchases > 0 else 0,
+                "purchases_over_time": [
+                    {
+                        "date": row.date.isoformat() if row.date else None,
+                        "purchase_count": int(row.purchase_count or 0),
+                        "tokens_spent": int(row.tokens_spent or 0),
+                    }
+                    for row in by_day_rows
+                ],
+                "by_item": by_item,
+                "by_category": sorted(
+                    by_category.values(),
+                    key=lambda x: x["purchase_count"],
+                    reverse=True
+                ),
+                "top_personas": [
+                    {
+                        "persona_name": row.persona_name or "Unknown",
+                        "purchase_count": int(row.purchase_count or 0),
+                        "tokens_spent": int(row.tokens_spent or 0),
+                    }
+                    for row in top_personas_rows
+                ],
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching gift purchase stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching gift purchase stats: {str(e)}")
+
+
+@router.get("/gift-purchases")
+async def get_gift_purchases(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    acquisition_source: Optional[str] = Query(None, description="Acquisition source filter"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0)
+) -> Dict[str, Any]:
+    """
+    Get paginated list of gift purchases with user/chat/persona context.
+    """
+    from sqlalchemy import desc, func
+    from app.db.models import ChatPurchase, User, Chat, Persona
+
+    try:
+        parsed_start = datetime.strptime(start_date, "%Y-%m-%d") if start_date else None
+        parsed_end = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1) if end_date else None
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    try:
+        with get_db() as db:
+            query = db.query(
+                ChatPurchase,
+                User.username,
+                User.first_name,
+                User.acquisition_source,
+                Persona.name.label("persona_name"),
+            ).join(
+                User, ChatPurchase.user_id == User.id
+            ).outerjoin(
+                Chat, ChatPurchase.chat_id == Chat.id
+            ).outerjoin(
+                Persona, Chat.persona_id == Persona.id
+            )
+
+            if acquisition_source:
+                query = query.filter(User.acquisition_source == acquisition_source)
+            if parsed_start:
+                query = query.filter(ChatPurchase.purchased_at >= parsed_start)
+            if parsed_end:
+                query = query.filter(ChatPurchase.purchased_at < parsed_end)
+
+            total_count = query.count()
+            purchases = query.order_by(desc(ChatPurchase.purchased_at)).offset(offset).limit(limit).all()
+
+            user_ids = list({row.ChatPurchase.user_id for row in purchases})
+            user_totals = {}
+            if user_ids:
+                totals_rows = db.query(
+                    ChatPurchase.user_id,
+                    func.count(ChatPurchase.id).label("purchase_count"),
+                    func.coalesce(func.sum(ChatPurchase.price_paid), 0).label("tokens_spent"),
+                ).filter(
+                    ChatPurchase.user_id.in_(user_ids)
+                ).group_by(ChatPurchase.user_id).all()
+
+                user_totals = {
+                    row.user_id: {
+                        "purchase_count": int(row.purchase_count or 0),
+                        "tokens_spent": int(row.tokens_spent or 0),
+                    }
+                    for row in totals_rows
+                }
+
+            result = []
+            for row in purchases:
+                purchase = row.ChatPurchase
+                user_total = user_totals.get(purchase.user_id, {"purchase_count": 0, "tokens_spent": 0})
+                result.append({
+                    "id": str(purchase.id),
+                    "purchased_at": purchase.purchased_at.isoformat() if purchase.purchased_at else None,
+                    "item_key": purchase.item_key,
+                    "item_name": purchase.item_name,
+                    "price_paid": int(purchase.price_paid or 0),
+                    "mood_boost": int(purchase.mood_boost or 0),
+                    "context_effect": purchase.context_effect,
+                    "chat_id": str(purchase.chat_id) if purchase.chat_id else None,
+                    "persona_name": row.persona_name,
+                    "user": {
+                        "id": purchase.user_id,
+                        "username": row.username,
+                        "first_name": row.first_name,
+                        "acquisition_source": row.acquisition_source,
+                        "purchase_count": user_total["purchase_count"],
+                        "tokens_spent_total": user_total["tokens_spent"],
+                    }
+                })
+
+            return {
+                "purchases": result,
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ANALYTICS-API] Error fetching gift purchases: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching gift purchases: {str(e)}")
+
+
 @router.get("/premium-users")
 async def get_premium_users() -> Dict[str, Any]:
     """

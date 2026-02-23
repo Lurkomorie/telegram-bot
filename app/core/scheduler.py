@@ -358,6 +358,40 @@ async def daily_cleanup_old_chats():
         print(f"[SCHEDULER] ❌ Error in daily cleanup: {e}")
 
 
+async def cleanup_expired_blur_unlock_pointers():
+    """Clear stale blurred unlock pointers from image_jobs.ext."""
+    from app.settings import settings
+
+    print("[SCHEDULER] 🧽 Running blurred unlock pointer cleanup...")
+    try:
+        with get_db() as db:
+            updated = crud.clear_expired_blurred_original_pointers(
+                db,
+                older_than_hours=settings.BLUR_ORIGINAL_RETENTION_HOURS,
+                batch_size=1000,
+            )
+        print(f"[SCHEDULER] ✅ Cleared blurred unlock pointers: {updated}")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error cleaning blurred unlock pointers: {e}")
+
+
+async def cleanup_old_analytics_events():
+    """Delete analytics events older than configured retention window."""
+    from app.settings import settings
+
+    print("[SCHEDULER] 🧹 Running analytics retention cleanup...")
+    try:
+        with get_db() as db:
+            deleted = crud.delete_old_analytics_events(
+                db,
+                older_than_days=settings.ANALYTICS_RETENTION_DAYS,
+                batch_size=10000,
+            )
+        print(f"[SCHEDULER] ✅ Deleted analytics events: {deleted}")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error deleting old analytics events: {e}")
+
+
 async def check_scheduled_messages():
     """
     Check for scheduled messages ready to send
@@ -471,6 +505,14 @@ def start_scheduler():
     # Daily cleanup: delete chats inactive >30 days (runs at 4:00 AM UTC)
     scheduler.add_job(daily_cleanup_old_chats, 'cron', hour=4, minute=0)
     print("[SCHEDULER] ✅ Daily old chat cleanup enabled (04:00 UTC)")
+
+    # Daily cleanup: remove stale blur unlock pointers (runs at 04:15 UTC)
+    scheduler.add_job(cleanup_expired_blur_unlock_pointers, 'cron', hour=4, minute=15)
+    print("[SCHEDULER] ✅ Blurred pointer cleanup enabled (04:15 UTC)")
+
+    # Daily cleanup: analytics retention (runs at 04:30 UTC)
+    scheduler.add_job(cleanup_old_analytics_events, 'cron', hour=4, minute=30)
+    print("[SCHEDULER] ✅ Analytics retention cleanup enabled (04:30 UTC)")
     
     scheduler.start()
     

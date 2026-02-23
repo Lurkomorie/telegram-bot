@@ -3,10 +3,11 @@ SQLAlchemy database models
 """
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, ARRAY, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, ARRAY, UniqueConstraint, event
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from app.db.image_job_ext_sanitizer import sanitize_image_job_ext
 
 Base = declarative_base()
 
@@ -316,10 +317,17 @@ class ImageJob(Base):
         Index("ix_image_jobs_chat_id", "chat_id"),
         Index("ix_image_jobs_prompt_hash", "prompt_hash"),  # For fast cache lookup
         # Additional partial indexes created via migration 031_add_image_cache_indexes:
-        # - ix_image_jobs_cache_lookup: partial index on prompt_hash WHERE completed & not blacklisted & has cloudflare URL
+        # - ix_image_jobs_cache_lookup: partial index on prompt_hash WHERE completed & not blacklisted
         # - ix_image_jobs_refresh_count: partial index on refresh_count DESC WHERE > 0
         # - ix_image_jobs_cache_serve_count: partial index on cache_serve_count DESC WHERE > 0
     )
+
+
+@event.listens_for(ImageJob, "before_insert")
+@event.listens_for(ImageJob, "before_update")
+def _sanitize_image_job_ext_before_write(_, __, target: ImageJob):
+    sanitized_ext, _removed_keys = sanitize_image_job_ext(target.ext)
+    target.ext = sanitized_ext
 
 
 class UserShownImage(Base):

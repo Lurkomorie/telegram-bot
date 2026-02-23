@@ -97,6 +97,51 @@ def extract_user_id_from_init_data(x_telegram_init_data: Optional[str]) -> Optio
         return None
 
 
+def _miniapp_auth_required() -> bool:
+    return settings.ENV == "production" and not settings.SKIP_MINIAPP_AUTH
+
+
+@router.get("/diagnostics/auth")
+async def miniapp_auth_diagnostics(
+    x_telegram_init_data: Optional[str] = Header(None),
+    origin: Optional[str] = Header(None),
+    referer: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    """
+    Runtime auth/CORS diagnostics for Mini App host setup.
+    """
+    if not settings.ENABLE_MINIAPP_AUTH_DIAGNOSTICS:
+        raise HTTPException(status_code=404, detail="Diagnostics disabled")
+
+    auth_required = _miniapp_auth_required()
+    auth_valid = (
+        validate_telegram_webapp_data(x_telegram_init_data or "")
+        if auth_required and x_telegram_init_data
+        else not auth_required
+    )
+
+    if auth_required and not auth_valid:
+        print(
+            "[MINIAPP-AUTH] ❌ diagnostics failed "
+            f"origin={origin or '-'} referer={referer or '-'} "
+            f"init_len={len(x_telegram_init_data or '')} "
+            f"ua={(user_agent or '-')[:120]}"
+        )
+
+    return {
+        "auth_required": auth_required,
+        "auth_valid": auth_valid,
+        "has_init_data": bool(x_telegram_init_data),
+        "init_data_length": len(x_telegram_init_data or ""),
+        "origin": origin,
+        "referer": referer,
+        "miniapp_url": settings.miniapp_url,
+        "miniapp_backup_url": settings.miniapp_backup_url,
+        "cors_allow_origins": settings.cors_allow_origins,
+    }
+
+
 @router.get("/personas")
 async def get_personas(
     x_telegram_init_data: Optional[str] = Header(None)
@@ -1768,7 +1813,12 @@ async def create_character(
             
             # Check image cache before generating - find a cached image the user hasn't seen
             prompt_hash = crud.compute_prompt_hash(first_image_prompt)
-            cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+            cached_image = crud.find_cached_image(
+                db,
+                prompt_hash,
+                user_id,
+                require_result_url=True,
+            )
             
             if cached_image and cached_image.result_url:
                 # Cache hit! Use cached image as avatar
@@ -2069,6 +2119,21 @@ async def purchase_item(
             # Get item context_effect for image generation
             from app.db.crud import SHOP_ITEMS
             item_info = SHOP_ITEMS.get(request.item_key, {})
+
+            # Track gift purchase analytics event (similar to payment events)
+            from app.core import analytics_service_tg
+            analytics_service_tg.track_gift_purchased(
+                client_id=user_id,
+                item_key=request.item_key,
+                item_name=item_info.get("name", request.item_key),
+                price_paid=item_info.get("price", 0),
+                mood_boost=item_info.get("mood_boost", 0),
+                chat_id=chat_uuid,
+                persona_id=chat.persona_id,
+                persona_name=chat.persona.name if chat.persona else None,
+                new_mood=result.get("new_mood"),
+                new_tokens=result.get("new_tokens"),
+            )
             
             import asyncio
             from app.core.multi_brain_pipeline import process_gift_purchase

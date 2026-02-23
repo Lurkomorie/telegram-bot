@@ -4,13 +4,15 @@ CRUD operations for database models
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, and_, or_, exists, select
+from sqlalchemy.orm.attributes import flag_modified
 from app.db.models import (
     User, Persona, Chat, Message, ImageJob, TgAnalyticsEvent, StartCode,
     PersonaTranslation, PersonaHistoryTranslation, SystemMessage, SystemMessageTemplate, SystemMessageDelivery
 )
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from app.core.catalog.gifts import get_shop_items_map
+from app.db.image_job_ext_sanitizer import sanitize_image_job_ext
 
 
 def apply_date_filter(query, model_field, start_date: Optional[str] = None, end_date: Optional[str] = None):
@@ -1138,35 +1140,69 @@ def compute_prompt_hash(prompt: str) -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
-def find_cached_image(db: Session, prompt_hash: str, user_id: int) -> Optional[ImageJob]:
-    """Find a cached image that the user hasn't seen yet (only from last 60 days)
-    
-    Args:
-        db: Database session
-        prompt_hash: SHA256 hash of normalized prompt
-        user_id: User ID to exclude images they've already seen
-    
-    Returns:
-        ImageJob if found, None otherwise
+def _cache_pointer_filter():
+    """Cache candidates must have a Telegram file_id or a non-placeholder URL."""
+    return or_(
+        ImageJob.result_file_id.isnot(None),
+        and_(
+            ImageJob.result_url.isnot(None),
+            ~ImageJob.result_url.like("binary:%"),
+        ),
+    )
+
+
+def find_cached_image(
+    db: Session,
+    prompt_hash: str,
+    user_id: int,
+    require_result_url: bool = False,
+) -> Optional[ImageJob]:
+    """Find a cached image for a prompt hash.
+
+    Selection policy:
+    1) Prefer images the user has not seen yet.
+    2) Deterministic fallback: if no unseen image exists, reuse a seen one.
     """
-    from sqlalchemy import exists, and_
     from app.db.models import UserShownImage
-    
-    # Use NOT EXISTS instead of NOT IN - more efficient for large datasets
+
+    base_filters = [
+        ImageJob.prompt_hash == prompt_hash,
+        ImageJob.status == "completed",
+        ImageJob.is_blacklisted.is_(False),
+    ]
+    if require_result_url:
+        base_filters.extend(
+            [
+                ImageJob.result_url.isnot(None),
+                ~ImageJob.result_url.like("binary:%"),
+            ]
+        )
+    else:
+        base_filters.append(_cache_pointer_filter())
+
     not_shown = ~exists().where(
         and_(
             UserShownImage.user_id == user_id,
-            UserShownImage.image_job_id == ImageJob.id
+            UserShownImage.image_job_id == ImageJob.id,
         )
     )
-    
-    return db.query(ImageJob).filter(
-        ImageJob.prompt_hash == prompt_hash,
-        ImageJob.status == "completed",
-        ImageJob.result_url.like("https://imagedelivery.net/%"),  # Only cloudflare URLs
-        ImageJob.is_blacklisted == False,
-        not_shown  # Not shown to this user
-    ).order_by(func.random()).first()  # Random from available
+
+    order_by = (
+        desc(ImageJob.cache_serve_count),
+        desc(ImageJob.created_at),
+        desc(ImageJob.id),
+    )
+
+    unseen_candidate = (
+        db.query(ImageJob)
+        .filter(*base_filters, not_shown)
+        .order_by(*order_by)
+        .first()
+    )
+    if unseen_candidate:
+        return unseen_candidate
+
+    return db.query(ImageJob).filter(*base_filters).order_by(*order_by).first()
 
 
 def mark_image_shown(db: Session, user_id: int, image_job_id: UUID):
@@ -1203,6 +1239,72 @@ def increment_cache_serve_count(db: Session, job_id: UUID):
     db.commit()
 
 
+def clear_expired_blurred_original_pointers(
+    db: Session,
+    older_than_hours: int = 48,
+    batch_size: int = 1000,
+) -> int:
+    """
+    Remove stale blurred-image unlock pointers from image_jobs.ext.
+
+    Returns number of image jobs updated.
+    """
+    cutoff = datetime.utcnow() - timedelta(hours=older_than_hours)
+    total_updated = 0
+
+    while True:
+        jobs = (
+            db.query(ImageJob)
+            .filter(
+                ImageJob.finished_at.isnot(None),
+                ImageJob.finished_at < cutoff,
+                ImageJob.ext.isnot(None),
+                or_(
+                    ImageJob.ext.has_key("blurred_original_file_id"),
+                    ImageJob.ext.has_key("blurred_original_url"),
+                    ImageJob.ext.has_key("blurred_original_data"),
+                    ImageJob.ext.has_key("blurred_caption"),
+                ),
+            )
+            .order_by(ImageJob.finished_at.asc())
+            .limit(batch_size)
+            .all()
+        )
+
+        if not jobs:
+            break
+
+        updated_in_batch = 0
+        for job in jobs:
+            current_ext = dict(job.ext or {})
+            removed_any = False
+            for key in (
+                "blurred_original_file_id",
+                "blurred_original_url",
+                "blurred_original_data",
+                "blurred_caption",
+            ):
+                if key in current_ext:
+                    current_ext.pop(key, None)
+                    removed_any = True
+            if removed_any:
+                sanitized_ext, _removed_keys = sanitize_image_job_ext(current_ext)
+                job.ext = sanitized_ext
+                flag_modified(job, "ext")
+                updated_in_batch += 1
+
+        if updated_in_batch == 0:
+            break
+
+        db.commit()
+        total_updated += updated_in_batch
+
+        if len(jobs) < batch_size:
+            break
+
+    return total_updated
+
+
 def create_image_job(
     db: Session,
     user_id: int,
@@ -1217,6 +1319,8 @@ def create_image_job(
     # Auto-compute hash if not provided
     if prompt_hash is None:
         prompt_hash = compute_prompt_hash(prompt)
+
+    sanitized_ext, _removed_keys = sanitize_image_job_ext(ext or {})
     
     job = ImageJob(
         user_id=user_id,
@@ -1226,7 +1330,7 @@ def create_image_job(
         negative_prompt=negative_prompt,
         prompt_hash=prompt_hash,
         status="queued",
-        ext=ext or {}
+        ext=sanitized_ext
     )
     db.add(job)
     db.commit()
@@ -1866,6 +1970,38 @@ def create_analytics_event(
     db.commit()
     db.refresh(event)
     return event
+
+
+def delete_old_analytics_events(
+    db: Session,
+    older_than_days: int = 30,
+    batch_size: int = 10000,
+) -> int:
+    """Delete tg_analytics_events older than the retention window, in batches."""
+    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    total_deleted = 0
+
+    while True:
+        id_batch_subquery = (
+            select(TgAnalyticsEvent.id)
+            .where(TgAnalyticsEvent.created_at < cutoff)
+            .limit(batch_size)
+            .subquery()
+        )
+        deleted = (
+            db.query(TgAnalyticsEvent)
+            .filter(TgAnalyticsEvent.id.in_(select(id_batch_subquery.c.id)))
+            .delete(synchronize_session=False)
+        )
+        if deleted == 0:
+            break
+        db.commit()
+        total_deleted += deleted
+
+        if deleted < batch_size:
+            break
+
+    return total_deleted
 
 
 def get_analytics_events_by_user(db: Session, client_id: int, limit: int = 1000) -> List[TgAnalyticsEvent]:

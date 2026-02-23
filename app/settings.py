@@ -7,6 +7,7 @@ import json
 import yaml
 from pathlib import Path
 from typing import Optional, Any
+from urllib.parse import urlparse
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -61,6 +62,8 @@ class Settings(BaseSettings):
     
     # Frontend base URLs (CDN/Pages)
     MINIAPP_BASE_URL: Optional[str] = None
+    MINIAPP_BACKUP_BASE_URL: Optional[str] = None
+    MINIAPP_ACTIVE_HOST: str = "primary"  # primary | backup
     ANALYTICS_BASE_URL: Optional[str] = None
     
     # Upload storage
@@ -89,9 +92,18 @@ class Settings(BaseSettings):
     # CORS
     CORS_ALLOW_ORIGINS: Optional[str] = None  # Comma-separated origins
     ENABLE_EGRESS_LOGGING: bool = False
+    ENABLE_MINIAPP_AUTH_DIAGNOSTICS: bool = True
+
+    # Logging
+    ERROR_ONLY_LOGS: bool = True
     
     # Notifications
     PAYMENT_NOTIFICATION_CHAT_ID: Optional[int] = None  # Telegram group/channel ID for payment notifications
+    MEDIA_CACHE_CHAT_ID: Optional[int] = None  # Private Telegram channel/chat for temporary media cache pointers
+
+    # Data retention
+    ANALYTICS_RETENTION_DAYS: int = 30
+    BLUR_ORIGINAL_RETENTION_HOURS: int = 48
     
     # Testing/Development
     FOLLOWUP_TEST_USERS: Optional[str] = None  # Comma-separated user IDs to restrict followups to (e.g., "123456,789012")
@@ -112,10 +124,45 @@ class Settings(BaseSettings):
 
     @property
     def miniapp_url(self) -> str:
-        """Get Mini App URL (external base if configured)."""
-        if self.MINIAPP_BASE_URL:
-            return self.MINIAPP_BASE_URL.rstrip("/")
+        """Get Mini App URL (supports primary/backup host switch via env)."""
+        active_host = (self.MINIAPP_ACTIVE_HOST or "primary").strip().lower()
+        primary = self.MINIAPP_BASE_URL.rstrip("/") if self.MINIAPP_BASE_URL else None
+        backup = self.MINIAPP_BACKUP_BASE_URL.rstrip("/") if self.MINIAPP_BACKUP_BASE_URL else None
+
+        if active_host == "backup" and backup:
+            return backup
+        if primary:
+            return primary
+        if backup:
+            return backup
         return f"{self.public_url}/miniapp"
+
+    @property
+    def miniapp_backup_url(self) -> Optional[str]:
+        if self.MINIAPP_BACKUP_BASE_URL:
+            return self.MINIAPP_BACKUP_BASE_URL.rstrip("/")
+        return None
+
+    @property
+    def has_external_miniapp(self) -> bool:
+        return bool(self.MINIAPP_BASE_URL or self.MINIAPP_BACKUP_BASE_URL)
+
+    @property
+    def miniapp_allowed_origins(self) -> list[str]:
+        origins: list[str] = []
+        primary = self.MINIAPP_BASE_URL.rstrip("/") if self.MINIAPP_BASE_URL else None
+        for url in (primary, self.miniapp_backup_url):
+            if not url:
+                continue
+            try:
+                parsed = urlparse(url)
+            except Exception:
+                continue
+            if parsed.scheme and parsed.netloc:
+                origin = f"{parsed.scheme}://{parsed.netloc}"
+                if origin not in origins:
+                    origins.append(origin)
+        return origins
 
     @property
     def analytics_url(self) -> Optional[str]:
@@ -126,9 +173,16 @@ class Settings(BaseSettings):
 
     @property
     def cors_allow_origins(self) -> list[str]:
-        if not self.CORS_ALLOW_ORIGINS:
-            return []
-        return [origin.strip() for origin in self.CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
+        explicit = (
+            [origin.strip() for origin in self.CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
+            if self.CORS_ALLOW_ORIGINS
+            else []
+        )
+        merged = list(explicit)
+        for origin in self.miniapp_allowed_origins:
+            if origin not in merged:
+                merged.append(origin)
+        return merged
     
     @property
     def followup_test_user_ids(self) -> Optional[list[int]]:

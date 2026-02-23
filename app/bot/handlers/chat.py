@@ -292,28 +292,39 @@ async def handle_text_message(message: types.Message, state: FSMContext):
 
 
 async def _background_process(chat_id, user_id, tg_chat_id, config):
-    """Background task to process messages with batching delay"""
+    """Background task to process queued messages after a small batching wait."""
     from app.bot.loader import bot
     
     try:
-        # Delay to allow rapid messages to accumulate
-        batch_delay = config.get("limits", {}).get("batch_delay_seconds", 3)
-        log_verbose(f"[CHAT-BG] ⏱️  Waiting {batch_delay}s for batching...")
-        
-        import asyncio
-        await asyncio.sleep(batch_delay)
-        
-        # Check final queue length
-        final_queue_length = await redis_queue.get_queue_length(chat_id)
-        log_always(f"[CHAT-BG] 🚀 Processing ({final_queue_length} queued message(s))")
-        
-        # Process through multi-brain pipeline
-        await process_message_pipeline(
-            chat_id=chat_id,
-            user_id=user_id,
-            tg_chat_id=tg_chat_id
-        )
-        log_verbose(f"[CHAT-BG] ✅ Pipeline completed successfully")
+        batch_delay = float(config.get("limits", {}).get("batch_delay_seconds", 0.1) or 0.0)
+        if batch_delay > 0:
+            log_verbose(f"[CHAT-BG] ⏱️  Waiting {batch_delay}s for batching...")
+            import asyncio
+            await asyncio.sleep(batch_delay)
+
+        while True:
+            queue_length = await redis_queue.get_queue_length(chat_id)
+            log_always(f"[CHAT-BG] 🚀 Processing ({queue_length} queued message(s))")
+
+            # Process through multi-brain pipeline
+            await process_message_pipeline(
+                chat_id=chat_id,
+                user_id=user_id,
+                tg_chat_id=tg_chat_id
+            )
+            log_verbose(f"[CHAT-BG] ✅ Pipeline pass completed")
+
+            # Safety loop for race window near lock release:
+            # if messages were queued while lock was held, start another pass.
+            pending = await redis_queue.get_queue_length(chat_id)
+            if pending <= 0:
+                break
+
+            lock_acquired = await redis_queue.set_processing_lock(chat_id, True)
+            if not lock_acquired:
+                break
+
+            log_always(f"[CHAT-BG] 🔁 Detected {pending} queued message(s), continuing pipeline")
     except Exception as e:
         print(f"[CHAT-BG] ❌ Error: {type(e).__name__}: {e}")
         
@@ -590,12 +601,13 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
             await callback.answer("❌ Image not found", show_alert=True)
             return
         
-        # Get stored image data and caption from job.ext
-        image_data_b64 = job.ext.get("blurred_original_data") if job.ext else None
-        image_url = job.ext.get("blurred_original_url") if job.ext else None
+        # Get stored unlock pointer and caption from job.ext
+        image_file_id = job.ext.get("blurred_original_file_id") if job.ext else None
+        image_data_b64 = job.ext.get("blurred_original_data") if job.ext else None  # Legacy fallback
+        image_url = job.ext.get("blurred_original_url") if job.ext else None  # Legacy fallback
         stored_caption = job.ext.get("blurred_caption") if job.ext else None
         
-        if not image_data_b64 and not image_url:
+        if not image_file_id and not image_data_b64 and not image_url:
             await callback.answer("❌ Original image not available", show_alert=True)
             return
         
@@ -614,7 +626,15 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
     try:
         refresh_keyboard = build_image_refresh_keyboard(job_id)
         
-        if image_data_b64:
+        if image_file_id:
+            await bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=image_file_id,
+                caption=stored_caption,
+                parse_mode="MarkdownV2" if stored_caption else None,
+                reply_markup=refresh_keyboard
+            )
+        elif image_data_b64:
             import base64
             image_data = base64.b64decode(image_data_b64)
             image_data = strip_color_profile_safe(image_data)

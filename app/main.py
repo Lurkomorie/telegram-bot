@@ -1,6 +1,14 @@
 """
 FastAPI application with Telegram webhook and image callback endpoints
 """
+import os
+import logging
+from app.core.logging_utils import configure_error_only_prints
+
+configure_error_only_prints(
+    enabled=os.getenv("ERROR_ONLY_LOGS", "true").strip().lower() in {"1", "true", "yes", "on"}
+)
+
 print("📦 Importing FastAPI modules...")
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +24,15 @@ from uuid import UUID
 print("⚙️  Loading settings...")
 from app.settings import settings, load_configs
 print("✅ Settings loaded")
+
+# Re-apply print filtering using validated settings value
+configure_error_only_prints(enabled=settings.ERROR_ONLY_LOGS)
+if settings.ERROR_ONLY_LOGS:
+    logging.getLogger().setLevel(logging.ERROR)
+    logging.getLogger("uvicorn").setLevel(logging.ERROR)
+    logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
+    logging.getLogger("uvicorn.access").setLevel(logging.ERROR)
+    logging.getLogger("apscheduler").setLevel(logging.ERROR)
 
 # Conditionally initialize bot based on ENABLE_BOT flag
 bot = None
@@ -142,6 +159,25 @@ if settings.ENABLE_EGRESS_LOGGING:
             print(f"[EGRESS] {request.method} {request.url.path} {content_length} bytes")
         return response
 
+if settings.ENABLE_MINIAPP_AUTH_DIAGNOSTICS:
+    @app.middleware("http")
+    async def log_miniapp_auth_failures(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/miniapp") and response.status_code == 403:
+            init_data = request.headers.get("x-telegram-init-data", "")
+            origin = request.headers.get("origin", "-")
+            referer = request.headers.get("referer", "-")
+            ua = request.headers.get("user-agent", "-")
+            print(
+                "[MINIAPP-AUTH] ❌ 403 "
+                f"path={request.url.path} "
+                f"origin={origin} "
+                f"referer={referer} "
+                f"init_len={len(init_data)} "
+                f"ua={ua[:120]}"
+            )
+        return response
+
 # Include API routers
 app.include_router(miniapp.router)
 app.include_router(analytics.router)
@@ -177,29 +213,32 @@ if settings.SERVE_LOCAL_STATIC:
 else:
     print("ℹ️  Local Mini App static hosting disabled")
     
-    # Redirect old /miniapp URLs to Cloudflare Pages (for users with cached old inline buttons)
-    if settings.MINIAPP_BASE_URL:
+    # Redirect old /miniapp URLs to external static host (for cached old buttons)
+    if settings.has_external_miniapp:
         from fastapi.responses import RedirectResponse
         
         @app.get("/miniapp")
         async def redirect_miniapp_root(request: Request):
-            """Redirect old miniapp URLs to Cloudflare Pages"""
+            """Redirect old miniapp URLs to current external Mini App host."""
             query_string = str(request.query_params)
-            target = settings.MINIAPP_BASE_URL
+            target = settings.miniapp_url
             if query_string:
                 target = f"{target}?{query_string}"
             return RedirectResponse(url=target, status_code=302)
         
         @app.get("/miniapp/{path:path}")
         async def redirect_miniapp_path(path: str, request: Request):
-            """Redirect old miniapp URLs to Cloudflare Pages"""
+            """Redirect old miniapp URLs to current external Mini App host."""
             query_string = str(request.query_params)
-            target = f"{settings.MINIAPP_BASE_URL}/{path}"
+            target = f"{settings.miniapp_url}/{path}"
             if query_string:
                 target = f"{target}?{query_string}"
             return RedirectResponse(url=target, status_code=302)
         
-        print(f"↪️  Mini App redirects enabled → {settings.MINIAPP_BASE_URL}")
+        print(
+            "↪️  Mini App redirects enabled "
+            f"(active={settings.miniapp_url}, backup={settings.miniapp_backup_url or 'none'})"
+        )
 
 # Serve Analytics Dashboard static files (React build)
 if settings.SERVE_LOCAL_STATIC:
@@ -526,8 +565,8 @@ async def image_callback(request: Request):
         if status == "COMPLETED":
             # Handle both binary image data and URL-based responses
             if image_data:
-                # Binary image received directly
-                image_url = f"binary:{len(image_data)}"  # Placeholder for DB
+                # Binary image received directly; keep result_url empty until/if external URL exists.
+                image_url = None
             else:
                 # URL-based response (fallback)
                 images = output.get("images", [])
@@ -545,7 +584,7 @@ async def image_callback(request: Request):
                 db,
                 job_id_str,
                 status="completed",
-                result_url=image_url
+                result_url=image_url,
             )
             
             # Decrement concurrent image counter
@@ -738,13 +777,16 @@ async def image_callback(request: Request):
             if should_blur:
                 from app.bot.keyboards.inline import build_blurred_image_keyboard
                 from app.core.image_utils import blur_image_safe
-                from app.core.cloudflare_upload import upload_to_cloudflare_tg
                 from aiogram.types import BufferedInputFile
-                import random
                 
                 # Get user language for button text
                 with get_db() as db:
                     user_language = crud.get_user_language(db, job_user_id)
+
+                # Blur/unlock flow requires a private media cache chat to store original file_id
+                if not settings.MEDIA_CACHE_CHAT_ID:
+                    print("[IMAGE-CALLBACK] ❌ MEDIA_CACHE_CHAT_ID not configured, skipping blur flow")
+                    should_blur = False
                 
                 # Get image data if we have URL but no data
                 actual_image_data = image_data
@@ -760,7 +802,7 @@ async def image_callback(request: Request):
                 
                 # Blur the actual image
                 blurred_data = None
-                if actual_image_data:
+                if should_blur and actual_image_data:
                     blurred_data = blur_image_safe(actual_image_data)
                 
                 if blurred_data:
@@ -776,35 +818,42 @@ async def image_callback(request: Request):
                         parse_mode="MarkdownV2" if pending_caption else None,
                         reply_markup=blurred_keyboard
                     )
+                    unlock_caption = pending_caption
                     pending_caption = None  # Clear so we don't send again below
                     print(f"[IMAGE-CALLBACK] 🔒 Blurred image sent to user {job_user_id}")
                     
-                    # Upload original to Cloudflare ASYNC (background) - don't store base64 in DB!
-                    async def _upload_blurred_original_async(img_data: bytes, jid: str, caption: str):
+                    # Cache original in private Telegram channel ASYNC, store only file_id pointer.
+                    async def _cache_blurred_original_async(img_data: bytes, jid: str, caption=None):
+                        if not settings.MEDIA_CACHE_CHAT_ID:
+                            return
                         try:
-                            filename = f"blurred_original_{jid}_{random.randint(1000, 9999)}.png"
-                            cf_result = await upload_to_cloudflare_tg(img_data, filename)
-                            if cf_result.success:
-                                # Save URL to DB (not base64!)
-                                with get_db() as db:
-                                    job = crud.get_image_job(db, jid)
-                                    if job:
-                                        if not job.ext:
-                                            job.ext = {}
-                                        job.ext['blurred_original_url'] = cf_result.image_url
-                                        if caption:
-                                            job.ext['blurred_caption'] = caption
-                                        from sqlalchemy.orm.attributes import flag_modified
-                                        flag_modified(job, "ext")
-                                        db.commit()
-                                print(f"[IMAGE-CALLBACK] ✅ Blurred original uploaded to CF: {cf_result.image_url[:50]}...")
-                            else:
-                                print(f"[IMAGE-CALLBACK] ⚠️  Blurred CF upload failed: {cf_result.error}")
+                            cache_file = BufferedInputFile(img_data, filename=f"blur_unlock_{jid}.png")
+                            cache_msg = await bot.send_photo(
+                                chat_id=settings.MEDIA_CACHE_CHAT_ID,
+                                photo=cache_file,
+                            )
+                            file_id = cache_msg.photo[-1].file_id if cache_msg.photo else None
+                            if not file_id:
+                                print("[IMAGE-CALLBACK] ❌ Failed to cache blurred original: no Telegram file_id")
+                                return
+
+                            with get_db() as db:
+                                job = crud.get_image_job(db, jid)
+                                if job:
+                                    ext_data = dict(job.ext or {})
+                                    ext_data.pop("blurred_original_data", None)
+                                    ext_data.pop("blurred_original_url", None)
+                                    ext_data["blurred_original_file_id"] = file_id
+                                    if caption:
+                                        ext_data["blurred_caption"] = caption
+                                    job.ext = ext_data
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    flag_modified(job, "ext")
+                                    db.commit()
                         except Exception as e:
-                            print(f"[IMAGE-CALLBACK] ⚠️  Blurred CF upload error: {e}")
+                            print(f"[IMAGE-CALLBACK] ❌ Blurred-original Telegram cache error: {e}")
                     
-                    # Fire and forget - don't wait
-                    asyncio.create_task(_upload_blurred_original_async(actual_image_data, job_id_str, pending_caption))
+                    await _cache_blurred_original_async(actual_image_data, job_id_str, unlock_caption)
                 else:
                     print(f"[IMAGE-CALLBACK] ⚠️  Failed to blur image, sending original")
                     should_blur = False  # Fallback to original
@@ -970,5 +1019,3 @@ async def image_callback(request: Request):
 
 # Webhook setting removed - set manually after deployment
 # Use: python scripts/manage.py set-webhook https://your-app.up.railway.app
-
-

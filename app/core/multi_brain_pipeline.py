@@ -25,6 +25,16 @@ from app.settings import get_ui_text
 CONTROL_ORB_TOTAL_MESSAGES = 10
 
 
+def _cached_image_photo_pointer(cached_image):
+    if not cached_image:
+        return None
+    if cached_image.result_file_id:
+        return cached_image.result_file_id
+    if cached_image.result_url and not cached_image.result_url.startswith("binary:"):
+        return cached_image.result_url
+    return None
+
+
 def _parse_state_line(state: str) -> dict:
     """Parse strict state line into dict, keeping defaults for missing fields."""
     parsed = {
@@ -408,15 +418,14 @@ async def process_message_pipeline(
     Main pipeline with Redis-based batching: Dialogue → State → [Save] → Image (background)
     
     Flow:
-    1. Set processing lock
-    2. Loop while messages in queue:
-       a. Get batch from Redis
+    1. Processing lock is already acquired by handler
+    2. Loop while queue has messages:
+       a. Atomically drain current queue snapshot from Redis
        b. Fetch data (chat, persona, history)
        c. Brain 1: Generate dialogue (using previous state)
        d. Brain 2: Resolve state (update based on dialogue)
        e. Save batch + response to DB
        f. Send response to user
-       g. Clear batch from Redis
     3. Start image generation (background)
     4. Clear processing lock
     """
@@ -429,7 +438,7 @@ async def process_message_pipeline(
     pipeline_timer = PipelineTimer(f"Message Pipeline (Chat: {chat_id})")
     pipeline_timer.start_stage("Initialization")
     
-    # Processing lock already set in handler (before batch delay)
+    # Processing lock is already set in handler
     print(f"[PIPELINE] 🔒 Processing lock confirmed active")
     
     # Stop any existing action (e.g. upload_photo from previous image generation)
@@ -449,10 +458,11 @@ async def process_message_pipeline(
         while True:
             batch_num += 1
             
-            pipeline_timer.start_stage(f"Batch #{batch_num}: Get Messages from Queue")
+            pipeline_timer.start_stage(f"Batch #{batch_num}: Drain Messages from Queue")
             
-            # Get ALL messages currently in queue
-            batch_messages = await redis_queue.get_batch_messages(chat_id)
+            # Atomically get and clear current queue snapshot.
+            # Messages arriving during processing will remain queued for the next loop.
+            batch_messages = await redis_queue.drain_batch_messages(chat_id)
             
             if not batch_messages:
                 if batch_num == 1:
@@ -488,18 +498,8 @@ async def process_message_pipeline(
             )
             
             pipeline_timer.end_stage()
-            
-            pipeline_timer.start_stage(f"Batch #{batch_num}: Clear Queue")
-            
-            # Clear queue ONLY after successful processing (prevents message loss on error)
-            await redis_queue.clear_batch_messages(chat_id)
-            log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete, queue cleared")
-            
-            pipeline_timer.end_stage()
-            
-            # Brief wait to catch any messages that arrived during processing
-            await asyncio.sleep(0.5)
-            log_verbose(f"[PIPELINE] 🔍 Checking for more...")
+
+            log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete")
         
         # Finish timing
         pipeline_timer.finish()
@@ -534,7 +534,7 @@ async def _process_single_batch(
     """Process a single batch of messages"""
     try:
         log_dev_section("BATCH PROCESSING")
-        
+
         pipeline_timer.start_stage("Start Typing Indicator")
         
         # Show typing indicator
@@ -656,6 +656,7 @@ async def _process_single_batch(
         from app.settings import settings
         should_generate_image_flag = False
         decision_reason = "not determined"
+        image_decision_task = None
         
         # Check if user explicitly requests a visual
         is_explicit_request = _is_explicit_visual_request(batched_text)
@@ -690,7 +691,10 @@ async def _process_single_batch(
         else:
             # Use AI to decide (only for 2 messages since last image)
             from app.core.brains.image_decision_specialist import should_generate_image
-            log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation (messages_since_last_image={messages_since_last_image})...")
+            log_always(
+                f"[BATCH] 🧠 Brain 4: Running image decision in parallel "
+                f"(messages_since_last_image={messages_since_last_image})..."
+            )
             
             _log_brain_inputs(
                 "Brain 4 (Image Decision)",
@@ -701,14 +705,14 @@ async def _process_single_batch(
                 context_summary=context_summary
             )
             
-            should_generate_image_flag, decision_reason = await should_generate_image(
+            image_decision_task = asyncio.create_task(should_generate_image(
                 previous_state=previous_state or "",
                 user_message=batched_text,
                 chat_history=chat_history,
                 persona_name=persona_data["name"],
                 context_summary=context_summary
-            )
-            log_always(f"[BATCH] ✅ Brain 4: Decision = {'YES' if should_generate_image_flag else 'NO'} - {decision_reason}")
+            ))
+            decision_reason = "pending_parallel_decision"
         
         pipeline_timer.end_stage()
         pipeline_timer.start_stage("Brain 1: Dialogue Generation")
@@ -952,6 +956,21 @@ async def _process_single_batch(
             should_skip_image = not settings.ENABLE_IMAGES_24HOURS
         elif followup_type == "3day":
             should_skip_image = not settings.ENABLE_IMAGES_3DAYS
+
+        if image_decision_task is not None:
+            try:
+                should_generate_image_flag, decision_reason = await image_decision_task
+                log_always(
+                    f"[BATCH] ✅ Brain 4: Decision = "
+                    f"{'YES' if should_generate_image_flag else 'NO'} - {decision_reason}"
+                )
+            except Exception as decision_error:
+                should_generate_image_flag = True
+                decision_reason = f"decision_error_default_yes: {type(decision_error).__name__}"
+                log_always(
+                    f"[BATCH] ⚠️ Brain 4 decision failed, defaulting to YES "
+                    f"({type(decision_error).__name__})"
+                )
         
         final_should_generate = should_generate_image_flag and not should_skip_image
         
@@ -1266,9 +1285,13 @@ async def _background_image_generation(
         with get_db() as db:
             cached_image = crud.find_cached_image(db, prompt_hash, user_id)
             
-            if cached_image and cached_image.result_url:
+            cached_photo = _cached_image_photo_pointer(cached_image)
+            if cached_image and cached_photo:
                 log_always(f"[IMAGE-BG] ✅ CACHE HIT! Found cached image {cached_image.id}")
-                log_verbose(f"[IMAGE-BG]    URL: {cached_image.result_url[:80]}...")
+                if cached_image.result_file_id:
+                    log_verbose(f"[IMAGE-BG]    Source: telegram_file_id")
+                elif cached_image.result_url:
+                    log_verbose(f"[IMAGE-BG]    Source URL: {cached_image.result_url[:80]}...")
                 
                 # Send cached image to user
                 try:
@@ -1301,7 +1324,7 @@ async def _background_image_generation(
                     # Send cached image
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
-                        photo=cached_image.result_url,
+                        photo=cached_photo,
                         caption=caption,
                         parse_mode="MarkdownV2" if caption else None,
                         reply_markup=refresh_keyboard
@@ -1658,14 +1681,15 @@ async def process_gift_purchase(
         with get_db() as db:
             cached_image = crud.find_cached_image(db, prompt_hash, user_id)
             
-            if cached_image and cached_image.result_url:
+            cached_photo = _cached_image_photo_pointer(cached_image)
+            if cached_image and cached_photo:
                 log_always(f"[GIFT-PURCHASE] ✅ CACHE HIT for gift image")
                 try:
                     from app.bot.keyboards.inline import build_image_refresh_keyboard
                     caption = escape_markdown_v2(dialogue_response)
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
-                        photo=cached_image.result_url,
+                        photo=cached_photo,
                         caption=caption,
                         parse_mode="MarkdownV2",
                         reply_markup=build_image_refresh_keyboard(str(cached_image.id)),

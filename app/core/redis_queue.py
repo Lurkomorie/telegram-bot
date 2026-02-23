@@ -103,6 +103,33 @@ async def get_batch_messages(chat_id: UUID) -> List[Dict]:
     return messages
 
 
+async def drain_batch_messages(chat_id: UUID) -> List[Dict]:
+    """
+    Atomically read and clear all queued messages for a chat.
+
+    This prevents dropping messages that arrive while a previous batch
+    is being processed: newly arrived messages stay in a new queue and are
+    picked up by the next drain cycle.
+    """
+    redis = await get_redis()
+    queue_key = f"msg_queue:{chat_id}"
+
+    pipe = redis.pipeline(transaction=True)
+    pipe.lrange(queue_key, 0, -1)
+    pipe.delete(queue_key)
+    messages_json, _ = await pipe.execute()
+
+    messages = []
+    for msg_json in messages_json or []:
+        try:
+            messages.append(json.loads(msg_json))
+        except json.JSONDecodeError:
+            print(f"[REDIS-QUEUE] ⚠️ Failed to parse drained message: {msg_json}")
+            continue
+
+    return messages
+
+
 async def clear_batch_messages(chat_id: UUID):
     """
     Clear all messages from queue after successful processing
@@ -263,4 +290,3 @@ async def clear_all_user_image_counts() -> int:
     
     print(f"[REDIS-QUEUE] ✓ No user image count records to clear")
     return 0
-

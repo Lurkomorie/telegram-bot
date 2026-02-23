@@ -1,6 +1,16 @@
 # Codex Memory
 
-Last updated: 2026-02-19 (cute_pajamas image swap)
+Last updated: 2026-02-23 (batch pre-processing wait tuned to 0.1s + OpenRouter client/shutdown notes)
+
+## Git Ops Notes (2026-02-23)
+- User-requested unpush of latest remote commit on `development` completed via lease-protected history rewrite:
+  - command pattern: `git push --force-with-lease=refs/heads/development:<old_tip> origin <old_tip^>:refs/heads/development`
+  - result: `origin/development` moved from `9a9b6cc` to `2608663`.
+  - local branch intentionally kept at `9a9b6cc` (now `ahead 1`), so the commit remains available for future amend/repush.
+- Follow-up user request "uncommit also" applied locally:
+  - command used: `git reset --mixed HEAD~1`
+  - result: local `development` now points to `2608663` and matches `origin/development`.
+  - previous commit content remains in working tree as unstaged changes across analytics/backend/cache-retention files.
 
 ## Core Architecture Notes
 - Image generation flow for chat responses:
@@ -14,6 +24,21 @@ Last updated: 2026-02-19 (cute_pajamas image swap)
 - Shop and recommendation flows must read gift metadata from catalog-derived loaders (`get_gift_catalog`, `get_shop_items_map`) instead of hardcoded gift arrays.
 
 ## Decisions From This Task
+- Gift purchase analytics instrumentation:
+  - Shop purchase success now emits Telegram analytics event `gift_purchased` via `analytics_service_tg.track_gift_purchased`.
+  - Event metadata includes `chat_id`, `item_key`, `item_name`, `price_paid`, `mood_boost`, `new_mood`, `new_tokens`, plus persona context.
+- Analytics dashboard now has a dedicated gift purchases page (`/gift-purchases`) with:
+  - KPI cards (total purchases, tokens spent, unique buyers/chats, avg gift price),
+  - purchase/tokens time series,
+  - breakdowns by item and category,
+  - paginated recent purchase table with user + persona context.
+- New analytics API endpoints for gifts:
+  - `GET /api/analytics/gift-purchase-stats`
+  - `GET /api/analytics/gift-purchases`
+  - Source of truth is `chat_purchases` table; `acquisition_source` filter is supported.
+- Batching latency behavior:
+  - `limits.batch_delay_seconds` is restored as a fixed pre-processing wait in `app/bot/handlers/chat.py`.
+  - Current configured wait in `config/app.yaml`: `0.1` seconds (down from legacy `3` seconds).
 - Framing policy: strict POV close-up by default (`pov` + `close-up` enforced), with a deterministic exception for `shibari` scenes to force `full_body`.
 - Visual truth policy: AI visual actions are authoritative when they conflict with user request (refusal/deflection turns).
 - Mandatory focus extraction is semantic (LLM pre-pass), not hardcoded keyword maps; it uses request meaning + AI visual compliance.
@@ -181,6 +206,42 @@ Last updated: 2026-02-19 (cute_pajamas image swap)
 ## Reliability Notes (2026-02-19)
 - Added `app/tests/test_llm_openrouter.py` coverage for 404 model fallback behavior:
   - if requested model returns 404, client retries with configured primary model and succeeds.
+
+## Deployment/Infra Notes (2026-02-23)
+- Runtime profile remains always-on:
+  - FastAPI webhook service + in-process APScheduler (`app/core/scheduler.py`) starts in app lifespan.
+  - Requires persistent process semantics (cold-start/serverless-only platforms need re-architecture).
+  - Uses PostgreSQL + Redis as hard dependencies (`DATABASE_URL`, `REDIS_URL`).
+- Image cache path is now file_id-first:
+  - `crud.find_cached_image` no longer requires Cloudflare URL; candidate condition is `completed + not blacklisted + (result_file_id OR non-binary result_url)`.
+  - Selection policy is deterministic and two-stage: unseen first, then seen fallback for same prompt hash.
+  - Cache senders in `app/bot/handlers/image.py` and `app/core/multi_brain_pipeline.py` now send by `result_file_id` first, URL second.
+- Placeholder URL writes removed:
+  - `app/main.py` callback no longer stores `result_url="binary:..."` for completed jobs.
+- Blur/unlock no longer stores blobs in DB:
+  - `app/main.py` blurred flow stores original once in private Telegram cache channel (`MEDIA_CACHE_CHAT_ID`) and persists only `blurred_original_file_id` (+ optional caption).
+  - Unlock flow in `app/bot/handlers/chat.py` sends by `blurred_original_file_id` (legacy URL/base64 fallback kept).
+- DB bloat guardrails implemented:
+  - New sanitizer: `app/db/image_job_ext_sanitizer.py`.
+  - Global model hooks sanitize `image_jobs.ext` on insert/update in `app/db/models.py`.
+  - New cleanup script: `scripts/purge_image_job_blobs.py` (dry-run / execute / batch controls).
+- Retention automation added:
+  - Scheduler now runs daily blur-pointer cleanup (default 48h) and analytics retention cleanup (default 30d).
+  - New settings: `BLUR_ORIGINAL_RETENTION_HOURS`, `ANALYTICS_RETENTION_DAYS`.
+- Miniapp host independence hardening:
+  - New env strategy: `MINIAPP_BASE_URL`, `MINIAPP_BACKUP_BASE_URL`, `MINIAPP_ACTIVE_HOST`.
+  - Railway `/miniapp` redirect fallback now targets active host when local static serving is disabled.
+  - CORS origin merging includes configured miniapp hosts; auth diagnostics endpoint added: `/api/miniapp/diagnostics/auth`.
+- Logging noise reduction:
+  - `ERROR_ONLY_LOGS` (default `true`) enables global print filtering to error-like lines and sets logger levels to ERROR in `app/main.py`.
+- Pipeline latency and batching semantics:
+  - Startup batching wait is configurable via `config/app.yaml` `limits.batch_delay_seconds`; current value is `0.1s` for near-immediate processing while still allowing micro-batching.
+  - Queue batching is now drain-based in `app/core/multi_brain_pipeline.py`:
+    - each loop atomically drains current queue snapshot (`redis_queue.drain_batch_messages`),
+    - newly arriving messages during processing remain queued for the next loop batch.
+  - `_background_process` in `app/bot/handlers/chat.py` now runs pipeline passes back-to-back while queue has pending messages, including a race-window safety re-pass.
+  - Fast image-text path is disabled again (text waits for image when image generation is selected).
+  - `app/core/brains/state_resolver.py` budget is set to `max_tokens=400`.
 
 ## Maintenance Rule
 - At start of each new request, read this file first.

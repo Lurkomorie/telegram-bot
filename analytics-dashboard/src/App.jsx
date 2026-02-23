@@ -18,6 +18,7 @@ import SystemMessageTemplates from './components/SystemMessageTemplates';
 import Conversions from './components/Conversions';
 import Payments from './components/Payments';
 import PremiumUsers from './components/PremiumUsers';
+import GiftPurchases from './components/GiftPurchases';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
                   <Route path="/premium-statistics" element={<PremiumStatistics />} />
                   <Route path="/conversions" element={<Conversions />} />
                   <Route path="/payments" element={<Payments />} />
+                  <Route path="/gift-purchases" element={<GiftPurchases />} />
                   <Route path="/premium-users" element={<PremiumUsers />} />
                   <Route path="/user-message-stats" element={<UserMessageStats />} />
                   <Route path="/translations" element={<Translations />} />

@@ -174,7 +174,7 @@ async def resolve_state(
                     model=state_model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=800
+                    max_tokens=400
                 )
             
             brain_start = time.time()
@@ -183,7 +183,7 @@ async def resolve_state(
                 messages=messages,
                 model=state_model,
                 temperature=0.3,
-                max_tokens=800
+                max_tokens=400
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000
@@ -260,4 +260,3 @@ async def resolve_state(
         
     # Should never reach here due to fallback
     return previous_state if previous_state else _create_initial_state(persona_name)
-
