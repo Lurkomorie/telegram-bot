@@ -28,7 +28,7 @@ limits:
   text_per_min: 20
   image_per_min: 5
   max_history_messages: 12
-  batch_delay_seconds: 3 # Delay before processing to allow message batching
+  batch_delay_seconds: 0.1 # Delay before processing to allow message batching
 
 webhooks:
   image_callback_secret: "${IMAGE_CALLBACK_SECRET}"
