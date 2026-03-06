@@ -139,13 +139,17 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
             await message.answer(ERROR_MESSAGES["persona_not_found"])
             return
         
+        # Check for per-user image prompt override
+        _override = crud.get_user_image_prompt_override(user.settings if user else None, persona.key)
+
         # Build image prompts using pipeline adapter (prompts dict not needed anymore)
         positive_prompt, negative_prompt = build_image_prompts(
             {},  # Empty dict - pipeline_adapter should handle this
             persona,
             user_prompt,
             chat,
-            ""  # No dialogue response for manual image gen
+            "",  # No dialogue response for manual image gen
+            image_prompt_override=_override
         )
         
         # Check image cache before generating
@@ -942,18 +946,21 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
             print(f"[IMAGE] Generated tags via brain: {image_tags[:100]}...")
             
             # Assemble final prompt - use only image_prompt (SDXL tags), NOT prompt (dialogue description)
-            persona_image_prompt = persona.get("image_prompt") or ""
+            _img_override = crud.get_user_image_prompt_override(user.settings if user else None, persona.get("key"))
+            persona_image_prompt = _img_override or persona.get("image_prompt") or ""
             positive_prompt, negative_prompt = assemble_final_prompt(image_tags, persona_image_prompt)
-            
+
         except Exception as e:
             print(f"[IMAGE] ⚠️ Failed to generate prompt via brain: {e}, falling back to simple prompt")
             # Fallback to simple prompt building
+            _fb_override = crud.get_user_image_prompt_override(user.settings if user else None, persona.get("key"))
             positive_prompt, negative_prompt = build_image_prompts(
                 {},
                 persona,
                 user_prompt,
                 None,  # No chat
-                ""
+                "",
+                image_prompt_override=_fb_override
             )
         
         # Check image cache before generating

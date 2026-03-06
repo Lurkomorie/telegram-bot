@@ -624,6 +624,12 @@ async def _process_single_batch(
             # Get user's language preference for prompt selection
             user = db.query(User).filter(User.id == user_id).first()
             user_language = user.locale if user and user.locale else "en"
+
+            # Check for per-user image prompt override
+            _override = crud.get_user_image_prompt_override(user.settings if user else None, persona.key)
+            if _override:
+                persona_data["image_prompt"] = _override
+                log_verbose(f"[BATCH] Applied user image_prompt override for persona {persona.key}")
             
             # Get per-chat discovered name (from chat.ext, NOT Telegram's first_name)
             user_display_name = chat.ext.get("user_display_name") if chat.ext else None
@@ -1543,7 +1549,14 @@ async def process_gift_purchase(
                 "prompt": persona.prompt,
                 "image_prompt": persona.image_prompt,
             }
-            
+
+            # Check for per-user image prompt override
+            _gift_user = db.query(User).filter(User.id == user_id).first()
+            _override = crud.get_user_image_prompt_override(_gift_user.settings if _gift_user else None, persona.key)
+            if _override:
+                persona_data["image_prompt"] = _override
+                log_always(f"[GIFT-PURCHASE] Applied user image_prompt override for persona {persona.key}")
+
             # Get state
             previous_state = chat.state_snapshot.get("state", "chatting") if chat.state_snapshot else "chatting"
             gift_state = _apply_gift_state_override(previous_state, item_key=item_key, item_name=item_name) or previous_state
