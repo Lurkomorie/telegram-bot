@@ -14,6 +14,15 @@ STARS_TO_USD = 0.02  # 1 star ≈ $0.02
 
 STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
 
+STARS_MARKUP = 1.3  # 30% markup for Stars payments (to incentivize Tribute)
+
+
+def get_tribute_product_urls() -> dict:
+    """Load Tribute product URLs from config/app.yaml"""
+    from app.settings import get_app_config
+    config = get_app_config()
+    return config.get("tribute", {}).get("product_urls", {})
+
 
 async def send_payment_notification(user: types.User, product_id: str, product: dict, db_user=None, purchase_count: int = 0):
     """

@@ -35,7 +35,8 @@ async def generate_initial_state_for_story(
         chat_history=chat_history,
         user_message="[INITIAL_STORY_START]",  # Placeholder for initial generation
         persona_name=persona_name,
-        previous_image_prompt=None
+        previous_image_prompt=None,
+        dialogue_response=greeting_text
     )
     
     print(f"[MINIAPP-SELECT] ✅ Initial state generated ({len(state)} chars)")
@@ -675,6 +676,13 @@ class SelectScenarioRequest(BaseModel):
 
 class CreateInvoiceRequest(BaseModel):
     product_id: str  # tokens_100, premium_month, etc.
+    payment_method: Optional[str] = None  # "stars", "card", "crypto" - used for markup and analytics
+
+
+class TributeLinkRequest(BaseModel):
+    product_id: str
+    method: str  # "card" or "crypto"
+    language: str = "en"  # "en" or "ru" - determines which Tribute product URL to use
 
 
 @router.post("/select-scenario")
@@ -1075,7 +1083,23 @@ async def _process_scenario_selection(
                         prompt=history_start_data.get("image_prompt", ""),
                         result_url=history_start_data.get("image_url")
                     )
-            
+                    # Generate initial state for preset personas in background
+                    if description_text and greeting_text:
+                        import asyncio
+                        async def _gen_preset_state():
+                            try:
+                                initial_state = await generate_initial_state_for_story(
+                                    persona_name=persona_name,
+                                    story_description=description_text,
+                                    greeting_text=greeting_text
+                                )
+                                with get_db() as db2:
+                                    crud.update_chat_state(db2, chat_id, {"state": initial_state})
+                                print(f"[MINIAPP-SELECT] Saved initial state for preset persona chat {chat_id}")
+                            except Exception as e:
+                                print(f"[MINIAPP-SELECT] Failed to generate initial state: {e}")
+                        asyncio.create_task(_gen_preset_state())
+
             # For custom characters, mark for AI image generation (but don't run it yet)
             if persona.get("image_prompt") and description_text:
                 with get_db() as db:
@@ -1291,15 +1315,26 @@ async def create_invoice(
     if not product:
         raise HTTPException(status_code=400, detail="Invalid product ID")
     
-    # Track payment initiation
+    # Determine Stars price (apply 30% markup for Stars payments)
+    import math
+    from app.bot.handlers.payment import STARS_MARKUP
+    payment_method = request.payment_method or "stars"
+    base_stars = product["stars"]
+    if payment_method == "stars":
+        invoice_stars = math.ceil(base_stars * STARS_MARKUP)
+    else:
+        invoice_stars = base_stars
+
+    # Track payment initiation with payment method and actual amount
     from app.core import analytics_service_tg
     analytics_service_tg.track_payment_initiated(
         user_id,
         request.product_id,
-        product["stars"],
-        product["type"]
+        invoice_stars,
+        product["type"],
+        payment_method=payment_method
     )
-    
+
     # SIMULATE PAYMENTS: Process immediately without creating invoice
     if settings.SIMULATE_PAYMENTS:
         print(f"[SIMULATED-PAYMENT] 💳 Processing simulated payment for user {user_id}, product: {request.product_id}")
@@ -1349,13 +1384,14 @@ async def create_invoice(
         
         # Create invoice using Telegram Bot API
         # For Stars payment, provider_token should be empty string
+        # Stars price includes 30% markup to incentivize Card/Crypto via Tribute
         invoice_link = await bot.create_invoice_link(
             title=title,
             description=description,
             payload=request.product_id,  # This will be sent back in successful_payment
             provider_token="",  # Empty for Telegram Stars
             currency="XTR",  # XTR = Telegram Stars
-            prices=[LabeledPrice(label=label, amount=product["stars"])]
+            prices=[LabeledPrice(label=label, amount=invoice_stars)]
         )
         
         print(f"[INVOICE-API] Created invoice for user {user_id}, product {request.product_id}: {invoice_link}")
@@ -1365,6 +1401,65 @@ async def create_invoice(
     except Exception as e:
         print(f"[INVOICE-API] Error creating invoice: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
+
+
+@router.post("/tribute-link")
+async def get_tribute_link(
+    request: TributeLinkRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get a Tribute payment link for Card/Crypto payments.
+    Returns a URL that opens in the user's browser to complete payment via Tribute.
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        if settings.ENV == "development" and settings.SIMULATE_PAYMENTS:
+            user_id = 549861060
+        else:
+            raise HTTPException(status_code=400, detail="Failed to extract user ID from init data.")
+
+    if request.method not in ("card", "crypto"):
+        raise HTTPException(status_code=400, detail="Invalid payment method. Must be 'card' or 'crypto'.")
+
+    from app.bot.handlers.payment import get_tribute_product_urls, PAYMENT_PRODUCTS
+
+    product = PAYMENT_PRODUCTS.get(request.product_id)
+    if not product:
+        raise HTTPException(status_code=400, detail="Invalid product ID")
+
+    tribute_urls = get_tribute_product_urls()
+    product_urls = tribute_urls.get(request.product_id)
+    if not product_urls or not isinstance(product_urls, dict):
+        raise HTTPException(status_code=400, detail="Tribute not configured for this product")
+
+    # Pick URL for user's language, fallback to English
+    lang = request.language if request.language in ("ru", "en") else "en"
+    tribute_url = product_urls.get(lang) or product_urls.get("en") or ""
+    if not tribute_url:
+        raise HTTPException(status_code=400, detail="Tribute URL not configured for this product/language")
+
+    # Append user_id for payment→user matching in webhook
+    separator = "&" if "?" in tribute_url else "?"
+    url_with_user = f"{tribute_url}{separator}user_id={user_id}"
+
+    # Track payment initiation for Tribute
+    from app.core import analytics_service_tg
+    analytics_service_tg.track_payment_initiated(
+        user_id,
+        request.product_id,
+        product["stars"],
+        product["type"],
+        payment_method=request.method
+    )
+
+    print(f"[TRIBUTE-LINK] Generated link for user {user_id}, product {request.product_id}, method {request.method}")
+
+    return {"url": url_with_user}
 
 
 @router.post("/claim-daily-bonus")

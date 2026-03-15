@@ -88,6 +88,7 @@ class Settings(BaseSettings):
     CONCURRENT_IMAGE_LIMIT_ENABLED: bool = False  # Set to True to enable concurrent image limit per user
     CONCURRENT_IMAGE_LIMIT_NUMBER: int = 2  # Maximum number of images a user can generate simultaneously (only if CONCURRENT_IMAGE_LIMIT_ENABLED=True)
     SIMULATE_PAYMENTS: bool = False  # Set to True to simulate successful payments in development (no real Telegram Stars charged)
+    TRIBUTE_API_KEY: Optional[str] = None  # Tribute payment provider API key for webhook signature verification
 
     # CORS
     CORS_ALLOW_ORIGINS: Optional[str] = None  # Comma-separated origins

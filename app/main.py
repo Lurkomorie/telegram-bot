@@ -65,6 +65,10 @@ print("📊 Loading Analytics API...")
 from app.api import analytics
 print("✅ Analytics API loaded")
 
+print("💳 Loading Tribute Webhook API...")
+from app.api import tribute_webhook
+print("✅ Tribute Webhook API loaded")
+
 
 
 @asynccontextmanager
@@ -181,6 +185,7 @@ if settings.ENABLE_MINIAPP_AUTH_DIAGNOSTICS:
 # Include API routers
 app.include_router(miniapp.router)
 app.include_router(analytics.router)
+app.include_router(tribute_webhook.router)
 
 # Serve Mini App static files (React build)
 if settings.SERVE_LOCAL_STATIC:

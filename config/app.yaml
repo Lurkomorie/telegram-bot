@@ -42,6 +42,50 @@ features:
 miniapp:
   menu_button_name: "App"
 
+tribute:
+  # Tribute product URLs - per language (ru/en)
+  # Fill after creating products in Tribute Creator Dashboard
+  product_urls:
+    subscription_daily:
+      ru: "https://t.me/tribute/app?startapp=psQV"
+      en: "https://t.me/tribute/app?startapp=psQW"
+    subscription_weekly:
+      ru: ""
+      en: ""
+    subscription_monthly:
+      ru: ""
+      en: ""
+    subscription_yearly:
+      ru: ""
+      en: ""
+    tokens_50:
+      ru: ""
+      en: ""
+    tokens_100:
+      ru: ""
+      en: ""
+    tokens_250:
+      ru: ""
+      en: ""
+    tokens_500:
+      ru: ""
+      en: ""
+    tokens_1000:
+      ru: ""
+      en: ""
+    tokens_2500:
+      ru: ""
+      en: ""
+    tokens_5000:
+      ru: ""
+      en: ""
+    tokens_10000:
+      ru: ""
+      en: ""
+    tokens_25000:
+      ru: ""
+      en: ""
+
 gift:
   cadence_user_messages: 20
   purchase_cooldown_user_messages: 20

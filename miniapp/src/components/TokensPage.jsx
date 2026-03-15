@@ -1,9 +1,10 @@
 import WebApp from "@twa-dev/sdk";
 import { useEffect, useState } from "react";
-import { createInvoice, trackEvent } from "../api";
+import { createInvoice, getTributeLink, trackEvent } from "../api";
 import lightningIcon from "../assets/lightning.webp";
-import starIcon from "../assets/star.webp";
 import { useTranslation } from "../i18n/TranslationContext";
+import { formatPrice } from "../utils/pricing";
+import PaymentMethodModal from "./PaymentMethodModal";
 import "./TokensPage.css";
 
 /**
@@ -11,9 +12,10 @@ import "./TokensPage.css";
  * Shows token packages for purchase
  */
 export default function TokensPage({ tokens }) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [selectedPackage, setSelectedPackage] = useState("tokens_250");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Track page view
   useEffect(() => {
@@ -25,85 +27,50 @@ export default function TokensPage({ tokens }) {
 
   // New Year Sale - 20% off all prices!
   const DISCOUNT_PERCENT = 20;
-  const calcDiscount = (price) =>
-    Math.round(price * (1 - DISCOUNT_PERCENT / 100));
 
   // Token packages with bulk discounts (cheaper per token for larger packages)
   const packages = [
-    { id: "tokens_50", amount: 50, originalStars: 35, stars: calcDiscount(35) },
-    {
-      id: "tokens_100",
-      amount: 100,
-      originalStars: 65,
-      stars: calcDiscount(65),
-    },
-    {
-      id: "tokens_250",
-      amount: 250,
-      originalStars: 150,
-      stars: calcDiscount(150),
-    },
-    {
-      id: "tokens_500",
-      amount: 500,
-      originalStars: 300,
-      stars: calcDiscount(300),
-    },
-    {
-      id: "tokens_1000",
-      amount: 1000,
-      originalStars: 600,
-      stars: calcDiscount(600),
-    },
-    {
-      id: "tokens_2500",
-      amount: 2500,
-      originalStars: 1400,
-      stars: calcDiscount(1400),
-    },
-    {
-      id: "tokens_5000",
-      amount: 5000,
-      originalStars: 2700,
-      stars: calcDiscount(2700),
-    },
-    {
-      id: "tokens_10000",
-      amount: 10000,
-      originalStars: 5000,
-      stars: calcDiscount(5000),
-    },
-    {
-      id: "tokens_25000",
-      amount: 25000,
-      originalStars: 12000,
-      stars: calcDiscount(12000),
-    },
+    { id: "tokens_50", amount: 50, stars: 28 },
+    { id: "tokens_100", amount: 100, stars: 52 },
+    { id: "tokens_250", amount: 250, stars: 120 },
+    { id: "tokens_500", amount: 500, stars: 240 },
+    { id: "tokens_1000", amount: 1000, stars: 480 },
+    { id: "tokens_2500", amount: 2500, stars: 1120 },
+    { id: "tokens_5000", amount: 5000, stars: 2160 },
+    { id: "tokens_10000", amount: 10000, stars: 4000 },
+    { id: "tokens_25000", amount: 25000, stars: 9600 },
   ];
 
-  const handlePurchase = async () => {
+  const handlePurchase = () => {
     if (isProcessing) return;
+    setShowPaymentModal(true);
+  };
 
+  const handlePaymentMethod = async (method) => {
+    setShowPaymentModal(false);
     setIsProcessing(true);
 
     try {
       const initData = WebApp.initData;
 
-      // Create invoice via API
-      const result = await createInvoice(selectedPackage, initData);
+      if (method === "card" || method === "crypto") {
+        const result = await getTributeLink(selectedPackage, method, initData, language);
+        WebApp.openLink(result.url);
+        setIsProcessing(false);
+        return;
+      }
 
-      // Check if this is a simulated payment
+      // Stars payment flow
+      const result = await createInvoice(selectedPackage, initData, "stars");
+
       if (result.simulated) {
-        // Simulated payment - already processed on backend
         WebApp.showAlert(t("tokens.tokensAdded"));
         window.location.reload();
         return;
       }
 
-      // Real payment - open Telegram invoice
       const { invoice_link } = result;
 
-      // Open invoice using Telegram WebApp API
       WebApp.openInvoice(invoice_link, (status) => {
         if (status === "paid") {
           WebApp.showAlert(t("tokens.tokensAdded"));
@@ -116,11 +83,13 @@ export default function TokensPage({ tokens }) {
         setIsProcessing(false);
       });
     } catch (error) {
-      console.error("Failed to create invoice:", error);
+      console.error("Failed to process payment:", error);
       WebApp.showAlert(t("tokens.invoiceFailed"));
       setIsProcessing(false);
     }
   };
+
+  const selectedPkg = packages.find((p) => p.id === selectedPackage);
 
   return (
     <div className="tokens-page">
@@ -169,13 +138,8 @@ export default function TokensPage({ tokens }) {
             </div>
             <div className="package-right">
               <div className="package-price-sale">
-                <span className="original-price-inline">
-                  <img src={starIcon} alt="star" className="star-icon" />
-                  {pkg.originalStars.toLocaleString()}
-                </span>
                 <span className="discounted-price-inline">
-                  <img src={starIcon} alt="star" className="star-icon" />
-                  {pkg.stars.toLocaleString()}
+                  {formatPrice(pkg.id, language)}
                 </span>
               </div>
               <div className="sale-tag-small">-{DISCOUNT_PERCENT}%</div>
@@ -191,6 +155,15 @@ export default function TokensPage({ tokens }) {
       >
         {isProcessing ? t("tokens.processing") : t("tokens.buyButton")}
       </button>
+
+      {/* Payment Method Modal */}
+      <PaymentMethodModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        productId={selectedPackage}
+        starsPrice={selectedPkg?.stars || 0}
+        onSelectMethod={handlePaymentMethod}
+      />
     </div>
   );
 }

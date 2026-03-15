@@ -404,16 +404,18 @@ def track_payment_initiated(
     client_id: int,
     product_id: str,
     amount_stars: int,
-    transaction_type: str
+    transaction_type: str,
+    payment_method: str = "stars"
 ):
-    """Track payment initiation"""
+    """Track payment initiation with payment method and actual amount"""
     track_event_tg(
         client_id=client_id,
         event_name="payment_initiated",
         meta={
             "product_id": product_id,
             "amount_stars": amount_stars,
-            "transaction_type": transaction_type
+            "transaction_type": transaction_type,
+            "payment_method": payment_method
         }
     )
 

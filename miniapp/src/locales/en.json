@@ -359,5 +359,12 @@
     "cold": "Cold",
     "veryCold": "Very cold",
     "herMood": "Her mood"
+  },
+  "paymentModal": {
+    "card": "Pay with Card",
+    "crypto": "Pay with Crypto",
+    "stars": "Pay with Stars",
+    "starsNote": "+30%",
+    "close": "Close"
   }
 }
