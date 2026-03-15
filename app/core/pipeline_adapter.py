@@ -300,14 +300,17 @@ def build_image_prompts(
     persona: Union[Persona, dict],
     user_text: str,
     chat: Union[Chat, dict] = None,
-    dialogue_response: str = ""
+    dialogue_response: str = "",
+    image_prompt_override: str = None
 ) -> Tuple[str, str]:
     """
     Build image generation prompts (positive and negative)
     Uses persona.image_prompt directly for character appearance
     """
     # Get persona's image prompt (character appearance tags)
-    if isinstance(persona, dict):
+    if image_prompt_override:
+        character_dna = image_prompt_override
+    elif isinstance(persona, dict):
         character_dna = persona.get("image_prompt") or ""
     else:
         character_dna = persona.image_prompt or ""

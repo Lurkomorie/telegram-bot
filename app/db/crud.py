@@ -1134,6 +1134,15 @@ def normalize_prompt(prompt: str) -> str:
     return ",".join(tags)
 
 
+def get_user_image_prompt_override(user_settings: dict, persona_key: str) -> Optional[str]:
+    """Get user-specific image prompt override for a persona, if any.
+    Stored in user.settings["image_prompt_overrides"][persona_key].
+    """
+    if user_settings and isinstance(user_settings, dict) and persona_key:
+        return user_settings.get("image_prompt_overrides", {}).get(persona_key)
+    return None
+
+
 def compute_prompt_hash(prompt: str) -> str:
     """SHA256 hash of normalized prompt for cache lookup"""
     normalized = normalize_prompt(prompt)
