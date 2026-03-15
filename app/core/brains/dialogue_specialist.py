@@ -266,10 +266,11 @@ Note: This memory contains important facts about the user and past interactions.
 """
     
     # Add current state context as string
+    state_display = state or "No state yet - infer scene from conversation history above."
     state_context = f"""
 
 # CURRENT SCENE & STATE
-{state}
+{state_display}
 
 # CONVERSATION FLOW RULES
 - CRITICAL: Respond DIRECTLY to the user's LAST message above. Read it carefully.

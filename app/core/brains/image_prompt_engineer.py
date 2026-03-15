@@ -56,7 +56,7 @@ EYE_DIRECTION_TAGS = {"looking_at_viewer", "eye_contact", "looking_away", "looki
 HEAVY_BODY_FOCUS_TAGS = {"foot_focus", "feet", "ass_focus", "breast_focus", "hand_focus"}
 SCENE_LOCK_CLOTHING_TAGS = CLOTHING_TAGS | {"cleavage"}
 SCENE_LOCK_ENV_TAGS = ENVIRONMENT_TAGS | EFFECT_TAGS
-NO_SCENE_LOCK_SOURCES = {"history_start", "ai_initial_story", "gift_purchase"}
+NO_SCENE_LOCK_SOURCES = {"gift_purchase"}
 FORCED_GIFT_SCENE_TAGS = (
     FRAMING_TAGS
     | CLOTHING_TAGS

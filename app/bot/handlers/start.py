@@ -16,6 +16,22 @@ from app.settings import settings, get_ui_text
 from app.core import analytics_service_tg
 
 
+async def _generate_and_save_initial_state(chat_id, persona_name, description_text, greeting_text):
+    """Background task to generate and save initial state for a new story chat."""
+    try:
+        from app.api.miniapp import generate_initial_state_for_story
+        initial_state = await generate_initial_state_for_story(
+            persona_name=persona_name,
+            story_description=description_text,
+            greeting_text=greeting_text
+        )
+        with get_db() as db:
+            crud.update_chat_state(db, chat_id, {"state": initial_state})
+        print(f"[INIT-STATE] Saved initial state for chat {chat_id}")
+    except Exception as e:
+        print(f"[INIT-STATE] Failed: {e}")
+
+
 def get_and_update_user_language(db, telegram_user) -> str:
     """
     Get user language and ensure it's updated from Telegram
@@ -483,7 +499,13 @@ async def create_new_persona_chat(message: types.Message, persona_id: str):
                 prompt=history_start_data["image_prompt"],
                 result_url=history_start_data.get("image_url")
             )
-    
+
+    # Generate initial state in background
+    if description_text and greeting_text:
+        asyncio.create_task(_generate_and_save_initial_state(
+            chat_id, persona_name, description_text, greeting_text
+        ))
+
     # Send description first if exists
     if description_text:
         escaped_description = escape_markdown_v2(description_text)
@@ -623,7 +645,13 @@ async def create_new_persona_chat_with_history(message: types.Message, persona_i
                 prompt=history_start_data["image_prompt"],
                 result_url=history_start_data.get("image_url")
             )
-    
+
+    # Generate initial state in background
+    if description_text and greeting_text:
+        asyncio.create_task(_generate_and_save_initial_state(
+            chat_id, persona_name, description_text, greeting_text
+        ))
+
     # Send hint message FIRST (before story starts)
     hint_text = get_ui_text("hints.restart", language=user_language)
     await message.answer(
@@ -1121,11 +1149,17 @@ async def select_story_callback(callback: types.CallbackQuery):
             text=greeting_text,
             is_processed=True
         )
-    
+
+    # Generate initial state in background
+    if description_text and greeting_text:
+        asyncio.create_task(_generate_and_save_initial_state(
+            chat_id, persona["name"], description_text, greeting_text
+        ))
+
     # Clear Redis queue and processing lock
     await redis_queue.clear_batch_messages(chat_id)
     await redis_queue.set_processing_lock(chat_id, False)
-    
+
     # Delete the inline keyboard message
     try:
         await callback.message.delete()
@@ -1519,13 +1553,41 @@ async def sysmsg_story_callback(callback: types.CallbackQuery):
     with get_db() as db:
         crud.update_chat_history_start(db, chat_id, history_start_data)
         db.commit()
-    
+
+    # Save messages to DB for conversation continuity
+    with get_db() as db:
+        if description_text:
+            crud.create_message_with_state(
+                db, chat_id=chat_id, role="system",
+                text=description_text, is_processed=True
+            )
+        crud.create_message_with_state(
+            db, chat_id=chat_id, role="assistant",
+            text=greeting_text, is_processed=True
+        )
+        # Create initial ImageJob for continuity if history has image_prompt
+        if history_start_data.get("image_prompt"):
+            crud.create_initial_image_job(
+                db,
+                user_id=callback.from_user.id,
+                persona_id=persona_id,
+                chat_id=chat_id,
+                prompt=history_start_data["image_prompt"],
+                result_url=history_start_data.get("image_url")
+            )
+
+    # Generate initial state in background
+    if description_text and greeting_text:
+        asyncio.create_task(_generate_and_save_initial_state(
+            chat_id, persona["name"], description_text, greeting_text
+        ))
+
     # Delete the system message
     try:
         await callback.message.delete()
     except:
         pass
-    
+
     # Send the greeting
     await callback.answer()
     await callback.message.answer(f"<i>{description_text}</i>" if description_text else "", parse_mode="HTML")
@@ -1618,13 +1680,41 @@ async def sysmsg_random_story_callback(callback: types.CallbackQuery):
     with get_db() as db:
         crud.update_chat_history_start(db, chat_id, history_start_data)
         db.commit()
-    
+
+    # Save messages to DB for conversation continuity
+    with get_db() as db:
+        if description_text:
+            crud.create_message_with_state(
+                db, chat_id=chat_id, role="system",
+                text=description_text, is_processed=True
+            )
+        crud.create_message_with_state(
+            db, chat_id=chat_id, role="assistant",
+            text=greeting_text, is_processed=True
+        )
+        # Create initial ImageJob for continuity if history has image_prompt
+        if history_start_data.get("image_prompt"):
+            crud.create_initial_image_job(
+                db,
+                user_id=callback.from_user.id,
+                persona_id=persona_id,
+                chat_id=chat_id,
+                prompt=history_start_data["image_prompt"],
+                result_url=history_start_data.get("image_url")
+            )
+
+    # Generate initial state in background
+    if description_text and greeting_text:
+        asyncio.create_task(_generate_and_save_initial_state(
+            chat_id, persona["name"], description_text, greeting_text
+        ))
+
     # Delete the system message
     try:
         await callback.message.delete()
     except:
         pass
-    
+
     # Send the greeting
     await callback.answer()
     await callback.message.answer(f"<i>{description_text}</i>" if description_text else "", parse_mode="HTML")
