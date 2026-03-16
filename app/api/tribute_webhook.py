@@ -54,7 +54,7 @@ async def tribute_webhook(request: Request):
     print(f"[TRIBUTE-WEBHOOK] 📥 Event type: '{event_type}', Full payload: {json.dumps(payload, default=str)[:500]}", flush=True)
 
     # Allow test/ping events through without signature verification
-    if event_type in ("test", "ping"):
+    if event_type in ("test", "ping") or "test_event" in payload:
         print(f"[TRIBUTE-WEBHOOK] 🏓 Test/ping event received, responding OK", flush=True)
         return {"status": "ok"}
 
