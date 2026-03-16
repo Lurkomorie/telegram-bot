@@ -64,19 +64,32 @@ async def tribute_webhook(request: Request):
     #     print(f"[TRIBUTE-WEBHOOK] ❌ Invalid signature")
     #     raise HTTPException(status_code=401, detail="Invalid signature")
 
-    # Extract user_id from metadata or URL params embedded in the purchase
+    # Extract user_id - try multiple locations in the payload
     user_id = None
-    metadata = payload.get("metadata", {})
-    if isinstance(metadata, dict):
-        user_id = metadata.get("user_id")
 
-    # Also check in custom fields or URL params
+    # 1. Check subscriber.telegram_id (Tribute's format)
+    subscriber = payload.get("subscriber", {})
+    if isinstance(subscriber, dict):
+        tid = subscriber.get("telegram_id")
+        if tid:
+            try:
+                user_id = int(tid)
+            except (ValueError, TypeError):
+                pass
+
+    # 2. Check metadata.user_id (our custom field)
+    if not user_id:
+        metadata = payload.get("metadata", {})
+        if isinstance(metadata, dict):
+            user_id = metadata.get("user_id")
+
+    # 3. Check custom_fields.user_id
     if not user_id:
         custom_fields = payload.get("custom_fields", {})
         if isinstance(custom_fields, dict):
             user_id = custom_fields.get("user_id")
 
-    # Check in the product URL params that we appended
+    # 4. Check product URL params (user_id appended by us)
     if not user_id:
         url = payload.get("product_url") or payload.get("url") or ""
         if "user_id=" in url:
@@ -90,6 +103,7 @@ async def tribute_webhook(request: Request):
             except (ValueError, IndexError):
                 pass
 
+    # 5. Check top-level user_id
     if not user_id:
         try:
             user_id = int(payload.get("user_id", 0))
