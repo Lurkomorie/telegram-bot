@@ -47,17 +47,17 @@ tribute:
   # Fill after creating products in Tribute Creator Dashboard
   product_urls:
     subscription_daily:
-      ru: "https://t.me/tribute/app?startapp=psQV"
-      en: "https://t.me/tribute/app?startapp=psQW"
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
     subscription_weekly:
-      ru: "https://t.me/tribute/app?startapp=psTx"
-      en: "https://t.me/tribute/app?startapp=psTA"
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
     subscription_monthly:
-      ru: "https://t.me/tribute/app?startapp=psTy"
-      en: "https://t.me/tribute/app?startapp=psTB"
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
     subscription_yearly:
-      ru: "https://t.me/tribute/app?startapp=psTz"
-      en: "https://t.me/tribute/app?startapp=psTC"
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
     tokens_50:
       ru: "https://t.me/tribute/app?startapp=psTE"
       en: ""
