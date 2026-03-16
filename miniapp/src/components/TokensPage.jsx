@@ -55,7 +55,7 @@ export default function TokensPage({ tokens }) {
 
       if (method === "card" || method === "crypto") {
         const result = await getTributeLink(selectedPackage, method, initData, language);
-        WebApp.openLink(result.url);
+        WebApp.openTelegramLink(result.url);
         setIsProcessing(false);
         return;
       }
@@ -160,8 +160,6 @@ export default function TokensPage({ tokens }) {
       <PaymentMethodModal
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        productId={selectedPackage}
-        starsPrice={selectedPkg?.stars || 0}
         onSelectMethod={handlePaymentMethod}
       />
     </div>

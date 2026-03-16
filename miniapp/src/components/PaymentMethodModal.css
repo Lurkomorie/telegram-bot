@@ -1,121 +1,120 @@
-.payment-modal-overlay {
+.payment-method-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(10, 10, 10, 0.75);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  animation: fadeIn 0.2s ease;
+  animation: pmFadeIn 0.2s ease;
 }
 
-.payment-modal-content {
-  background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
-  border-radius: 24px 24px 24px 24px;
-  padding: 24px;
-  width: 100%;
-  max-width: 400px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  animation: slideUp 0.3s ease;
-  margin-bottom: env(safe-area-inset-bottom, 0);
+@keyframes pmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.payment-modal-buttons {
+@keyframes pmSlideUp {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.payment-method-buttons {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  max-width: 280px;
+  animation: pmSlideUp 0.25s ease;
 }
 
 .payment-method-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  width: 100%;
-  padding: 16px;
+  padding: 16px 24px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
+  border: none;
   color: #fff;
   font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .payment-method-btn:active {
-  transform: scale(0.98);
-  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.97);
 }
 
-.payment-method-icon {
-  font-size: 24px;
-  width: 32px;
-  text-align: center;
-  flex-shrink: 0;
+.payment-method-btn.card-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3);
 }
 
-.payment-method-label {
-  flex: 1;
-  text-align: left;
-  font-weight: 500;
+.payment-method-btn.card-btn:active {
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.2);
 }
 
-.payment-method-price {
-  font-weight: 600;
-  color: #e74c4c;
-  white-space: nowrap;
+.payment-method-btn.crypto-btn {
+  background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
 }
 
-.payment-method-price-group {
+.payment-method-btn.crypto-btn:active {
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.2);
+}
+
+.payment-method-btn.stars-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+.payment-method-btn.stars-btn:active {
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.2);
+}
+
+.payment-method-btn .btn-icon {
+  font-size: 20px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
 }
 
-.payment-method-markup {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  font-weight: 400;
-}
-
-.stars-btn {
-  border-color: rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.stars-btn .payment-method-price {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.payment-modal-close {
-  width: 100%;
-  padding: 14px;
-  margin-top: 12px;
-  border-radius: 16px;
+.payment-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: none;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.6);
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.payment-modal-close:active {
-  background: rgba(255, 255, 255, 0.12);
+.payment-close-btn:active {
+  color: rgba(255, 255, 255, 0.9);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+.payment-close-btn .close-x {
+  font-size: 16px;
+  line-height: 1;
 }

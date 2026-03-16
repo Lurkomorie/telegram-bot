@@ -95,7 +95,7 @@ export default function PremiumPage() {
 
       if (method === 'card' || method === 'crypto') {
         const result = await getTributeLink(selectedProduct, method, initData, language);
-        WebApp.openLink(result.url);
+        WebApp.openTelegramLink(result.url);
         setIsProcessing(false);
         return;
       }
@@ -195,8 +195,6 @@ export default function PremiumPage() {
       <PaymentMethodModal
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        productId={selectedProduct}
-        starsPrice={selectedPlan?.stars || 0}
         onSelectMethod={handlePaymentMethod}
       />
     </div>
