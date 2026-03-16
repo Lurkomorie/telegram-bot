@@ -97,8 +97,9 @@ async def tribute_webhook(request: Request):
             pass
 
     if not user_id:
-        print(f"[TRIBUTE-WEBHOOK] ❌ Could not extract user_id from payload")
-        raise HTTPException(status_code=400, detail="Missing user_id in webhook payload")
+        print(f"[TRIBUTE-WEBHOOK] ❌ Could not extract user_id. FULL PAYLOAD: {json.dumps(payload, default=str)}", flush=True)
+        # Return 200 so Tribute doesn't retry, but log everything for debugging
+        return {"status": "debug", "error": "no_user_id", "payload_received": payload}
 
     user_id = int(user_id)
 
