@@ -93,29 +93,6 @@ export default function TokensPage({ tokens }) {
 
   return (
     <div className="tokens-page">
-      {/* Discount Banner */}
-      <div className="tokens-discount-banner">
-        <div className="tokens-discount-sparkles">
-          {[...Array(8)].map((_, i) => (
-            <span key={i} className="sparkle">
-              ✨
-            </span>
-          ))}
-        </div>
-        <div className="tokens-discount-content">
-          <span className="tokens-discount-icon">⚡</span>
-          <div className="tokens-discount-text-group">
-            <span className="tokens-discount-title">
-              {DISCOUNT_PERCENT}% OFF
-            </span>
-            <span className="tokens-discount-subtitle">
-              {t("tokens.allPackages")}
-            </span>
-          </div>
-          <span className="tokens-discount-icon">🔥</span>
-        </div>
-      </div>
-
       <div className="packages-list">
         {packages.map((pkg) => (
           <div

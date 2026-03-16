@@ -1,11 +1,11 @@
 /**
  * Pricing utility for multi-currency display
- * Maps product IDs to USD/RUB prices and handles Stars markup
+ * Maps product IDs to EUR/RUB prices and handles Stars markup
  */
 
 export const STARS_MARKUP = 1.3;
 
-export const USD_PRICES = {
+export const EUR_PRICES = {
   subscription_daily: 1.99,
   subscription_weekly: 5.99,
   subscription_monthly: 9.99,
@@ -26,7 +26,7 @@ export const RUB_PRICES = {
   subscription_weekly: 549,
   subscription_monthly: 899,
   subscription_yearly: 4499,
-  tokens_50: 89,
+  tokens_50: 100,
   tokens_100: 139,
   tokens_250: 279,
   tokens_500: 449,
@@ -41,7 +41,7 @@ export const RUB_PRICES = {
  * Format price for display based on language
  * @param {string} productId - Product ID
  * @param {string} language - Language code ('en' or 'ru')
- * @returns {string} Formatted price string (e.g. "$6.49" or "599 ₽")
+ * @returns {string} Formatted price string (e.g. "€6.49" or "599 ₽")
  */
 export function formatPrice(productId, language) {
   if (language === "ru") {
@@ -49,9 +49,9 @@ export function formatPrice(productId, language) {
     if (price == null) return "";
     return `${price.toLocaleString("ru-RU")} ₽`;
   }
-  const price = USD_PRICES[productId];
+  const price = EUR_PRICES[productId];
   if (price == null) return "";
-  return `$${price.toFixed(2)}`;
+  return `€${price.toFixed(2)}`;
 }
 
 /**
@@ -68,10 +68,10 @@ export function formatOriginalPrice(productId, language, multiplier) {
     const original = Math.round(price * multiplier);
     return `${original.toLocaleString("ru-RU")} ₽`;
   }
-  const price = USD_PRICES[productId];
+  const price = EUR_PRICES[productId];
   if (price == null) return "";
   const original = Math.round(price * multiplier * 100) / 100;
-  return `$${original.toFixed(2)}`;
+  return `€${original.toFixed(2)}`;
 }
 
 /**

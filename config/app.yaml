@@ -50,40 +50,40 @@ tribute:
       ru: "https://t.me/tribute/app?startapp=psQV"
       en: "https://t.me/tribute/app?startapp=psQW"
     subscription_weekly:
-      ru: ""
-      en: ""
+      ru: "https://t.me/tribute/app?startapp=psTx"
+      en: "https://t.me/tribute/app?startapp=psTA"
     subscription_monthly:
-      ru: ""
-      en: ""
+      ru: "https://t.me/tribute/app?startapp=psTy"
+      en: "https://t.me/tribute/app?startapp=psTB"
     subscription_yearly:
-      ru: ""
-      en: ""
+      ru: "https://t.me/tribute/app?startapp=psTz"
+      en: "https://t.me/tribute/app?startapp=psTC"
     tokens_50:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTE"
       en: ""
     tokens_100:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTG"
       en: ""
     tokens_250:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTH"
       en: ""
     tokens_500:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTI"
       en: ""
     tokens_1000:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTJ"
       en: ""
     tokens_2500:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTK"
       en: ""
     tokens_5000:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTL"
       en: ""
     tokens_10000:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTM"
       en: ""
     tokens_25000:
-      ru: ""
+      ru: "https://t.me/tribute/app?startapp=psTN"
       en: ""
 
 gift:
