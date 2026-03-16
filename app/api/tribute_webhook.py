@@ -39,16 +39,25 @@ async def tribute_webhook(request: Request):
     body = await request.body()
     signature = request.headers.get("trbt-signature", "")
 
-    if not verify_tribute_signature(body, signature):
-        print(f"[TRIBUTE-WEBHOOK] ❌ Invalid signature")
-        raise HTTPException(status_code=401, detail="Invalid signature")
+    print(f"[TRIBUTE-WEBHOOK] 📥 Raw body: {body[:500]}")
+    print(f"[TRIBUTE-WEBHOOK] 📥 Signature: {signature}")
+    print(f"[TRIBUTE-WEBHOOK] 📥 Headers: {dict(request.headers)}")
 
     try:
-        payload = json.loads(body)
+        payload = json.loads(body) if body else {}
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    event_type = payload.get("type") or payload.get("event")
+    event_type = payload.get("type") or payload.get("event") or ""
+
+    # Allow test/ping events through without signature verification
+    if event_type in ("test", "ping", ""):
+        print(f"[TRIBUTE-WEBHOOK] 🏓 Test/ping event received, responding OK")
+        return {"status": "ok"}
+
+    if not verify_tribute_signature(body, signature):
+        print(f"[TRIBUTE-WEBHOOK] ❌ Invalid signature")
+        raise HTTPException(status_code=401, detail="Invalid signature")
     print(f"[TRIBUTE-WEBHOOK] 📥 Received event: {event_type}")
     print(f"[TRIBUTE-WEBHOOK] 📥 Payload: {json.dumps(payload, default=str)[:500]}")
 
