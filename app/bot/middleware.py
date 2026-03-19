@@ -7,6 +7,40 @@ from aiogram.types import Update, Message, CallbackQuery
 from app.settings import settings, get_ui_text
 from app.core.rate import get_redis
 
+BANNED_USERNAMES = {"railgunchan"}
+BAN_MESSAGE = "Pay money or stay banned forever. 300$, to same place as before"
+
+
+class BannedUserMiddleware(BaseMiddleware):
+    """Block specific banned users from using the bot"""
+
+    async def __call__(
+        self,
+        handler: Callable[[Update, Dict[str, Any]], Awaitable[Any]],
+        event: Update,
+        data: Dict[str, Any]
+    ) -> Any:
+        user = None
+        message = None
+
+        if event.message and event.message.from_user:
+            user = event.message.from_user
+            message = event.message
+        elif event.callback_query and event.callback_query.from_user:
+            user = event.callback_query.from_user
+            message = event.callback_query.message
+
+        if user and message:
+            username = (user.username or "").lower()
+            if username in BANNED_USERNAMES:
+                await message.answer(BAN_MESSAGE)
+                if event.callback_query:
+                    await event.callback_query.answer()
+                return None
+
+        return await handler(event, data)
+
+
 class ServiceUnavailableMiddleware(BaseMiddleware):
     """
     Middleware to intercept all updates when service is unavailable

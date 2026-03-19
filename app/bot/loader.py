@@ -16,7 +16,8 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # Register middleware
-from app.bot.middleware import ServiceUnavailableMiddleware
+from app.bot.middleware import BannedUserMiddleware, ServiceUnavailableMiddleware
+dp.update.middleware(BannedUserMiddleware())
 dp.update.middleware(ServiceUnavailableMiddleware())
 
 # Create main router (all handlers will be registered here)
