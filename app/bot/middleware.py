@@ -7,7 +7,7 @@ from aiogram.types import Update, Message, CallbackQuery
 from app.settings import settings, get_ui_text
 from app.core.rate import get_redis
 
-BANNED_USERNAMES = {"railgunchan"}
+BANNED_USERNAMES = {"railgunchan", "percifali"}
 BAN_MESSAGE = "Pay money or stay banned forever. 300$, to same place as before"
 
 
