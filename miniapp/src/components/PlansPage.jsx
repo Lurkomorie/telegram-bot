@@ -28,7 +28,7 @@ export default function PlansPage() {
       id: 'subscription_daily', 
       period: 'day',
       periodKey: 'subscription.period.day',
-      stars: 105, 
+      stars: 95, 
       originalStars: null,  // No discount
       discount: null,
       popular: false 
@@ -37,8 +37,8 @@ export default function PlansPage() {
       id: 'subscription_weekly', 
       period: 'week',
       periodKey: 'subscription.period.week',
-      stars: 325, 
-      originalStars: 550,
+      stars: 295, 
+      originalStars: 500,
       discount: 41,
       popular: false 
     },
@@ -46,8 +46,8 @@ export default function PlansPage() {
       id: 'subscription_monthly', 
       period: 'month',
       periodKey: 'subscription.period.month',
-      stars: 545, 
-      originalStars: 2750,
+      stars: 495, 
+      originalStars: 2500,
       discount: 78,
       popular: true  // "Most Popular" badge
     },
@@ -55,8 +55,8 @@ export default function PlansPage() {
       id: 'subscription_yearly', 
       period: 'year',
       periodKey: 'subscription.period.year',
-      stars: 2745, 
-      originalStars: 33000,
+      stars: 2495, 
+      originalStars: 30000,
       discount: 92,
       popular: false
     }

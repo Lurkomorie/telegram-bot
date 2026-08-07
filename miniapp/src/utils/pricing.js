@@ -3,7 +3,7 @@
  * Maps product IDs to EUR/RUB prices and handles Stars markup
  */
 
-export const STARS_MARKUP = 1.3;
+export const STARS_MARKUP = 1.43;
 
 export const EUR_PRICES = {
   subscription_daily: 1.99,

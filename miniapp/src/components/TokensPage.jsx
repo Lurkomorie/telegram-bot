@@ -30,15 +30,15 @@ export default function TokensPage({ tokens }) {
 
   // Token packages with bulk discounts (cheaper per token for larger packages)
   const packages = [
-    { id: "tokens_50", amount: 50, stars: 31 },
-    { id: "tokens_100", amount: 100, stars: 58 },
-    { id: "tokens_250", amount: 250, stars: 132 },
-    { id: "tokens_500", amount: 500, stars: 232 },
-    { id: "tokens_1000", amount: 1000, stars: 419 },
-    { id: "tokens_2500", amount: 2500, stars: 936 },
-    { id: "tokens_5000", amount: 5000, stars: 1706 },
-    { id: "tokens_10000", amount: 10000, stars: 3081 },
-    { id: "tokens_25000", amount: 25000, stars: 6876 },
+    { id: "tokens_50", amount: 50, stars: 28 },
+    { id: "tokens_100", amount: 100, stars: 52 },
+    { id: "tokens_250", amount: 250, stars: 120 },
+    { id: "tokens_500", amount: 500, stars: 210 },
+    { id: "tokens_1000", amount: 1000, stars: 380 },
+    { id: "tokens_2500", amount: 2500, stars: 850 },
+    { id: "tokens_5000", amount: 5000, stars: 1550 },
+    { id: "tokens_10000", amount: 10000, stars: 2800 },
+    { id: "tokens_25000", amount: 25000, stars: 6250 },
   ];
 
   const handlePurchase = () => {
