@@ -4,6 +4,55 @@ Telegram-specific utility functions
 import re
 
 
+def normalize_roleplay_layout(text: str) -> str:
+    """Give every action and every spoken line its own paragraph.
+
+    The model alternates freely — sometimes it writes one tidy block per beat,
+    sometimes it strings "*speech* _action_ *speech*" onto a single line, which
+    is where readers lose track of what she actually said. It also closes a
+    segment with the wrong marker now and then (`_action.*`), which turns the
+    whole reply into one broken run. Both are fixed here rather than hoped away
+    in the prompt, so the layout is the same on every message.
+    """
+    if not text:
+        return text
+
+    text = text.replace("\r\n", "\n")
+
+    # Repair a segment opened with one marker and closed with the other.
+    text = re.sub(r"_([^_*\n]{2,}?)\*", r"_\1_", text)
+    text = re.sub(r"\*([^_*\n]{2,}?)_(?=\s|$)", r"*\1*", text)
+
+    # Split the reply into its action / speech segments, in order. The two
+    # unterminated alternatives keep a trailing "*she said…" marked as speech
+    # instead of silently demoting it to plain text.
+    segments = []
+    for raw in re.findall(r"_[^_]+_|\*[^*]+\*|_[^_]*$|\*[^*]*$|[^_*]+", text):
+        chunk = raw.strip()
+        if chunk:
+            segments.append(chunk)
+
+    # A trailing unclosed segment ("*Take me…" with no closer) keeps its marker.
+    fixed = []
+    for seg in segments:
+        if seg.startswith("_") and not seg.endswith("_") and len(seg) > 1:
+            seg += "_"
+        elif seg.startswith("*") and not seg.endswith("*") and len(seg) > 1:
+            seg += "*"
+        fixed.append(seg)
+
+    return "\n\n".join(fixed).strip()
+
+
+def format_roleplay_reply(text: str) -> str:
+    """Lay out a roleplay reply, then escape it for Telegram.
+
+    Use this for anything the character says; plain system copy should keep
+    calling escape_markdown_v2 directly so its own line breaks survive.
+    """
+    return escape_markdown_v2(normalize_roleplay_layout(text))
+
+
 def escape_markdown_v2(text: str) -> str:
     """
     Escape special characters for Telegram MarkdownV2 while preserving formatting.

@@ -737,8 +737,8 @@ async def image_callback(request: Request):
                 print(f"[IMAGE-CALLBACK] 📝 Found pending caption - will send text with image (24h followup)")
                 
                 # Format caption for Telegram MarkdownV2
-                from app.core.telegram_utils import escape_markdown_v2
-                pending_caption = escape_markdown_v2(pending_caption)
+                from app.core.telegram_utils import format_roleplay_reply
+                pending_caption = format_roleplay_reply(pending_caption)
             
             # Check if image should be blurred for non-premium low-token users
             # Premium users NEVER get blurred images

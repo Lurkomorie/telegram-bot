@@ -12,7 +12,7 @@ from app.core.brains.dialogue_specialist import generate_dialogue
 from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
 from app.core.chat_actions import ChatActionManager
 from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
-from app.core.telegram_utils import escape_markdown_v2
+from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply
 from app.core import redis_queue
 from app.core.background_tasks import spawn
 from app.core.constants import (
@@ -877,7 +877,7 @@ async def _process_single_batch(
         else:
             await bot.send_message(
                 tg_chat_id,
-                escape_markdown_v2(dialogue_response),
+                format_roleplay_reply(dialogue_response),
                 parse_mode="MarkdownV2",
             )
             log_always("[BATCH] ✅ Response sent to user (early)")
@@ -1348,8 +1348,8 @@ async def _background_image_generation(
                     # Handle caption if needed
                     caption = None
                     if should_send_as_caption and dialogue_response:
-                        from app.core.telegram_utils import escape_markdown_v2
-                        caption = escape_markdown_v2(dialogue_response)
+                        from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply
+                        caption = format_roleplay_reply(dialogue_response)
                     
                     # Remove refresh button from previous image
                     chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
@@ -1737,7 +1737,7 @@ async def process_gift_purchase(
                 log_always(f"[GIFT-PURCHASE] ✅ CACHE HIT for gift image")
                 try:
                     from app.bot.keyboards.inline import build_image_refresh_keyboard
-                    caption = escape_markdown_v2(dialogue_response)
+                    caption = format_roleplay_reply(dialogue_response)
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
                         photo=cached_photo,
@@ -1788,7 +1788,7 @@ async def process_gift_purchase(
             log_always(f"[GIFT-PURCHASE] ⚠️ Image dispatch failed, sending text only")
             await redis_queue.decrement_user_image_count(user_id)
             # Fall back to text-only message
-            escaped = escape_markdown_v2(dialogue_response)
+            escaped = format_roleplay_reply(dialogue_response)
             await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
             await action_mgr.stop()
             return
@@ -1804,7 +1804,7 @@ async def process_gift_purchase(
         # Try to send text-only as fallback
         try:
             if dialogue_response:
-                escaped = escape_markdown_v2(dialogue_response)
+                escaped = format_roleplay_reply(dialogue_response)
                 await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
         except Exception:
             pass
