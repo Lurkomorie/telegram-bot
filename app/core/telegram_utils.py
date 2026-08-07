@@ -44,6 +44,51 @@ def normalize_roleplay_layout(text: str) -> str:
     return "\n\n".join(fixed).strip()
 
 
+async def send_roleplay_reply(bot, chat_id: int, text: str) -> None:
+    """Send a reply as two messages: what she does, then what she says.
+
+    Two bubbles arriving back to back read like someone reacting and then
+    answering, instead of one narrated paragraph. Falls back to a single
+    message when the reply is all action or all speech.
+    """
+    actions, speech = split_action_and_speech(text)
+    parts = [p for p in (actions, speech) if p]
+    if not parts:
+        parts = [text]
+    for part in parts:
+        await bot.send_message(chat_id, escape_markdown_v2(part), parse_mode="MarkdownV2")
+
+
+def split_action_and_speech(text: str) -> tuple:
+    """Split a reply into what she does and what she says, in that order.
+
+    Sent as two consecutive messages this reads like a real person: the room
+    moves first, then she answers. Segments keep their original order inside
+    each part, so an alternating reply still tells its story straight.
+
+    Returns (actions, speech); either side may be empty, in which case the
+    caller should send only the other one.
+    """
+    if not text:
+        return "", ""
+
+    layout = normalize_roleplay_layout(text)
+    actions, speech = [], []
+    for block in layout.split("\n\n"):
+        block = block.strip()
+        if not block:
+            continue
+        if block.startswith("*") and block.endswith("*"):
+            speech.append(block)
+        elif block.startswith("_") and block.endswith("_"):
+            actions.append(block)
+        else:
+            # Unmarked prose is narration unless she has already started talking.
+            (speech if speech else actions).append(block)
+
+    return "\n\n".join(actions).strip(), "\n\n".join(speech).strip()
+
+
 def format_roleplay_reply(text: str) -> str:
     """Lay out a roleplay reply, then escape it for Telegram.
 

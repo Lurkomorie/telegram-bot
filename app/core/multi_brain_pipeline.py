@@ -12,7 +12,7 @@ from app.core.brains.dialogue_specialist import generate_dialogue
 from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
 from app.core.chat_actions import ChatActionManager
 from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
-from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply
+from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply, send_roleplay_reply
 from app.core import redis_queue
 from app.core.background_tasks import spawn
 from app.core.constants import (
@@ -875,11 +875,7 @@ async def _process_single_batch(
         if should_wait_for_image:
             log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
         else:
-            await bot.send_message(
-                tg_chat_id,
-                format_roleplay_reply(dialogue_response),
-                parse_mode="MarkdownV2",
-            )
+            await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
             log_always("[BATCH] ✅ Response sent to user (early)")
 
         pipeline_timer.start_stage("Brain 2: State Resolution")
@@ -1348,7 +1344,7 @@ async def _background_image_generation(
                     # Handle caption if needed
                     caption = None
                     if should_send_as_caption and dialogue_response:
-                        from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply
+                        from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply, send_roleplay_reply
                         caption = format_roleplay_reply(dialogue_response)
                     
                     # Remove refresh button from previous image
@@ -1788,8 +1784,7 @@ async def process_gift_purchase(
             log_always(f"[GIFT-PURCHASE] ⚠️ Image dispatch failed, sending text only")
             await redis_queue.decrement_user_image_count(user_id)
             # Fall back to text-only message
-            escaped = format_roleplay_reply(dialogue_response)
-            await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+            await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
             await action_mgr.stop()
             return
         
@@ -1804,8 +1799,7 @@ async def process_gift_purchase(
         # Try to send text-only as fallback
         try:
             if dialogue_response:
-                escaped = format_roleplay_reply(dialogue_response)
-                await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+                await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
         except Exception:
             pass
         
