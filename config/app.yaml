@@ -20,7 +20,7 @@ image:
   provider: runpod
   width: 832
   height: 1216
-  steps: 25
+  steps: 20 # 25 -> 20: ~0.7s faster per image, near-identical quality with euler
   cfg_scale: 7
   sampler_name: euler
   poll_interval_sec: 2.0
