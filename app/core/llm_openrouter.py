@@ -8,7 +8,14 @@ from app.settings import settings, get_app_config
 from app.core import analytics_service_tg
 
 # Model pricing (USD per 1M tokens) - (Input, Output)
+# Every model this project actually runs must be listed, otherwise the llm_cost
+# analytics event records $0 and spend becomes invisible. Rates from OpenRouter,
+# checked 2026-08-08.
 MODEL_PRICING = {
+    "deepseek/deepseek-v3.2": (0.269, 0.400),
+    "deepseek/deepseek-chat-v3-0324": (0.270, 1.120),
+    "mistralai/mistral-nemo": (0.019, 0.030),
+    "mistralai/ministral-3b-2512": (0.100, 0.100),
     "openai/gpt-4o": (5.0, 15.0),
     "openai/gpt-4o-mini": (0.15, 0.6),
     "openai/gpt-4o-2024-08-06": (2.5, 10.0),
