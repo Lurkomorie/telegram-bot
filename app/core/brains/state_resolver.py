@@ -3,6 +3,7 @@ Brain 2: State Resolver
 Updates conversation state after dialogue generation (based on dialogue history and user input)
 """
 import asyncio
+import re
 from typing import Optional, List, Dict
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
@@ -21,6 +22,52 @@ Scene: Having a casual conversation online
 AI Clothing: casual outfit, comfortable clothes
 User Clothing: unknown
 Mood: Just starting conversation"""
+
+
+MOVEMENT_MARKERS = (
+    # English
+    "go to", "goes to", "went to", "let's go", "come to", "walk to", "walks to",
+    "head to", "heads to", "arrive", "arrives", "arrived", "enter", "enters",
+    "entered", "leave", "leaves", "left the", "move to", "moves to", "drive",
+    "drives", "step into", "steps into", "steps out", "take me to", "takes you to",
+    "carry", "carries", "lead", "leads you", "back home", "outside", "upstairs",
+    # Russian
+    "пойдём", "пойдем", "идём", "идем", "пошли", "заходим", "захожу", "заходишь",
+    "выходим", "выхожу", "выходишь", "приехал", "приехали", "вернул", "вернём",
+    "вернулись", "перейдём", "переходим", "отведи", "веду", "ведёшь", "уводит",
+    "уходим", "уезжа", "отправ", "поднима", "спускае", "на улиц", "домой",
+    "в спальн", "в ванн", "на кухн", "в машин", "на пляж", "в лес", "в комнат",
+)
+
+
+def _location_of(state: str) -> str:
+    match = re.search(r'location="([^"]*)"', state or "")
+    return (match.group(1) if match else "").strip()
+
+
+def _guard_location(previous_state: str, new_state: str, turn_text: str) -> str:
+    """Undo a location change that nothing in the turn actually justified.
+
+    The resolver runs on a cheap model and would relocate the whole scene on
+    replies as neutral as "ох да" — a forest turned into a night beach, a gym
+    into a bedroom. A place only changes when someone moves, so unless the turn
+    says so, the previous location is restored. Refinements of the same place
+    ("bedroom" -> "bedroom, near window") are left alone.
+    """
+    old_loc = _location_of(previous_state)
+    new_loc = _location_of(new_state)
+    if not old_loc or not new_loc or old_loc.lower() == new_loc.lower():
+        return new_state
+
+    a, b = old_loc.lower(), new_loc.lower()
+    if a in b or b in a:
+        return new_state  # same place, described in more or less detail
+
+    if any(marker in (turn_text or "").lower() for marker in MOVEMENT_MARKERS):
+        return new_state  # somebody actually moved
+
+    print(f"[STATE-RESOLVER] 🛑 Ignored unmotivated move '{old_loc}' -> '{new_loc}'")
+    return re.sub(r'location="[^"]*"', f'location="{old_loc}"', new_state, count=1)
 
 
 def _build_state_context(
@@ -221,6 +268,12 @@ async def resolve_state(
                     duration_ms=brain_duration_ms
                 )
             
+            state_text = _guard_location(
+                previous_state or "",
+                state_text,
+                f"{user_message or ''} {dialogue_response or ''}",
+            )
+
             # Log full state for debugging repetition issues
             print(f"[STATE-RESOLVER] ✅ State resolved ({len(state_text)} chars)")
             print(f"[STATE-RESOLVER] 📝 Full state: {state_text}")
