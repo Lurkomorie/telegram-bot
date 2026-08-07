@@ -670,7 +670,10 @@ async def _process_single_batch(
         log_verbose(f"[BATCH] 📊 Image decision context: messages_since_last_image={messages_since_last_image}, is_explicit_request={is_explicit_request}")
         
         # Check feature flag to force images always (debug mode)
-        if settings.FORCE_IMAGES_ALWAYS:
+        if settings.DISABLE_IMAGES:
+            should_generate_image_flag = False
+            decision_reason = "images disabled"
+        elif settings.FORCE_IMAGES_ALWAYS:
             should_generate_image_flag = True
             decision_reason = "FORCE_IMAGES_ALWAYS flag enabled"
             log_always(f"[BATCH] 🎨 Image decision: FORCED YES - {decision_reason}")
@@ -790,8 +793,22 @@ async def _process_single_batch(
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
         
         pipeline_timer.end_stage()
+
+        # With images off there is no caption to wait for, so the reply can go out now
+        # instead of after state resolution, the database write and the gift lookup —
+        # none of which change this message.
+        text_already_sent = False
+        if settings.DISABLE_IMAGES:
+            await bot.send_message(
+                tg_chat_id,
+                escape_markdown_v2(dialogue_response),
+                parse_mode="MarkdownV2",
+            )
+            text_already_sent = True
+            log_always("[BATCH] ✅ Response sent to user (early, images disabled)")
+
         pipeline_timer.start_stage("Brain 2: State Resolution")
-        
+
         # 3. Brain 2: State Resolver (updates state after dialogue)
         log_always(f"[BATCH] 🧠 Brain 2: Resolving state...")
         log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message + dialogue response")
@@ -991,6 +1008,8 @@ async def _process_single_batch(
         # If image will be generated, delay sending text until image is ready (send together)
         if should_wait_for_image:
             log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
+        elif text_already_sent:
+            pass
         else:
             escaped_response = escape_markdown_v2(dialogue_response)
             

@@ -8,6 +8,10 @@ llm:
   memory_model: deepseek/deepseek-chat-v3-0324 # Memory/name extraction - must not be a reasoning model (20-token calls come back empty)
   decision_model: mistralai/ministral-3b-2512 # Fast, uncensored model for image decisions
   summary_model: mistralai/ministral-3b-2512 # Fast, cheap model for context summarization
+  provider_sort: throughput # pick the fastest endpoint instead of OpenRouter's default order
+  provider_quantizations:
+    xiaomi/mimo-v2.5: [bf16, fp8]
+    deepseek/deepseek-chat-v3-0324: [bf16, fp16, fp8] # default routing served this at fp4
   temperature: 0.7
   max_tokens: 300
   timeout_sec: 40

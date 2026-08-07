@@ -80,6 +80,18 @@ async def generate_text(
         "max_tokens": max_tokens if max_tokens is not None else llm_config["max_tokens"],
         "transforms": ["middle-out"]  # Bypass OpenRouter's moderation for adult content
     }
+    # OpenRouter's default order picks slow endpoints and, for some models, heavily
+    # quantized ones. Sort by throughput, and constrain quantization per model —
+    # a global constraint would exclude models whose only endpoint reports "unknown".
+    provider_prefs = {}
+    if llm_config.get("provider_sort"):
+        provider_prefs["sort"] = llm_config["provider_sort"]
+    quantizations = (llm_config.get("provider_quantizations") or {}).get(body["model"])
+    if quantizations:
+        provider_prefs["quantizations"] = quantizations
+    if provider_prefs:
+        body["provider"] = provider_prefs
+
     fallback_model = llm_config.get("model")
     fallback_switched = False
     
