@@ -1,7 +1,7 @@
 llm:
   provider: openrouter
-  model: deepseek/deepseek-chat-v3-0324 # Main conversational intelligence (mimo-v2.5 reasons and returns null content)
-  followup_model: deepseek/deepseek-chat-v3-0324 # Auto-followup messages (same model)
+  model: deepseek/deepseek-v3.2 # Main conversational intelligence - 2x faster than v3-0324 on the same prompt, 14 provider endpoints
+  followup_model: deepseek/deepseek-v3.2 # Auto-followup messages (same model)
   state_model: mistralai/mistral-nemo # Fast model for state resolution
   image_model: deepseek/deepseek-chat-v3-0324 # Image tag generation (grok-4-fast removed from OpenRouter)
   image_model_reasoning: false # Disable reasoning to reduce costs
@@ -12,6 +12,7 @@ llm:
   provider_quantizations:
     xiaomi/mimo-v2.5: [bf16, fp8]
     deepseek/deepseek-chat-v3-0324: [bf16, fp16, fp8] # default routing served this at fp4
+    deepseek/deepseek-v3.2: [bf16, fp16, fp8] # keep DeepInfra's fp4 endpoint out of rotation
   temperature: 0.7
   max_tokens: 300
   timeout_sec: 40
