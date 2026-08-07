@@ -517,6 +517,82 @@ def _extract_visual_actions(dialogue_response: str) -> str:
     return dialogue_response
 
 
+def _extract_spoken_line(dialogue_response: str) -> str:
+    """Extract the character's speech (*bold*) from the dialogue — the tone lives there."""
+    if not dialogue_response:
+        return ""
+    speech = re.findall(r'\*([^*]+)\*', dialogue_response)
+    return " ".join(s.strip() for s in speech if s.strip())
+
+
+# Emotion cues → danbooru expression tags. Keys are matched as substrings against
+# the state's emotion field (English, written by the state resolver) and against
+# the dialogue text (Russian or English, written for the user), so both spellings
+# of every feeling are listed. Order matters: the first match wins per family.
+_EMOTION_TAG_MAP: List[Tuple[Tuple[str, ...], List[str]]] = [
+    (("crying", "sobbing", "heartbroken", "tears", "плач", "рыда", "слёз", "слез", "разбит"),
+     ["crying", "tears", "teary_eyes", "sad"]),
+    (("angry", "furious", "rage", "mad at", "злю", "злая", "злит", "бешен", "ярост", "сержу", "серди", "разъяр"),
+     ["angry", "frown", "v-shaped_eyebrows", "clenched_teeth"]),
+    (("annoyed", "irritated", "sulking", "pouting", "jealous", "обиж", "обид", "раздраж", "надул", "ревну", "фырк", "дуюсь"),
+     ["annoyed", "pout", "frown"]),
+    (("sad", "hurt", "disappointed", "betrayed", "lonely", "груст", "печал", "больно", "расстро", "одинок", "разочаров"),
+     ["sad", "frown", "downcast_eyes"]),
+    (("scared", "afraid", "fear", "anxious", "worried", "страш", "боюсь", "испуг", "трев", "волну"),
+     ["scared", "wide-eyed", "nervous", "trembling"]),
+    (("surprised", "shocked", "startled", "удивл", "потряс", "шокир", "ошелом"),
+     ["surprised", "wide-eyed", "open_mouth"]),
+    (("disgust", "offended", "отвращ", "противно", "оскорбл"),
+     ["disgust", "grimace", "frown"]),
+    (("cold", "distant", "serious", "холодн", "отстран", "серьёз", "серьез"),
+     ["expressionless", "serious", "closed_mouth"]),
+    (("tired", "exhausted", "drained", "sleepy", "устал", "изнур", "сонн"),
+     ["tired", "sleepy", "half-closed_eyes"]),
+    (("embarrassed", "flustered", "shy", "смущ", "стесн", "стыд", "робе"),
+     ["embarrassed", "blush", "looking_away"]),
+    (("smug", "teasing", "mocking", "ухмыл", "дразн", "насмеш", "самодовол"),
+     ["smirk", "smug", "half-closed_eyes"]),
+    (("aroused", "horny", "seductive", "lustful", "возбужд", "соблазн", "похот", "желани"),
+     ["bedroom_eyes", "half-closed_eyes", "parted_lips", "blush"]),
+    (("excited", "playful", "cheerful", "радост", "весел", "игрив", "восторж"),
+     ["grin", "happy", "open_mouth"]),
+    (("happy", "affectionate", "warm", "loving", "content", "счастл", "нежн", "ласков", "любл", "тепл"),
+     ["smile", "light_smile", "blush"]),
+]
+
+# Families whose faces must not be overridden by the checkpoint's default smile.
+_NEGATIVE_EMOTION_TAGS = {
+    "crying", "angry", "annoyed", "pout", "sad", "scared", "disgust",
+    "expressionless", "serious", "tired",
+}
+
+# Anime checkpoints smile by default; when the scene is not happy, push back.
+_SMILE_SUPPRESSION = "smile, light_smile, grin, smirk, seductive_smile, happy, laughing"
+
+
+def _derive_expression_tags(emotions: str, dialogue_response: str) -> Tuple[List[str], bool]:
+    """Map the turn's emotions onto mandatory danbooru expression tags.
+
+    Reads the state's emotion field first and the dialogue text second, so a mood
+    that only surfaces in what she says still reaches the image. Returns the tags
+    and whether the resulting face is a negative one (used to suppress smiles).
+    """
+    haystacks = [
+        (emotions or "").lower(),
+        (dialogue_response or "").lower(),
+    ]
+    tags: List[str] = []
+    for cues, mapped in _EMOTION_TAG_MAP:
+        if any(cue in hay for hay in haystacks for cue in cues):
+            for tag in mapped:
+                if tag not in tags:
+                    tags.append(tag)
+            if len(tags) >= 5:
+                break
+    is_negative = any(tag in _NEGATIVE_EMOTION_TAGS for tag in tags)
+    return tags[:5], is_negative
+
+
 def _build_image_context(
     state: str,
     dialogue_response: str,
@@ -595,10 +671,17 @@ Required tags: {sanitized_forced_tags}
             f"- {rule}" for rule in gift_usage_rules
         ) + "\n\n"
     
-    # Build mood hint
+    # Expression tags come from this turn's feelings, not from the chat's mood
+    # average — a happy relationship still has angry moments.
+    expression_tags, negative_expression = _derive_expression_tags(emotions, dialogue_response)
+    spoken_line = _extract_spoken_line(dialogue_response)
+
     mood_hint = ""
-    if mood >= 70:
-        mood_hint = "\n# MOOD: Character is happy — use smile or warm expression tags"
+    if not expression_tags:
+        if mood >= 70:
+            mood_hint = "\n# MOOD: Relationship is warm — a soft expression fits unless the words say otherwise"
+        elif mood <= 30:
+            mood_hint = "\n# MOOD: Relationship is strained — do not default to a smile"
 
     action_truth_section = f"""
 # ACTION TRUTH POLICY
@@ -629,8 +712,14 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 # AI VISUAL ACTIONS (primary source for pose/action tags)
 {visual_actions or "not specified"}
 
+# AI SPOKEN LINE (primary source for tone — read it before choosing the face)
+{spoken_line or "not specified"}
+
 # MANDATORY FOCUS TAGS (must appear when present)
 {", ".join(mandatory_focus_tags) if mandatory_focus_tags else "none"}
+
+# MANDATORY EXPRESSION TAGS (must appear when present; never contradict them)
+{", ".join(expression_tags) if expression_tags else "none — infer the face from EMOTIONS and the spoken line"}
 
 # LOCATION
 {location or "not specified"}
@@ -650,6 +739,8 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
     
     observability = {
         "previous_image_source": (previous_image_meta or {}).get("source") if isinstance(previous_image_meta, dict) else "unknown",
+        "expression_tags": expression_tags,
+        "negative_expression": negative_expression,
         "scene_lock_enabled": scene_lock_enabled,
         "gift_override_mode": gift_override_mode,
         "refusal_detected": refusal_detected,
@@ -884,7 +975,11 @@ async def generate_image_plan(
             sanitized_tags = _sanitize_tags(raw_result)
             result_text = _enforce_tag_policy(
                 raw_tags=sanitized_tags,
-                mandatory_focus_tags=mandatory_focus_tags,
+                # Expression tags ride along as mandatory: the face must survive
+                # even when the tag model ignores the instruction.
+                mandatory_focus_tags=mandatory_focus_tags + [
+                    t for t in observability["expression_tags"] if t not in mandatory_focus_tags
+                ],
                 scene_lock=scene_lock,
                 preserve_scene_lock_clothing=observability["scene_lock_enabled"] and not scene_change_flags["clothing_changed"],
                 preserve_scene_lock_environment=observability["scene_lock_enabled"] and not scene_change_flags["location_changed"],
@@ -959,7 +1054,16 @@ def assemble_final_prompt(
             seen.add(norm)
             deduped.append(tag)
     
-    positive_prompt = ", ".join(deduped)
+    # Anime checkpoints smile unprompted, so an unhappy scene needs the smile
+    # pushed out of the positive prompt and into the negative one. The emotion
+    # tags in the plan are the signal — no extra plumbing from the caller.
+    prompt_tags = {t.strip().lower() for t in deduped}
     negative_prompt = negative_base_prompt
-    
+    if prompt_tags & _NEGATIVE_EMOTION_TAGS:
+        smile_tags = {t.strip().lower() for t in _SMILE_SUPPRESSION.split(",")}
+        deduped = [t for t in deduped if t.strip().lower() not in smile_tags]
+        negative_prompt = f"{negative_base_prompt}, {_SMILE_SUPPRESSION}"
+
+    positive_prompt = ", ".join(deduped)
+
     return positive_prompt, negative_prompt

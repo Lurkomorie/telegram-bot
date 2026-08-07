@@ -766,42 +766,6 @@ async def _process_single_batch(
         elif followup_type == "3day":
             should_skip_image = not settings.ENABLE_IMAGES_3DAYS
 
-        # Rule-based YES decisions (explicit request, first messages, due-for-image)
-        # don't depend on the reply text: dispatch the image now, in parallel with
-        # the dialogue brain. The plan works from the user message, state and
-        # history, and the photo goes out as its own message, so nothing gates it.
-        image_started_early = False
-        if (
-            should_generate_image_flag
-            and image_decision_task is None
-            and not should_skip_image
-            and not settings.DISABLE_IMAGES
-        ):
-            image_started_early = True
-            log_always(f"[BATCH] 🎨 Starting background image generation early (reason: {decision_reason})...")
-            asyncio.create_task(_background_image_generation(
-                chat_id=chat_id,
-                user_id=user_id,
-                persona_id=persona_data["id"],
-                state=previous_state or "",
-                dialogue_response="",
-                batched_text=batched_text,
-                persona=persona_data,
-                tg_chat_id=tg_chat_id,
-                action_mgr=action_mgr,
-                chat_history=chat_history,
-                previous_image_prompt=previous_image_prompt,
-                previous_image_meta=previous_image_meta,
-                is_auto_followup=is_auto_followup,
-                followup_type=followup_type,
-                should_send_as_caption=False,
-                context_summary=context_summary,
-                mood=chat_mood,
-                purchases=chat_purchases,
-                control_orb_active=control_orb_turn_active,
-                control_orb_messages_left=control_orb_messages_left,
-            ))
-
         _log_brain_inputs(
             "Brain 1 (Dialogue)",
             state=previous_state,
@@ -867,10 +831,10 @@ async def _process_single_batch(
         # text never waits for it (caption mode meant 10s of silence on every photo).
         should_wait_for_image = False
 
-        # AI-made decisions resolve only now, so their image job starts here; the
-        # plan reads the pre-dialogue state — it already sees the dialogue response
-        # and the recent history, and Brain 2's update adds nothing it needs.
-        if final_should_generate and not image_started_early:
+        # The plan reads the pre-dialogue state but the fresh dialogue response —
+        # the reply text is where this turn's emotion lives, and Brain 2's state
+        # update derives from that same text, so waiting for it only adds latency.
+        if final_should_generate:
             log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
             asyncio.create_task(_background_image_generation(
                 chat_id=chat_id,
