@@ -653,11 +653,25 @@ def _extract_visual_actions(dialogue_response: str) -> str:
 
 
 def _extract_spoken_line(dialogue_response: str) -> str:
-    """Extract the character's speech (*bold*) from the dialogue — the tone lives there."""
+    """Extract what the character says — the tone of the turn lives there.
+
+    Dialogue is written as italic actions plus dashed speech, so anything not
+    wrapped in underscores is spoken. Bold is still recognised for older rows
+    written under the previous format.
+    """
     if not dialogue_response:
         return ""
-    speech = re.findall(r'\*([^*]+)\*', dialogue_response)
-    return " ".join(s.strip() for s in speech if s.strip())
+
+    bold = re.findall(r'\*([^*]+)\*', dialogue_response)
+    if bold:
+        return " ".join(s.strip() for s in bold if s.strip())
+
+    spoken = []
+    for chunk in re.split(r'_[^_]*_', dialogue_response):
+        line = chunk.strip().lstrip('-–— ').strip()
+        if line:
+            spoken.append(line)
+    return " ".join(spoken)
 
 
 # Emotion cues → danbooru expression tags. Keys are matched as substrings against

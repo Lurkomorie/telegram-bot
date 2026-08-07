@@ -4,15 +4,19 @@ Telegram-specific utility functions
 import re
 
 
-def normalize_roleplay_layout(text: str) -> str:
-    """Give every action and every spoken line its own paragraph.
+SPEECH_DASH = "—"
 
-    The model alternates freely — sometimes it writes one tidy block per beat,
-    sometimes it strings "*speech* _action_ *speech*" onto a single line, which
-    is where readers lose track of what she actually said. It also closes a
-    segment with the wrong marker now and then (`_action.*`), which turns the
-    whole reply into one broken run. Both are fixed here rather than hoped away
-    in the prompt, so the layout is the same on every message.
+
+def normalize_roleplay_layout(text: str) -> str:
+    """Lay a reply out as prose: italic stage directions, dashed dialogue.
+
+    Actions stay in _italics_; speech is plain text opened with an em dash, the
+    way Russian prose marks dialogue. Each beat gets its own paragraph, so the
+    reader can see at a glance what she did and what she said.
+
+    Bold speech from older messages (and from a model still following the old
+    habit) is converted rather than rejected, and a segment closed with the
+    wrong marker is repaired instead of leaking its symbols into the text.
     """
     if not text:
         return text
@@ -23,70 +27,33 @@ def normalize_roleplay_layout(text: str) -> str:
     text = re.sub(r"_([^_*\n]{2,}?)\*", r"_\1_", text)
     text = re.sub(r"\*([^_*\n]{2,}?)_(?=\s|$)", r"*\1*", text)
 
-    # Split the reply into its action / speech segments, in order. The two
-    # unterminated alternatives keep a trailing "*she said…" marked as speech
-    # instead of silently demoting it to plain text.
     segments = []
     for raw in re.findall(r"_[^_]+_|\*[^*]+\*|_[^_]*$|\*[^*]*$|[^_*]+", text):
         chunk = raw.strip()
-        if chunk:
+        if not chunk:
+            continue
+
+        if chunk.startswith("_"):
+            # An action: close it if the model forgot to.
+            if not chunk.endswith("_") or len(chunk) == 1:
+                chunk = chunk.rstrip("_") + "_"
             segments.append(chunk)
+            continue
 
-    # A trailing unclosed segment ("*Take me…" with no closer) keeps its marker.
-    fixed = []
-    for seg in segments:
-        if seg.startswith("_") and not seg.endswith("_") and len(seg) > 1:
-            seg += "_"
-        elif seg.startswith("*") and not seg.endswith("*") and len(seg) > 1:
-            seg += "*"
-        fixed.append(seg)
+        # Everything else is speech. Drop any bold markers and give it a dash.
+        spoken = chunk.strip("*").strip()
+        if not spoken:
+            continue
+        if not spoken.startswith(SPEECH_DASH):
+            spoken = f"{SPEECH_DASH} {spoken.lstrip('-–— ')}"
+        segments.append(spoken)
 
-    return "\n\n".join(fixed).strip()
+    return "\n\n".join(segments).strip()
 
 
 async def send_roleplay_reply(bot, chat_id: int, text: str) -> None:
-    """Send a reply as two messages: what she does, then what she says.
-
-    Two bubbles arriving back to back read like someone reacting and then
-    answering, instead of one narrated paragraph. Falls back to a single
-    message when the reply is all action or all speech.
-    """
-    actions, speech = split_action_and_speech(text)
-    parts = [p for p in (actions, speech) if p]
-    if not parts:
-        parts = [text]
-    for part in parts:
-        await bot.send_message(chat_id, escape_markdown_v2(part), parse_mode="MarkdownV2")
-
-
-def split_action_and_speech(text: str) -> tuple:
-    """Split a reply into what she does and what she says, in that order.
-
-    Sent as two consecutive messages this reads like a real person: the room
-    moves first, then she answers. Segments keep their original order inside
-    each part, so an alternating reply still tells its story straight.
-
-    Returns (actions, speech); either side may be empty, in which case the
-    caller should send only the other one.
-    """
-    if not text:
-        return "", ""
-
-    layout = normalize_roleplay_layout(text)
-    actions, speech = [], []
-    for block in layout.split("\n\n"):
-        block = block.strip()
-        if not block:
-            continue
-        if block.startswith("*") and block.endswith("*"):
-            speech.append(block)
-        elif block.startswith("_") and block.endswith("_"):
-            actions.append(block)
-        else:
-            # Unmarked prose is narration unless she has already started talking.
-            (speech if speech else actions).append(block)
-
-    return "\n\n".join(actions).strip(), "\n\n".join(speech).strip()
+    """Send a reply as one laid-out message."""
+    await bot.send_message(chat_id, format_roleplay_reply(text), parse_mode="MarkdownV2")
 
 
 def format_roleplay_reply(text: str) -> str:
