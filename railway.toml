@@ -6,5 +6,13 @@ dockerfilePath = "Dockerfile"
 startCommand = "sh -c 'echo \"🔄 Running migrations...\" && alembic upgrade head && echo \"✅ Migrations complete\" && echo \"🚀 Starting FastAPI server...\" && uvicorn app.main:app --host 0.0.0.0 --port $PORT'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
+# Without these, every deploy tore down the old container before the new one
+# could serve, and Telegram got 502s for a minute or two — the bot simply went
+# quiet mid-conversation. Hold traffic on the old container until /health passes
+# on the new one, then overlap briefly so in-flight turns can finish.
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+overlapSeconds = 20
+drainingSeconds = 20
 
 
