@@ -978,7 +978,9 @@ async def _process_single_batch(
                     f"({type(decision_error).__name__})"
                 )
         
-        final_should_generate = should_generate_image_flag and not should_skip_image
+        final_should_generate = (
+            should_generate_image_flag and not should_skip_image and not settings.DISABLE_IMAGES
+        )
         
         # If image will be generated, wait and send text as caption with the image
         should_wait_for_image = final_should_generate

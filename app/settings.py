@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     ENABLE_IMAGES_3DAYS: bool = False  # Set to True to generate images during 3day re-engagement follow-ups
     SERVICE_UNAVAILABLE: bool = False  # Set to True to show maintenance message to users
     FORCE_IMAGES_ALWAYS: bool = False  # Debug flag to force images every message (bypasses AI decision)
+    DISABLE_IMAGES: bool = False  # Skip image generation entirely (text-only mode)
     CONCURRENT_IMAGE_LIMIT_ENABLED: bool = False  # Set to True to enable concurrent image limit per user
     CONCURRENT_IMAGE_LIMIT_NUMBER: int = 2  # Maximum number of images a user can generate simultaneously (only if CONCURRENT_IMAGE_LIMIT_ENABLED=True)
     SIMULATE_PAYMENTS: bool = False  # Set to True to simulate successful payments in development (no real Telegram Stars charged)
