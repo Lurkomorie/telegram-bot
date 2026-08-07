@@ -14,6 +14,7 @@ from app.core.chat_actions import ChatActionManager
 from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
+from app.core.background_tasks import spawn
 from app.core.context_summarizer import generate_context_summary
 from app.db.base import get_db
 from app.db import crud
@@ -401,7 +402,7 @@ async def _send_gift_recommendation_message(
             db.commit()
 
     from app.core.memory_service import trigger_memory_update
-    asyncio.create_task(trigger_memory_update(
+    spawn(trigger_memory_update(
         chat_id=chat_id,
         user_message=f"[Gift suggestion opportunity: {item_key}]",
         ai_message=suggestion_text,
@@ -836,7 +837,7 @@ async def _process_single_batch(
         # update derives from that same text, so waiting for it only adds latency.
         if final_should_generate:
             log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
-            asyncio.create_task(_background_image_generation(
+            spawn(_background_image_generation(
                 chat_id=chat_id,
                 user_id=user_id,
                 persona_id=persona_data["id"],
@@ -1074,7 +1075,7 @@ async def _process_single_batch(
         # 5.5. Trigger background memory update (fire and forget) - PREMIUM ONLY
         if is_premium:
             from app.core.memory_service import trigger_memory_update
-            asyncio.create_task(trigger_memory_update(
+            spawn(trigger_memory_update(
                 chat_id=chat_id,
                 user_message=batched_text,
                 ai_message=dialogue_response
@@ -1086,12 +1087,12 @@ async def _process_single_batch(
         # 5.55. Trigger background name extraction (fire and forget) - only if name not yet known
         if not name_known:
             from app.core.memory_service import trigger_name_extraction
-            asyncio.create_task(trigger_name_extraction(chat_id=chat_id))
+            spawn(trigger_name_extraction(chat_id=chat_id), name='name-extract')
             log_verbose(f"[BATCH] 🏷️ Name extraction triggered (background)")
         
         # 5.6. Trigger background context summary update (fire and forget)
         # Update summary with new messages for next round
-        asyncio.create_task(_update_context_summary(
+        spawn(_update_context_summary(
             chat_id=chat_id,
             chat_history=chat_history,
             user_message=batched_text,
@@ -1634,7 +1635,7 @@ async def process_gift_purchase(
         
         # Trigger memory update so the gift is remembered in future conversations
         from app.core.memory_service import trigger_memory_update
-        asyncio.create_task(trigger_memory_update(
+        spawn(trigger_memory_update(
             chat_id=chat_id,
             user_message=f"[User bought a gift: {item_name}]",
             ai_message=dialogue_response

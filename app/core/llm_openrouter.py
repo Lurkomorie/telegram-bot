@@ -254,6 +254,13 @@ async def generate_text(
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
 
+            # A 429 or a provider-side 5xx means the endpoint we pinned is busy or
+            # down. Retrying into the same narrowed pool just fails again, so widen
+            # to every provider serving this model for the remaining attempts.
+            if status_code in (429, 500, 502, 503, 504) and "provider" in body:
+                body.pop("provider", None)
+                log_always(f"[LLM] 🔀 {status_code} — dropping provider pins, retrying across all endpoints")
+
             wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)

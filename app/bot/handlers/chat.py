@@ -282,13 +282,13 @@ async def handle_text_message(message: types.Message, state: FSMContext):
     # Start processing in background (don't await - return webhook immediately)
     log_always(f"[CHAT] 🚀 Starting background processing")
     
-    import asyncio
-    asyncio.create_task(_background_process(
+    from app.core.background_tasks import spawn
+    spawn(_background_process(
         chat_id=chat_id,
         user_id=user_id,
         tg_chat_id=tg_chat_id,
         config=config
-    ))
+    ), name=f"chat-process:{chat_id}")
 
 
 async def _background_process(chat_id, user_id, tg_chat_id, config):

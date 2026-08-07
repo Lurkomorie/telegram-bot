@@ -142,14 +142,17 @@ async def clear_batch_messages(chat_id: UUID):
     await redis.delete(queue_key)
 
 
-async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 600) -> bool:
+async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 120) -> bool:
     """
     Set processing lock for a chat (Redis-based)
-    
+
     Args:
         chat_id: Chat UUID
         processing: True to lock, False to unlock
-        timeout_seconds: Lock timeout (default 10 minutes)
+        timeout_seconds: Lock timeout. A full turn (dialogue + state + image
+            dispatch) runs in well under 30s, so 2 minutes is generous. This is
+            the ceiling on how long a chat stays mute if the process dies while
+            holding the lock — a redeploy mid-turn used to silence it for 10min.
         
     Returns:
         True if lock was acquired (when processing=True), always True for unlock
