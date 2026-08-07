@@ -73,6 +73,12 @@ AUTO_MESSAGE_THRESHOLD_MINUTES = 5
 CHAT_ACTION_INTERVAL_SECONDS = 4.5
 
 
+# Ceilings on the post-reply work that still holds the chat's processing lock.
+# The user's next message queues behind it, so a stalled provider here reads as
+# the bot ignoring them. Both stages have harmless fallbacks when they expire.
+STATE_RESOLUTION_TIMEOUT_SEC = 12
+GIFT_SUGGESTION_TIMEOUT_SEC = 8
+
 # Retry configuration
 STATE_RESOLVER_MAX_RETRIES = 2
 DIALOGUE_SPECIALIST_MAX_RETRIES = 3

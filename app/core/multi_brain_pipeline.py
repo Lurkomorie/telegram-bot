@@ -15,6 +15,7 @@ from app.core.logging_utils import log_verbose, log_always, is_development, Pipe
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.core.background_tasks import spawn
+from app.core.constants import STATE_RESOLUTION_TIMEOUT_SEC, GIFT_SUGGESTION_TIMEOUT_SEC
 from app.core.context_summarizer import generate_context_summary
 from app.db.base import get_db
 from app.db import crud
@@ -886,15 +887,28 @@ async def _process_single_batch(
             context_summary=context_summary
         )
 
-        new_state = await resolve_state(
-            previous_state=previous_state,
-            chat_history=chat_history,
-            user_message=batched_text,
-            persona_name=persona_data["name"],
-            previous_image_prompt=previous_image_prompt,
-            context_summary=context_summary,
-            dialogue_response=dialogue_response
-        )
+        # The reply is already out; everything below only holds the chat lock, and
+        # the user's next message waits behind it. A provider that stalls (504s and
+        # "provider timed out" happen) used to hold that lock for 40s+, which reads
+        # as the bot ignoring you. Cap it and fall back to the previous state.
+        try:
+            new_state = await asyncio.wait_for(
+                resolve_state(
+                    previous_state=previous_state,
+                    chat_history=chat_history,
+                    user_message=batched_text,
+                    persona_name=persona_data["name"],
+                    previous_image_prompt=previous_image_prompt,
+                    context_summary=context_summary,
+                    dialogue_response=dialogue_response
+                ),
+                timeout=STATE_RESOLUTION_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            new_state = previous_state or ""
+            log_always(
+                f"[BATCH] ⏱️ Brain 2 timed out after {STATE_RESOLUTION_TIMEOUT_SEC}s — keeping previous state"
+            )
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
         
@@ -1011,7 +1025,8 @@ async def _process_single_batch(
         if not is_auto_followup and not is_resume:
             try:
                 from app.core.brains.gift_recommendation_brain import generate_gift_recommendation
-                gift_recommendation = await generate_gift_recommendation(
+                gift_recommendation = await asyncio.wait_for(
+                    generate_gift_recommendation(
                     state=new_state,
                     dialogue_response=dialogue_response,
                     user_message=batched_text,
@@ -1021,12 +1036,17 @@ async def _process_single_batch(
                     current_user_message_count=current_user_message_count,
                     recent_purchases=chat_purchases,
                     user_id=user_id,
+                    ),
+                    timeout=GIFT_SUGGESTION_TIMEOUT_SEC,
                 )
                 log_verbose(
                     f"[BATCH] 🎁 Gift Recommendation: should={gift_recommendation.get('should_suggest')} "
                     f"reason={gift_recommendation.get('reason')} scene={gift_recommendation.get('scene_mode')} "
                     f"item={gift_recommendation.get('item_key')} user_count={current_user_message_count}"
                 )
+            except asyncio.TimeoutError:
+                gift_recommendation = {"should_suggest": False, "reason": "timeout"}
+                log_always(f"[BATCH] ⏱️ Gift recommendation timed out after {GIFT_SUGGESTION_TIMEOUT_SEC}s")
             except Exception as gift_error:
                 gift_recommendation = {"should_suggest": False, "reason": "error"}
                 log_always(f"[BATCH] ⚠️ Gift recommendation failed: {gift_error}")

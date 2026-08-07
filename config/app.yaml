@@ -15,7 +15,7 @@ llm:
     deepseek/deepseek-v3.2: [bf16, fp16, fp8] # keep DeepInfra's fp4 endpoint out of rotation
   temperature: 0.7
   max_tokens: 300
-  timeout_sec: 40
+  timeout_sec: 20 # a provider that hasn't answered in 20s is not worth waiting for — retrying elsewhere is faster
 
 image:
   provider: runpod
