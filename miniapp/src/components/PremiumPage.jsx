@@ -30,7 +30,7 @@ export default function PremiumPage() {
       id: 'subscription_daily',
       period: 'day',
       periodKey: 'subscription.period.day',
-      stars: 95,
+      stars: 105,
       originalStars: null,
       discount: null,
       popular: false
@@ -39,8 +39,8 @@ export default function PremiumPage() {
       id: 'subscription_weekly',
       period: 'week',
       periodKey: 'subscription.period.week',
-      stars: 295,
-      originalStars: 500,
+      stars: 325,
+      originalStars: 550,
       discount: 41,
       popular: false
     },
@@ -48,8 +48,8 @@ export default function PremiumPage() {
       id: 'subscription_monthly',
       period: 'month',
       periodKey: 'subscription.period.month',
-      stars: 495,
-      originalStars: 2500,
+      stars: 545,
+      originalStars: 2750,
       discount: 78,
       popular: true
     },
@@ -57,8 +57,8 @@ export default function PremiumPage() {
       id: 'subscription_yearly',
       period: 'year',
       periodKey: 'subscription.period.year',
-      stars: 2495,
-      originalStars: 30000,
+      stars: 2745,
+      originalStars: 33000,
       discount: 92,
       popular: false
     }

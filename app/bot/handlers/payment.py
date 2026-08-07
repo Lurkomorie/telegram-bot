@@ -154,56 +154,56 @@ PAYMENT_PRODUCTS = {
     "tokens_50": {
         "type": "tokens",
         "amount": 50,
-        "stars": 28,  # 20% off from 35
-        "original_stars": 35
+        "stars": 31,  # 20% off from 35
+        "original_stars": 39
     },
     "tokens_100": {
         "type": "tokens",
         "amount": 100,
-        "stars": 52,  # 20% off from 65
-        "original_stars": 65
+        "stars": 58,  # 20% off from 65
+        "original_stars": 72
     },
     "tokens_250": {
         "type": "tokens",
         "amount": 250,
-        "stars": 120,  # 20% off from 150
-        "original_stars": 150
+        "stars": 132,  # 20% off from 150
+        "original_stars": 165
     },
     "tokens_500": {
         "type": "tokens",
         "amount": 500,
-        "stars": 210,  # 20% off from 300
-        "original_stars": 300
+        "stars": 232,  # 20% off from 300
+        "original_stars": 330
     },
     "tokens_1000": {
         "type": "tokens",
         "amount": 1000,
-        "stars": 380,  # 20% off from 600
-        "original_stars": 600
+        "stars": 419,  # 20% off from 600
+        "original_stars": 660
     },
     "tokens_2500": {
         "type": "tokens",
         "amount": 2500,
-        "stars": 850,  # 20% off from 1400
-        "original_stars": 1400
+        "stars": 936,  # 20% off from 1400
+        "original_stars": 1541
     },
     "tokens_5000": {
         "type": "tokens",
         "amount": 5000,
-        "stars": 1550,  # 20% off from 2700
-        "original_stars": 2700
+        "stars": 1706,  # 20% off from 2700
+        "original_stars": 2971
     },
     "tokens_10000": {
         "type": "tokens",
         "amount": 10000,
-        "stars": 2800,  # 20% off from 5000
-        "original_stars": 5000
+        "stars": 3081,  # 20% off from 5000
+        "original_stars": 5500
     },
     "tokens_25000": {
         "type": "tokens",
         "amount": 25000,
-        "stars": 6250,  # 20% off from 12000
-        "original_stars": 12000
+        "stars": 6876,  # 20% off from 12000
+        "original_stars": 13201
     },
     
     # Daily subscription - no discount
@@ -211,7 +211,7 @@ PAYMENT_PRODUCTS = {
         "type": "subscription",
         "period": "day",
         "duration": 1,
-        "stars": 95,
+        "stars": 105,
         "original_stars": None  # No discount shown
     },
     # Weekly subscription - 41% off (was 500 stars / $10)
@@ -219,24 +219,24 @@ PAYMENT_PRODUCTS = {
         "type": "subscription",
         "period": "week",
         "duration": 7,
-        "stars": 295,
-        "original_stars": 500  # -41% discount
+        "stars": 325,
+        "original_stars": 550  # -41% discount
     },
     # Monthly subscription - 78% off (was 2500 stars), Most Popular
     "subscription_monthly": {
         "type": "subscription",
         "period": "month",
         "duration": 30,
-        "stars": 495,
-        "original_stars": 2500  # -78% discount
+        "stars": 545,
+        "original_stars": 2750  # -78% discount
     },
     # Yearly subscription - 92% off (was 30000 stars)
     "subscription_yearly": {
         "type": "subscription",
         "period": "year",
         "duration": 365,
-        "stars": 2495,
-        "original_stars": 30000  # -92% discount
+        "stars": 2745,
+        "original_stars": 33000  # -92% discount
     }
 }
 
