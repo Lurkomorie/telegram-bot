@@ -35,10 +35,13 @@ FULL_BODY_CONFLICT_FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot
 PERSON_TAGS = {"1girl", "solo"}
 FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov", "from_behind", "from_below"}
 CLOTHING_TAGS = {
-    "dress", "sundress", "shirt", "blouse", "skirt", "jeans", "shorts", "bikini",
-    "lingerie", "bra", "panties", "negligee", "nude", "barefoot", "heels",
-    "pantyhose", "stockings", "thighhighs", "swimsuit", "underwear", "robe",
-    "jacket", "sweater", "coat", "kimono", "apron", "bodysuit",
+    "dress", "sundress", "shirt", "blouse", "skirt", "miniskirt", "jeans", "shorts",
+    "bikini", "lingerie", "bra", "panties", "negligee", "nude", "barefoot", "heels",
+    "pantyhose", "tights", "stockings", "thighhighs", "socks", "swimsuit", "underwear",
+    "robe", "jacket", "sweater", "hoodie", "coat", "kimono", "apron", "bodysuit",
+    "leotard", "corset", "garter", "camisole", "chemise", "nightgown", "pajamas",
+    "top", "crop_top", "tank_top", "pants", "trousers", "leggings", "uniform",
+    "boots", "sandals", "gloves", "scarf", "towel",
 }
 EXPRESSION_TAGS = {
     "smile", "light_smile", "slight_smile", "smirk", "grin", "blush", "parted_lips",
@@ -72,6 +75,19 @@ LOCATION_CHANGE_MARKERS = (
 CLOTHING_CHANGE_MARKERS = (
     "take off", "remove", "undress", "strip", "put on", "wear", "change clothes",
     "changed clothes", "dress up", "naked now",
+)
+NUDE_TAGS = {"nude", "naked", "topless", "bottomless", "nipples", "pussy"}
+DRESSING_MARKERS = (
+    "put on", "puts on", "putting on", "gets dressed", "got dressed", "dress up",
+    "dressed up", "wraps herself", "covers herself", "buttons", "zips up",
+    "надева", "одева", "оделась", "накид", "натягива", "застёгива", "застегива",
+    "заворачива", "прикрыва", "прикрыла",
+)
+UNDRESSING_MARKERS = (
+    "take off", "takes off", "taking off", "undress", "strips", "stripping",
+    "pulls off", "slips out of", "unbutton", "unzip", "naked", "nude", "bare skin",
+    "снима", "сняла", "раздева", "разделась", "голая", "обнажён", "обнажен",
+    "стягива", "расстёгива", "расстегива", "оголя",
 )
 
 REFUSAL_MARKERS = [
@@ -164,7 +180,16 @@ def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[
     return {
         "location_changed": any(marker in text for marker in LOCATION_CHANGE_MARKERS),
         "clothing_changed": any(marker in text for marker in CLOTHING_CHANGE_MARKERS),
+        # Getting dressed is the only thing that ends a nude scene. Undressing and
+        # sex keep her nude — the state resolver often leaves aiClothing listing a
+        # blouse right through a sex scene, and the image used to believe it.
+        "dressed_up": any(marker in text for marker in DRESSING_MARKERS),
+        "undressed_now": any(marker in text for marker in UNDRESSING_MARKERS),
     }
+
+
+def _is_nude_tag(tag: str) -> bool:
+    return any(part in NUDE_TAGS for part in tag.split("_")) or tag in NUDE_TAGS
 
 
 def _should_use_scene_lock(previous_image_meta: Optional[Dict[str, Any]]) -> bool:
@@ -313,6 +338,8 @@ def _enforce_tag_policy(
     preserve_scene_lock_clothing: bool = True,
     preserve_scene_lock_environment: bool = True,
     forced_gift_tags: Optional[List[str]] = None,
+    stay_nude: bool = False,
+    force_nude: bool = False,
 ) -> str:
     """Deterministic post-processing: canonicalize, enforce, reorder, and bound output size."""
     mandatory_focus_tags = mandatory_focus_tags or []
@@ -433,6 +460,19 @@ def _enforce_tag_policy(
             buckets["action"].append("eye_focus")
         if not any(tag in EYE_DIRECTION_TAGS for tag in buckets["expression"]):
             buckets["expression"].append("looking_at_viewer")
+
+    # Once she is naked she stays naked until she actually puts something on.
+    # The state resolver keeps listing a blouse through a sex scene, so trusting
+    # it produced a dressed picture one turn after a nude one.
+    if stay_nude or force_nude:
+        buckets["clothing"] = [t for t in buckets["clothing"] if _is_nude_tag(t)]
+        if not any(_is_nude_tag(t) for t in buckets["clothing"]):
+            buckets["clothing"].insert(0, "nude")
+        # Undressing actions ("skirt_removal") contradict an already-nude body.
+        buckets["action"] = [
+            t for t in buckets["action"]
+            if not (_tag_matches_vocabulary(t, CLOTHING_TAGS) and not _is_nude_tag(t))
+        ]
 
     # Scene lock should act as fallback only (never hard-override current turn).
     if preserve_scene_lock_clothing and not buckets["clothing"]:
@@ -753,8 +793,16 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 {mood_notes or "not specified"}
 {action_truth_section}{control_orb_section}{scene_lock_section}{mood_hint}"""
     
+    # She was nude last frame and nobody got dressed this turn -> still nude.
+    previously_nude = any(_is_nude_tag(t) for t in scene_lock.get("clothing", []))
+    stay_nude = previously_nude and not scene_change_flags["dressed_up"]
+    # Or the text undresses her right now, whatever aiClothing still claims.
+    force_nude = scene_change_flags["undressed_now"] and not scene_change_flags["dressed_up"]
+
     observability = {
         "previous_image_source": (previous_image_meta or {}).get("source") if isinstance(previous_image_meta, dict) else "unknown",
+        "stay_nude": stay_nude,
+        "force_nude": force_nude,
         "expression_tags": expression_tags,
         "negative_expression": negative_expression,
         "scene_lock_enabled": scene_lock_enabled,
@@ -1002,6 +1050,8 @@ async def generate_image_plan(
                 forced_gift_tags=_split_tags(observability["gift_override_tags"])
                 if observability["gift_override_mode"] == "forced"
                 else [],
+                stay_nude=observability["stay_nude"],
+                force_nude=observability["force_nude"],
             )
 
             # Development-only: Log full response

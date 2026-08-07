@@ -490,6 +490,10 @@ STICKY (change only when the conversation shows it changing): location, aiClothi
   - aiClothing must always name a colour: 'white cotton sundress', 'black lace lingerie'.
     Once set, that exact wording carries over turn after turn — the image is drawn from it,
     so a colour that changes wording makes the character look re-dressed between pictures.
+  - The moment she is undressed or having sex, aiClothing becomes 'completely naked'
+    (or names only what is still physically on her, e.g. 'completely naked except black stockings').
+    It STAYS that way every following turn until she actually puts clothes back on.
+    Never list a garment she already took off — the picture would put it back on her.
 LIVE (re-evaluate every single turn from the AI response): emotions, description, moodNotes.
   - These describe the present moment. Never copy them forward unchanged when the moment moved on.
 relationshipStage advances only on a real milestone, and never moves backwards:
