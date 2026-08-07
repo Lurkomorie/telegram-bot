@@ -692,7 +692,6 @@ async def image_callback(request: Request):
             
             if gift_suggestion_data:
                 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-                from app.settings import settings
                 # Determine language from user
                 gift_lang = "en"
                 with get_db() as db:
