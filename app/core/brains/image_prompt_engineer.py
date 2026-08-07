@@ -205,10 +205,12 @@ def _extract_scene_lock_anchors(previous_image_prompt: Optional[str]) -> Dict[st
         tag = _canonicalize_tag(raw_tag)
         if not tag:
             continue
-        if tag in SCENE_LOCK_CLOTHING_TAGS and tag not in anchors["clothing"]:
+        # Keep the qualified tag whole: "white_sundress" is the anchor, not "sundress".
+        # Dropping the colour is what made the same outfit come back pink, then white.
+        if _tag_matches_vocabulary(tag, SCENE_LOCK_CLOTHING_TAGS) and tag not in anchors["clothing"]:
             anchors["clothing"].append(tag)
         if (
-            tag in SCENE_LOCK_ENV_TAGS
+            _tag_matches_vocabulary(tag, SCENE_LOCK_ENV_TAGS)
             or tag.endswith("_lighting")
             or tag in {"night", "sunset", "sunlight"}
         ) and tag not in anchors["environment"]:
@@ -274,16 +276,30 @@ def _derive_gift_usage_constraints(forced_gift_tags: Optional[List[str]]) -> Tup
     return required_tags, forbidden_tags, context_rules
 
 
+def _tag_matches_vocabulary(tag: str, vocabulary: set) -> bool:
+    """True when the tag is a vocabulary word or a qualified form of one.
+
+    Real prompts carry the qualifier that makes an outfit recognisable —
+    `white_sundress`, `blue_bikini`, `black_lace_bra`. Comparing whole tags
+    against a bare word list missed every one of them, so the outfit was
+    neither ordered as clothing nor carried into the next image. Components are
+    matched whole, so `dresser` never counts as `dress`.
+    """
+    if tag in vocabulary:
+        return True
+    return any(part in vocabulary for part in tag.split("_"))
+
+
 def _bucket_for_tag(tag: str) -> str:
     if tag in PERSON_TAGS:
         return "person"
     if tag in FRAMING_TAGS:
         return "framing"
-    if tag in CLOTHING_TAGS:
+    if _tag_matches_vocabulary(tag, CLOTHING_TAGS):
         return "clothing"
     if tag in EXPRESSION_TAGS:
         return "expression"
-    if tag in ENVIRONMENT_TAGS or tag.endswith("_lighting"):
+    if _tag_matches_vocabulary(tag, ENVIRONMENT_TAGS) or tag.endswith("_lighting"):
         return "environment"
     if tag in EFFECT_TAGS:
         return "effects"

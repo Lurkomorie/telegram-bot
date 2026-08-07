@@ -346,6 +346,17 @@ If SCENE LOCK is provided:
 - KEEP same clothing/environment anchors unless current turn explicitly changes them
 - Clothing changes only if current turn includes dressing/undressing action
 - Location changes only if current turn explicitly moves to a new place
+- REUSE THE ANCHOR TAG VERBATIM, colour and material included: if the anchor says
+  `white_sundress`, write `white_sundress` — not `sundress`, not `pink_sundress`.
+  Re-picking the colour is what makes the same outfit look like a different one
+  from image to image.
+
+CLOTHING MUST BE SPECIFIC:
+- Always qualify a garment with a colour (and material when it matters):
+  `black_bikini`, `red_lace_lingerie`, `white_cotton_shirt` — never a bare `bikini` or `dress`.
+- If neither SCENE LOCK nor CLOTHING names a colour, take it from CLOTHING/DESCRIPTION,
+  and if it is genuinely unspecified, pick one that suits the character and the scene —
+  it becomes the anchor for the following images.
 </VISUAL_CONSISTENCY>
 
 <ACTION_TRUTH>
@@ -476,6 +487,9 @@ Fields fall into two groups, and they behave differently:
 
 STICKY (change only when the conversation shows it changing): location, aiClothing, userClothing.
   - Copy the previous value verbatim unless someone moved, dressed or undressed in this turn.
+  - aiClothing must always name a colour: 'white cotton sundress', 'black lace lingerie'.
+    Once set, that exact wording carries over turn after turn — the image is drawn from it,
+    so a colour that changes wording makes the character look re-dressed between pictures.
 LIVE (re-evaluate every single turn from the AI response): emotions, description, moodNotes.
   - These describe the present moment. Never copy them forward unchanged when the moment moved on.
 relationshipStage advances only on a real milestone, and never moves backwards:
