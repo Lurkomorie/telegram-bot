@@ -223,7 +223,7 @@ async def generate_text(
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
             
             # Exponential backoff
-            wait_time = (attempt + 1) * 1.5
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
 
@@ -254,7 +254,7 @@ async def generate_text(
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
 
-            wait_time = (attempt + 1) * 1.5
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
 
@@ -266,7 +266,7 @@ async def generate_text(
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API error after {max_retries} attempts: {str(e)}")
             
-            wait_time = (attempt + 1) * 1.5
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {str(e)[:200]}")
             await asyncio.sleep(wait_time)
     
