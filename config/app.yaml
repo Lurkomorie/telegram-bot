@@ -3,7 +3,7 @@ llm:
   model: deepseek/deepseek-v3.2 # Main conversational intelligence - 2x faster than v3-0324 on the same prompt, 14 provider endpoints
   followup_model: deepseek/deepseek-v3.2 # Auto-followup messages (same model)
   state_model: mistralai/mistral-nemo # Fast model for state resolution
-  image_model: deepseek/deepseek-chat-v3-0324 # Image tag generation (grok-4-fast removed from OpenRouter)
+  image_model: deepseek/deepseek-v3.2 # Image tag generation - same family, ~2x faster and far more stable than v3-0324
   image_model_reasoning: false # Disable reasoning to reduce costs
   memory_model: deepseek/deepseek-chat-v3-0324 # Memory/name extraction - must not be a reasoning model (20-token calls come back empty)
   decision_model: mistralai/ministral-3b-2512 # Fast, uncensored model for image decisions

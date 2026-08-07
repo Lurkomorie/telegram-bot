@@ -336,9 +336,13 @@ FRAMING:
 - `full_body` is allowed only when shibari is a mandatory focus.
 
 SOLO vs COUPLE:
-- DEFAULT: 1girl, solo
-- For intimate/sexual scenes with a male user: NEVER add 1boy or male_focus
-- The user is represented via POV only (pov, male_pov, hetero are okay)
+- DEFAULT (she is alone in frame): 1girl, solo
+- When the act itself puts the man's body in frame — sex, vaginal, anal, oral,
+  fellatio, paizuri, handjob, straddling, kissing, a visible penis or torso —
+  use `1girl, 1boy, hetero` and DROP `solo`. Add `male_pov` for first-person framing.
+  Saying "solo" while a second body is visible is what makes the man come out with
+  a woman's chest, so never combine them.
+- Do not add `1boy` when only she is in frame: a solo pose, a selfie, undressing alone.
 </COMPOSITION_RULES>
 
 <VISUAL_CONSISTENCY>
@@ -400,7 +404,8 @@ Environment: indoors, outdoors, bedroom, kitchen, cafe, beach, park, window, cou
 Lighting: sunlight, backlighting, rim_lighting, night, sunset, lamp, candle, dim_lighting
 Effects: depth_of_field, blurry_background, lens_flare, bloom
 
-DO NOT USE: wide_shot, long_shot, multiple_views, 1boy, male_focus
+DO NOT USE: wide_shot, long_shot, multiple_views
+`1boy` / `male_focus` are allowed ONLY in partnered acts (see SOLO vs COUPLE); never in solo shots.
 Use `full_body` only for shibari-focused turns.
 </DANBOORU_TAG_GUIDE>
 

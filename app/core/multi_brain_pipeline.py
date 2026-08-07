@@ -758,6 +758,13 @@ async def _process_single_batch(
         gift_recommendation = {"should_suggest": False}
         control_orb_expired_now = False
 
+        # Focus-tag inference only needs the user's message, so run it alongside
+        # the dialogue brain instead of in front of the image plan.
+        focus_tags_task = None
+        if not settings.DISABLE_IMAGES and (should_generate_image_flag or image_decision_task is not None):
+            from app.core.brains.image_prompt_engineer import prefetch_focus_tags
+            focus_tags_task = prefetch_focus_tags(batched_text)
+
         # Image gating flags — needed both for the early dispatch below and for
         # the post-dialogue resolution of AI-made decisions.
         should_skip_image = False
@@ -859,6 +866,7 @@ async def _process_single_batch(
                 purchases=chat_purchases,  # Recent purchases for image context
                 control_orb_active=control_orb_turn_active,
                 control_orb_messages_left=control_orb_messages_left,
+                focus_tags_task=focus_tags_task,
             ))
 
         if should_wait_for_image:
@@ -1200,6 +1208,7 @@ async def _background_image_generation(
     purchases: list = None,  # Recent purchases for image context
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    focus_tags_task=None,
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1265,6 +1274,13 @@ async def _background_image_generation(
             control_orb_messages_left=control_orb_messages_left,
         )
         
+        precomputed_focus_tags = None
+        if focus_tags_task is not None:
+            try:
+                precomputed_focus_tags = await focus_tags_task
+            except Exception as focus_error:
+                log_always(f"[IMAGE-BG] ⚠️ Focus tag prefetch failed: {focus_error}")
+
         image_prompt = await generate_image_plan(
             state=state,
             dialogue_response=dialogue_response,
@@ -1279,6 +1295,7 @@ async def _background_image_generation(
             force_gift_override=False,
             control_orb_active=control_orb_active,
             control_orb_messages_left=control_orb_messages_left,
+            precomputed_focus_tags=precomputed_focus_tags,
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")

@@ -23,6 +23,19 @@ FORBIDDEN_TAGS = {
     "multiple_views",
 }
 
+# Acts that put a second body in frame. "1girl, solo" told the checkpoint there
+# was only a woman there, so the partner's chest came out female. These turns
+# need 1boy + hetero and must drop solo.
+PARTNERED_ACT_TAGS = {
+    "sex", "vaginal", "anal", "oral", "fellatio", "cunnilingus", "paizuri",
+    "handjob", "penis", "cum", "cowgirl_position", "missionary", "doggystyle",
+    "girl_on_top", "straddling", "kissing", "hug", "grinding", "deepthroat",
+    "titfuck", "riding", "penetration", "insertion", "creampie",
+}
+PARTNERED_CORE_TAGS = ["1girl", "1boy", "hetero"]
+# Keeps the male body male on anime checkpoints, which love to feminise it.
+MALE_BODY_NEGATIVES = "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female"
+
 TAG_ALIAS_MAP = {
     "soft_smile": "light_smile",
     "flushed": "blush",
@@ -155,10 +168,24 @@ def _canonicalize_tag(tag: str) -> str:
     return t
 
 
-def _is_forbidden_tag(tag: str, allow_full_body: bool = False) -> bool:
+def _is_forbidden_tag(tag: str, allow_full_body: bool = False, allow_partner: bool = False) -> bool:
     if tag not in FORBIDDEN_TAGS:
         return False
-    return not (allow_full_body and tag == "full_body")
+    if allow_full_body and tag == "full_body":
+        return False
+    if allow_partner and tag in {"1boy", "male_focus"}:
+        return False
+    return True
+
+
+def _is_partnered_scene(*tag_groups) -> bool:
+    """True when the turn depicts an act that puts a partner's body in frame."""
+    for group in tag_groups:
+        for raw_tag in (group or []):
+            tag = _canonicalize_tag(raw_tag)
+            if tag in PARTNERED_ACT_TAGS or any(p in PARTNERED_ACT_TAGS for p in tag.split("_")):
+                return True
+    return False
 
 
 def _should_force_full_body_framing(
@@ -350,15 +377,28 @@ def _enforce_tag_policy(
         mandatory_focus_tags=mandatory_focus_tags,
         forced_gift_tags=forced_gift_tags,
     )
-    required_core_tags = ["1girl", "solo", "full_body"] if full_body_mode else REQUIRED_CORE_TAGS
+    partnered = _is_partnered_scene(
+        _split_tags(raw_tags), mandatory_focus_tags, forced_gift_tags
+    )
+    if partnered:
+        # 1boy/hetero instead of solo; framing tags still apply.
+        required_core_tags = PARTNERED_CORE_TAGS + (
+            ["full_body"] if full_body_mode else ["pov", "close-up"]
+        )
+    elif full_body_mode:
+        required_core_tags = ["1girl", "solo", "full_body"]
+    else:
+        required_core_tags = REQUIRED_CORE_TAGS
 
     cleaned_tags: List[str] = []
     seen = set()
 
     for raw_tag in _split_tags(raw_tags):
         tag = _canonicalize_tag(raw_tag)
-        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
+        if partnered and tag == "solo":
+            continue  # a partner is in frame; solo makes the checkpoint draw only her
         if tag.startswith("rating:"):
             continue
         if tag not in seen:
@@ -374,7 +414,7 @@ def _enforce_tag_policy(
     normalized_forced_gift = []
     for tag in forced_gift_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         if norm not in normalized_forced_gift:
             normalized_forced_gift.append(norm)
@@ -384,7 +424,7 @@ def _enforce_tag_policy(
 
     required_gift_usage_tags, forbidden_gift_usage_tags, _ = _derive_gift_usage_constraints(normalized_forced_gift)
     for tag in required_gift_usage_tags:
-        if _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         if tag not in seen:
             seen.add(tag)
@@ -393,7 +433,7 @@ def _enforce_tag_policy(
     normalized_mandatory_focus = []
     for tag in mandatory_focus_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         normalized_mandatory_focus.append(norm)
         if norm not in seen:
@@ -420,7 +460,7 @@ def _enforce_tag_policy(
         if tag not in buckets[bucket]:
             buckets[bucket].append(tag)
 
-    for required in ["1girl", "solo"]:
+    for required in (["1girl", "1boy", "hetero"] if partnered else ["1girl", "solo"]):
         if required not in buckets["person"]:
             buckets["person"].insert(0, required)
 
@@ -500,7 +540,7 @@ def _enforce_tag_policy(
     deduped_ordered: List[str] = []
     deduped_seen = set()
     for tag in ordered_tags:
-        if tag not in deduped_seen and not _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if tag not in deduped_seen and not _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             deduped_seen.add(tag)
             deduped_ordered.append(tag)
 
@@ -850,6 +890,22 @@ def _sanitize_tags(raw_output: str) -> str:
     return ', '.join(tags)
 
 
+def prefetch_focus_tags(user_message: str) -> asyncio.Task:
+    """Start focus-tag inference now, to be awaited when the image plan runs.
+
+    Only the user's message is available this early, which is the signal that
+    matters here — explicit requests ("show me your feet") are exactly what these
+    tags exist to pin down.
+    """
+    config = get_app_config()
+    return asyncio.create_task(_infer_mandatory_focus_tags(
+        user_message=user_message,
+        visual_actions="",
+        model=config["llm"]["image_model"],
+        use_reasoning=config["llm"].get("image_model_reasoning", False),
+    ))
+
+
 async def _infer_mandatory_focus_tags(
     user_message: str,
     visual_actions: str,
@@ -930,6 +986,7 @@ async def generate_image_plan(
     allow_scene_override: bool = False,
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    precomputed_focus_tags: Optional[List[str]] = None,
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -953,12 +1010,17 @@ async def generate_image_plan(
     refusal_detected = _detect_refusal_or_deflection(dialogue_response)
     inferred_focus_tags: List[str] = []
     if not refusal_detected:
-        inferred_focus_tags = await _infer_mandatory_focus_tags(
-            user_message=user_message,
-            visual_actions=visual_actions,
-            model=model,
-            use_reasoning=use_reasoning,
-        )
+        if precomputed_focus_tags is not None:
+            # Computed in parallel with the dialogue brain — 1.5s off the wait
+            # before the image job reaches RunPod.
+            inferred_focus_tags = precomputed_focus_tags
+        else:
+            inferred_focus_tags = await _infer_mandatory_focus_tags(
+                user_message=user_message,
+                visual_actions=visual_actions,
+                model=model,
+                use_reasoning=use_reasoning,
+            )
 
     context, mandatory_focus_tags, scene_lock, scene_change_flags, observability = _build_image_context(
         state,
@@ -1125,6 +1187,17 @@ def assemble_final_prompt(
     # tags in the plan are the signal — no extra plumbing from the caller.
     prompt_tags = {t.strip().lower() for t in deduped}
     negative_prompt = negative_base_prompt
+
+    # The base negative prompt carries "1boy, male_focus" to keep stray men out of
+    # solo shots — but in a sex scene the man is supposed to be there, and fighting
+    # him gave the partner a woman's chest. Swap those for anti-feminisation terms.
+    if "1boy" in prompt_tags or "hetero" in prompt_tags:
+        negative_prompt = ", ".join(
+            t.strip() for t in negative_prompt.split(",")
+            if t.strip().lower() not in {"1boy", "male_focus"}
+        )
+        negative_prompt = f"{negative_prompt}, {MALE_BODY_NEGATIVES}"
+
     if prompt_tags & _NEGATIVE_EMOTION_TAGS:
         smile_tags = {t.strip().lower() for t in _SMILE_SUPPRESSION.split(",")}
         deduped = [t for t in deduped if t.strip().lower() not in smile_tags]
