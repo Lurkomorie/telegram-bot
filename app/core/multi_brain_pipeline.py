@@ -15,7 +15,10 @@ from app.core.logging_utils import log_verbose, log_always, is_development, Pipe
 from app.core.telegram_utils import escape_markdown_v2
 from app.core import redis_queue
 from app.core.background_tasks import spawn
-from app.core.constants import STATE_RESOLUTION_TIMEOUT_SEC, GIFT_SUGGESTION_TIMEOUT_SEC
+from app.core.constants import (
+    STATE_RESOLUTION_TIMEOUT_SEC, GIFT_SUGGESTION_TIMEOUT_SEC,
+    NAME_EXTRACTION_MAX_TURNS, CONTEXT_SUMMARY_EVERY_N_TURNS,
+)
 from app.core.context_summarizer import generate_context_summary
 from app.db.base import get_db
 from app.db import crud
@@ -1112,21 +1115,29 @@ async def _process_single_batch(
         else:
             log_verbose(f"[BATCH] ⏭️ Memory update skipped (free user - premium feature)")
         
-        # 5.55. Trigger background name extraction (fire and forget) - only if name not yet known
-        if not name_known:
+        # 5.55. Trigger background name extraction (fire and forget).
+        # People introduce themselves early or not at all, so stop paying for a
+        # check on every single turn of a long chat that never had a name in it.
+        if not name_known and current_user_message_count <= NAME_EXTRACTION_MAX_TURNS:
             from app.core.memory_service import trigger_name_extraction
             spawn(trigger_name_extraction(chat_id=chat_id), name='name-extract')
             log_verbose(f"[BATCH] 🏷️ Name extraction triggered (background)")
-        
-        # 5.6. Trigger background context summary update (fire and forget)
-        # Update summary with new messages for next round
-        spawn(_update_context_summary(
-            chat_id=chat_id,
-            chat_history=chat_history,
-            user_message=batched_text,
-            ai_message=dialogue_response,
-            persona_name=persona_data["name"]
-        ))
+
+        # 5.6. Trigger background context summary update (fire and forget).
+        # The last two messages are always passed verbatim alongside the summary,
+        # so refreshing it every turn was paying to re-summarise the same history.
+        summary_due = (
+            not context_summary
+            or current_user_message_count % CONTEXT_SUMMARY_EVERY_N_TURNS == 0
+        )
+        if summary_due:
+            spawn(_update_context_summary(
+                chat_id=chat_id,
+                chat_history=chat_history,
+                user_message=batched_text,
+                ai_message=dialogue_response,
+                persona_name=persona_data["name"]
+            ))
         
         pipeline_timer.end_stage()
         

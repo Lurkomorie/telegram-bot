@@ -41,6 +41,9 @@ PARTNER_CONTACT_MARKERS = (
     "на тебе сверху", "к себе", "твою грудь", "твоей груди",
     "pull you", "pulls you", "take me", "your hands", "your body", "hold you",
     "embrace", "kiss you", "on top of you", "against you", "your chest",
+    # oral: his body is in frame even though the phrasing names no act tag
+    "в рот", "беру его", "сосу", "отсос", "облизыва", "твой член", "твоего члена",
+    "in my mouth", "suck", "your cock", "your dick", "goes down on",
 )
 # Keeps the male body male on anime checkpoints, which love to feminise it.
 MALE_BODY_NEGATIVES = "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female"

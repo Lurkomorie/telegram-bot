@@ -22,10 +22,11 @@ def _apply_template_replacements(
     user_name: str = None,
     mood: int = 50,
     is_auto_followup: bool = False,
+    language: str = "en",
 ) -> str:
     """Apply template replacements to prompt"""
 
-    length_guidance, length_task = _resolve_length_rule(message_count, mood, is_auto_followup)
+    length_guidance, length_task = _resolve_length_rule(message_count, mood, is_auto_followup, language)
 
     # When no name is known, leave the placeholder empty: UserReferenceRules then
     # falls through to stage-appropriate endearments. Passing "them" made the
@@ -43,9 +44,20 @@ def _apply_template_replacements(
         value = (scene.get(field) or "").strip()
         return value if value else fallback
 
+    # Appearance comes from image_prompt (the visual description), not from
+    # prompt (the personality). They used to be the same value, which both wasted
+    # ~1000 tokens on a duplicate and left the character with no appearance at all.
+    # image_prompt is written for the image model, so strip its emphasis syntax —
+    # "(brown hair:1.2)" would otherwise show up in the character's prose.
+    appearance = (persona.get("image_prompt") or "").strip()
+    if appearance:
+        appearance = re.sub(r"\(([^():]+)(?::[\d.]+)?\)", r"\1", appearance)
+        appearance = re.sub(r":\s*[\d.]+", "", appearance)
+        appearance = ", ".join(part.strip() for part in appearance.split(",") if part.strip())
+
     replacements = {
         "{{char.name}}": persona.get("name", "AI"),
-        "{{char.physical_description}}": persona.get("prompt", ""),
+        "{{char.physical_description}}": appearance or "не указана — придерживайся образа из своей личности",
         "{{scene.location}}": _scene("location", "not established yet — infer from the conversation"),
         "{{scene.description}}": _scene("description", "not established yet — infer from the conversation"),
         "{{scene.aiClothing}}": _scene("aiClothing", "not established yet — pick something that fits the scene and keep it"),
@@ -94,7 +106,8 @@ def _get_mood_description(mood: int) -> str:
         return "Cold, disappointed - show you feel neglected"
 
 
-def _resolve_length_rule(message_count: int, mood: int, is_auto_followup: bool) -> Tuple[str, str]:
+def _resolve_length_rule(message_count: int, mood: int, is_auto_followup: bool,
+                         language: str = "en") -> Tuple[str, str]:
     """The single source of truth for reply length.
 
     Returns (guidance for the system prompt, task-line restatement). Early chats
@@ -111,6 +124,21 @@ def _resolve_length_rule(message_count: int, mood: int, is_auto_followup: bool) 
         sentences = max(1, sentences - 1)
     if is_auto_followup:
         sentences = min(sentences, 2)
+
+    if language == "ru":
+        shapes = {
+            1: "одна короткая строка: действие или реакция и несколько слов речи.",
+            2: "{действие} + {одна реплика}.",
+            3: "{действие} + {деталь звука или ощущения} + {реплика}.",
+            4: "{действие} + {деталь звука или ощущения} + {реплика} + {завершающий штрих}.",
+        }
+        shape = shapes.get(min(sentences, 4), shapes[3])
+        guidance = (
+            f"Максимум {sentences} предложения: {shape} "
+            f"Всегда договаривай последнее предложение — не обрывайся на полуслове."
+        )
+        task = f"Уложись максимум в {sentences} предложения, телесно и живо, и закончи мысль."
+        return guidance, task
 
     if sentences <= 1:
         shape = "One short line: a single action or reaction, plus a few words of speech."
@@ -292,6 +320,7 @@ async def generate_dialogue(
         user_name=user_name,
         mood=mood,
         is_auto_followup=is_auto_followup,
+        language=language,
     )
     
     # Add memory context if available
