@@ -794,18 +794,77 @@ async def _process_single_batch(
         
         pipeline_timer.end_stage()
 
-        # With images off there is no caption to wait for, so the reply can go out now
-        # instead of after state resolution, the database write and the gift lookup —
-        # none of which change this message.
-        text_already_sent = False
-        if settings.DISABLE_IMAGES:
+        # Everything the user sees is ready right here: the reply text and (via
+        # Brain 4, which ran alongside the dialogue) the image decision. Resolve
+        # the decision, dispatch the image job and send the text now — state
+        # resolution, the database write and the gift lookup change none of it.
+        should_skip_image = False
+        if followup_type == "30min":
+            should_skip_image = not settings.ENABLE_IMAGES_IN_FOLLOWUP
+        elif followup_type == "24h":
+            should_skip_image = not settings.ENABLE_IMAGES_24HOURS
+        elif followup_type == "3day":
+            should_skip_image = not settings.ENABLE_IMAGES_3DAYS
+
+        if image_decision_task is not None:
+            try:
+                should_generate_image_flag, decision_reason = await image_decision_task
+                log_always(
+                    f"[BATCH] ✅ Brain 4: Decision = "
+                    f"{'YES' if should_generate_image_flag else 'NO'} - {decision_reason}"
+                )
+            except Exception as decision_error:
+                should_generate_image_flag = True
+                decision_reason = f"decision_error_default_yes: {type(decision_error).__name__}"
+                log_always(
+                    f"[BATCH] ⚠️ Brain 4 decision failed, defaulting to YES "
+                    f"({type(decision_error).__name__})"
+                )
+
+        final_should_generate = (
+            should_generate_image_flag and not should_skip_image and not settings.DISABLE_IMAGES
+        )
+
+        # If image will be generated, wait and send text as caption with the image
+        should_wait_for_image = final_should_generate
+
+        # The image plan reads the pre-dialogue state: waiting for Brain 2's update
+        # bought ~6s of latency and nothing the plan needs — it already sees the
+        # dialogue response and the recent history.
+        if final_should_generate:
+            log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
+            asyncio.create_task(_background_image_generation(
+                chat_id=chat_id,
+                user_id=user_id,
+                persona_id=persona_data["id"],
+                state=previous_state or "",
+                dialogue_response=dialogue_response,
+                batched_text=batched_text,
+                persona=persona_data,
+                tg_chat_id=tg_chat_id,
+                action_mgr=action_mgr,
+                chat_history=chat_history,
+                previous_image_prompt=previous_image_prompt,
+                previous_image_meta=previous_image_meta,
+                is_auto_followup=is_auto_followup,
+                followup_type=followup_type,
+                should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
+                context_summary=context_summary,  # Pass summary for efficient context
+                mood=chat_mood,  # Chat mood for image context
+                purchases=chat_purchases,  # Recent purchases for image context
+                control_orb_active=control_orb_turn_active,
+                control_orb_messages_left=control_orb_messages_left,
+            ))
+
+        if should_wait_for_image:
+            log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
+        else:
             await bot.send_message(
                 tg_chat_id,
                 escape_markdown_v2(dialogue_response),
                 parse_mode="MarkdownV2",
             )
-            text_already_sent = True
-            log_always("[BATCH] ✅ Response sent to user (early, images disabled)")
+            log_always("[BATCH] ✅ Response sent to user (early)")
 
         pipeline_timer.start_stage("Brain 2: State Resolution")
 
@@ -969,79 +1028,8 @@ async def _process_single_batch(
                 log_always(f"[BATCH] ⚠️ Gift recommendation failed: {gift_error}")
         
         pipeline_timer.end_stage()
-        
-        # 6. Determine image generation logic
-        # Check specific flags for each followup type
-        should_skip_image = False
-        if followup_type == "30min":
-            should_skip_image = not settings.ENABLE_IMAGES_IN_FOLLOWUP
-        elif followup_type == "24h":
-            should_skip_image = not settings.ENABLE_IMAGES_24HOURS
-        elif followup_type == "3day":
-            should_skip_image = not settings.ENABLE_IMAGES_3DAYS
 
-        if image_decision_task is not None:
-            try:
-                should_generate_image_flag, decision_reason = await image_decision_task
-                log_always(
-                    f"[BATCH] ✅ Brain 4: Decision = "
-                    f"{'YES' if should_generate_image_flag else 'NO'} - {decision_reason}"
-                )
-            except Exception as decision_error:
-                should_generate_image_flag = True
-                decision_reason = f"decision_error_default_yes: {type(decision_error).__name__}"
-                log_always(
-                    f"[BATCH] ⚠️ Brain 4 decision failed, defaulting to YES "
-                    f"({type(decision_error).__name__})"
-                )
-        
-        final_should_generate = (
-            should_generate_image_flag and not should_skip_image and not settings.DISABLE_IMAGES
-        )
-        
-        # If image will be generated, wait and send text as caption with the image
-        should_wait_for_image = final_should_generate
-        
-        pipeline_timer.start_stage("Send Response to User")
-        
-        # 5. Send response to user (with MarkdownV2 formatting preserved)
-        # If image will be generated, delay sending text until image is ready (send together)
-        if should_wait_for_image:
-            log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
-        elif text_already_sent:
-            pass
-        else:
-            escaped_response = escape_markdown_v2(dialogue_response)
-            
-            # VOICE DISABLED - voice button functionality commented out
-            # Build voice button keyboard if ElevenLabs is configured, persona has voice, not hidden by user, and response is short enough
-            # from app.settings import settings
-            # voice_keyboard = None
-            # persona_voice_id = persona_data.get("voice_id")
-            # response_length = len(dialogue_response)
-            # max_voice_length = 500
-            # if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id and response_length < max_voice_length:
-            #     from app.bot.keyboards.inline import build_voice_button_keyboard
-            #     voice_keyboard = build_voice_button_keyboard(
-            #         message_id=assistant_message_id,
-            #         language=user_language,
-            #         is_free=voice_free_available
-            #     )
-            #     log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
-            # elif voice_buttons_hidden:
-            #     log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
-            # elif not persona_voice_id:
-            #     log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
-            # elif response_length >= max_voice_length:
-            #     log_verbose(f"[BATCH]    Voice button skipped - response too long ({response_length} chars >= {max_voice_length})")
-            
-            await bot.send_message(
-                tg_chat_id, 
-                escaped_response, 
-                parse_mode="MarkdownV2",
-            )
-            log_always(f"[BATCH] ✅ Response sent to user")
-            log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+        # Image decision and text send already happened right after Brain 1.
 
         # Gift recommendation is sent as a separate message from main roleplay response.
         if gift_recommendation.get("should_suggest"):
@@ -1110,32 +1098,9 @@ async def _process_single_batch(
         
         pipeline_timer.end_stage()
         
-        # 7. Start background image generation based on AI decision
-        
+        # 7. Image generation was dispatched right after Brain 1 (in parallel
+        # with state resolution and the database write) — only log the outcome.
         if final_should_generate:
-            log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
-            asyncio.create_task(_background_image_generation(
-                chat_id=chat_id,
-                user_id=user_id,
-                persona_id=persona_data["id"],
-                state=new_state,
-                dialogue_response=dialogue_response,
-                batched_text=batched_text,
-                persona=persona_data,
-                tg_chat_id=tg_chat_id,
-                action_mgr=action_mgr,
-                chat_history=chat_history,
-                previous_image_prompt=previous_image_prompt,
-                previous_image_meta=previous_image_meta,
-                is_auto_followup=is_auto_followup,
-                followup_type=followup_type,
-                should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
-                context_summary=context_summary,  # Pass summary for efficient context
-                mood=chat_mood,  # Chat mood for image context
-                purchases=chat_purchases,  # Recent purchases for image context
-                control_orb_active=control_orb_turn_active,
-                control_orb_messages_left=control_orb_messages_left,
-            ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
             else:
