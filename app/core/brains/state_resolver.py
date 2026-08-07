@@ -98,12 +98,11 @@ especially for location, clothing, and scene details that may have been shown vi
 {dialogue_text}
 
 # STATE UPDATE RULES
-- Update state to reflect NEW developments in the conversation
-- Track relationship progression naturally based on dialogue
-- Note any changes in location, clothing, mood, or emotions
-- If the conversation is evolving, the state MUST evolve too
-- Each user message may introduce new context - capture it
+- Re-read emotions, description and moodNotes from the AI RESPONSE above every turn — they describe this moment.
+- Carry location, aiClothing and userClothing over unchanged unless this turn moved or (un)dressed someone.
+- Advance relationshipStage only on the milestones listed in the contract, never backwards.
 - CRITICAL: The AI RESPONSE above is what ACTUALLY happened this turn. Base your state update on it.
+- ALL values must be written in English, whatever language the conversation uses.
 """
     return context
 
