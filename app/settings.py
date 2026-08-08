@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: str
     PUBLIC_BASE_URL: Optional[str] = None  # Auto-constructed from RAILWAY_PUBLIC_DOMAIN if not set
     
+    # Feature switches (both parked off for now; flip via env to bring back)
+    ENABLE_CHARACTER_CREATION: bool = False
+    ENABLE_VOICE: bool = False
+
     # Crypto Pay (@CryptoBot) app token for crypto payments
     CRYPTOPAY_API_TOKEN: Optional[str] = None
 

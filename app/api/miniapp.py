@@ -216,7 +216,7 @@ async def get_personas(
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
             "is_custom": False,
-            "has_voice": persona.get("voice_id") is not None,
+            "has_voice": False,  # voice features parked (ENABLE_VOICE)
         })
     
     return result
@@ -622,6 +622,8 @@ async def update_user_voice_settings(
     request: UpdateVoiceSettingsRequest,
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
+    if not settings.ENABLE_VOICE:
+        raise HTTPException(status_code=403, detail="Voice is temporarily disabled")
     """
     Update user's voice button visibility preference
     
@@ -1763,6 +1765,8 @@ async def create_character(
     request: CreateCharacterRequest,
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
+    if not settings.ENABLE_CHARACTER_CREATION:
+        raise HTTPException(status_code=403, detail="Character creation is temporarily disabled")
     """
     Create a custom character
     - Premium users: FREE (unlimited energy)

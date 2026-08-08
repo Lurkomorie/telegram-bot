@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { deleteCharacter } from "../api";
 import { useTranslation } from "../i18n/TranslationContext";
 import CharacterCreation from "./CharacterCreation";
+
+// Parked for now; flip to true together with ENABLE_CHARACTER_CREATION on the backend
+const CHARACTER_CREATION_ENABLED = false;
 import "./PersonasGallery.css";
 
 /**
@@ -167,6 +170,7 @@ export default function PersonasGallery({
               ))}
 
           {/* Create Character Card - Always 3rd */}
+          {CHARACTER_CREATION_ENABLED && (
           <div
             className="persona-card create-card"
             onClick={() => setShowCreation(true)}
@@ -187,6 +191,7 @@ export default function PersonasGallery({
               </div>
             )}
           </div>
+          )}
 
           {/* Remaining Personas */}
           {personas &&
@@ -205,7 +210,7 @@ export default function PersonasGallery({
       </div>
 
       {/* Character Creation Modal */}
-      {showCreation && (
+      {CHARACTER_CREATION_ENABLED && showCreation && (
         <CharacterCreation
           onClose={() => setShowCreation(false)}
           onCreated={handleCreated}
