@@ -450,7 +450,10 @@ class PaymentTransaction(Base):
     # them raised TypeError and crypto purchases failed with "не удалось
     # создать заявку".
     amount_rub = Column(Numeric, nullable=True)
-    payment_provider = Column(String(30), nullable=True)  # 'stars' | 'tribute' | 'cryptopay'
+    # NOT NULL in the table with a server default of 'telegram_stars'; the ORM
+    # must mirror both or its explicit NULL breaks every insert.
+    payment_provider = Column(String(30), nullable=False, default="telegram_stars",
+                              server_default="telegram_stars")
     paritypay_invoice_id = Column(String(255), nullable=True)
     cryptopay_invoice_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -102,6 +102,7 @@ def settle_paid_invoice(db, invoice_id: str, payload: str) -> dict:
     already = db.query(PaymentTransaction).filter(
         PaymentTransaction.cryptopay_invoice_id == str(invoice_id),
         PaymentTransaction.status == "completed",
+        PaymentTransaction.amount_stars > 0,
     ).first()
     if already:
         return {"success": True, "message": "already settled"}
@@ -111,6 +112,23 @@ def settle_paid_invoice(db, invoice_id: str, payload: str) -> dict:
         user_id = int(user_id_str)
     except (ValueError, AttributeError):
         return {"success": False, "message": f"bad payload: {payload!r}"}
+
+    # Claim the tracker row atomically: the winner flips pending -> completed and
+    # proceeds; a concurrent webhook/poll for the same invoice sees no pending
+    # row, finds the claimed tracker, and backs off. Trackers are recognisable
+    # by amount_stars == 0.
+    claimed = db.query(PaymentTransaction).filter(
+        PaymentTransaction.cryptopay_invoice_id == str(invoice_id),
+        PaymentTransaction.status == "pending",
+    ).update({"status": "completed"}, synchronize_session=False)
+    db.commit()
+    if claimed == 0:
+        tracker = db.query(PaymentTransaction).filter(
+            PaymentTransaction.cryptopay_invoice_id == str(invoice_id),
+            PaymentTransaction.amount_stars == 0,
+        ).first()
+        if tracker is not None:
+            return {"success": True, "message": "settlement already in progress"}
 
     result = process_payment_transaction(
         db, user_id=user_id, product_id=product_id,
@@ -127,10 +145,16 @@ def settle_paid_invoice(db, invoice_id: str, payload: str) -> dict:
             canonical.payment_provider = "cryptopay"
         db.query(PaymentTransaction).filter(
             PaymentTransaction.cryptopay_invoice_id == str(invoice_id),
-            PaymentTransaction.status == "pending",
+            PaymentTransaction.amount_stars == 0,
         ).delete(synchronize_session=False)
         db.commit()
         print(f"[CRYPTOPAY] ✅ Invoice {invoice_id} settled: {product_id} for user {user_id}")
     else:
+        # Give the claim back so the poller retries a transient crediting failure.
+        db.query(PaymentTransaction).filter(
+            PaymentTransaction.cryptopay_invoice_id == str(invoice_id),
+            PaymentTransaction.amount_stars == 0,
+        ).update({"status": "pending"}, synchronize_session=False)
+        db.commit()
         print(f"[CRYPTOPAY] ❌ Crediting failed for invoice {invoice_id}: {result.get('message')}")
     return result
