@@ -285,6 +285,7 @@ async def generate_dialogue(
     name_known: bool = False,  # Whether user's name has been discovered for this chat
     control_orb_active: bool = False,  # Mind-control mode from Control Orb gift
     control_orb_messages_left: int = 0,
+    scenario: str = "",  # Opening scenario — the setting, pinned on every turn
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -323,6 +324,20 @@ async def generate_dialogue(
         language=language,
     )
     
+    # The opening scenario scrolls out of the history window within a few turns,
+    # which is how a story that began on a country road ends up in a bedroom.
+    # Pin it so the setting is present on every single turn.
+    scenario_context = ""
+    if scenario and scenario.strip():
+        scenario_context = f"""
+
+# THE SCENE THIS STORY STARTED IN (unchanging backdrop)
+{scenario.strip()}
+
+Stay inside this setting. It changes only if the two of you actually travel
+somewhere else during the conversation — never because it slipped your mind.
+"""
+
     # Add memory context if available
     memory_context = ""
     if memory and memory.strip():
@@ -493,6 +508,7 @@ You don't know the user's name yet. Within the first few messages, naturally int
     
     full_system_prompt = (
         system_prompt
+        + scenario_context
         + memory_context
         + state_context
         + mood_context

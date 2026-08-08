@@ -611,6 +611,13 @@ async def _process_single_batch(
                 for m in messages[-20:] 
                 if m.text
             ]
+
+            # The opening scenario is a system message, so it falls out of the
+            # window after ~20 turns — and out of the summary path after four.
+            # Losing it is why a chat that started on a country road drifts into
+            # a bedroom, so it is pinned and passed on every turn.
+            scenario_row = crud.get_chat_scenario(db, chat_id)
+            scenario_text = (scenario_row.text if scenario_row else "") or""
             
             persona_data = {
                 "id": persona.id,
@@ -810,6 +817,7 @@ async def _process_single_batch(
             name_known=name_known,  # Whether name has been discovered for this chat
             control_orb_active=control_orb_turn_active,
             control_orb_messages_left=control_orb_messages_left,
+            scenario=scenario_text,
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
@@ -907,7 +915,8 @@ async def _process_single_batch(
                     persona_name=persona_data["name"],
                     previous_image_prompt=previous_image_prompt,
                     context_summary=context_summary,
-                    dialogue_response=dialogue_response
+                    dialogue_response=dialogue_response,
+                    scenario=scenario_text,
                 ),
                 timeout=STATE_RESOLUTION_TIMEOUT_SEC,
             )

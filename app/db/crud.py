@@ -4838,3 +4838,17 @@ def update_chat_mood(db: Session, chat_id: UUID, mood_change: int, is_cold: bool
         "mood": chat.mood,
         "coldness_streak": chat.coldness_streak
     }
+
+
+def get_chat_scenario(db: Session, chat_id: UUID) -> Optional[Message]:
+    """Return the chat's opening scenario (its first system message).
+
+    The scenario defines where the story takes place. It is written once at
+    chat creation and then scrolls out of the history window, so callers that
+    need the setting must fetch it explicitly rather than hope it is still in
+    the recent messages.
+    """
+    return db.query(Message).filter(
+        Message.chat_id == chat_id,
+        Message.role == "system",
+    ).order_by(Message.created_at).first()

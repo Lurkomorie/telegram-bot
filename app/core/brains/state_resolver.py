@@ -76,7 +76,8 @@ def _build_state_context(
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
     context_summary: Optional[str] = None,
-    dialogue_response: Optional[str] = None
+    dialogue_response: Optional[str] = None,
+    scenario: str = "",
 ) -> str:
     """Build context for state resolver
     
@@ -131,7 +132,14 @@ especially for location, clothing, and scene details that may have been shown vi
     
     dialogue_text = dialogue_response if dialogue_response else "(not available)"
     
-    context = f"""
+    scenario_block = ""
+    if scenario and scenario.strip():
+        scenario_block = f"""
+# THE SCENE THIS STORY STARTED IN (the setting; only travel changes it)
+{scenario.strip()}
+"""
+
+    context = f"""{scenario_block}
 # CONVERSATION CONTEXT
 {history_text}
 
@@ -161,7 +169,8 @@ async def resolve_state(
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
     context_summary: Optional[str] = None,
-    dialogue_response: Optional[str] = None
+    dialogue_response: Optional[str] = None,
+    scenario: str = "",
 ) -> str:
     """
     Brain 2: Update conversation state (runs after dialogue generation)
