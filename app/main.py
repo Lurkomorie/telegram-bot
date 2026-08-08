@@ -781,13 +781,17 @@ async def image_callback(request: Request):
                         blurred_counter = chat.ext.get('blurred_image_counter', 0)
                         blurred_counter += 1
                         
-                        # Decide if should blur based on token count and counter
-                        # <20 tokens: every 2nd photo, <40: every 3rd, <70: every 4th
+                        # Decide if should blur based on token count and counter.
+                        # Tuned 2026-08-08: the lower the balance, the more often
+                        # the unlock hook appears, and mid-balance users now meet
+                        # it occasionally too (<120: every 4th photo).
                         if tokens < 20 and blurred_counter % 2 == 0:
                             should_blur = True
-                        elif tokens < 40 and blurred_counter % 3 == 0:
+                        elif tokens < 40 and blurred_counter % 2 == 0:
                             should_blur = True
-                        elif tokens < 70 and blurred_counter % 4 == 0:
+                        elif tokens < 70 and blurred_counter % 3 == 0:
+                            should_blur = True
+                        elif tokens < 120 and blurred_counter % 4 == 0:
                             should_blur = True
                         
                         # Save counter

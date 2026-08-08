@@ -92,7 +92,9 @@ tribute:
       en: ""
 
 gift:
-  cadence_user_messages: 20
-  purchase_cooldown_user_messages: 20
-  min_user_messages_before_suggestions: 20
+  # Tuned 2026-08-08: first hint sooner and roughly every ~12 user messages —
+  # noticeably more offers without turning every reply into a sales pitch.
+  cadence_user_messages: 12
+  purchase_cooldown_user_messages: 12
+  min_user_messages_before_suggestions: 10
   suggestion_probability: 1.0
