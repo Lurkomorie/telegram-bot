@@ -769,6 +769,7 @@ def _build_image_context(
     mandatory_focus_tags: Optional[List[str]] = None,
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    scenario: str = "",
 ) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
@@ -894,6 +895,11 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 
 # ATMOSPHERE
 {mood_notes or "not specified"}
+
+# SCENE BACKDROP (the setting this story opened in — weather, time of day, place)
+{(scenario or "not specified").strip()[:400]}
+Carry its weather and lighting into the tags: rain means wet hair and wet skin,
+night means dim light, snow means cold. Skip it only if the scene has moved indoors.
 {action_truth_section}{control_orb_section}{scene_lock_section}{mood_hint}"""
     
     # She was nude last frame and nobody got dressed this turn -> still nude.
@@ -1052,6 +1058,7 @@ async def generate_image_plan(
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
     precomputed_focus_tags: Optional[List[str]] = None,
+    scenario: str = "",
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -1104,6 +1111,7 @@ async def generate_image_plan(
         mandatory_focus_tags=inferred_focus_tags,
         control_orb_active=control_orb_active,
         control_orb_messages_left=control_orb_messages_left,
+        scenario=scenario,
     )
     
     # Retry with exponential backoff

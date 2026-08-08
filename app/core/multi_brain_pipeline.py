@@ -878,6 +878,7 @@ async def _process_single_batch(
                 control_orb_active=control_orb_turn_active,
                 control_orb_messages_left=control_orb_messages_left,
                 focus_tags_task=focus_tags_task,
+                scenario=scenario_text,
             ))
 
         if should_wait_for_image:
@@ -1225,6 +1226,7 @@ async def _background_image_generation(
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
     focus_tags_task=None,
+    scenario: str = "",
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1312,6 +1314,7 @@ async def _background_image_generation(
             control_orb_active=control_orb_active,
             control_orb_messages_left=control_orb_messages_left,
             precomputed_focus_tags=precomputed_focus_tags,
+            scenario=scenario,
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
