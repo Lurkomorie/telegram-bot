@@ -177,6 +177,14 @@ def check(case, tags: set, neg: str) -> list:
     if tags & BANNED:
         fails.append(f"запрещённые теги: {sorted(tags & BANNED)}")
 
+    # every shot is through his eyes, and his face is never in it
+    if "pov" not in tags:
+        fails.append("нет pov — кадр обязан быть от первого лица")
+    if "male_focus" in tags:
+        fails.append("male_focus — мужчина стал субъектом кадра")
+    if "1boy" in tags and "faceless_male" not in tags:
+        fails.append("1boy без faceless_male — может попасть мужское лицо")
+
     face = case.get("expect_face")
     if face == "negative":
         if not tags & NEG_FACE:
@@ -210,6 +218,8 @@ def check(case, tags: set, neg: str) -> list:
     if case.get("expect_partner") is True:
         if "1boy" not in tags:
             fails.append("нет 1boy в сцене с партнёром")
+        if "male_pov" not in tags:
+            fails.append("нет male_pov в сцене с партнёром")
         if "solo" in tags:
             fails.append("solo вместе с партнёром")
         if "futanari" not in neg:

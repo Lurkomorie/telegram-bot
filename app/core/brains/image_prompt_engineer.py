@@ -32,7 +32,7 @@ PARTNERED_ACT_TAGS = {
     "girl_on_top", "straddling", "kissing", "hug", "grinding", "deepthroat",
     "titfuck", "riding", "penetration", "insertion", "creampie",
 }
-PARTNERED_CORE_TAGS = ["1girl", "1boy", "hetero"]
+PARTNERED_CORE_TAGS = ["1girl", "1boy", "hetero", "faceless_male", "male_pov"]
 # Physical contact in the text puts his body in frame even before the act has a
 # tag of its own: "притягиваю тебя к себе / возьми меня" is a partnered frame.
 PARTNER_CONTACT_MARKERS = (
@@ -46,7 +46,10 @@ PARTNER_CONTACT_MARKERS = (
     "in my mouth", "suck", "your cock", "your dick", "goes down on",
 )
 # Keeps the male body male on anime checkpoints, which love to feminise it.
-MALE_BODY_NEGATIVES = "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female"
+MALE_BODY_NEGATIVES = (
+    "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female, "
+    "male_focus, 2boys, yaoi, looking_at_another"
+)
 
 TAG_ALIAS_MAP = {
     "soft_smile": "light_smile",
@@ -55,9 +58,9 @@ TAG_ALIAS_MAP = {
 }
 
 FULL_BODY_FRAMING_TRIGGER_TAGS = {"shibari"}
-FULL_BODY_CONFLICT_FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov"}
+FULL_BODY_CONFLICT_FRAMING_TAGS = {"close-up", "upper_body", "cowboy_shot", "portrait"}
 
-PERSON_TAGS = {"1girl", "solo"}
+PERSON_TAGS = {"1girl", "solo", "1boy", "hetero", "faceless_male"}
 FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov", "from_behind", "from_below"}
 CLOTHING_TAGS = {
     "dress", "sundress", "shirt", "blouse", "skirt", "miniskirt", "jeans", "shorts",
@@ -402,10 +405,10 @@ def _enforce_tag_policy(
     if partnered:
         # 1boy/hetero instead of solo; framing tags still apply.
         required_core_tags = PARTNERED_CORE_TAGS + (
-            ["full_body"] if full_body_mode else ["pov", "close-up"]
+            ["pov", "full_body"] if full_body_mode else ["pov", "close-up"]
         )
     elif full_body_mode:
-        required_core_tags = ["1girl", "solo", "full_body"]
+        required_core_tags = ["1girl", "solo", "pov", "full_body"]
     else:
         required_core_tags = REQUIRED_CORE_TAGS
 

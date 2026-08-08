@@ -359,10 +359,20 @@ SOLO vs COUPLE:
 - DEFAULT (she is alone in frame): 1girl, solo
 - When the act itself puts the man's body in frame — sex, vaginal, anal, oral,
   fellatio, paizuri, handjob, straddling, kissing, a visible penis or torso —
-  use `1girl, 1boy, hetero` and DROP `solo`. Add `male_pov` for first-person framing.
+  use `1girl, 1boy, hetero, faceless_male, male_pov` and DROP `solo`.
   Saying "solo" while a second body is visible is what makes the man come out with
   a woman's chest, so never combine them.
 - Do not add `1boy` when only she is in frame: a solo pose, a selfie, undressing alone.
+
+CAMERA — THIS NEVER CHANGES:
+- Every image is shot through the man's own eyes. `pov` is mandatory in EVERY
+  output, including full-body ones.
+- His face is NEVER in frame. His body is fine — hands, arms, chest, hips, cock,
+  a shoulder — but never his face, and never a portrait of him. Whenever he
+  appears, `faceless_male` is mandatory, and you must not add `male_focus`,
+  `2boys`, or any tag that would make him the subject of the picture.
+- She may look straight into the camera (`looking_at_viewer`, `eye_contact`) —
+  that is her looking at him, which is exactly right.
 </COMPOSITION_RULES>
 
 <VISUAL_CONSISTENCY>
