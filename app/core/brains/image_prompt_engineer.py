@@ -111,12 +111,44 @@ DRESSING_MARKERS = (
     "надева", "одева", "оделась", "накид", "натягива", "застёгива", "застегива",
     "заворачива", "прикрыва", "прикрыла",
 )
-UNDRESSING_MARKERS = (
-    "take off", "takes off", "taking off", "undress", "strips", "stripping",
-    "pulls off", "slips out of", "unbutton", "unzip", "naked", "nude", "bare skin",
-    "снима", "сняла", "раздева", "разделась", "голая", "обнажён", "обнажен",
-    "стягива", "расстёгива", "расстегива", "оголя",
+# Unconditional nudity: these words mean she is (getting) naked, full stop.
+FULL_NUDITY_MARKERS = (
+    "undress", "strips", "stripping", "naked", "nude", "bare skin",
+    "раздева", "разделась", "голая", "обнажён", "обнажен", "оголя",
 )
+# Removal verbs only undress her when a real garment follows close by —
+# "снимаю промокшие туфли" once stripped her naked over a pair of shoes.
+REMOVAL_VERBS = (
+    "take off", "takes off", "taking off", "took off", "pulls off", "pulled off",
+    "slips out of", "unbutton", "unzip",
+    "снима", "сняла", "снял", "стягива", "стянул", "расстёгива", "расстегива",
+)
+CORE_GARMENTS = (
+    "dress", "skirt", "shirt", "blouse", "jeans", "pants", "shorts", "underwear",
+    "lingerie", "bra", "panties", "top", "swimsuit", "bikini", "stockings",
+    "tights", "leggings", "clothes",
+    "плать", "юбк", "рубашк", "блузк", "джинс", "штан", "брюк", "шорт", "бель",
+    "лифчик", "трус", "топ", "купальник", "бикини", "колготк", "чулк", "одежд",
+    # "стягиваю с себя всё" names no garment but strips everything.
+    "с себя", "всё", "everything",
+)
+# Kept for scene-change detection (clothing_changed), where coarse is fine.
+UNDRESSING_MARKERS = FULL_NUDITY_MARKERS + REMOVAL_VERBS
+
+
+def _detect_undressing(text: str) -> bool:
+    """True only when the text actually takes real clothes off her."""
+    low = (text or "").lower()
+    if any(marker in low for marker in FULL_NUDITY_MARKERS):
+        return True
+    for verb in REMOVAL_VERBS:
+        start = 0
+        while (idx := low.find(verb, start)) != -1:
+            window = low[idx:idx + len(verb) + 45]
+            if any(garment in window for garment in CORE_GARMENTS):
+                return True
+            start = idx + len(verb)
+    return False
 
 # Physical restraints (a rope gift, cuffs) stay on her until someone actually
 # removes them. Without this the rope photo is followed by a rope-free photo,
@@ -244,7 +276,7 @@ def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[
         # sex keep her nude — the state resolver often leaves aiClothing listing a
         # blouse right through a sex scene, and the image used to believe it.
         "dressed_up": any(marker in text for marker in DRESSING_MARKERS),
-        "undressed_now": any(marker in text for marker in UNDRESSING_MARKERS),
+        "undressed_now": _detect_undressing(text),
     }
 
 

@@ -349,6 +349,32 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertIn("close-up", tags)
 
 
+class TestUndressingDetection(unittest.TestCase):
+    def _flags(self, dialogue):
+        from app.core.brains.image_prompt_engineer import _detect_scene_change_intent
+        return _detect_scene_change_intent("", dialogue)
+
+    def test_taking_off_shoes_does_not_strip_her(self):
+        flags = self._flags("_Снимаю промокшие туфли у порога и вступаю в дом._")
+        self.assertFalse(flags["undressed_now"])
+
+    def test_taking_off_a_dress_does(self):
+        flags = self._flags("_Медленно снимаю мокрое платье._")
+        self.assertTrue(flags["undressed_now"])
+
+    def test_explicit_nudity_always_counts(self):
+        flags = self._flags("_Я уже полностью голая._")
+        self.assertTrue(flags["undressed_now"])
+
+    def test_english_jacket_removal_is_not_nudity(self):
+        flags = self._flags("_She takes off her boots at the door._")
+        self.assertFalse(flags["undressed_now"])
+
+    def test_english_shirt_removal_is(self):
+        flags = self._flags("_She takes off her shirt slowly._")
+        self.assertTrue(flags["undressed_now"])
+
+
 class TestRestraintStickiness(unittest.TestCase):
     GIFT_PROMPT = (
         "1girl, solo, pov, close-up, shibari, rope, bondage, tied_up, "
