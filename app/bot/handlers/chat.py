@@ -583,7 +583,12 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
                     await callback.message.edit_reply_markup(reply_markup=premium_keyboard)
                 except Exception:
                     pass
-                await callback.answer()
+                # Without this alert the tap looks like a dead button: the photo
+                # stays blurred and nothing explains why.
+                await callback.answer(
+                    get_ui_text("blurred_image.insufficient_energy", language=user_language),
+                    show_alert=True,
+                )
                 return
             
             # Deduct energy for free users

@@ -469,6 +469,27 @@ async def _update_persona_avatar_with_fallback(persona_id: UUID, image_data: byt
         traceback.print_exc()
 
 
+# Tags that make a photo worth putting behind the unlock paywall. Nudity, sex
+# acts, underwear and bondage count; a dressed face portrait does not.
+_EXPLICIT_UNLOCK_TAGS = {
+    "nude", "naked", "topless", "bottomless", "nipples", "pussy", "sex",
+    "vaginal", "anal", "fellatio", "cunnilingus", "oral", "cum", "masturbation",
+    "spread_legs", "shibari", "bondage", "tied_up", "cameltoe", "ass_focus",
+    "breast_focus", "lingerie", "panties", "bra", "underwear", "negligee",
+}
+
+
+def _photo_is_explicit(prompt: str) -> bool:
+    """True when the generated photo contains 18+ content worth paywalling."""
+    import re as _re
+    for raw_tag in (prompt or "").split(","):
+        tag = raw_tag.strip().lower().replace(" ", "_")
+        tag = _re.sub(r"^\(([^:()]+)(?::[\d.]+)?\)$", r"\1", tag)
+        if tag in _EXPLICIT_UNLOCK_TAGS or set(tag.split("_")) & _EXPLICIT_UNLOCK_TAGS:
+            return True
+    return False
+
+
 @app.post("/image/callback")
 async def image_callback(request: Request):
     """
@@ -767,12 +788,15 @@ async def image_callback(request: Request):
             should_blur = False
             with get_db() as db:
                 is_premium = crud.check_user_premium(db, job_user_id)["is_premium"]
-                
+
                 # Premium users never get blur
-                if not is_premium:
+                if not is_premium and _photo_is_explicit(job_prompt):
+                    # Only spicy photos go behind the paywall: charging 5 energy
+                    # to unblur a face portrait reads as a scam. The counter also
+                    # counts spicy photos only, so the cadence stays meaningful.
                     user_energy = crud.get_user_energy(db, job_user_id)
                     tokens = user_energy.get('tokens', 0)
-                    
+
                     # Get chat and its image counter
                     chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
                     if chat:
