@@ -462,6 +462,46 @@ async def retry_failed_deliveries_task():
         }, exc_info=True)
 
 
+
+
+async def poll_cryptopay_invoices():
+    """Settle crypto invoices even when no webhook is configured in @CryptoBot.
+
+    Pending tracker rows younger than a day are checked against getInvoices;
+    paid ones are credited (idempotently), expired ones marked failed.
+    """
+    from app.core import cryptopay
+    if not cryptopay.is_configured():
+        return
+    from datetime import datetime, timedelta
+    from app.db.base import get_db
+    from app.db.models import PaymentTransaction
+    try:
+        with get_db() as db:
+            pending = db.query(PaymentTransaction).filter(
+                PaymentTransaction.status == "pending",
+                PaymentTransaction.cryptopay_invoice_id.isnot(None),
+                PaymentTransaction.created_at > datetime.utcnow() - timedelta(days=1),
+            ).all()
+            if not pending:
+                return
+            invoices = await cryptopay.fetch_invoices(
+                [t.cryptopay_invoice_id for t in pending])
+            for inv in invoices:
+                if inv.get("status") == "paid":
+                    cryptopay.settle_paid_invoice(
+                        db, invoice_id=str(inv["invoice_id"]),
+                        payload=inv.get("payload") or "")
+                elif inv.get("status") == "expired":
+                    db.query(PaymentTransaction).filter(
+                        PaymentTransaction.cryptopay_invoice_id == str(inv["invoice_id"]),
+                        PaymentTransaction.status == "pending",
+                    ).update({"status": "failed"}, synchronize_session=False)
+                    db.commit()
+    except Exception as e:
+        print(f"[CRYPTOPAY-POLL] ⚠️ {type(e).__name__}: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler"""
     from app.settings import settings
@@ -471,6 +511,7 @@ def start_scheduler():
     # Only add followup jobs if enabled
     if settings.ENABLE_FOLLOWUPS:
         # Check for inactive chats every minute (3min threshold - first quick followup)
+        scheduler.add_job(poll_cryptopay_invoices, 'interval', minutes=1)
         scheduler.add_job(check_inactive_chats_3min, 'interval', minutes=1)
         
         # Check for inactive chats every minute (30min threshold - after 3min followup)

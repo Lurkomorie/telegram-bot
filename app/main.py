@@ -301,6 +301,28 @@ async def root():
     }
 
 
+@app.post("/cryptopay/webhook")
+async def cryptopay_webhook(request: Request):
+    """Crypto Pay payment notifications. The scheduler poll is the fallback,
+    so a missing webhook configuration only delays crediting, never loses it."""
+    from app.core import cryptopay
+    body = await request.body()
+    signature = request.headers.get("crypto-pay-api-signature", "")
+    if not cryptopay.verify_webhook_signature(body, signature):
+        print("[CRYPTOPAY] ⚠️ Webhook with bad signature rejected")
+        raise HTTPException(status_code=403, detail="bad signature")
+    update = json.loads(body)
+    if update.get("update_type") == "invoice_paid":
+        invoice = update.get("payload") or {}
+        with get_db() as db:
+            cryptopay.settle_paid_invoice(
+                db,
+                invoice_id=str(invoice.get("invoice_id")),
+                payload=invoice.get("payload") or "",
+            )
+    return {"ok": True}
+
+
 @app.get("/health")
 async def health():
     """Health check endpoint"""

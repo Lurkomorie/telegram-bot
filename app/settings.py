@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: str
     PUBLIC_BASE_URL: Optional[str] = None  # Auto-constructed from RAILWAY_PUBLIC_DOMAIN if not set
     
+    # Crypto Pay (@CryptoBot) app token for crypto payments
+    CRYPTOPAY_API_TOKEN: Optional[str] = None
+
     # Railway variables
     RAILWAY_PUBLIC_DOMAIN: Optional[str] = None
     RAILWAY_PRIVATE_DOMAIN: Optional[str] = None

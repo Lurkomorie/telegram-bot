@@ -1432,6 +1432,40 @@ async def get_tribute_link(
     if not product:
         raise HTTPException(status_code=400, detail="Invalid product ID")
 
+    # Crypto goes through Crypto Pay (@CryptoBot) when the token is configured;
+    # Tribute remains the card route and the fallback.
+    from app.core import cryptopay
+    if request.method == "crypto" and cryptopay.is_configured():
+        try:
+            invoice = await cryptopay.create_invoice(
+                user_id=user_id,
+                product_id=request.product_id,
+                description=f"{product.get('amount', '')} tokens" if product["type"] == "tokens"
+                else f"Premium subscription ({request.product_id})",
+            )
+        except Exception as e:
+            print(f"[CRYPTOPAY] ❌ Invoice creation failed: {e}")
+            raise HTTPException(status_code=502, detail="Crypto payment temporarily unavailable")
+
+        with get_db() as db:
+            from app.db.models import PaymentTransaction
+            db.add(PaymentTransaction(
+                user_id=user_id,
+                transaction_type="tier_subscription" if product["type"] == "subscription" else "token_package",
+                product_id=request.product_id,
+                amount_stars=0,
+                status="pending",
+                payment_provider="cryptopay",
+                cryptopay_invoice_id=str(invoice["invoice_id"]),
+            ))
+            db.commit()
+
+        from app.core import analytics_service_tg
+        analytics_service_tg.track_payment_initiated(
+            user_id, request.product_id, 0, product["type"], payment_method="crypto")
+        print(f"[CRYPTOPAY] 🧾 Invoice {invoice['invoice_id']} for user {user_id}, product {request.product_id}")
+        return {"url": invoice.get("bot_invoice_url") or invoice.get("pay_url")}
+
     tribute_urls = get_tribute_product_urls()
     product_urls = tribute_urls.get(request.product_id)
     if not product_urls or not isinstance(product_urls, dict):
