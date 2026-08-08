@@ -32,7 +32,7 @@ PARTNERED_ACT_TAGS = {
     "girl_on_top", "straddling", "kissing", "hug", "grinding", "deepthroat",
     "titfuck", "riding", "penetration", "insertion", "creampie",
 }
-PARTNERED_CORE_TAGS = ["1girl", "1boy", "hetero", "faceless_male", "male_pov"]
+PARTNERED_CORE_TAGS = ["pov", "male_pov", "1girl", "solo_focus", "1boy", "hetero", "faceless_male"]
 # Physical contact in the text puts his body in frame even before the act has a
 # tag of its own: "притягиваю тебя к себе / возьми меня" is a partnered frame.
 PARTNER_CONTACT_MARKERS = (
@@ -48,7 +48,7 @@ PARTNER_CONTACT_MARKERS = (
 # Keeps the male body male on anime checkpoints, which love to feminise it.
 MALE_BODY_NEGATIVES = (
     "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female, "
-    "male_focus, 2boys, yaoi, looking_at_another"
+    "male_focus, 2boys, multiple_boys, yaoi, looking_at_another, from_side, profile"
 )
 
 TAG_ALIAS_MAP = {
@@ -60,7 +60,7 @@ TAG_ALIAS_MAP = {
 FULL_BODY_FRAMING_TRIGGER_TAGS = {"shibari"}
 FULL_BODY_CONFLICT_FRAMING_TAGS = {"close-up", "upper_body", "cowboy_shot", "portrait"}
 
-PERSON_TAGS = {"1girl", "solo", "1boy", "hetero", "faceless_male"}
+PERSON_TAGS = {"1girl", "solo", "solo_focus", "1boy", "hetero", "faceless_male"}
 FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov", "from_behind", "from_below"}
 CLOTHING_TAGS = {
     "dress", "sundress", "shirt", "blouse", "skirt", "miniskirt", "jeans", "shorts",
