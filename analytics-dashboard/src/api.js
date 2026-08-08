@@ -242,6 +242,30 @@ export const api = {
     return response.json();
   },
 
+  async getGiftPurchaseStats(startDate = null, endDate = null, acquisitionSource = null) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+
+    const response = await fetch(`${API_BASE}/api/analytics/gift-purchase-stats?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch gift purchase stats');
+    return response.json();
+  },
+
+  async getGiftPurchases(startDate = null, endDate = null, limit = 100, offset = 0, acquisitionSource = null) {
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    if (acquisitionSource) params.append('acquisition_source', acquisitionSource);
+    params.append('limit', limit);
+    params.append('offset', offset);
+
+    const response = await fetch(`${API_BASE}/api/analytics/gift-purchases?${params.toString()}`);
+    if (!response.ok) throw new Error('Failed to fetch gift purchases');
+    return response.json();
+  },
+
   async getConversions(startDate = null, endDate = null) {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);

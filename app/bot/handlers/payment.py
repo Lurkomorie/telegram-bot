@@ -14,6 +14,15 @@ STARS_TO_USD = 0.02  # 1 star ≈ $0.02
 
 STARS_TO_USD = 0.013  # Approximate conversion rate: 1 star ≈ $0.013
 
+STARS_MARKUP = 1.43  # 30% markup for Stars payments (to incentivize Tribute)
+
+
+def get_tribute_product_urls() -> dict:
+    """Load Tribute product URLs from config/app.yaml"""
+    from app.settings import get_app_config
+    config = get_app_config()
+    return config.get("tribute", {}).get("product_urls", {})
+
 
 async def send_payment_notification(user: types.User, product_id: str, product: dict, db_user=None, purchase_count: int = 0):
     """
@@ -163,37 +172,37 @@ PAYMENT_PRODUCTS = {
     "tokens_500": {
         "type": "tokens",
         "amount": 500,
-        "stars": 240,  # 20% off from 300
+        "stars": 210,  # 20% off from 300
         "original_stars": 300
     },
     "tokens_1000": {
         "type": "tokens",
         "amount": 1000,
-        "stars": 480,  # 20% off from 600
+        "stars": 380,  # 20% off from 600
         "original_stars": 600
     },
     "tokens_2500": {
         "type": "tokens",
         "amount": 2500,
-        "stars": 1120,  # 20% off from 1400
+        "stars": 850,  # 20% off from 1400
         "original_stars": 1400
     },
     "tokens_5000": {
         "type": "tokens",
         "amount": 5000,
-        "stars": 2160,  # 20% off from 2700
+        "stars": 1550,  # 20% off from 2700
         "original_stars": 2700
     },
     "tokens_10000": {
         "type": "tokens",
         "amount": 10000,
-        "stars": 4000,  # 20% off from 5000
+        "stars": 2800,  # 20% off from 5000
         "original_stars": 5000
     },
     "tokens_25000": {
         "type": "tokens",
         "amount": 25000,
-        "stars": 9600,  # 20% off from 12000
+        "stars": 6250,  # 20% off from 12000
         "original_stars": 12000
     },
     

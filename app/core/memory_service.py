@@ -189,6 +189,18 @@ async def update_memory(
         # Validate memory quality
         is_valid, reason = _validate_memory_quality(updated_memory, current_memory)
         
+        # Overshooting the length by a little is not a reason to throw the whole
+        # update away; trim it at a sentence boundary and keep what was learned.
+        if not is_valid and reason.startswith("exceeds 1000 char limit"):
+            trimmed = updated_memory[:1000]
+            cut = max(trimmed.rfind(". "), trimmed.rfind("! "), trimmed.rfind("? "))
+            if cut > 500:
+                trimmed = trimmed[: cut + 1]
+            is_valid, reason = _validate_memory_quality(trimmed, current_memory)
+            if is_valid:
+                log_always(f"[MEMORY] ✂️ Trimmed to {len(trimmed)} chars instead of discarding")
+                updated_memory = trimmed
+
         if not is_valid:
             log_always(f"[MEMORY] ❌ Validation FAILED: {reason}")
             log_always(f"[MEMORY]    Generated length: {len(updated_memory)} chars (limit: 1000)")

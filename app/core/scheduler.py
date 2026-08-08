@@ -358,6 +358,40 @@ async def daily_cleanup_old_chats():
         print(f"[SCHEDULER] ❌ Error in daily cleanup: {e}")
 
 
+async def cleanup_expired_blur_unlock_pointers():
+    """Clear stale blurred unlock pointers from image_jobs.ext."""
+    from app.settings import settings
+
+    print("[SCHEDULER] 🧽 Running blurred unlock pointer cleanup...")
+    try:
+        with get_db() as db:
+            updated = crud.clear_expired_blurred_original_pointers(
+                db,
+                older_than_hours=settings.BLUR_ORIGINAL_RETENTION_HOURS,
+                batch_size=1000,
+            )
+        print(f"[SCHEDULER] ✅ Cleared blurred unlock pointers: {updated}")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error cleaning blurred unlock pointers: {e}")
+
+
+async def cleanup_old_analytics_events():
+    """Delete analytics events older than configured retention window."""
+    from app.settings import settings
+
+    print("[SCHEDULER] 🧹 Running analytics retention cleanup...")
+    try:
+        with get_db() as db:
+            deleted = crud.delete_old_analytics_events(
+                db,
+                older_than_days=settings.ANALYTICS_RETENTION_DAYS,
+                batch_size=10000,
+            )
+        print(f"[SCHEDULER] ✅ Deleted analytics events: {deleted}")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Error deleting old analytics events: {e}")
+
+
 async def check_scheduled_messages():
     """
     Check for scheduled messages ready to send
@@ -428,6 +462,46 @@ async def retry_failed_deliveries_task():
         }, exc_info=True)
 
 
+
+
+async def poll_cryptopay_invoices():
+    """Settle crypto invoices even when no webhook is configured in @CryptoBot.
+
+    Pending tracker rows younger than a day are checked against getInvoices;
+    paid ones are credited (idempotently), expired ones marked failed.
+    """
+    from app.core import cryptopay
+    if not cryptopay.is_configured():
+        return
+    from datetime import datetime, timedelta
+    from app.db.base import get_db
+    from app.db.models import PaymentTransaction
+    try:
+        with get_db() as db:
+            pending = db.query(PaymentTransaction).filter(
+                PaymentTransaction.status == "pending",
+                PaymentTransaction.cryptopay_invoice_id.isnot(None),
+                PaymentTransaction.created_at > datetime.utcnow() - timedelta(days=1),
+            ).all()
+            if not pending:
+                return
+            invoices = await cryptopay.fetch_invoices(
+                [t.cryptopay_invoice_id for t in pending])
+            for inv in invoices:
+                if inv.get("status") == "paid":
+                    cryptopay.settle_paid_invoice(
+                        db, invoice_id=str(inv["invoice_id"]),
+                        payload=inv.get("payload") or "")
+                elif inv.get("status") == "expired":
+                    db.query(PaymentTransaction).filter(
+                        PaymentTransaction.cryptopay_invoice_id == str(inv["invoice_id"]),
+                        PaymentTransaction.status == "pending",
+                    ).update({"status": "failed"}, synchronize_session=False)
+                    db.commit()
+    except Exception as e:
+        print(f"[CRYPTOPAY-POLL] ⚠️ {type(e).__name__}: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler"""
     from app.settings import settings
@@ -437,6 +511,7 @@ def start_scheduler():
     # Only add followup jobs if enabled
     if settings.ENABLE_FOLLOWUPS:
         # Check for inactive chats every minute (3min threshold - first quick followup)
+        scheduler.add_job(poll_cryptopay_invoices, 'interval', minutes=1)
         scheduler.add_job(check_inactive_chats_3min, 'interval', minutes=1)
         
         # Check for inactive chats every minute (30min threshold - after 3min followup)
@@ -471,6 +546,14 @@ def start_scheduler():
     # Daily cleanup: delete chats inactive >30 days (runs at 4:00 AM UTC)
     scheduler.add_job(daily_cleanup_old_chats, 'cron', hour=4, minute=0)
     print("[SCHEDULER] ✅ Daily old chat cleanup enabled (04:00 UTC)")
+
+    # Daily cleanup: remove stale blur unlock pointers (runs at 04:15 UTC)
+    scheduler.add_job(cleanup_expired_blur_unlock_pointers, 'cron', hour=4, minute=15)
+    print("[SCHEDULER] ✅ Blurred pointer cleanup enabled (04:15 UTC)")
+
+    # Daily cleanup: analytics retention (runs at 04:30 UTC)
+    scheduler.add_job(cleanup_old_analytics_events, 'cron', hour=4, minute=30)
+    print("[SCHEDULER] ✅ Analytics retention cleanup enabled (04:30 UTC)")
     
     scheduler.start()
     

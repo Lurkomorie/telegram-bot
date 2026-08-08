@@ -79,7 +79,12 @@ async def upload_to_cloudflare_tg(
     """
     import aiohttp
     from io import BytesIO
-    
+
+    # Callers pass whatever image a story or job happens to have; when there is none
+    # the download below fails three times over with an unhelpful aiohttp type error.
+    if not isinstance(image_url_or_bytes, (str, bytes)) or not image_url_or_bytes:
+        return UploadResult(success=False, error="no image to upload")
+
     if max_retries is None:
         max_retries = UPLOAD_CONFIG["MAX_RETRIES"]
     if timeout_ms is None:

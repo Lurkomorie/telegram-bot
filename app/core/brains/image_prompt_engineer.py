@@ -23,6 +23,34 @@ FORBIDDEN_TAGS = {
     "multiple_views",
 }
 
+# Acts that put a second body in frame. "1girl, solo" told the checkpoint there
+# was only a woman there, so the partner's chest came out female. These turns
+# need 1boy + hetero and must drop solo.
+PARTNERED_ACT_TAGS = {
+    "sex", "vaginal", "anal", "oral", "fellatio", "cunnilingus", "paizuri",
+    "handjob", "penis", "cum", "cowgirl_position", "missionary", "doggystyle",
+    "girl_on_top", "straddling", "kissing", "hug", "grinding", "deepthroat",
+    "titfuck", "riding", "penetration", "insertion", "creampie",
+}
+PARTNERED_CORE_TAGS = ["pov", "male_pov", "1girl", "solo_focus", "1boy", "hetero", "faceless_male"]
+# Physical contact in the text puts his body in frame even before the act has a
+# tag of its own: "притягиваю тебя к себе / возьми меня" is a partnered frame.
+PARTNER_CONTACT_MARKERS = (
+    "притягива", "прижима", "обнима", "целу", "сажусь на тебя", "седла",
+    "возьми меня", "твои руки", "твоих руках", "твоё тело", "твое тело",
+    "на тебе сверху", "к себе", "твою грудь", "твоей груди",
+    "pull you", "pulls you", "take me", "your hands", "your body", "hold you",
+    "embrace", "kiss you", "on top of you", "against you", "your chest",
+    # oral: his body is in frame even though the phrasing names no act tag
+    "в рот", "беру его", "сосу", "отсос", "облизыва", "твой член", "твоего члена",
+    "in my mouth", "suck", "your cock", "your dick", "goes down on",
+)
+# Keeps the male body male on anime checkpoints, which love to feminise it.
+MALE_BODY_NEGATIVES = (
+    "futanari, feminine_male, otoko_no_ko, breasts_on_male, 2girls, yuri, muscular_female, "
+    "male_focus, 2boys, multiple_boys, yaoi, looking_at_another, from_side, profile"
+)
+
 TAG_ALIAS_MAP = {
     "soft_smile": "light_smile",
     "flushed": "blush",
@@ -30,15 +58,18 @@ TAG_ALIAS_MAP = {
 }
 
 FULL_BODY_FRAMING_TRIGGER_TAGS = {"shibari"}
-FULL_BODY_CONFLICT_FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov"}
+FULL_BODY_CONFLICT_FRAMING_TAGS = {"close-up", "upper_body", "cowboy_shot", "portrait"}
 
-PERSON_TAGS = {"1girl", "solo"}
+PERSON_TAGS = {"1girl", "solo", "solo_focus", "1boy", "hetero", "faceless_male"}
 FRAMING_TAGS = {"pov", "close-up", "upper_body", "cowboy_shot", "portrait", "male_pov", "from_behind", "from_below"}
 CLOTHING_TAGS = {
-    "dress", "sundress", "shirt", "blouse", "skirt", "jeans", "shorts", "bikini",
-    "lingerie", "bra", "panties", "negligee", "nude", "barefoot", "heels",
-    "pantyhose", "stockings", "thighhighs", "swimsuit", "underwear", "robe",
-    "jacket", "sweater", "coat", "kimono", "apron", "bodysuit",
+    "dress", "sundress", "shirt", "blouse", "skirt", "miniskirt", "jeans", "shorts",
+    "bikini", "lingerie", "bra", "panties", "negligee", "nude", "barefoot", "heels",
+    "pantyhose", "tights", "stockings", "thighhighs", "socks", "swimsuit", "underwear",
+    "robe", "jacket", "sweater", "hoodie", "coat", "kimono", "apron", "bodysuit",
+    "leotard", "corset", "garter", "camisole", "chemise", "nightgown", "pajamas",
+    "top", "crop_top", "tank_top", "pants", "trousers", "leggings", "uniform",
+    "boots", "sandals", "gloves", "scarf", "towel",
 }
 EXPRESSION_TAGS = {
     "smile", "light_smile", "slight_smile", "smirk", "grin", "blush", "parted_lips",
@@ -56,7 +87,7 @@ EYE_DIRECTION_TAGS = {"looking_at_viewer", "eye_contact", "looking_away", "looki
 HEAVY_BODY_FOCUS_TAGS = {"foot_focus", "feet", "ass_focus", "breast_focus", "hand_focus"}
 SCENE_LOCK_CLOTHING_TAGS = CLOTHING_TAGS | {"cleavage"}
 SCENE_LOCK_ENV_TAGS = ENVIRONMENT_TAGS | EFFECT_TAGS
-NO_SCENE_LOCK_SOURCES = {"history_start", "ai_initial_story", "gift_purchase"}
+NO_SCENE_LOCK_SOURCES = {"gift_purchase"}
 FORCED_GIFT_SCENE_TAGS = (
     FRAMING_TAGS
     | CLOTHING_TAGS
@@ -72,6 +103,66 @@ LOCATION_CHANGE_MARKERS = (
 CLOTHING_CHANGE_MARKERS = (
     "take off", "remove", "undress", "strip", "put on", "wear", "change clothes",
     "changed clothes", "dress up", "naked now",
+)
+NUDE_TAGS = {"nude", "naked", "topless", "bottomless", "nipples", "pussy"}
+DRESSING_MARKERS = (
+    "put on", "puts on", "putting on", "gets dressed", "got dressed", "dress up",
+    "dressed up", "wraps herself", "covers herself", "buttons", "zips up",
+    "надева", "одева", "оделась", "накид", "натягива", "застёгива", "застегива",
+    "заворачива", "прикрыва", "прикрыла",
+)
+# Unconditional nudity: these words mean she is (getting) naked, full stop.
+FULL_NUDITY_MARKERS = (
+    "undress", "strips", "stripping", "naked", "nude", "bare skin",
+    "раздева", "разделась", "голая", "обнажён", "обнажен", "оголя",
+)
+# Removal verbs only undress her when a real garment follows close by —
+# "снимаю промокшие туфли" once stripped her naked over a pair of shoes.
+REMOVAL_VERBS = (
+    "take off", "takes off", "taking off", "took off", "pulls off", "pulled off",
+    "slips out of", "unbutton", "unzip",
+    "снима", "сняла", "снял", "стягива", "стянул", "расстёгива", "расстегива",
+)
+CORE_GARMENTS = (
+    "dress", "skirt", "shirt", "blouse", "jeans", "pants", "shorts", "underwear",
+    "lingerie", "bra", "panties", "top", "swimsuit", "bikini", "stockings",
+    "tights", "leggings", "clothes",
+    "плать", "юбк", "рубашк", "блузк", "джинс", "штан", "брюк", "шорт", "бель",
+    "лифчик", "трус", "топ", "купальник", "бикини", "колготк", "чулк", "одежд",
+    # "стягиваю с себя всё" names no garment but strips everything.
+    "с себя", "всё", "everything",
+)
+# Kept for scene-change detection (clothing_changed), where coarse is fine.
+UNDRESSING_MARKERS = FULL_NUDITY_MARKERS + REMOVAL_VERBS
+
+
+def _detect_undressing(text: str) -> bool:
+    """True only when the text actually takes real clothes off her."""
+    low = (text or "").lower()
+    if any(marker in low for marker in FULL_NUDITY_MARKERS):
+        return True
+    for verb in REMOVAL_VERBS:
+        start = 0
+        while (idx := low.find(verb, start)) != -1:
+            window = low[idx:idx + len(verb) + 45]
+            if any(garment in window for garment in CORE_GARMENTS):
+                return True
+            start = idx + len(verb)
+    return False
+
+# Physical restraints (a rope gift, cuffs) stay on her until someone actually
+# removes them. Without this the rope photo is followed by a rope-free photo,
+# which reads as the bot forgetting the gift one frame later.
+RESTRAINT_TAGS = {
+    "shibari", "kinbaku", "bondage", "rope_bondage", "tied_up", "bound",
+    "restrained", "bound_wrists", "bound_arms", "bound_legs", "rope",
+    "arms_behind_back", "handcuffs",
+}
+UNTIE_MARKERS = (
+    "untie", "unties", "untied", "unbind", "unbound", "cuts the rope",
+    "removes the rope", "takes the rope off", "loosens the rope", "sets her free",
+    "развяз", "распут", "освобожда", "освободи", "высвобо",
+    "снимает верёвк", "снимает веревк", "снял верёвк", "снял веревк",
 )
 
 REFUSAL_MARKERS = [
@@ -139,10 +230,27 @@ def _canonicalize_tag(tag: str) -> str:
     return t
 
 
-def _is_forbidden_tag(tag: str, allow_full_body: bool = False) -> bool:
+def _is_forbidden_tag(tag: str, allow_full_body: bool = False, allow_partner: bool = False) -> bool:
     if tag not in FORBIDDEN_TAGS:
         return False
-    return not (allow_full_body and tag == "full_body")
+    if allow_full_body and tag == "full_body":
+        return False
+    if allow_partner and tag in {"1boy", "male_focus"}:
+        return False
+    return True
+
+
+def _is_partnered_scene(*tag_groups, contact_text: str = "") -> bool:
+    """True when the turn depicts an act that puts a partner's body in frame."""
+    for group in tag_groups:
+        for raw_tag in (group or []):
+            tag = _canonicalize_tag(raw_tag)
+            if tag in PARTNERED_ACT_TAGS or any(p in PARTNERED_ACT_TAGS for p in tag.split("_")):
+                return True
+    if contact_text:
+        low = contact_text.lower()
+        return any(marker in low for marker in PARTNER_CONTACT_MARKERS)
+    return False
 
 
 def _should_force_full_body_framing(
@@ -164,7 +272,33 @@ def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[
     return {
         "location_changed": any(marker in text for marker in LOCATION_CHANGE_MARKERS),
         "clothing_changed": any(marker in text for marker in CLOTHING_CHANGE_MARKERS),
+        # Getting dressed is the only thing that ends a nude scene. Undressing and
+        # sex keep her nude — the state resolver often leaves aiClothing listing a
+        # blouse right through a sex scene, and the image used to believe it.
+        "dressed_up": any(marker in text for marker in DRESSING_MARKERS),
+        "undressed_now": _detect_undressing(text),
     }
+
+
+def _is_nude_tag(tag: str) -> bool:
+    return any(part in NUDE_TAGS for part in tag.split("_")) or tag in NUDE_TAGS
+
+
+def _is_restraint_tag(tag: str) -> bool:
+    if tag in RESTRAINT_TAGS:
+        return True
+    parts = set(tag.split("_"))
+    return bool(parts & {"shibari", "bondage", "kinbaku", "tied"}) or tag.startswith("bound_")
+
+
+def _extract_restraint_tags(previous_image_prompt: Optional[str]) -> List[str]:
+    """Restraint tags from the previous image, kept whole for continuity."""
+    tags: List[str] = []
+    for raw_tag in _split_tags(previous_image_prompt or ""):
+        tag = _canonicalize_tag(raw_tag)
+        if tag and _is_restraint_tag(tag) and tag not in tags:
+            tags.append(tag)
+    return tags
 
 
 def _should_use_scene_lock(previous_image_meta: Optional[Dict[str, Any]]) -> bool:
@@ -205,10 +339,12 @@ def _extract_scene_lock_anchors(previous_image_prompt: Optional[str]) -> Dict[st
         tag = _canonicalize_tag(raw_tag)
         if not tag:
             continue
-        if tag in SCENE_LOCK_CLOTHING_TAGS and tag not in anchors["clothing"]:
+        # Keep the qualified tag whole: "white_sundress" is the anchor, not "sundress".
+        # Dropping the colour is what made the same outfit come back pink, then white.
+        if _tag_matches_vocabulary(tag, SCENE_LOCK_CLOTHING_TAGS) and tag not in anchors["clothing"]:
             anchors["clothing"].append(tag)
         if (
-            tag in SCENE_LOCK_ENV_TAGS
+            _tag_matches_vocabulary(tag, SCENE_LOCK_ENV_TAGS)
             or tag.endswith("_lighting")
             or tag in {"night", "sunset", "sunlight"}
         ) and tag not in anchors["environment"]:
@@ -274,16 +410,30 @@ def _derive_gift_usage_constraints(forced_gift_tags: Optional[List[str]]) -> Tup
     return required_tags, forbidden_tags, context_rules
 
 
+def _tag_matches_vocabulary(tag: str, vocabulary: set) -> bool:
+    """True when the tag is a vocabulary word or a qualified form of one.
+
+    Real prompts carry the qualifier that makes an outfit recognisable —
+    `white_sundress`, `blue_bikini`, `black_lace_bra`. Comparing whole tags
+    against a bare word list missed every one of them, so the outfit was
+    neither ordered as clothing nor carried into the next image. Components are
+    matched whole, so `dresser` never counts as `dress`.
+    """
+    if tag in vocabulary:
+        return True
+    return any(part in vocabulary for part in tag.split("_"))
+
+
 def _bucket_for_tag(tag: str) -> str:
     if tag in PERSON_TAGS:
         return "person"
     if tag in FRAMING_TAGS:
         return "framing"
-    if tag in CLOTHING_TAGS:
+    if _tag_matches_vocabulary(tag, CLOTHING_TAGS):
         return "clothing"
     if tag in EXPRESSION_TAGS:
         return "expression"
-    if tag in ENVIRONMENT_TAGS or tag.endswith("_lighting"):
+    if _tag_matches_vocabulary(tag, ENVIRONMENT_TAGS) or tag.endswith("_lighting"):
         return "environment"
     if tag in EFFECT_TAGS:
         return "effects"
@@ -297,6 +447,11 @@ def _enforce_tag_policy(
     preserve_scene_lock_clothing: bool = True,
     preserve_scene_lock_environment: bool = True,
     forced_gift_tags: Optional[List[str]] = None,
+    stay_nude: bool = False,
+    force_nude: bool = False,
+    force_dressed: bool = False,
+    mandatory_expression_tags: Optional[List[str]] = None,
+    contact_text: str = "",
 ) -> str:
     """Deterministic post-processing: canonicalize, enforce, reorder, and bound output size."""
     mandatory_focus_tags = mandatory_focus_tags or []
@@ -307,15 +462,29 @@ def _enforce_tag_policy(
         mandatory_focus_tags=mandatory_focus_tags,
         forced_gift_tags=forced_gift_tags,
     )
-    required_core_tags = ["1girl", "solo", "full_body"] if full_body_mode else REQUIRED_CORE_TAGS
+    partnered = _is_partnered_scene(
+        _split_tags(raw_tags), mandatory_focus_tags, forced_gift_tags,
+        contact_text=contact_text or "",
+    )
+    if partnered:
+        # 1boy/hetero instead of solo; framing tags still apply.
+        required_core_tags = PARTNERED_CORE_TAGS + (
+            ["pov", "full_body"] if full_body_mode else ["pov", "close-up"]
+        )
+    elif full_body_mode:
+        required_core_tags = ["1girl", "solo", "pov", "full_body"]
+    else:
+        required_core_tags = REQUIRED_CORE_TAGS
 
     cleaned_tags: List[str] = []
     seen = set()
 
     for raw_tag in _split_tags(raw_tags):
         tag = _canonicalize_tag(raw_tag)
-        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if not tag or _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
+        if partnered and tag == "solo":
+            continue  # a partner is in frame; solo makes the checkpoint draw only her
         if tag.startswith("rating:"):
             continue
         if tag not in seen:
@@ -331,7 +500,7 @@ def _enforce_tag_policy(
     normalized_forced_gift = []
     for tag in forced_gift_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         if norm not in normalized_forced_gift:
             normalized_forced_gift.append(norm)
@@ -341,7 +510,7 @@ def _enforce_tag_policy(
 
     required_gift_usage_tags, forbidden_gift_usage_tags, _ = _derive_gift_usage_constraints(normalized_forced_gift)
     for tag in required_gift_usage_tags:
-        if _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         if tag not in seen:
             seen.add(tag)
@@ -350,7 +519,7 @@ def _enforce_tag_policy(
     normalized_mandatory_focus = []
     for tag in mandatory_focus_tags:
         norm = _canonicalize_tag(tag)
-        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode):
+        if not norm or _is_forbidden_tag(norm, allow_full_body=full_body_mode, allow_partner=partnered):
             continue
         normalized_mandatory_focus.append(norm)
         if norm not in seen:
@@ -377,7 +546,7 @@ def _enforce_tag_policy(
         if tag not in buckets[bucket]:
             buckets[bucket].append(tag)
 
-    for required in ["1girl", "solo"]:
+    for required in (["1girl", "1boy", "hetero"] if partnered else ["1girl", "solo"]):
         if required not in buckets["person"]:
             buckets["person"].insert(0, required)
 
@@ -418,6 +587,39 @@ def _enforce_tag_policy(
         if not any(tag in EYE_DIRECTION_TAGS for tag in buckets["expression"]):
             buckets["expression"].append("looking_at_viewer")
 
+    # A face cannot be both. When the tag model hedges ("happy, expressionless,
+    # serious, grin"), the derived expression tags decide which half survives;
+    # with none derived, the larger group wins.
+    positive_face = [t for t in buckets["expression"] if t in _POSITIVE_FACE_TAGS]
+    negative_face = [t for t in buckets["expression"] if t in _NEGATIVE_EMOTION_TAGS]
+    if positive_face and negative_face:
+        derived = set(mandatory_expression_tags or [])
+        if derived & set(negative_face):
+            drop = set(positive_face)
+        elif derived & set(positive_face):
+            drop = set(negative_face)
+        else:
+            drop = set(positive_face) if len(negative_face) >= len(positive_face) else set(negative_face)
+        buckets["expression"] = [t for t in buckets["expression"] if t not in drop]
+
+    # Once she is naked she stays naked until she actually puts something on.
+    # The state resolver keeps listing a blouse through a sex scene, so trusting
+    # it produced a dressed picture one turn after a nude one.
+    if force_dressed:
+        # She is putting clothes on this turn: a leftover nude tag would undress
+        # her again in the picture.
+        buckets["clothing"] = [t for t in buckets["clothing"] if not _is_nude_tag(t)]
+        buckets["action"] = [t for t in buckets["action"] if not _is_nude_tag(t)]
+    elif stay_nude or force_nude:
+        buckets["clothing"] = [t for t in buckets["clothing"] if _is_nude_tag(t)]
+        if not any(_is_nude_tag(t) for t in buckets["clothing"]):
+            buckets["clothing"].insert(0, "nude")
+        # Undressing actions ("skirt_removal") contradict an already-nude body.
+        buckets["action"] = [
+            t for t in buckets["action"]
+            if not (_tag_matches_vocabulary(t, CLOTHING_TAGS) and not _is_nude_tag(t))
+        ]
+
     # Scene lock should act as fallback only (never hard-override current turn).
     if preserve_scene_lock_clothing and not buckets["clothing"]:
         for tag in scene_lock.get("clothing", []):
@@ -444,7 +646,7 @@ def _enforce_tag_policy(
     deduped_ordered: List[str] = []
     deduped_seen = set()
     for tag in ordered_tags:
-        if tag not in deduped_seen and not _is_forbidden_tag(tag, allow_full_body=full_body_mode):
+        if tag not in deduped_seen and not _is_forbidden_tag(tag, allow_full_body=full_body_mode, allow_partner=partnered):
             deduped_seen.add(tag)
             deduped_ordered.append(tag)
 
@@ -517,6 +719,103 @@ def _extract_visual_actions(dialogue_response: str) -> str:
     return dialogue_response
 
 
+def _extract_spoken_line(dialogue_response: str) -> str:
+    """Extract what the character says — the tone of the turn lives there.
+
+    Dialogue is written as italic actions plus dashed speech, so anything not
+    wrapped in underscores is spoken. Bold is still recognised for older rows
+    written under the previous format.
+    """
+    if not dialogue_response:
+        return ""
+
+    bold = re.findall(r'\*([^*]+)\*', dialogue_response)
+    if bold:
+        return " ".join(s.strip() for s in bold if s.strip())
+
+    spoken = []
+    for chunk in re.split(r'_[^_]*_', dialogue_response):
+        line = chunk.strip().lstrip('-–— ').strip()
+        if line:
+            spoken.append(line)
+    return " ".join(spoken)
+
+
+# Emotion cues → danbooru expression tags. Keys are matched as substrings against
+# the state's emotion field (English, written by the state resolver) and against
+# the dialogue text (Russian or English, written for the user), so both spellings
+# of every feeling are listed. Order matters: the first match wins per family.
+_EMOTION_TAG_MAP: List[Tuple[Tuple[str, ...], List[str]]] = [
+    (("crying", "sobbing", "heartbroken", "tears", "плач", "рыда", "слёз", "слез", "разбит"),
+     ["crying", "tears", "teary_eyes", "sad"]),
+    (("angry", "furious", "rage", "mad at", "злю", "злая", "злит", "бешен", "ярост", "сержу", "серди", "разъяр"),
+     ["angry", "frown", "v-shaped_eyebrows", "clenched_teeth"]),
+    (("annoyed", "irritated", "sulking", "pouting", "jealous", "обиж", "обид", "раздраж", "надул", "ревну", "фырк", "дуюсь"),
+     ["annoyed", "pout", "frown"]),
+    (("sad", "hurt", "disappointed", "betrayed", "lonely", "груст", "печал", "больно", "расстро", "одинок", "разочаров"),
+     ["sad", "frown", "downcast_eyes"]),
+    (("scared", "afraid", "fear", "anxious", "worried", "страш", "боюсь", "испуг", "трев", "волну"),
+     ["scared", "wide-eyed", "nervous", "trembling"]),
+    (("surprised", "shocked", "startled", "удивл", "потряс", "шокир", "ошелом"),
+     ["surprised", "wide-eyed", "open_mouth"]),
+    (("disgust", "offended", "отвращ", "противно", "оскорбл"),
+     ["disgust", "grimace", "frown"]),
+    # "серьёзно" is dropped on purpose: "Ты серьёзно?!" is disbelief or delight,
+    # and matching it here painted an excited scene expressionless.
+    (("cold", "distant", "detached", "холодн", "отстран", "равнодуш", "безразлич"),
+     ["expressionless", "serious", "closed_mouth"]),
+    (("tired", "exhausted", "drained", "sleepy", "устал", "изнур", "сонн"),
+     ["tired", "sleepy", "half-closed_eyes"]),
+    (("embarrassed", "flustered", "shy", "смущ", "стесн", "стыд", "робе"),
+     ["embarrassed", "blush", "looking_away"]),
+    (("smug", "teasing", "mocking", "ухмыл", "дразн", "насмеш", "самодовол"),
+     ["smirk", "smug", "half-closed_eyes"]),
+    (("aroused", "horny", "seductive", "lustful", "возбужд", "соблазн", "похот", "желани"),
+     ["bedroom_eyes", "half-closed_eyes", "parted_lips", "blush"]),
+    (("excited", "playful", "cheerful", "радост", "весел", "игрив", "восторж"),
+     ["grin", "happy", "open_mouth"]),
+    (("happy", "affectionate", "warm", "loving", "content", "счастл", "нежн", "ласков", "любл", "тепл"),
+     ["smile", "light_smile", "blush"]),
+]
+
+_POSITIVE_FACE_TAGS = {
+    "smile", "light_smile", "slight_smile", "grin", "happy", "seductive_smile",
+    "laughing", ":d",
+}
+
+# Families whose faces must not be overridden by the checkpoint's default smile.
+_NEGATIVE_EMOTION_TAGS = {
+    "crying", "angry", "annoyed", "pout", "sad", "scared", "disgust",
+    "expressionless", "serious", "tired",
+}
+
+# Anime checkpoints smile by default; when the scene is not happy, push back.
+_SMILE_SUPPRESSION = "smile, light_smile, grin, smirk, seductive_smile, happy, laughing"
+
+
+def _derive_expression_tags(emotions: str, dialogue_response: str) -> Tuple[List[str], bool]:
+    """Map the turn's emotions onto mandatory danbooru expression tags.
+
+    Reads the state's emotion field first and the dialogue text second, so a mood
+    that only surfaces in what she says still reaches the image. Returns the tags
+    and whether the resulting face is a negative one (used to suppress smiles).
+    """
+    haystacks = [
+        (emotions or "").lower(),
+        (dialogue_response or "").lower(),
+    ]
+    tags: List[str] = []
+    for cues, mapped in _EMOTION_TAG_MAP:
+        if any(cue in hay for hay in haystacks for cue in cues):
+            for tag in mapped:
+                if tag not in tags:
+                    tags.append(tag)
+            if len(tags) >= 5:
+                break
+    is_negative = any(tag in _NEGATIVE_EMOTION_TAGS for tag in tags)
+    return tags[:5], is_negative
+
+
 def _build_image_context(
     state: str,
     dialogue_response: str,
@@ -534,6 +833,7 @@ def _build_image_context(
     mandatory_focus_tags: Optional[List[str]] = None,
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    scenario: str = "",
 ) -> Tuple[str, List[str], Dict[str, List[str]], Dict[str, bool], Dict[str, Any]]:
     """Build structured context for image prompt generation.
     
@@ -572,6 +872,20 @@ def _build_image_context(
     scene_change_flags = _detect_scene_change_intent(user_message, visual_actions)
     scene_lock_enabled = _should_use_scene_lock(previous_image_meta)
     scene_lock = _extract_scene_lock_anchors(previous_image_prompt) if scene_lock_enabled else {"clothing": [], "environment": []}
+
+    # Restraints persist across photos — including right after a gift-purchase
+    # image, where the scene lock is deliberately off. Only an explicit untying
+    # (or getting dressed) ends the bound state.
+    restraint_carry = _extract_restraint_tags(previous_image_prompt)
+    untied_now = any(
+        marker in f"{user_message or ''} {dialogue_response or ''}".lower()
+        for marker in UNTIE_MARKERS
+    )
+    stay_bound = bool(restraint_carry) and not untied_now and not scene_change_flags["dressed_up"]
+    if stay_bound:
+        for tag in restraint_carry:
+            if tag not in mandatory_focus_tags:
+                mandatory_focus_tags.append(tag)
     
     # Build gift override section (top priority)
     gift_section = ""
@@ -595,10 +909,17 @@ Required tags: {sanitized_forced_tags}
             f"- {rule}" for rule in gift_usage_rules
         ) + "\n\n"
     
-    # Build mood hint
+    # Expression tags come from this turn's feelings, not from the chat's mood
+    # average — a happy relationship still has angry moments.
+    expression_tags, negative_expression = _derive_expression_tags(emotions, dialogue_response)
+    spoken_line = _extract_spoken_line(dialogue_response)
+
     mood_hint = ""
-    if mood >= 70:
-        mood_hint = "\n# MOOD: Character is happy — use smile or warm expression tags"
+    if not expression_tags:
+        if mood >= 70:
+            mood_hint = "\n# MOOD: Relationship is warm — a soft expression fits unless the words say otherwise"
+        elif mood <= 30:
+            mood_hint = "\n# MOOD: Relationship is strained — do not default to a smile"
 
     action_truth_section = f"""
 # ACTION TRUTH POLICY
@@ -612,6 +933,14 @@ If refusal is detected, depict hesitation/recoil/distance from AI actions, not e
 Active: {"yes" if control_orb_active else "no"}
 Turns left: {max(0, int(control_orb_messages_left or 0))}
 If active, the character is under magical mind control and must comply with the user's visual command.
+"""
+
+    restraint_section = ""
+    if stay_bound:
+        restraint_section = f"""
+# RESTRAINTS (persist until removed)
+She is still tied up from earlier: {", ".join(restraint_carry[:6])}.
+Keep these rope/bondage tags in the output until the text says she is untied.
 """
 
     scene_lock_section = f"""
@@ -629,8 +958,14 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 # AI VISUAL ACTIONS (primary source for pose/action tags)
 {visual_actions or "not specified"}
 
+# AI SPOKEN LINE (primary source for tone — read it before choosing the face)
+{spoken_line or "not specified"}
+
 # MANDATORY FOCUS TAGS (must appear when present)
 {", ".join(mandatory_focus_tags) if mandatory_focus_tags else "none"}
+
+# MANDATORY EXPRESSION TAGS (must appear when present; never contradict them)
+{", ".join(expression_tags) if expression_tags else "none — infer the face from EMOTIONS and the spoken line"}
 
 # LOCATION
 {location or "not specified"}
@@ -646,10 +981,33 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 
 # ATMOSPHERE
 {mood_notes or "not specified"}
-{action_truth_section}{control_orb_section}{scene_lock_section}{mood_hint}"""
-    
+
+# SCENE BACKDROP (the setting this story opened in — weather, time of day, place)
+{(scenario or "not specified").strip()[:400]}
+Carry its weather and lighting into the tags: rain means wet hair and wet skin,
+night means dim light, snow means cold. Skip it only if the scene has moved indoors.
+{action_truth_section}{control_orb_section}{restraint_section}{scene_lock_section}{mood_hint}"""
+
+    # She was nude last frame and nobody got dressed this turn -> still nude.
+    # Read the previous prompt directly, not the scene lock: the lock is off
+    # right after a gift-purchase image, but her body state still carries over.
+    previously_nude = any(
+        _is_nude_tag(_canonicalize_tag(t)) for t in _split_tags(previous_image_prompt or "")
+    )
+    stay_nude = previously_nude and not scene_change_flags["dressed_up"]
+    # Or the text undresses her right now, whatever aiClothing still claims.
+    force_nude = scene_change_flags["undressed_now"] and not scene_change_flags["dressed_up"]
+    force_dressed = scene_change_flags["dressed_up"]
+
     observability = {
         "previous_image_source": (previous_image_meta or {}).get("source") if isinstance(previous_image_meta, dict) else "unknown",
+        "stay_nude": stay_nude,
+        "force_nude": force_nude,
+        "force_dressed": force_dressed,
+        "stay_bound": stay_bound,
+        "restraint_tags": restraint_carry,
+        "expression_tags": expression_tags,
+        "negative_expression": negative_expression,
         "scene_lock_enabled": scene_lock_enabled,
         "gift_override_mode": gift_override_mode,
         "refusal_detected": refusal_detected,
@@ -693,6 +1051,22 @@ def _sanitize_tags(raw_output: str) -> str:
     tags = [t.strip() for t in text.split(',') if t.strip()]
     
     return ', '.join(tags)
+
+
+def prefetch_focus_tags(user_message: str) -> asyncio.Task:
+    """Start focus-tag inference now, to be awaited when the image plan runs.
+
+    Only the user's message is available this early, which is the signal that
+    matters here — explicit requests ("show me your feet") are exactly what these
+    tags exist to pin down.
+    """
+    config = get_app_config()
+    return asyncio.create_task(_infer_mandatory_focus_tags(
+        user_message=user_message,
+        visual_actions="",
+        model=config["llm"]["image_model"],
+        use_reasoning=config["llm"].get("image_model_reasoning", False),
+    ))
 
 
 async def _infer_mandatory_focus_tags(
@@ -775,6 +1149,8 @@ async def generate_image_plan(
     allow_scene_override: bool = False,
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    precomputed_focus_tags: Optional[List[str]] = None,
+    scenario: str = "",
 ) -> str:
     """
     Brain 3: Generate SDXL image prompt
@@ -798,12 +1174,17 @@ async def generate_image_plan(
     refusal_detected = _detect_refusal_or_deflection(dialogue_response)
     inferred_focus_tags: List[str] = []
     if not refusal_detected:
-        inferred_focus_tags = await _infer_mandatory_focus_tags(
-            user_message=user_message,
-            visual_actions=visual_actions,
-            model=model,
-            use_reasoning=use_reasoning,
-        )
+        if precomputed_focus_tags is not None:
+            # Computed in parallel with the dialogue brain — 1.5s off the wait
+            # before the image job reaches RunPod.
+            inferred_focus_tags = precomputed_focus_tags
+        else:
+            inferred_focus_tags = await _infer_mandatory_focus_tags(
+                user_message=user_message,
+                visual_actions=visual_actions,
+                model=model,
+                use_reasoning=use_reasoning,
+            )
 
     context, mandatory_focus_tags, scene_lock, scene_change_flags, observability = _build_image_context(
         state,
@@ -822,6 +1203,7 @@ async def generate_image_plan(
         mandatory_focus_tags=inferred_focus_tags,
         control_orb_active=control_orb_active,
         control_orb_messages_left=control_orb_messages_left,
+        scenario=scenario,
     )
     
     # Retry with exponential backoff
@@ -884,13 +1266,22 @@ async def generate_image_plan(
             sanitized_tags = _sanitize_tags(raw_result)
             result_text = _enforce_tag_policy(
                 raw_tags=sanitized_tags,
-                mandatory_focus_tags=mandatory_focus_tags,
+                # Expression tags ride along as mandatory: the face must survive
+                # even when the tag model ignores the instruction.
+                mandatory_focus_tags=mandatory_focus_tags + [
+                    t for t in observability["expression_tags"] if t not in mandatory_focus_tags
+                ],
                 scene_lock=scene_lock,
                 preserve_scene_lock_clothing=observability["scene_lock_enabled"] and not scene_change_flags["clothing_changed"],
                 preserve_scene_lock_environment=observability["scene_lock_enabled"] and not scene_change_flags["location_changed"],
                 forced_gift_tags=_split_tags(observability["gift_override_tags"])
                 if observability["gift_override_mode"] == "forced"
                 else [],
+                stay_nude=observability["stay_nude"],
+                force_nude=observability["force_nude"],
+                force_dressed=observability["force_dressed"],
+                mandatory_expression_tags=observability["expression_tags"],
+                contact_text=f"{dialogue_response or ''} {user_message or ''}",
             )
 
             # Development-only: Log full response
@@ -959,7 +1350,39 @@ def assemble_final_prompt(
             seen.add(norm)
             deduped.append(tag)
     
-    positive_prompt = ", ".join(deduped)
+    # Anime checkpoints smile unprompted, so an unhappy scene needs the smile
+    # pushed out of the positive prompt and into the negative one. The emotion
+    # tags in the plan are the signal — no extra plumbing from the caller.
+    prompt_tags = {t.strip().lower() for t in deduped}
     negative_prompt = negative_base_prompt
-    
+
+    # The base negative prompt carries "1boy, male_focus" to keep stray men out of
+    # solo shots — but in a sex scene the man is supposed to be there, and fighting
+    # him gave the partner a woman's chest. Swap those for anti-feminisation terms.
+    if "1boy" in prompt_tags or "hetero" in prompt_tags:
+        negative_prompt = ", ".join(
+            t.strip() for t in negative_prompt.split(",")
+            if t.strip().lower() not in {"1boy", "male_focus"}
+        )
+        negative_prompt = f"{negative_prompt}, {MALE_BODY_NEGATIVES}"
+
+    # The base negative bans wide framings to keep casual shots close — but when
+    # this scene explicitly asks for full_body (shibari, standing poses), those
+    # negatives fight the requested framing at full CFG and the anatomy loses.
+    if "full_body" in prompt_tags:
+        wide_framing_negatives = {"full body", "distant shot", "far away", "wide shot", "long shot"}
+        negative_prompt = ", ".join(
+            t.strip() for t in negative_prompt.split(",")
+            if t.strip().lower() not in wide_framing_negatives
+        )
+
+    if prompt_tags & _NEGATIVE_EMOTION_TAGS:
+        smile_tags = {t.strip().lower() for t in _SMILE_SUPPRESSION.split(",")}
+        deduped = [t for t in deduped if t.strip().lower() not in smile_tags]
+        # Extend the negative built so far — resetting from the base here used to
+        # silently undo the male-tag swap in angry sex scenes.
+        negative_prompt = f"{negative_prompt}, {_SMILE_SUPPRESSION}"
+
+    positive_prompt = ", ".join(deduped)
+
     return positive_prompt, negative_prompt

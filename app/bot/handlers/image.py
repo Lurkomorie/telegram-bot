@@ -23,6 +23,16 @@ from app.core.logging_utils import log_always
 import random
 
 
+def _cached_image_photo_pointer(cached_image):
+    if not cached_image:
+        return None
+    if cached_image.result_file_id:
+        return cached_image.result_file_id
+    if cached_image.result_url and not cached_image.result_url.startswith("binary:"):
+        return cached_image.result_url
+    return None
+
+
 @router.message(Command("image"))
 async def cmd_image(message: types.Message):
     """Handle /image command"""
@@ -156,7 +166,8 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
         prompt_hash = crud.compute_prompt_hash(positive_prompt)
         cached_image = crud.find_cached_image(db, prompt_hash, user_id)
         
-        if cached_image and cached_image.result_url:
+        cached_photo = _cached_image_photo_pointer(cached_image)
+        if cached_image and cached_photo:
             print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
             
             try:
@@ -180,7 +191,7 @@ async def generate_image_for_user(message: types.Message, user_id: int, user_pro
                 # Send cached image
                 sent_message = await bot.send_photo(
                     chat_id=message.chat.id,
-                    photo=cached_image.result_url,
+                    photo=cached_photo,
                     reply_markup=refresh_keyboard
                 )
                 
@@ -420,6 +431,10 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         
         # REUSE EXACT PROMPTS from original job (don't regenerate!)
         positive_prompt = original_job.prompt
+        # Older stored prompts (scenario starters) predate the POV rules.
+        _tags = [t.strip().lower() for t in (positive_prompt or "").split(",")]
+        if "pov" not in _tags and "male_pov" not in _tags:
+            positive_prompt = f"pov, close-up, {positive_prompt}"
         negative_prompt = original_job.negative_prompt
         original_ext = original_job.ext if original_job.ext else {}
         user_prompt = original_ext.get("user_prompt", "")
@@ -967,7 +982,8 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
         prompt_hash = crud.compute_prompt_hash(positive_prompt)
         cached_image = crud.find_cached_image(db, prompt_hash, user_id)
         
-        if cached_image and cached_image.result_url:
+        cached_photo = _cached_image_photo_pointer(cached_image)
+        if cached_image and cached_photo:
             print(f"[IMAGE] ✅ CACHE HIT! Found cached image {cached_image.id}")
             
             try:
@@ -986,7 +1002,7 @@ async def generate_image_with_prompt(message: types.Message, user_id: int, perso
                 # Send cached image
                 sent_message = await bot.send_photo(
                     chat_id=message.chat.id,
-                    photo=cached_image.result_url,
+                    photo=cached_photo,
                     reply_markup=refresh_keyboard
                 )
                 

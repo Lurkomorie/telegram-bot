@@ -171,16 +171,10 @@ def decide_gift_recommendation(
                 "item_info": None,
             }
 
-    # First suggestion must happen on an exact cadence boundary (20, 40, 60...).
-    if not isinstance(last_suggestion_count, int):
-        if cadence > 0 and (current_user_message_count % cadence) != 0:
-            return {
-                "should_suggest": False,
-                "reason": "cadence_wait_boundary",
-                "scene_mode": "normal",
-                "item_key": None,
-                "item_info": None,
-            }
+    # The first suggestion fires as soon as the chat is past the minimum —
+    # the old "exact cadence boundary" rule made long-running chats wait for
+    # count % cadence == 0, which in practice read as "she never asks".
+    # Begging is intentionally blind to premium status and energy balance.
 
     scene_mode = classify_scene_mode(state, dialogue_response, user_message)
 

@@ -1,28 +1,33 @@
 llm:
   provider: openrouter
-  model: xiaomi/mimo-v2-flash # Main conversational intelligence - ultra cheap
-  followup_model: xiaomi/mimo-v2-flash # Auto-followup messages (same model)
+  model: deepseek/deepseek-v3.2 # Main conversational intelligence - 2x faster than v3-0324 on the same prompt, 14 provider endpoints
+  followup_model: deepseek/deepseek-v3.2 # Auto-followup messages (same model)
   state_model: mistralai/mistral-nemo # Fast model for state resolution
-  image_model: x-ai/grok-4-fast # Image tag generation
-  image_model_reasoning: true # Disable reasoning to reduce costs
-  memory_model: xiaomi/mimo-v2-flash # Memory extraction - uncensored, cheap, decent quality with good prompt
+  image_model: deepseek/deepseek-v3.2 # Image tag generation - same family, ~2x faster and far more stable than v3-0324
+  image_model_reasoning: false # Disable reasoning to reduce costs
+  memory_model: deepseek/deepseek-chat-v3-0324 # Memory/name extraction - must not be a reasoning model (20-token calls come back empty)
   decision_model: mistralai/ministral-3b-2512 # Fast, uncensored model for image decisions
   summary_model: mistralai/ministral-3b-2512 # Fast, cheap model for context summarization
+  provider_sort: throughput # pick the fastest endpoint instead of OpenRouter's default order
+  provider_quantizations:
+    xiaomi/mimo-v2.5: [bf16, fp8]
+    deepseek/deepseek-chat-v3-0324: [bf16, fp16, fp8] # default routing served this at fp4
+    deepseek/deepseek-v3.2: [bf16, fp16, fp8] # keep DeepInfra's fp4 endpoint out of rotation
   temperature: 0.7
-  max_tokens: 300
-  timeout_sec: 40
+  max_tokens: 400 # 300 cut replies mid-sentence on the longest allowed shape
+  timeout_sec: 20 # a provider that hasn't answered in 20s is not worth waiting for — retrying elsewhere is faster
 
 image:
   provider: runpod
   width: 832
   height: 1216
-  steps: 25
+  steps: 25 # 20 was fast but hands/eyes started mangling, especially in full-body frames; +~0.7s is still inside the 5s budget
   cfg_scale: 7
   sampler_name: euler
   poll_interval_sec: 2.0
   poll_timeout_sec: 60
   quality_prompt: "masterpiece, best quality, absurdres, newest, highres, ultra detailed, sharp focus, detailed face, detailed eyes, eye_focus, looking_at_viewer, eye_contact, skin texture, depth of field"
-  negative_prompt: "lowres, (bad), worst quality, bad quality, bad anatomy, bad hands, extra digits, fewer digits, multiple views, extra, missing, text, error, jpeg artifacts, watermark, unfinished, displeasing, oldest, signature, username, scan, comic, greyscale, monochrome, blurry, blur, out of focus, motion blur, distant shot, far away, wide shot, long shot, full body, bad eyes, blurry eyes, asymmetrical eyes, deformed eyes, cross-eyed, lazy eye, 1boy, male_focus"
+  negative_prompt: "lowres, (bad), worst quality, bad quality, bad anatomy, (bad hands:1.2), (extra digits:1.2), fewer digits, extra fingers, missing fingers, fused fingers, six fingers, deformed hands, mutated hands, extra limbs, missing limbs, extra arms, extra legs, bad proportions, multiple views, extra, missing, text, error, jpeg artifacts, watermark, unfinished, displeasing, oldest, signature, username, scan, comic, greyscale, monochrome, blurry, blur, out of focus, motion blur, distant shot, far away, wide shot, long shot, full body, (bad eyes:1.2), blurry eyes, asymmetrical eyes, deformed eyes, cross-eyed, lazy eye, 1boy, male_focus"
 
 limits:
   text_per_min: 20
@@ -42,8 +47,54 @@ features:
 miniapp:
   menu_button_name: "App"
 
+tribute:
+  # Tribute product URLs - per language (ru/en)
+  # Fill after creating products in Tribute Creator Dashboard
+  product_urls:
+    subscription_daily:
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
+    subscription_weekly:
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
+    subscription_monthly:
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
+    subscription_yearly:
+      ru: "https://t.me/tribute/app?startapp=sQGO"
+      en: "https://t.me/tribute/app?startapp=sQGL"
+    tokens_50:
+      ru: "https://t.me/tribute/app?startapp=psTE"
+      en: ""
+    tokens_100:
+      ru: "https://t.me/tribute/app?startapp=psTG"
+      en: ""
+    tokens_250:
+      ru: "https://t.me/tribute/app?startapp=psTH"
+      en: ""
+    tokens_500:
+      ru: "https://t.me/tribute/app?startapp=psTI"
+      en: ""
+    tokens_1000:
+      ru: "https://t.me/tribute/app?startapp=psTJ"
+      en: ""
+    tokens_2500:
+      ru: "https://t.me/tribute/app?startapp=psTK"
+      en: ""
+    tokens_5000:
+      ru: "https://t.me/tribute/app?startapp=psTL"
+      en: ""
+    tokens_10000:
+      ru: "https://t.me/tribute/app?startapp=psTM"
+      en: ""
+    tokens_25000:
+      ru: "https://t.me/tribute/app?startapp=psTN"
+      en: ""
+
 gift:
-  cadence_user_messages: 20
-  purchase_cooldown_user_messages: 20
-  min_user_messages_before_suggestions: 20
+  # Tuned 2026-08-08: first hint sooner and roughly every ~12 user messages —
+  # noticeably more offers without turning every reply into a sales pitch.
+  cadence_user_messages: 12
+  purchase_cooldown_user_messages: 12
+  min_user_messages_before_suggestions: 10
   suggestion_probability: 1.0

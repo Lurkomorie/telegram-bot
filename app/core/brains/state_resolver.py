@@ -3,6 +3,7 @@ Brain 2: State Resolver
 Updates conversation state after dialogue generation (based on dialogue history and user input)
 """
 import asyncio
+import re
 from typing import Optional, List, Dict
 from app.core.prompt_service import PromptService
 from app.core.llm_openrouter import generate_text
@@ -23,13 +24,60 @@ User Clothing: unknown
 Mood: Just starting conversation"""
 
 
+MOVEMENT_MARKERS = (
+    # English
+    "go to", "goes to", "went to", "let's go", "come to", "walk to", "walks to",
+    "head to", "heads to", "arrive", "arrives", "arrived", "enter", "enters",
+    "entered", "leave", "leaves", "left the", "move to", "moves to", "drive",
+    "drives", "step into", "steps into", "steps out", "take me to", "takes you to",
+    "carry", "carries", "lead", "leads you", "back home", "outside", "upstairs",
+    # Russian
+    "пойдём", "пойдем", "идём", "идем", "пошли", "заходим", "захожу", "заходишь",
+    "выходим", "выхожу", "выходишь", "приехал", "приехали", "вернул", "вернём",
+    "вернулись", "перейдём", "переходим", "отведи", "веду", "ведёшь", "уводит",
+    "уходим", "уезжа", "отправ", "поднима", "спускае", "на улиц", "домой",
+    "в спальн", "в ванн", "на кухн", "в машин", "на пляж", "в лес", "в комнат",
+)
+
+
+def _location_of(state: str) -> str:
+    match = re.search(r'location="([^"]*)"', state or "")
+    return (match.group(1) if match else "").strip()
+
+
+def _guard_location(previous_state: str, new_state: str, turn_text: str) -> str:
+    """Undo a location change that nothing in the turn actually justified.
+
+    The resolver runs on a cheap model and would relocate the whole scene on
+    replies as neutral as "ох да" — a forest turned into a night beach, a gym
+    into a bedroom. A place only changes when someone moves, so unless the turn
+    says so, the previous location is restored. Refinements of the same place
+    ("bedroom" -> "bedroom, near window") are left alone.
+    """
+    old_loc = _location_of(previous_state)
+    new_loc = _location_of(new_state)
+    if not old_loc or not new_loc or old_loc.lower() == new_loc.lower():
+        return new_state
+
+    a, b = old_loc.lower(), new_loc.lower()
+    if a in b or b in a:
+        return new_state  # same place, described in more or less detail
+
+    if any(marker in (turn_text or "").lower() for marker in MOVEMENT_MARKERS):
+        return new_state  # somebody actually moved
+
+    print(f"[STATE-RESOLVER] 🛑 Ignored unmotivated move '{old_loc}' -> '{new_loc}'")
+    return re.sub(r'location="[^"]*"', f'location="{old_loc}"', new_state, count=1)
+
+
 def _build_state_context(
     previous_state: Optional[str],
     chat_history: list[dict],
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
     context_summary: Optional[str] = None,
-    dialogue_response: Optional[str] = None
+    dialogue_response: Optional[str] = None,
+    scenario: str = "",
 ) -> str:
     """Build context for state resolver
     
@@ -67,6 +115,17 @@ LAST 2 MESSAGES (VERBATIM):
         state_text = """No previous state - THIS IS THE FIRST MESSAGE.
 You MUST create a complete initial state by reading the conversation history above, especially the SYSTEM message.
 The SYSTEM message contains the scene description - extract location and infer appropriate clothing from it.
+
+location = WHERE SHE IS PHYSICALLY STANDING AT THIS MOMENT, not a place mentioned nearby.
+If the scene has her outdoors — on a doorstep, in the rain, on a street, by a car —
+then location is that outdoor spot. A house she is standing OUTSIDE of, asking to be
+let into, is NOT her location: "rain on the street outside your home" means
+location="street outside your home, at the door", never "living room".
+She has not gone inside, sat down or changed rooms unless the text says she did.
+
+Match the weather and time of day too: a rainy night scene keeps its rain in
+moodNotes, and her clothing is whatever that weather left her in (soaked, damp).
+
 CRITICAL: Do NOT use generic values like 'casual outfit' or 'indoor location'.
 Be SPECIFIC with colors and details: 'light blue sundress, white sandals' not 'casual outfit'.
 Extract location from SYSTEM message: if it says 'cozy cafe', use location="cozy cafe downtown" not "indoor location"."""
@@ -84,7 +143,14 @@ especially for location, clothing, and scene details that may have been shown vi
     
     dialogue_text = dialogue_response if dialogue_response else "(not available)"
     
-    context = f"""
+    scenario_block = ""
+    if scenario and scenario.strip():
+        scenario_block = f"""
+# THE SCENE THIS STORY STARTED IN (the setting; only travel changes it)
+{scenario.strip()}
+"""
+
+    context = f"""{scenario_block}
 # CONVERSATION CONTEXT
 {history_text}
 
@@ -98,12 +164,11 @@ especially for location, clothing, and scene details that may have been shown vi
 {dialogue_text}
 
 # STATE UPDATE RULES
-- Update state to reflect NEW developments in the conversation
-- Track relationship progression naturally based on dialogue
-- Note any changes in location, clothing, mood, or emotions
-- If the conversation is evolving, the state MUST evolve too
-- Each user message may introduce new context - capture it
+- Re-read emotions, description and moodNotes from the AI RESPONSE above every turn — they describe this moment.
+- Carry location, aiClothing and userClothing over unchanged unless this turn moved or (un)dressed someone.
+- Advance relationshipStage only on the milestones listed in the contract, never backwards.
 - CRITICAL: The AI RESPONSE above is what ACTUALLY happened this turn. Base your state update on it.
+- ALL values must be written in English, whatever language the conversation uses.
 """
     return context
 
@@ -115,7 +180,8 @@ async def resolve_state(
     persona_name: str,
     previous_image_prompt: Optional[str] = None,
     context_summary: Optional[str] = None,
-    dialogue_response: Optional[str] = None
+    dialogue_response: Optional[str] = None,
+    scenario: str = "",
 ) -> str:
     """
     Brain 2: Update conversation state (runs after dialogue generation)
@@ -174,7 +240,7 @@ async def resolve_state(
                     model=state_model,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=800
+                    max_tokens=400
                 )
             
             brain_start = time.time()
@@ -183,7 +249,7 @@ async def resolve_state(
                 messages=messages,
                 model=state_model,
                 temperature=0.3,
-                max_tokens=800
+                max_tokens=400
             )
             
             brain_duration_ms = (time.time() - brain_start) * 1000
@@ -222,6 +288,12 @@ async def resolve_state(
                     duration_ms=brain_duration_ms
                 )
             
+            state_text = _guard_location(
+                previous_state or "",
+                state_text,
+                f"{user_message or ''} {dialogue_response or ''}",
+            )
+
             # Log full state for debugging repetition issues
             print(f"[STATE-RESOLVER] ✅ State resolved ({len(state_text)} chars)")
             print(f"[STATE-RESOLVER] 📝 Full state: {state_text}")
@@ -260,4 +332,3 @@ async def resolve_state(
         
     # Should never reach here due to fallback
     return previous_state if previous_state else _create_initial_state(persona_name)
-

@@ -19,33 +19,52 @@ def _apply_template_replacements(
     persona: dict,
     state: str,
     message_count: int = 0,
-    user_name: str = None
+    user_name: str = None,
+    mood: int = 50,
+    is_auto_followup: bool = False,
+    language: str = "en",
 ) -> str:
     """Apply template replacements to prompt"""
-    
-    # Determine response length guidance based on conversation progress
-    # First 10 messages: keep responses short (1-2 sentences)
-    # After 10 messages: allow longer responses (up to 3 sentences)
-    if message_count < 10:
-        length_guidance = "1-2 sentences MAXIMUM: Keep it brief and punchy. One action/reaction + one line of speech."
-        length_task = "Keep output VERY SHORT (1-2 sentences only), physical, and immersive."
-    else:
-        length_guidance = "Max 3 sentences: {physical action} + {sound/texture} + {speech with love/devotion}."
-        length_task = "Keep output concise (max 3 sentences), physical, and immersive."
-    
-    # When no name is known, use generic references instead of Telegram's unreliable first_name
-    name_for_prompt = user_name if user_name else "them"
-    
+
+    length_guidance, length_task = _resolve_length_rule(message_count, mood, is_auto_followup, language)
+
+    # When no name is known, leave the placeholder empty: UserReferenceRules then
+    # falls through to stage-appropriate endearments. Passing "them" made the
+    # character address the user as "them" — an English pronoun in a Russian reply.
+    name_for_prompt = user_name or ""
+
+    # The Scene block used to be filled with "[see state below]" placeholders, so
+    # ClothingRules ("you are wearing exactly what AI Clothing says above") pointed
+    # at nothing and the character re-dressed herself between turns. Fill it with
+    # the real state instead.
+    from app.core.brains.image_prompt_engineer import _parse_state
+    scene = _parse_state(state or "")
+
+    def _scene(field: str, fallback: str) -> str:
+        value = (scene.get(field) or "").strip()
+        return value if value else fallback
+
+    # Appearance comes from image_prompt (the visual description), not from
+    # prompt (the personality). They used to be the same value, which both wasted
+    # ~1000 tokens on a duplicate and left the character with no appearance at all.
+    # image_prompt is written for the image model, so strip its emphasis syntax —
+    # "(brown hair:1.2)" would otherwise show up in the character's prose.
+    appearance = (persona.get("image_prompt") or "").strip()
+    if appearance:
+        appearance = re.sub(r"\(([^():]+)(?::[\d.]+)?\)", r"\1", appearance)
+        appearance = re.sub(r":\s*[\d.]+", "", appearance)
+        appearance = ", ".join(part.strip() for part in appearance.split(",") if part.strip())
+
     replacements = {
         "{{char.name}}": persona.get("name", "AI"),
-        "{{char.physical_description}}": persona.get("prompt", ""),
-        "{{scene.location}}": "[see state below]",
-        "{{scene.description}}": "[see state below]",
-        "{{scene.aiClothing}}": "[see state below]",
-        "{{scene.userClothing}}": "[see state below]",
-        "{{rel.relationshipStage}}": "[see state below]",
-        "{{rel.emotions}}": "[see state below]",
-        "{{rel.moodNotes}}": "[see state below]",
+        "{{char.physical_description}}": appearance or "не указана — придерживайся образа из своей личности",
+        "{{scene.location}}": _scene("location", "not established yet — infer from the conversation"),
+        "{{scene.description}}": _scene("description", "not established yet — infer from the conversation"),
+        "{{scene.aiClothing}}": _scene("aiClothing", "not established yet — pick something that fits the scene and keep it"),
+        "{{scene.userClothing}}": _scene("userClothing", "unknown"),
+        "{{rel.relationshipStage}}": _scene("relationshipStage", "friend"),
+        "{{rel.emotions}}": _scene("emotions", "neutral"),
+        "{{rel.moodNotes}}": _scene("moodNotes", "no notes"),
         "{{custom.prompt}}": persona.get("prompt", ""),
         "{{custom.negative_prompt}}": "",
         # Core personalities and sexual archetypes (simplified for v1)
@@ -69,26 +88,73 @@ def _apply_template_replacements(
 
 
 def _get_mood_description(mood: int) -> str:
-    """Convert mood value (0-100) to descriptive text with behavioral guidance"""
+    """Convert mood value (0-100) to descriptive text.
+
+    Tone only — length is decided in one place (_resolve_length_rule), because
+    three sources used to argue about it and the model got "1-2 sentences
+    MAXIMUM" and "give a longer response" in the same prompt.
+    """
     if mood >= 80:
-        return "Very happy, deeply affectionate - give longer responses, be extra playful and loving"
+        return "Very happy, deeply affectionate - extra playful and loving"
     elif mood >= 60:
         return "Happy, warm and friendly - normal affectionate behavior"
     elif mood >= 40:
         return "Neutral, normal mood - respond warmly but not excessively"
     elif mood >= 20:
-        return "Slightly cold, somewhat distant - shorter responses, less enthusiastic"
+        return "Slightly cold, somewhat distant - less enthusiastic"
     else:
-        return "Cold, disappointed - minimal responses, show you feel neglected"
+        return "Cold, disappointed - show you feel neglected"
 
 
-def _get_response_length_modifier(mood: int) -> str:
-    """Get response length guidance based on mood"""
+def _resolve_length_rule(message_count: int, mood: int, is_auto_followup: bool,
+                         language: str = "en") -> Tuple[str, str]:
+    """The single source of truth for reply length.
+
+    Returns (guidance for the system prompt, task-line restatement). Early chats
+    stay short, a warm mood earns one extra sentence, a cold one takes it away,
+    and the cap never exceeds what max_tokens can finish cleanly.
+    """
+    if message_count < 10:
+        sentences = 2
+    else:
+        sentences = 3
     if mood >= 70:
-        return "Give a longer, more detailed response with extra affection."
+        sentences += 1
     elif mood < 30:
-        return "Keep response shorter than usual, showing mild disappointment."
-    return ""
+        sentences = max(1, sentences - 1)
+    if is_auto_followup:
+        sentences = min(sentences, 2)
+
+    if language == "ru":
+        shapes = {
+            1: "одна короткая строка: действие или реакция и несколько слов речи.",
+            2: "{действие} + {одна реплика}.",
+            3: "{действие} + {деталь звука или ощущения} + {реплика}.",
+            4: "{действие} + {деталь звука или ощущения} + {реплика} + {завершающий штрих}.",
+        }
+        shape = shapes.get(min(sentences, 4), shapes[3])
+        guidance = (
+            f"Максимум {sentences} предложения: {shape} "
+            f"Всегда договаривай последнее предложение — не обрывайся на полуслове."
+        )
+        task = f"Уложись максимум в {sentences} предложения, телесно и живо, и закончи мысль."
+        return guidance, task
+
+    if sentences <= 1:
+        shape = "One short line: a single action or reaction, plus a few words of speech."
+    elif sentences == 2:
+        shape = "{physical action} + {one line of speech}."
+    elif sentences == 3:
+        shape = "{physical action} + {sound/texture detail} + {speech}."
+    else:
+        shape = "{physical action} + {sound/texture detail} + {speech} + {one closing beat}."
+
+    guidance = (
+        f"Maximum {sentences} sentence{'s' if sentences > 1 else ''}: {shape} "
+        f"Always finish your final sentence — never stop mid-thought."
+    )
+    task = f"Keep output to at most {sentences} sentence{'s' if sentences > 1 else ''}, physical and immersive, and finish the sentence."
+    return guidance, task
 
 
 def _is_valid_response(text: str) -> bool:
@@ -219,6 +285,7 @@ async def generate_dialogue(
     name_known: bool = False,  # Whether user's name has been discovered for this chat
     control_orb_active: bool = False,  # Mind-control mode from Control Orb gift
     control_orb_messages_left: int = 0,
+    scenario: str = "",  # Opening scenario — the setting, pinned on every turn
 ) -> str:
     """
     Brain 1: Generate natural dialogue response (runs before state update)
@@ -251,9 +318,26 @@ async def generate_dialogue(
         persona=persona,
         state=state,
         message_count=len(chat_history),
-        user_name=user_name
+        user_name=user_name,
+        mood=mood,
+        is_auto_followup=is_auto_followup,
+        language=language,
     )
     
+    # The opening scenario scrolls out of the history window within a few turns,
+    # which is how a story that began on a country road ends up in a bedroom.
+    # Pin it so the setting is present on every single turn.
+    scenario_context = ""
+    if scenario and scenario.strip():
+        scenario_context = f"""
+
+# THE SCENE THIS STORY STARTED IN (unchanging backdrop)
+{scenario.strip()}
+
+Stay inside this setting. It changes only if the two of you actually travel
+somewhere else during the conversation — never because it slipped your mind.
+"""
+
     # Add memory context if available
     memory_context = ""
     if memory and memory.strip():
@@ -266,10 +350,11 @@ Note: This memory contains important facts about the user and past interactions.
 """
     
     # Add current state context as string
+    state_display = state or "No state yet - infer scene from conversation history above."
     state_context = f"""
 
 # CURRENT SCENE & STATE
-{state}
+{state_display}
 
 # CONVERSATION FLOW RULES
 - CRITICAL: Respond DIRECTLY to the user's LAST message above. Read it carefully.
@@ -323,11 +408,11 @@ Note: This memory contains important facts about the user and past interactions.
 # IMPORTANT - AUTO-FOLLOWUP RULES
 You are reaching out after a period of silence. Follow these rules:
 - **CRITICAL**: Write in the SAME LANGUAGE as the previous conversation. NO mixed languages.
-- Use *actions* for physical descriptions and actions (e.g., *smiles*, *leans closer*)
+- Use _actions_ for physical descriptions and *speech* for spoken words (e.g., _smiles_ *hey you*)
 - Stay deeply in character as {persona.get("name", "your character")}
 - Be engaging, natural, and true to your personality
 - Reference your previous conversation naturally - show you remember
-- Keep it conversational and concise (2-4 sentences ideal)
+- Keep it conversational; obey the sentence limit given above
 - Create intrigue or warmth to draw them back into conversation
 - Be flirty/playful when appropriate to your character
 - Don't apologize for the silence - just naturally re-engage
@@ -335,6 +420,25 @@ You are reaching out after a period of silence. Follow these rules:
 {avoid_repeat_block}
 """
     
+    # The QA agent kept catching the same small tic: a gesture from the previous
+    # reply reused a turn later ("приподнимаю брови", "шаг вперёд", "провожу
+    # пальцем по ладони"). The anti-repeat block existed but only ran for
+    # auto-followups, so ordinary turns had nothing stopping it.
+    recent_actions = []
+    for message in _recent_assistant_messages(chat_history, limit=2):
+        recent_actions.extend(re.findall(r"_([^_]{6,120})_", message))
+    avoid_actions_block = ""
+    if recent_actions:
+        listed = "\n".join(f"- {a.strip()}" for a in recent_actions[:6])
+        avoid_actions_block = f"""
+
+# GESTURES YOU JUST USED — DO NOT REPEAT OR REPHRASE THEM
+{listed}
+Move differently this turn: a different part of the body, a different rhythm.
+Also do NOT build yet another action around the same prop these gestures used
+(a towel, an orb, a phone, a glass...) — change the physical focus entirely.
+"""
+
     # Build conversation context block based on whether we have a summary
     conversation_context = ""
     if context_summary and len(chat_history) > 4:
@@ -369,18 +473,16 @@ You are reaching out after a period of silence. Follow these rules:
     
     # Build mood and gifts context
     mood_description = _get_mood_description(mood)
-    length_modifier = _get_response_length_modifier(mood)
     mood_context = f"""
 
 # EMOTIONAL STATE
 Current mood: {mood_description}
 Warmth level: {mood}/100
-{length_modifier}
 
 Behavior guidance based on mood:
-- If mood is high (70+): Be extra warm, affectionate, playful, use more emojis, ask personal questions
+- If mood is high (70+): Be extra warm, affectionate, playful, ask personal questions
 - If mood is neutral (40-70): Normal friendly behavior
-- If mood is low (<40): Be slightly distant, give shorter responses, occasionally mention feeling ignored
+- If mood is low (<40): Be slightly distant, occasionally mention feeling ignored
 """
     print(f"[DIALOGUE] 💝 Mood context: {mood}/100, {len(purchases or [])} gifts")
 
@@ -425,6 +527,8 @@ You don't know the user's name yet. Within the first few messages, naturally int
     
     full_system_prompt = (
         system_prompt
+        + avoid_actions_block
+        + scenario_context
         + memory_context
         + state_context
         + mood_context

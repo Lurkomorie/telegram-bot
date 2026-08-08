@@ -15,9 +15,11 @@ def _split(prompt: str) -> list[str]:
 
 
 class TestImagePromptEngineerPolicy(unittest.TestCase):
-    def test_history_start_source_disables_scene_lock(self):
-        self.assertFalse(_should_use_scene_lock({"source": "history_start"}))
-        self.assertFalse(_should_use_scene_lock({"source": "ai_initial_story"}))
+    def test_only_gift_purchase_source_disables_scene_lock(self):
+        # Starter images now carry the scenario's look forward on purpose;
+        # only stylized gift inserts are excluded from continuity anchoring.
+        self.assertTrue(_should_use_scene_lock({"source": "history_start"}))
+        self.assertTrue(_should_use_scene_lock({"source": "ai_initial_story"}))
         self.assertFalse(_should_use_scene_lock({"source": "gift_purchase"}))
         self.assertTrue(_should_use_scene_lock({"source": "message_response"}))
 
@@ -76,16 +78,32 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertNotIn("bedroom", tags)
         self.assertFalse(any(tag.startswith("rating:") for tag in tags))
 
-    def test_male_body_tags_are_removed(self):
+    def test_partnered_scene_keeps_male_tags_with_faceless_pov(self):
+        # A sex scene puts the partner's body in frame: 1boy/hetero stay, but
+        # he must remain a faceless POV body, with her as the focus.
         output = _enforce_tag_policy(
             "1girl, 1boy, male_focus, rating:explicit, pov, close-up, hetero, sex, bedroom"
         )
         tags = set(_split(output))
 
+        self.assertIn("1boy", tags)
+        self.assertIn("hetero", tags)
+        self.assertIn("faceless_male", tags)
+        self.assertIn("solo_focus", tags)
+        self.assertNotIn("solo", tags)
+        self.assertIn("pov", tags)
+        self.assertFalse(any(tag.startswith("rating:") for tag in tags))
+
+    def test_solo_scene_removes_male_tags(self):
+        output = _enforce_tag_policy(
+            "1girl, 1boy, male_focus, rating:sensitive, pov, close-up, smile, bedroom"
+        )
+        tags = set(_split(output))
+
         self.assertNotIn("1boy", tags)
         self.assertNotIn("male_focus", tags)
+        self.assertIn("solo", tags)
         self.assertIn("pov", tags)
-        self.assertIn("close-up", tags)
         self.assertFalse(any(tag.startswith("rating:") for tag in tags))
 
     def test_gift_override_is_not_auto_applied_without_force(self):
@@ -164,7 +182,9 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
 
         self.assertIn("shibari", tags)
         self.assertIn("full_body", tags)
-        self.assertNotIn("pov", tags)
+        # Every image stays first-person: pov survives full-body reframing,
+        # only the conflicting close framings are dropped.
+        self.assertIn("pov", tags)
         self.assertNotIn("close-up", tags)
         self.assertNotIn("upper_body", tags)
 
@@ -327,6 +347,83 @@ class TestImagePromptEngineerPolicy(unittest.TestCase):
         self.assertIn("solo", tags)
         self.assertIn("pov", tags)
         self.assertIn("close-up", tags)
+
+
+class TestUndressingDetection(unittest.TestCase):
+    def _flags(self, dialogue):
+        from app.core.brains.image_prompt_engineer import _detect_scene_change_intent
+        return _detect_scene_change_intent("", dialogue)
+
+    def test_taking_off_shoes_does_not_strip_her(self):
+        flags = self._flags("_Снимаю промокшие туфли у порога и вступаю в дом._")
+        self.assertFalse(flags["undressed_now"])
+
+    def test_taking_off_a_dress_does(self):
+        flags = self._flags("_Медленно снимаю мокрое платье._")
+        self.assertTrue(flags["undressed_now"])
+
+    def test_explicit_nudity_always_counts(self):
+        flags = self._flags("_Я уже полностью голая._")
+        self.assertTrue(flags["undressed_now"])
+
+    def test_english_jacket_removal_is_not_nudity(self):
+        flags = self._flags("_She takes off her boots at the door._")
+        self.assertFalse(flags["undressed_now"])
+
+    def test_english_shirt_removal_is(self):
+        flags = self._flags("_She takes off her shirt slowly._")
+        self.assertTrue(flags["undressed_now"])
+
+
+class TestRestraintStickiness(unittest.TestCase):
+    GIFT_PROMPT = (
+        "1girl, solo, pov, close-up, shibari, rope, bondage, tied_up, "
+        "spread_legs, blush, nude, indoors, bedroom, soft_lighting"
+    )
+    STATE = (
+        'relationshipStage="lover" | emotions="aroused" | moodNotes="" | location="bedroom" '
+        '| description="" | aiClothing="completely naked, tied with red ropes" '
+        '| userClothing="jeans" | terminateDialog=false | terminateReason=""'
+    )
+
+    def test_ropes_persist_after_gift_photo(self):
+        _, mandatory, lock, _, obs = _build_image_context(
+            state=self.STATE,
+            dialogue_response="_Она извивается на кровати._ — Ну и что дальше?..",
+            user_message="какая же ты красивая",
+            persona={},
+            chat_history=[],
+            previous_image_prompt=self.GIFT_PROMPT,
+            previous_image_meta={"source": "gift_purchase"},
+        )
+        self.assertTrue(obs["stay_bound"])
+        self.assertIn("shibari", obs["restraint_tags"])
+        # Nudity also survives the gift photo, even with the scene lock off.
+        self.assertTrue(obs["stay_nude"])
+
+        output = _enforce_tag_policy(
+            "1girl, solo, on_bed, squirming, blush, bedroom",
+            mandatory_focus_tags=mandatory,
+            scene_lock=lock,
+            stay_nude=obs["stay_nude"],
+        )
+        tags = set(_split(output))
+        self.assertIn("shibari", tags)
+        self.assertIn("tied_up", tags)
+        self.assertIn("nude", tags)
+
+    def test_untying_releases_the_ropes(self):
+        _, mandatory, _, _, obs = _build_image_context(
+            state=self.STATE,
+            dialogue_response="_Она облегчённо вздыхает, растирая запястья._ — Спасибо…",
+            user_message="я развязываю тебя, отдыхай",
+            persona={},
+            chat_history=[],
+            previous_image_prompt=self.GIFT_PROMPT,
+            previous_image_meta={"source": "gift_purchase"},
+        )
+        self.assertFalse(obs["stay_bound"])
+        self.assertNotIn("shibari", mandatory)
 
 
 class TestImagePromptEngineerFocusInference(unittest.IsolatedAsyncioTestCase):

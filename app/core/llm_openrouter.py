@@ -8,7 +8,14 @@ from app.settings import settings, get_app_config
 from app.core import analytics_service_tg
 
 # Model pricing (USD per 1M tokens) - (Input, Output)
+# Every model this project actually runs must be listed, otherwise the llm_cost
+# analytics event records $0 and spend becomes invisible. Rates from OpenRouter,
+# checked 2026-08-08.
 MODEL_PRICING = {
+    "deepseek/deepseek-v3.2": (0.269, 0.400),
+    "deepseek/deepseek-chat-v3-0324": (0.270, 1.120),
+    "mistralai/mistral-nemo": (0.019, 0.030),
+    "mistralai/ministral-3b-2512": (0.100, 0.100),
     "openai/gpt-4o": (5.0, 15.0),
     "openai/gpt-4o-mini": (0.15, 0.6),
     "openai/gpt-4o-2024-08-06": (2.5, 10.0),
@@ -80,6 +87,18 @@ async def generate_text(
         "max_tokens": max_tokens if max_tokens is not None else llm_config["max_tokens"],
         "transforms": ["middle-out"]  # Bypass OpenRouter's moderation for adult content
     }
+    # OpenRouter's default order picks slow endpoints and, for some models, heavily
+    # quantized ones. Sort by throughput, and constrain quantization per model —
+    # a global constraint would exclude models whose only endpoint reports "unknown".
+    provider_prefs = {}
+    if llm_config.get("provider_sort"):
+        provider_prefs["sort"] = llm_config["provider_sort"]
+    quantizations = (llm_config.get("provider_quantizations") or {}).get(body["model"])
+    if quantizations:
+        provider_prefs["quantizations"] = quantizations
+    if provider_prefs:
+        body["provider"] = provider_prefs
+
     fallback_model = llm_config.get("model")
     fallback_switched = False
     
@@ -211,7 +230,7 @@ async def generate_text(
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
             
             # Exponential backoff
-            wait_time = (attempt + 1) * 1.5
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
 
@@ -242,7 +261,14 @@ async def generate_text(
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API failed after {max_retries} attempts: {str(e)}")
 
-            wait_time = (attempt + 1) * 1.5
+            # A 429 or a provider-side 5xx means the endpoint we pinned is busy or
+            # down. Retrying into the same narrowed pool just fails again, so widen
+            # to every provider serving this model for the remaining attempts.
+            if status_code in (429, 500, 502, 503, 504) and "provider" in body:
+                body.pop("provider", None)
+                log_always(f"[LLM] 🔀 {status_code} — dropping provider pins, retrying across all endpoints")
+
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {type(e).__name__}: {str(e)[:200]}")
             await asyncio.sleep(wait_time)
 
@@ -254,7 +280,7 @@ async def generate_text(
             if attempt == max_retries - 1:
                 raise Exception(f"OpenRouter API error after {max_retries} attempts: {str(e)}")
             
-            wait_time = (attempt + 1) * 1.5
+            wait_time = (attempt + 1) * 0.5
             log_always(f"[LLM] ⚠️ Retry {attempt + 1}/{max_retries} after {wait_time}s - {str(e)[:200]}")
             await asyncio.sleep(wait_time)
     

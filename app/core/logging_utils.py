@@ -1,11 +1,58 @@
 """
 Logging utilities for conditional verbose logging in development
 """
+import builtins
 import os
+import sys
 import time
 import json
 from typing import Any, Optional
 from contextlib import contextmanager
+
+_ORIGINAL_PRINT = builtins.print
+_ERROR_ONLY_PRINTS_ENABLED = False
+
+
+def _looks_like_error_log(message: str) -> bool:
+    text = (message or "").lower()
+    error_tokens = (
+        "error",
+        "failed",
+        "exception",
+        "traceback",
+        "fatal",
+        "critical",
+        "❌",
+    )
+    return any(token in text for token in error_tokens)
+
+
+def configure_error_only_prints(enabled: bool = True) -> None:
+    """
+    Globally suppress non-error print logs when enabled.
+
+    This keeps runtime stdout focused on operational failures only.
+    """
+    global _ERROR_ONLY_PRINTS_ENABLED
+
+    if enabled and not _ERROR_ONLY_PRINTS_ENABLED:
+        def _filtered_print(*args: Any, **kwargs: Any) -> None:
+            output_file = kwargs.get("file")
+            # Keep explicit stderr writes untouched.
+            if output_file not in (None, sys.stdout, sys.__stdout__):
+                _ORIGINAL_PRINT(*args, **kwargs)
+                return
+            message = " ".join(str(arg) for arg in args)
+            if _looks_like_error_log(message):
+                _ORIGINAL_PRINT(*args, **kwargs)
+
+        builtins.print = _filtered_print
+        _ERROR_ONLY_PRINTS_ENABLED = True
+        return
+
+    if not enabled and _ERROR_ONLY_PRINTS_ENABLED:
+        builtins.print = _ORIGINAL_PRINT
+        _ERROR_ONLY_PRINTS_ENABLED = False
 
 
 def is_development() -> bool:
@@ -271,4 +318,3 @@ class PipelineTimer:
             print(f"  {'─'*76}")
             print(f"  TOTAL: {total_ms:.2f}ms ({total_ms/1000:.2f}s)")
             print(f"{'='*80}\n")
-

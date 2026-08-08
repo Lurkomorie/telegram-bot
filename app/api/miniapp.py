@@ -35,7 +35,8 @@ async def generate_initial_state_for_story(
         chat_history=chat_history,
         user_message="[INITIAL_STORY_START]",  # Placeholder for initial generation
         persona_name=persona_name,
-        previous_image_prompt=None
+        previous_image_prompt=None,
+        dialogue_response=greeting_text
     )
     
     print(f"[MINIAPP-SELECT] ✅ Initial state generated ({len(state)} chars)")
@@ -95,6 +96,51 @@ def extract_user_id_from_init_data(x_telegram_init_data: Optional[str]) -> Optio
         return user_data.get('id')
     except:
         return None
+
+
+def _miniapp_auth_required() -> bool:
+    return settings.ENV == "production" and not settings.SKIP_MINIAPP_AUTH
+
+
+@router.get("/diagnostics/auth")
+async def miniapp_auth_diagnostics(
+    x_telegram_init_data: Optional[str] = Header(None),
+    origin: Optional[str] = Header(None),
+    referer: Optional[str] = Header(None),
+    user_agent: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    """
+    Runtime auth/CORS diagnostics for Mini App host setup.
+    """
+    if not settings.ENABLE_MINIAPP_AUTH_DIAGNOSTICS:
+        raise HTTPException(status_code=404, detail="Diagnostics disabled")
+
+    auth_required = _miniapp_auth_required()
+    auth_valid = (
+        validate_telegram_webapp_data(x_telegram_init_data or "")
+        if auth_required and x_telegram_init_data
+        else not auth_required
+    )
+
+    if auth_required and not auth_valid:
+        print(
+            "[MINIAPP-AUTH] ❌ diagnostics failed "
+            f"origin={origin or '-'} referer={referer or '-'} "
+            f"init_len={len(x_telegram_init_data or '')} "
+            f"ua={(user_agent or '-')[:120]}"
+        )
+
+    return {
+        "auth_required": auth_required,
+        "auth_valid": auth_valid,
+        "has_init_data": bool(x_telegram_init_data),
+        "init_data_length": len(x_telegram_init_data or ""),
+        "origin": origin,
+        "referer": referer,
+        "miniapp_url": settings.miniapp_url,
+        "miniapp_backup_url": settings.miniapp_backup_url,
+        "cors_allow_origins": settings.cors_allow_origins,
+    }
 
 
 @router.get("/personas")
@@ -170,7 +216,7 @@ async def get_personas(
             "badges": persona["badges"] or [],
             "avatar_url": avatar_url,
             "is_custom": False,
-            "has_voice": persona.get("voice_id") is not None,
+            "has_voice": False,  # voice features parked (ENABLE_VOICE)
         })
     
     return result
@@ -576,6 +622,8 @@ async def update_user_voice_settings(
     request: UpdateVoiceSettingsRequest,
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
+    if not settings.ENABLE_VOICE:
+        raise HTTPException(status_code=403, detail="Voice is temporarily disabled")
     """
     Update user's voice button visibility preference
     
@@ -630,6 +678,13 @@ class SelectScenarioRequest(BaseModel):
 
 class CreateInvoiceRequest(BaseModel):
     product_id: str  # tokens_100, premium_month, etc.
+    payment_method: Optional[str] = None  # "stars", "card", "crypto" - used for markup and analytics
+
+
+class TributeLinkRequest(BaseModel):
+    product_id: str
+    method: str  # "card" or "crypto"
+    language: str = "en"  # "en" or "ru" - determines which Tribute product URL to use
 
 
 @router.post("/select-scenario")
@@ -1030,7 +1085,23 @@ async def _process_scenario_selection(
                         prompt=history_start_data.get("image_prompt", ""),
                         result_url=history_start_data.get("image_url")
                     )
-            
+                    # Generate initial state for preset personas in background
+                    if description_text and greeting_text:
+                        import asyncio
+                        async def _gen_preset_state():
+                            try:
+                                initial_state = await generate_initial_state_for_story(
+                                    persona_name=persona_name,
+                                    story_description=description_text,
+                                    greeting_text=greeting_text
+                                )
+                                with get_db() as db2:
+                                    crud.update_chat_state(db2, chat_id, {"state": initial_state})
+                                print(f"[MINIAPP-SELECT] Saved initial state for preset persona chat {chat_id}")
+                            except Exception as e:
+                                print(f"[MINIAPP-SELECT] Failed to generate initial state: {e}")
+                        asyncio.create_task(_gen_preset_state())
+
             # For custom characters, mark for AI image generation (but don't run it yet)
             if persona.get("image_prompt") and description_text:
                 with get_db() as db:
@@ -1246,15 +1317,26 @@ async def create_invoice(
     if not product:
         raise HTTPException(status_code=400, detail="Invalid product ID")
     
-    # Track payment initiation
+    # Determine Stars price (apply 30% markup for Stars payments)
+    import math
+    from app.bot.handlers.payment import STARS_MARKUP
+    payment_method = request.payment_method or "stars"
+    base_stars = product["stars"]
+    if payment_method == "stars":
+        invoice_stars = math.ceil(base_stars * STARS_MARKUP)
+    else:
+        invoice_stars = base_stars
+
+    # Track payment initiation with payment method and actual amount
     from app.core import analytics_service_tg
     analytics_service_tg.track_payment_initiated(
         user_id,
         request.product_id,
-        product["stars"],
-        product["type"]
+        invoice_stars,
+        product["type"],
+        payment_method=payment_method
     )
-    
+
     # SIMULATE PAYMENTS: Process immediately without creating invoice
     if settings.SIMULATE_PAYMENTS:
         print(f"[SIMULATED-PAYMENT] 💳 Processing simulated payment for user {user_id}, product: {request.product_id}")
@@ -1304,13 +1386,14 @@ async def create_invoice(
         
         # Create invoice using Telegram Bot API
         # For Stars payment, provider_token should be empty string
+        # Stars price includes 30% markup to incentivize Card/Crypto via Tribute
         invoice_link = await bot.create_invoice_link(
             title=title,
             description=description,
             payload=request.product_id,  # This will be sent back in successful_payment
             provider_token="",  # Empty for Telegram Stars
             currency="XTR",  # XTR = Telegram Stars
-            prices=[LabeledPrice(label=label, amount=product["stars"])]
+            prices=[LabeledPrice(label=label, amount=invoice_stars)]
         )
         
         print(f"[INVOICE-API] Created invoice for user {user_id}, product {request.product_id}: {invoice_link}")
@@ -1320,6 +1403,99 @@ async def create_invoice(
     except Exception as e:
         print(f"[INVOICE-API] Error creating invoice: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create invoice: {str(e)}")
+
+
+@router.post("/tribute-link")
+async def get_tribute_link(
+    request: TributeLinkRequest,
+    x_telegram_init_data: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    """
+    Get a Tribute payment link for Card/Crypto payments.
+    Returns a URL that opens in the user's browser to complete payment via Tribute.
+    """
+    # Validate authentication
+    if settings.ENV == "production" and not validate_telegram_webapp_data(x_telegram_init_data or ""):
+        raise HTTPException(status_code=403, detail="Invalid Telegram authentication")
+
+    user_id = extract_user_id_from_init_data(x_telegram_init_data)
+    if not user_id:
+        if settings.ENV == "development" and settings.SIMULATE_PAYMENTS:
+            user_id = 549861060
+        else:
+            raise HTTPException(status_code=400, detail="Failed to extract user ID from init data.")
+
+    if request.method not in ("card", "crypto"):
+        raise HTTPException(status_code=400, detail="Invalid payment method. Must be 'card' or 'crypto'.")
+
+    from app.bot.handlers.payment import get_tribute_product_urls, PAYMENT_PRODUCTS
+
+    product = PAYMENT_PRODUCTS.get(request.product_id)
+    if not product:
+        raise HTTPException(status_code=400, detail="Invalid product ID")
+
+    # Crypto goes through Crypto Pay (@CryptoBot) when the token is configured;
+    # Tribute remains the card route and the fallback.
+    from app.core import cryptopay
+    if request.method == "crypto" and cryptopay.is_configured():
+        try:
+            invoice = await cryptopay.create_invoice(
+                user_id=user_id,
+                product_id=request.product_id,
+                description=f"{product.get('amount', '')} tokens" if product["type"] == "tokens"
+                else f"Premium subscription ({request.product_id})",
+            )
+        except Exception as e:
+            print(f"[CRYPTOPAY] ❌ Invoice creation failed: {e}")
+            raise HTTPException(status_code=502, detail="Crypto payment temporarily unavailable")
+
+        with get_db() as db:
+            from app.db.models import PaymentTransaction
+            db.add(PaymentTransaction(
+                user_id=user_id,
+                transaction_type="tier_subscription" if product["type"] == "subscription" else "token_package",
+                product_id=request.product_id,
+                amount_stars=0,
+                status="pending",
+                payment_provider="cryptopay",
+                cryptopay_invoice_id=str(invoice["invoice_id"]),
+            ))
+            db.commit()
+
+        from app.core import analytics_service_tg
+        analytics_service_tg.track_payment_initiated(
+            user_id, request.product_id, 0, product["type"], payment_method="crypto")
+        print(f"[CRYPTOPAY] 🧾 Invoice {invoice['invoice_id']} for user {user_id}, product {request.product_id}")
+        return {"url": invoice.get("bot_invoice_url") or invoice.get("pay_url")}
+
+    tribute_urls = get_tribute_product_urls()
+    product_urls = tribute_urls.get(request.product_id)
+    if not product_urls or not isinstance(product_urls, dict):
+        raise HTTPException(status_code=400, detail="Tribute not configured for this product")
+
+    # Pick URL for user's language, fallback to English
+    lang = request.language if request.language in ("ru", "en") else "en"
+    tribute_url = product_urls.get(lang) or product_urls.get("en") or ""
+    if not tribute_url:
+        raise HTTPException(status_code=400, detail="Tribute URL not configured for this product/language")
+
+    # Append user_id for payment→user matching in webhook
+    separator = "&" if "?" in tribute_url else "?"
+    url_with_user = f"{tribute_url}{separator}user_id={user_id}"
+
+    # Track payment initiation for Tribute
+    from app.core import analytics_service_tg
+    analytics_service_tg.track_payment_initiated(
+        user_id,
+        request.product_id,
+        product["stars"],
+        product["type"],
+        payment_method=request.method
+    )
+
+    print(f"[TRIBUTE-LINK] Generated link for user {user_id}, product {request.product_id}, method {request.method}")
+
+    return {"url": url_with_user}
 
 
 @router.post("/claim-daily-bonus")
@@ -1589,6 +1765,8 @@ async def create_character(
     request: CreateCharacterRequest,
     x_telegram_init_data: Optional[str] = Header(None)
 ) -> Dict[str, Any]:
+    if not settings.ENABLE_CHARACTER_CREATION:
+        raise HTTPException(status_code=403, detail="Character creation is temporarily disabled")
     """
     Create a custom character
     - Premium users: FREE (unlimited energy)
@@ -1768,7 +1946,12 @@ async def create_character(
             
             # Check image cache before generating - find a cached image the user hasn't seen
             prompt_hash = crud.compute_prompt_hash(first_image_prompt)
-            cached_image = crud.find_cached_image(db, prompt_hash, user_id)
+            cached_image = crud.find_cached_image(
+                db,
+                prompt_hash,
+                user_id,
+                require_result_url=True,
+            )
             
             if cached_image and cached_image.result_url:
                 # Cache hit! Use cached image as avatar
@@ -2069,6 +2252,21 @@ async def purchase_item(
             # Get item context_effect for image generation
             from app.db.crud import SHOP_ITEMS
             item_info = SHOP_ITEMS.get(request.item_key, {})
+
+            # Track gift purchase analytics event (similar to payment events)
+            from app.core import analytics_service_tg
+            analytics_service_tg.track_gift_purchased(
+                client_id=user_id,
+                item_key=request.item_key,
+                item_name=item_info.get("name", request.item_key),
+                price_paid=item_info.get("price", 0),
+                mood_boost=item_info.get("mood_boost", 0),
+                chat_id=chat_uuid,
+                persona_id=chat.persona_id,
+                persona_name=chat.persona.name if chat.persona else None,
+                new_mood=result.get("new_mood"),
+                new_tokens=result.get("new_tokens"),
+            )
             
             import asyncio
             from app.core.multi_brain_pipeline import process_gift_purchase

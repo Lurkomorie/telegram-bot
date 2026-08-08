@@ -329,18 +329,15 @@ export async function createCustomStory(storyData, initData) {
  * @param {string} initData - Telegram WebApp initData for authentication
  * @returns {Promise<Object>} Invoice object {invoice_link} or simulated result {success, simulated, ...}
  */
-export async function createInvoice(productId, initData) {
-  console.log("[API] Creating invoice for product:", productId);
-  console.log(
-    "[API] Init data present:",
-    !!initData,
-    "length:",
-    initData?.length || 0,
-  );
-  console.log(
-    "[API] Init data preview:",
-    initData?.substring(0, 100) || "EMPTY",
-  );
+/**
+ * Create a Telegram Stars invoice for premium subscription or token package
+ * @param {string} productId - Product ID (tokens_100, subscription_monthly, etc.)
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @param {string} paymentMethod - Payment method ("stars"|"card"|"crypto"), defaults to "stars"
+ * @returns {Promise<Object>} Invoice object {invoice_link} or simulated result {success, simulated, ...}
+ */
+export async function createInvoice(productId, initData, paymentMethod = "stars") {
+  console.log("[API] Creating invoice for product:", productId, "method:", paymentMethod);
 
   const response = await fetch(`${API_BASE}/api/miniapp/create-invoice`, {
     method: "POST",
@@ -348,7 +345,7 @@ export async function createInvoice(productId, initData) {
       "Content-Type": "application/json",
       "X-Telegram-Init-Data": initData || "",
     },
-    body: JSON.stringify({ product_id: productId }),
+    body: JSON.stringify({ product_id: productId, payment_method: paymentMethod }),
   });
 
   console.log("[API] Response status:", response.status);
@@ -363,12 +360,36 @@ export async function createInvoice(productId, initData) {
 
   const data = await response.json();
 
-  // Check if this is a simulated payment
   if (data.simulated) {
     console.log("[SIMULATED PAYMENT] Payment processed immediately:", data);
   }
 
   return data;
+}
+
+/**
+ * Get a Tribute payment link for Card/Crypto payments
+ * @param {string} productId - Product ID
+ * @param {string} paymentMethod - "card" or "crypto"
+ * @param {string} initData - Telegram WebApp initData for authentication
+ * @returns {Promise<Object>} Result object {url: string}
+ */
+export async function getTributeLink(productId, paymentMethod, initData, language = "en") {
+  const response = await fetch(`${API_BASE}/api/miniapp/tribute-link`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Telegram-Init-Data": initData || "",
+    },
+    body: JSON.stringify({ product_id: productId, method: paymentMethod, language }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to get tribute link: ${response.status} ${errorText}`);
+  }
+
+  return response.json();
 }
 
 /**

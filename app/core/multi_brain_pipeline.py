@@ -12,8 +12,13 @@ from app.core.brains.dialogue_specialist import generate_dialogue
 from app.core.brains.image_prompt_engineer import generate_image_plan, assemble_final_prompt
 from app.core.chat_actions import ChatActionManager
 from app.core.logging_utils import log_verbose, log_always, is_development, PipelineTimer, log_dev_section
-from app.core.telegram_utils import escape_markdown_v2
+from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply, send_roleplay_reply
 from app.core import redis_queue
+from app.core.background_tasks import spawn
+from app.core.constants import (
+    STATE_RESOLUTION_TIMEOUT_SEC, GIFT_SUGGESTION_TIMEOUT_SEC,
+    NAME_EXTRACTION_MAX_TURNS, CONTEXT_SUMMARY_EVERY_N_TURNS,
+)
 from app.core.context_summarizer import generate_context_summary
 from app.db.base import get_db
 from app.db import crud
@@ -23,6 +28,16 @@ from app.core import analytics_service_tg
 from app.settings import get_ui_text
 
 CONTROL_ORB_TOTAL_MESSAGES = 10
+
+
+def _cached_image_photo_pointer(cached_image):
+    if not cached_image:
+        return None
+    if cached_image.result_file_id:
+        return cached_image.result_file_id
+    if cached_image.result_url and not cached_image.result_url.startswith("binary:"):
+        return cached_image.result_url
+    return None
 
 
 def _parse_state_line(state: str) -> dict:
@@ -391,7 +406,7 @@ async def _send_gift_recommendation_message(
             db.commit()
 
     from app.core.memory_service import trigger_memory_update
-    asyncio.create_task(trigger_memory_update(
+    spawn(trigger_memory_update(
         chat_id=chat_id,
         user_message=f"[Gift suggestion opportunity: {item_key}]",
         ai_message=suggestion_text,
@@ -408,15 +423,14 @@ async def process_message_pipeline(
     Main pipeline with Redis-based batching: Dialogue → State → [Save] → Image (background)
     
     Flow:
-    1. Set processing lock
-    2. Loop while messages in queue:
-       a. Get batch from Redis
+    1. Processing lock is already acquired by handler
+    2. Loop while queue has messages:
+       a. Atomically drain current queue snapshot from Redis
        b. Fetch data (chat, persona, history)
        c. Brain 1: Generate dialogue (using previous state)
        d. Brain 2: Resolve state (update based on dialogue)
        e. Save batch + response to DB
        f. Send response to user
-       g. Clear batch from Redis
     3. Start image generation (background)
     4. Clear processing lock
     """
@@ -429,7 +443,7 @@ async def process_message_pipeline(
     pipeline_timer = PipelineTimer(f"Message Pipeline (Chat: {chat_id})")
     pipeline_timer.start_stage("Initialization")
     
-    # Processing lock already set in handler (before batch delay)
+    # Processing lock is already set in handler
     print(f"[PIPELINE] 🔒 Processing lock confirmed active")
     
     # Stop any existing action (e.g. upload_photo from previous image generation)
@@ -449,10 +463,11 @@ async def process_message_pipeline(
         while True:
             batch_num += 1
             
-            pipeline_timer.start_stage(f"Batch #{batch_num}: Get Messages from Queue")
+            pipeline_timer.start_stage(f"Batch #{batch_num}: Drain Messages from Queue")
             
-            # Get ALL messages currently in queue
-            batch_messages = await redis_queue.get_batch_messages(chat_id)
+            # Atomically get and clear current queue snapshot.
+            # Messages arriving during processing will remain queued for the next loop.
+            batch_messages = await redis_queue.drain_batch_messages(chat_id)
             
             if not batch_messages:
                 if batch_num == 1:
@@ -488,18 +503,8 @@ async def process_message_pipeline(
             )
             
             pipeline_timer.end_stage()
-            
-            pipeline_timer.start_stage(f"Batch #{batch_num}: Clear Queue")
-            
-            # Clear queue ONLY after successful processing (prevents message loss on error)
-            await redis_queue.clear_batch_messages(chat_id)
-            log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete, queue cleared")
-            
-            pipeline_timer.end_stage()
-            
-            # Brief wait to catch any messages that arrived during processing
-            await asyncio.sleep(0.5)
-            log_verbose(f"[PIPELINE] 🔍 Checking for more...")
+
+            log_always(f"[PIPELINE] ✅ Batch #{batch_num} complete")
         
         # Finish timing
         pipeline_timer.finish()
@@ -534,7 +539,7 @@ async def _process_single_batch(
     """Process a single batch of messages"""
     try:
         log_dev_section("BATCH PROCESSING")
-        
+
         pipeline_timer.start_stage("Start Typing Indicator")
         
         # Show typing indicator
@@ -606,6 +611,13 @@ async def _process_single_batch(
                 for m in messages[-20:] 
                 if m.text
             ]
+
+            # The opening scenario is a system message, so it falls out of the
+            # window after ~20 turns — and out of the summary path after four.
+            # Losing it is why a chat that started on a country road drifts into
+            # a bedroom, so it is pinned and passed on every turn.
+            scenario_row = crud.get_chat_scenario(db, chat_id)
+            scenario_text = (scenario_row.text if scenario_row else "") or""
             
             persona_data = {
                 "id": persona.id,
@@ -662,6 +674,7 @@ async def _process_single_batch(
         from app.settings import settings
         should_generate_image_flag = False
         decision_reason = "not determined"
+        image_decision_task = None
         
         # Check if user explicitly requests a visual
         is_explicit_request = _is_explicit_visual_request(batched_text)
@@ -669,7 +682,10 @@ async def _process_single_batch(
         log_verbose(f"[BATCH] 📊 Image decision context: messages_since_last_image={messages_since_last_image}, is_explicit_request={is_explicit_request}")
         
         # Check feature flag to force images always (debug mode)
-        if settings.FORCE_IMAGES_ALWAYS:
+        if settings.DISABLE_IMAGES:
+            should_generate_image_flag = False
+            decision_reason = "images disabled"
+        elif settings.FORCE_IMAGES_ALWAYS:
             should_generate_image_flag = True
             decision_reason = "FORCE_IMAGES_ALWAYS flag enabled"
             log_always(f"[BATCH] 🎨 Image decision: FORCED YES - {decision_reason}")
@@ -696,7 +712,10 @@ async def _process_single_batch(
         else:
             # Use AI to decide (only for 2 messages since last image)
             from app.core.brains.image_decision_specialist import should_generate_image
-            log_always(f"[BATCH] 🧠 Brain 4: Deciding image generation (messages_since_last_image={messages_since_last_image})...")
+            log_always(
+                f"[BATCH] 🧠 Brain 4: Running image decision in parallel "
+                f"(messages_since_last_image={messages_since_last_image})..."
+            )
             
             _log_brain_inputs(
                 "Brain 4 (Image Decision)",
@@ -707,14 +726,14 @@ async def _process_single_batch(
                 context_summary=context_summary
             )
             
-            should_generate_image_flag, decision_reason = await should_generate_image(
+            image_decision_task = asyncio.create_task(should_generate_image(
                 previous_state=previous_state or "",
                 user_message=batched_text,
                 chat_history=chat_history,
                 persona_name=persona_data["name"],
                 context_summary=context_summary
-            )
-            log_always(f"[BATCH] ✅ Brain 4: Decision = {'YES' if should_generate_image_flag else 'NO'} - {decision_reason}")
+            ))
+            decision_reason = "pending_parallel_decision"
         
         pipeline_timer.end_stage()
         pipeline_timer.start_stage("Brain 1: Dialogue Generation")
@@ -749,6 +768,23 @@ async def _process_single_batch(
         gift_recommendation = {"should_suggest": False}
         control_orb_expired_now = False
 
+        # Focus-tag inference only needs the user's message, so run it alongside
+        # the dialogue brain instead of in front of the image plan.
+        focus_tags_task = None
+        if not settings.DISABLE_IMAGES and (should_generate_image_flag or image_decision_task is not None):
+            from app.core.brains.image_prompt_engineer import prefetch_focus_tags
+            focus_tags_task = prefetch_focus_tags(batched_text)
+
+        # Image gating flags — needed both for the early dispatch below and for
+        # the post-dialogue resolution of AI-made decisions.
+        should_skip_image = False
+        if followup_type == "30min":
+            should_skip_image = not settings.ENABLE_IMAGES_IN_FOLLOWUP
+        elif followup_type == "24h":
+            should_skip_image = not settings.ENABLE_IMAGES_24HOURS
+        elif followup_type == "3day":
+            should_skip_image = not settings.ENABLE_IMAGES_3DAYS
+
         _log_brain_inputs(
             "Brain 1 (Dialogue)",
             state=previous_state,
@@ -781,13 +817,78 @@ async def _process_single_batch(
             name_known=name_known,  # Whether name has been discovered for this chat
             control_orb_active=control_orb_turn_active,
             control_orb_messages_left=control_orb_messages_left,
+            scenario=scenario_text,
         )
         log_always(f"[BATCH] ✅ Brain 1: Dialogue generated ({len(dialogue_response)} chars)")
         log_verbose(f"[BATCH]    Preview: {dialogue_response[:100]}...")
         
         pipeline_timer.end_stage()
+
+        # Everything the user sees is ready right here: the reply text and (via
+        # Brain 4, which ran alongside the dialogue) the image decision. Resolve
+        # the decision, dispatch the image job and send the text now — state
+        # resolution, the database write and the gift lookup change none of it.
+        if image_decision_task is not None:
+            try:
+                should_generate_image_flag, decision_reason = await image_decision_task
+                log_always(
+                    f"[BATCH] ✅ Brain 4: Decision = "
+                    f"{'YES' if should_generate_image_flag else 'NO'} - {decision_reason}"
+                )
+            except Exception as decision_error:
+                should_generate_image_flag = True
+                decision_reason = f"decision_error_default_yes: {type(decision_error).__name__}"
+                log_always(
+                    f"[BATCH] ⚠️ Brain 4 decision failed, defaulting to YES "
+                    f"({type(decision_error).__name__})"
+                )
+
+        final_should_generate = (
+            should_generate_image_flag and not should_skip_image and not settings.DISABLE_IMAGES
+        )
+
+        # The photo goes out as its own message the moment it's ready — the reply
+        # text never waits for it (caption mode meant 10s of silence on every photo).
+        should_wait_for_image = False
+
+        # The plan reads the pre-dialogue state but the fresh dialogue response —
+        # the reply text is where this turn's emotion lives, and Brain 2's state
+        # update derives from that same text, so waiting for it only adds latency.
+        if final_should_generate:
+            log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
+            spawn(_background_image_generation(
+                chat_id=chat_id,
+                user_id=user_id,
+                persona_id=persona_data["id"],
+                state=previous_state or "",
+                dialogue_response=dialogue_response,
+                batched_text=batched_text,
+                persona=persona_data,
+                tg_chat_id=tg_chat_id,
+                action_mgr=action_mgr,
+                chat_history=chat_history,
+                previous_image_prompt=previous_image_prompt,
+                previous_image_meta=previous_image_meta,
+                is_auto_followup=is_auto_followup,
+                followup_type=followup_type,
+                should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
+                context_summary=context_summary,  # Pass summary for efficient context
+                mood=chat_mood,  # Chat mood for image context
+                purchases=chat_purchases,  # Recent purchases for image context
+                control_orb_active=control_orb_turn_active,
+                control_orb_messages_left=control_orb_messages_left,
+                focus_tags_task=focus_tags_task,
+                scenario=scenario_text,
+            ))
+
+        if should_wait_for_image:
+            log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
+        else:
+            await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
+            log_always("[BATCH] ✅ Response sent to user (early)")
+
         pipeline_timer.start_stage("Brain 2: State Resolution")
-        
+
         # 3. Brain 2: State Resolver (updates state after dialogue)
         log_always(f"[BATCH] 🧠 Brain 2: Resolving state...")
         log_verbose(f"[BATCH]    Input: {len(chat_history)} history messages + user message + dialogue response")
@@ -802,15 +903,29 @@ async def _process_single_batch(
             context_summary=context_summary
         )
 
-        new_state = await resolve_state(
-            previous_state=previous_state,
-            chat_history=chat_history,
-            user_message=batched_text,
-            persona_name=persona_data["name"],
-            previous_image_prompt=previous_image_prompt,
-            context_summary=context_summary,
-            dialogue_response=dialogue_response
-        )
+        # The reply is already out; everything below only holds the chat lock, and
+        # the user's next message waits behind it. A provider that stalls (504s and
+        # "provider timed out" happen) used to hold that lock for 40s+, which reads
+        # as the bot ignoring you. Cap it and fall back to the previous state.
+        try:
+            new_state = await asyncio.wait_for(
+                resolve_state(
+                    previous_state=previous_state,
+                    chat_history=chat_history,
+                    user_message=batched_text,
+                    persona_name=persona_data["name"],
+                    previous_image_prompt=previous_image_prompt,
+                    context_summary=context_summary,
+                    dialogue_response=dialogue_response,
+                    scenario=scenario_text,
+                ),
+                timeout=STATE_RESOLUTION_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            new_state = previous_state or ""
+            log_always(
+                f"[BATCH] ⏱️ Brain 2 timed out after {STATE_RESOLUTION_TIMEOUT_SEC}s — keeping previous state"
+            )
         log_always(f"[BATCH] ✅ Brain 2: State resolved")
         log_verbose(f"[BATCH]    State preview: {new_state[:100]}...")
         
@@ -927,7 +1042,8 @@ async def _process_single_batch(
         if not is_auto_followup and not is_resume:
             try:
                 from app.core.brains.gift_recommendation_brain import generate_gift_recommendation
-                gift_recommendation = await generate_gift_recommendation(
+                gift_recommendation = await asyncio.wait_for(
+                    generate_gift_recommendation(
                     state=new_state,
                     dialogue_response=dialogue_response,
                     user_message=batched_text,
@@ -937,71 +1053,24 @@ async def _process_single_batch(
                     current_user_message_count=current_user_message_count,
                     recent_purchases=chat_purchases,
                     user_id=user_id,
+                    ),
+                    timeout=GIFT_SUGGESTION_TIMEOUT_SEC,
                 )
                 log_verbose(
                     f"[BATCH] 🎁 Gift Recommendation: should={gift_recommendation.get('should_suggest')} "
                     f"reason={gift_recommendation.get('reason')} scene={gift_recommendation.get('scene_mode')} "
                     f"item={gift_recommendation.get('item_key')} user_count={current_user_message_count}"
                 )
+            except asyncio.TimeoutError:
+                gift_recommendation = {"should_suggest": False, "reason": "timeout"}
+                log_always(f"[BATCH] ⏱️ Gift recommendation timed out after {GIFT_SUGGESTION_TIMEOUT_SEC}s")
             except Exception as gift_error:
                 gift_recommendation = {"should_suggest": False, "reason": "error"}
                 log_always(f"[BATCH] ⚠️ Gift recommendation failed: {gift_error}")
         
         pipeline_timer.end_stage()
-        
-        # 6. Determine image generation logic
-        # Check specific flags for each followup type
-        should_skip_image = False
-        if followup_type == "30min":
-            should_skip_image = not settings.ENABLE_IMAGES_IN_FOLLOWUP
-        elif followup_type == "24h":
-            should_skip_image = not settings.ENABLE_IMAGES_24HOURS
-        elif followup_type == "3day":
-            should_skip_image = not settings.ENABLE_IMAGES_3DAYS
-        
-        final_should_generate = should_generate_image_flag and not should_skip_image
-        
-        # If image will be generated, wait and send text as caption with the image
-        should_wait_for_image = final_should_generate
-        
-        pipeline_timer.start_stage("Send Response to User")
-        
-        # 5. Send response to user (with MarkdownV2 formatting preserved)
-        # If image will be generated, delay sending text until image is ready (send together)
-        if should_wait_for_image:
-            log_always(f"[BATCH] ⏳ Delaying text message - will be sent as image caption")
-        else:
-            escaped_response = escape_markdown_v2(dialogue_response)
-            
-            # VOICE DISABLED - voice button functionality commented out
-            # Build voice button keyboard if ElevenLabs is configured, persona has voice, not hidden by user, and response is short enough
-            # from app.settings import settings
-            # voice_keyboard = None
-            # persona_voice_id = persona_data.get("voice_id")
-            # response_length = len(dialogue_response)
-            # max_voice_length = 500
-            # if settings.ELEVENLABS_API_KEY and assistant_message_id and not voice_buttons_hidden and persona_voice_id and response_length < max_voice_length:
-            #     from app.bot.keyboards.inline import build_voice_button_keyboard
-            #     voice_keyboard = build_voice_button_keyboard(
-            #         message_id=assistant_message_id,
-            #         language=user_language,
-            #         is_free=voice_free_available
-            #     )
-            #     log_verbose(f"[BATCH]    Voice button added for message {assistant_message_id} (free={voice_free_available})")
-            # elif voice_buttons_hidden:
-            #     log_verbose(f"[BATCH]    Voice buttons hidden for user {user_id}")
-            # elif not persona_voice_id:
-            #     log_verbose(f"[BATCH]    Voice button skipped - persona has no voice_id")
-            # elif response_length >= max_voice_length:
-            #     log_verbose(f"[BATCH]    Voice button skipped - response too long ({response_length} chars >= {max_voice_length})")
-            
-            await bot.send_message(
-                tg_chat_id, 
-                escaped_response, 
-                parse_mode="MarkdownV2",
-            )
-            log_always(f"[BATCH] ✅ Response sent to user")
-            log_verbose(f"[BATCH]    TG chat: {tg_chat_id}")
+
+        # Image decision and text send already happened right after Brain 1.
 
         # Gift recommendation is sent as a separate message from main roleplay response.
         if gift_recommendation.get("should_suggest"):
@@ -1043,7 +1112,7 @@ async def _process_single_batch(
         # 5.5. Trigger background memory update (fire and forget) - PREMIUM ONLY
         if is_premium:
             from app.core.memory_service import trigger_memory_update
-            asyncio.create_task(trigger_memory_update(
+            spawn(trigger_memory_update(
                 chat_id=chat_id,
                 user_message=batched_text,
                 ai_message=dialogue_response
@@ -1052,50 +1121,35 @@ async def _process_single_batch(
         else:
             log_verbose(f"[BATCH] ⏭️ Memory update skipped (free user - premium feature)")
         
-        # 5.55. Trigger background name extraction (fire and forget) - only if name not yet known
-        if not name_known:
+        # 5.55. Trigger background name extraction (fire and forget).
+        # People introduce themselves early or not at all, so stop paying for a
+        # check on every single turn of a long chat that never had a name in it.
+        if not name_known and current_user_message_count <= NAME_EXTRACTION_MAX_TURNS:
             from app.core.memory_service import trigger_name_extraction
-            asyncio.create_task(trigger_name_extraction(chat_id=chat_id))
+            spawn(trigger_name_extraction(chat_id=chat_id), name='name-extract')
             log_verbose(f"[BATCH] 🏷️ Name extraction triggered (background)")
-        
-        # 5.6. Trigger background context summary update (fire and forget)
-        # Update summary with new messages for next round
-        asyncio.create_task(_update_context_summary(
-            chat_id=chat_id,
-            chat_history=chat_history,
-            user_message=batched_text,
-            ai_message=dialogue_response,
-            persona_name=persona_data["name"]
-        ))
+
+        # 5.6. Trigger background context summary update (fire and forget).
+        # The last two messages are always passed verbatim alongside the summary,
+        # so refreshing it every turn was paying to re-summarise the same history.
+        summary_due = (
+            not context_summary
+            or current_user_message_count % CONTEXT_SUMMARY_EVERY_N_TURNS == 0
+        )
+        if summary_due:
+            spawn(_update_context_summary(
+                chat_id=chat_id,
+                chat_history=chat_history,
+                user_message=batched_text,
+                ai_message=dialogue_response,
+                persona_name=persona_data["name"]
+            ))
         
         pipeline_timer.end_stage()
         
-        # 7. Start background image generation based on AI decision
-        
+        # 7. Image generation was dispatched right after Brain 1 (in parallel
+        # with state resolution and the database write) — only log the outcome.
         if final_should_generate:
-            log_always(f"[BATCH] 🎨 Starting background image generation (reason: {decision_reason})...")
-            asyncio.create_task(_background_image_generation(
-                chat_id=chat_id,
-                user_id=user_id,
-                persona_id=persona_data["id"],
-                state=new_state,
-                dialogue_response=dialogue_response,
-                batched_text=batched_text,
-                persona=persona_data,
-                tg_chat_id=tg_chat_id,
-                action_mgr=action_mgr,
-                chat_history=chat_history,
-                previous_image_prompt=previous_image_prompt,
-                previous_image_meta=previous_image_meta,
-                is_auto_followup=is_auto_followup,
-                followup_type=followup_type,
-                should_send_as_caption=should_wait_for_image,  # Pass flag to send text with image
-                context_summary=context_summary,  # Pass summary for efficient context
-                mood=chat_mood,  # Chat mood for image context
-                purchases=chat_purchases,  # Recent purchases for image context
-                control_orb_active=control_orb_turn_active,
-                control_orb_messages_left=control_orb_messages_left,
-            ))
             if should_wait_for_image:
                 log_always(f"[BATCH] ✅ Batch complete (text will be sent with image)")
             else:
@@ -1171,6 +1225,8 @@ async def _background_image_generation(
     purchases: list = None,  # Recent purchases for image context
     control_orb_active: bool = False,
     control_orb_messages_left: int = 0,
+    focus_tags_task=None,
+    scenario: str = "",
 ):
     """Non-blocking image generation"""
     counter_incremented = False  # Track if we incremented counter for error handling
@@ -1236,6 +1292,13 @@ async def _background_image_generation(
             control_orb_messages_left=control_orb_messages_left,
         )
         
+        precomputed_focus_tags = None
+        if focus_tags_task is not None:
+            try:
+                precomputed_focus_tags = await focus_tags_task
+            except Exception as focus_error:
+                log_always(f"[IMAGE-BG] ⚠️ Focus tag prefetch failed: {focus_error}")
+
         image_prompt = await generate_image_plan(
             state=state,
             dialogue_response=dialogue_response,
@@ -1250,6 +1313,8 @@ async def _background_image_generation(
             force_gift_override=False,
             control_orb_active=control_orb_active,
             control_orb_messages_left=control_orb_messages_left,
+            precomputed_focus_tags=precomputed_focus_tags,
+            scenario=scenario,
         )
         log_always(f"[IMAGE-BG] ✅ Image plan generated")
         log_verbose(f"[IMAGE-BG]    Prompt preview: {image_prompt[:100]}...")
@@ -1272,9 +1337,13 @@ async def _background_image_generation(
         with get_db() as db:
             cached_image = crud.find_cached_image(db, prompt_hash, user_id)
             
-            if cached_image and cached_image.result_url:
+            cached_photo = _cached_image_photo_pointer(cached_image)
+            if cached_image and cached_photo:
                 log_always(f"[IMAGE-BG] ✅ CACHE HIT! Found cached image {cached_image.id}")
-                log_verbose(f"[IMAGE-BG]    URL: {cached_image.result_url[:80]}...")
+                if cached_image.result_file_id:
+                    log_verbose(f"[IMAGE-BG]    Source: telegram_file_id")
+                elif cached_image.result_url:
+                    log_verbose(f"[IMAGE-BG]    Source URL: {cached_image.result_url[:80]}...")
                 
                 # Send cached image to user
                 try:
@@ -1287,8 +1356,8 @@ async def _background_image_generation(
                     # Handle caption if needed
                     caption = None
                     if should_send_as_caption and dialogue_response:
-                        from app.core.telegram_utils import escape_markdown_v2
-                        caption = escape_markdown_v2(dialogue_response)
+                        from app.core.telegram_utils import escape_markdown_v2, format_roleplay_reply, send_roleplay_reply
+                        caption = format_roleplay_reply(dialogue_response)
                     
                     # Remove refresh button from previous image
                     chat = crud.get_chat_by_tg_chat_id(db, tg_chat_id)
@@ -1307,7 +1376,7 @@ async def _background_image_generation(
                     # Send cached image
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
-                        photo=cached_image.result_url,
+                        photo=cached_photo,
                         caption=caption,
                         parse_mode="MarkdownV2" if caption else None,
                         reply_markup=refresh_keyboard
@@ -1622,7 +1691,7 @@ async def process_gift_purchase(
         
         # Trigger memory update so the gift is remembered in future conversations
         from app.core.memory_service import trigger_memory_update
-        asyncio.create_task(trigger_memory_update(
+        spawn(trigger_memory_update(
             chat_id=chat_id,
             user_message=f"[User bought a gift: {item_name}]",
             ai_message=dialogue_response
@@ -1671,14 +1740,15 @@ async def process_gift_purchase(
         with get_db() as db:
             cached_image = crud.find_cached_image(db, prompt_hash, user_id)
             
-            if cached_image and cached_image.result_url:
+            cached_photo = _cached_image_photo_pointer(cached_image)
+            if cached_image and cached_photo:
                 log_always(f"[GIFT-PURCHASE] ✅ CACHE HIT for gift image")
                 try:
                     from app.bot.keyboards.inline import build_image_refresh_keyboard
-                    caption = escape_markdown_v2(dialogue_response)
+                    caption = format_roleplay_reply(dialogue_response)
                     sent_message = await bot.send_photo(
                         chat_id=tg_chat_id,
-                        photo=cached_image.result_url,
+                        photo=cached_photo,
                         caption=caption,
                         parse_mode="MarkdownV2",
                         reply_markup=build_image_refresh_keyboard(str(cached_image.id)),
@@ -1726,8 +1796,7 @@ async def process_gift_purchase(
             log_always(f"[GIFT-PURCHASE] ⚠️ Image dispatch failed, sending text only")
             await redis_queue.decrement_user_image_count(user_id)
             # Fall back to text-only message
-            escaped = escape_markdown_v2(dialogue_response)
-            await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+            await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
             await action_mgr.stop()
             return
         
@@ -1742,8 +1811,7 @@ async def process_gift_purchase(
         # Try to send text-only as fallback
         try:
             if dialogue_response:
-                escaped = escape_markdown_v2(dialogue_response)
-                await bot.send_message(tg_chat_id, escaped, parse_mode="MarkdownV2")
+                await send_roleplay_reply(bot, tg_chat_id, dialogue_response)
         except Exception:
             pass
         

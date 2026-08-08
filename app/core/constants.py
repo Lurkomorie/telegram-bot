@@ -73,6 +73,18 @@ AUTO_MESSAGE_THRESHOLD_MINUTES = 5
 CHAT_ACTION_INTERVAL_SECONDS = 4.5
 
 
+# Ceilings on the post-reply work that still holds the chat's processing lock.
+# The user's next message queues behind it, so a stalled provider here reads as
+# the bot ignoring them. Both stages have harmless fallbacks when they expire.
+STATE_RESOLUTION_TIMEOUT_SEC = 12
+GIFT_SUGGESTION_TIMEOUT_SEC = 8
+
+# Cost controls on background work that runs every turn.
+# Users introduce themselves in the opening exchanges or never, and the summary
+# sits next to the last two messages verbatim, so neither needs a call per turn.
+NAME_EXTRACTION_MAX_TURNS = 12
+CONTEXT_SUMMARY_EVERY_N_TURNS = 3
+
 # Retry configuration
 STATE_RESOLVER_MAX_RETRIES = 2
 DIALOGUE_SPECIALIST_MAX_RETRIES = 3

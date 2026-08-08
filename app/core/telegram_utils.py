@@ -4,6 +4,69 @@ Telegram-specific utility functions
 import re
 
 
+SPEECH_DASH = "—"
+
+
+def normalize_roleplay_layout(text: str) -> str:
+    """Lay a reply out as prose: italic stage directions, dashed dialogue.
+
+    Actions stay in _italics_; speech is plain text opened with an em dash, the
+    way Russian prose marks dialogue. Each beat gets its own paragraph, so the
+    reader can see at a glance what she did and what she said.
+
+    Bold speech from older messages (and from a model still following the old
+    habit) is converted rather than rejected, and a segment closed with the
+    wrong marker is repaired instead of leaking its symbols into the text.
+    """
+    if not text:
+        return text
+
+    text = text.replace("\r\n", "\n")
+
+    # Repair a segment opened with one marker and closed with the other.
+    text = re.sub(r"_([^_*\n]{2,}?)\*", r"_\1_", text)
+    text = re.sub(r"\*([^_*\n]{2,}?)_(?=\s|$)", r"*\1*", text)
+
+    segments = []
+    for raw in re.findall(r"_[^_]+_|\*[^*]+\*|_[^_]*$|\*[^*]*$|[^_*]+", text):
+        chunk = raw.strip()
+        if not chunk:
+            continue
+
+        if chunk.startswith("_"):
+            # An action: close it if the model forgot to.
+            if not chunk.endswith("_") or len(chunk) == 1:
+                chunk = chunk.rstrip("_") + "_"
+            segments.append(chunk)
+            continue
+
+        # Everything else is speech. It gets the dash and renders bold, so her
+        # words stand out from the italic narration at a glance.
+        spoken = chunk.strip("*").strip()
+        if not spoken:
+            continue
+        spoken = spoken.lstrip('-–— ').strip()
+        if not spoken:
+            continue
+        segments.append(f"*{SPEECH_DASH} {spoken}*")
+
+    return "\n\n".join(segments).strip()
+
+
+async def send_roleplay_reply(bot, chat_id: int, text: str) -> None:
+    """Send a reply as one laid-out message."""
+    await bot.send_message(chat_id, format_roleplay_reply(text), parse_mode="MarkdownV2")
+
+
+def format_roleplay_reply(text: str) -> str:
+    """Lay out a roleplay reply, then escape it for Telegram.
+
+    Use this for anything the character says; plain system copy should keep
+    calling escape_markdown_v2 directly so its own line breaks survive.
+    """
+    return escape_markdown_v2(normalize_roleplay_layout(text))
+
+
 def escape_markdown_v2(text: str) -> str:
     """
     Escape special characters for Telegram MarkdownV2 while preserving formatting.

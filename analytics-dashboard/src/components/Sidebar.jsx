@@ -9,6 +9,7 @@ export default function Sidebar() {
     { path: '/premium-statistics', label: 'Premium Stats', icon: '👑' },
     { path: '/conversions', label: 'Conversions', icon: '💰' },
     { path: '/payments', label: 'Оплаты', icon: '💳' },
+    { path: '/gift-purchases', label: 'Подарки', icon: '🎁' },
     { path: '/premium-users', label: 'Премиум юзеры', icon: '💎' },
     { path: '/user-message-stats', label: 'User Messages', icon: '📈' },
     { path: '/users', label: 'Users', icon: '👥' },
@@ -64,7 +65,6 @@ export default function Sidebar() {
     </div>
   );
 }
-
 
 
 

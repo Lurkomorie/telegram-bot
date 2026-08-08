@@ -103,6 +103,33 @@ async def get_batch_messages(chat_id: UUID) -> List[Dict]:
     return messages
 
 
+async def drain_batch_messages(chat_id: UUID) -> List[Dict]:
+    """
+    Atomically read and clear all queued messages for a chat.
+
+    This prevents dropping messages that arrive while a previous batch
+    is being processed: newly arrived messages stay in a new queue and are
+    picked up by the next drain cycle.
+    """
+    redis = await get_redis()
+    queue_key = f"msg_queue:{chat_id}"
+
+    pipe = redis.pipeline(transaction=True)
+    pipe.lrange(queue_key, 0, -1)
+    pipe.delete(queue_key)
+    messages_json, _ = await pipe.execute()
+
+    messages = []
+    for msg_json in messages_json or []:
+        try:
+            messages.append(json.loads(msg_json))
+        except json.JSONDecodeError:
+            print(f"[REDIS-QUEUE] ⚠️ Failed to parse drained message: {msg_json}")
+            continue
+
+    return messages
+
+
 async def clear_batch_messages(chat_id: UUID):
     """
     Clear all messages from queue after successful processing
@@ -115,14 +142,17 @@ async def clear_batch_messages(chat_id: UUID):
     await redis.delete(queue_key)
 
 
-async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 600) -> bool:
+async def set_processing_lock(chat_id: UUID, processing: bool, timeout_seconds: int = 120) -> bool:
     """
     Set processing lock for a chat (Redis-based)
-    
+
     Args:
         chat_id: Chat UUID
         processing: True to lock, False to unlock
-        timeout_seconds: Lock timeout (default 10 minutes)
+        timeout_seconds: Lock timeout. A full turn (dialogue + state + image
+            dispatch) runs in well under 30s, so 2 minutes is generous. This is
+            the ceiling on how long a chat stays mute if the process dies while
+            holding the lock — a redeploy mid-turn used to silence it for 10min.
         
     Returns:
         True if lock was acquired (when processing=True), always True for unlock
@@ -263,4 +293,3 @@ async def clear_all_user_image_counts() -> int:
     
     print(f"[REDIS-QUEUE] ✓ No user image count records to clear")
     return 0
-
