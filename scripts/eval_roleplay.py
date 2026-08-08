@@ -167,12 +167,13 @@ async def run_conversation(case, style, turns):
             mood=60, purchases=[], gift_hint=None, force_gift_hint=False,
             user_name="Максим", name_known=True, control_orb_active=False,
             control_orb_messages_left=0, scenario=description)
+        raw_reply = reply
         reply = normalize_roleplay_layout(reply)
         # Judge sees the conversation BEFORE this reply, otherwise it compares
         # the answer against itself and reports every turn as a repetition.
         verdict = await judge(description, state, history, reply)
         history.append(("assistant", reply))
-        for hard_fail in hard_checks(reply, pname):
+        for hard_fail in hard_checks(raw_reply, pname):
             issues.append((f"{pname}/{hname}", user_msg, reply[:90], f"[ЖЁСТКО] {hard_fail}"))
         for k in ("scene", "character", "format", "language", "emotion", "repetition", "engagement", "consistency", "roleplay_lock"):
             if isinstance(verdict.get(k), (int, float)):

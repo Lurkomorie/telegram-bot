@@ -40,13 +40,15 @@ def normalize_roleplay_layout(text: str) -> str:
             segments.append(chunk)
             continue
 
-        # Everything else is speech. Drop any bold markers and give it a dash.
+        # Everything else is speech. It gets the dash and renders bold, so her
+        # words stand out from the italic narration at a glance.
         spoken = chunk.strip("*").strip()
         if not spoken:
             continue
-        if not spoken.startswith(SPEECH_DASH):
-            spoken = f"{SPEECH_DASH} {spoken.lstrip('-–— ')}"
-        segments.append(spoken)
+        spoken = spoken.lstrip('-–— ').strip()
+        if not spoken:
+            continue
+        segments.append(f"*{SPEECH_DASH} {spoken}*")
 
     return "\n\n".join(segments).strip()
 

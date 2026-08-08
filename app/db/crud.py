@@ -1357,6 +1357,12 @@ def create_initial_image_job(
 ) -> ImageJob:
     """Create a completed initial image job for history_start continuity"""
     from datetime import datetime
+    # Scenario prompts were authored before the POV rules and describe the scene
+    # in third person; anything generated from them later (refresh, continuity)
+    # must still shoot through his eyes.
+    tags = [t.strip().lower() for t in (prompt or "").split(",")]
+    if "pov" not in tags and "male_pov" not in tags:
+        prompt = f"pov, close-up, {prompt}"
     job = ImageJob(
         user_id=user_id,
         persona_id=persona_id,

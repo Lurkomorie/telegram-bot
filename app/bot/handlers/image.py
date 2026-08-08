@@ -431,6 +431,10 @@ async def generate_image_for_refresh(user_id: int, original_job_id: str, tg_chat
         
         # REUSE EXACT PROMPTS from original job (don't regenerate!)
         positive_prompt = original_job.prompt
+        # Older stored prompts (scenario starters) predate the POV rules.
+        _tags = [t.strip().lower() for t in (positive_prompt or "").split(",")]
+        if "pov" not in _tags and "male_pov" not in _tags:
+            positive_prompt = f"pov, close-up, {positive_prompt}"
         negative_prompt = original_job.negative_prompt
         original_ext = original_job.ext if original_job.ext else {}
         user_prompt = original_ext.get("user_prompt", "")
