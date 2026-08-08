@@ -445,6 +445,14 @@ class PaymentTransaction(Base):
         default="completed",
         nullable=False
     )
+    # Alternative payment providers. These columns already exist in the table
+    # (migrations 038-041); the ORM just never learned about them, so writing
+    # them raised TypeError and crypto purchases failed with "не удалось
+    # создать заявку".
+    amount_rub = Column(Numeric, nullable=True)
+    payment_provider = Column(String(30), nullable=True)  # 'stars' | 'tribute' | 'cryptopay'
+    paritypay_invoice_id = Column(String(255), nullable=True)
+    cryptopay_invoice_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
