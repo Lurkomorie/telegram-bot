@@ -21,13 +21,13 @@ image:
   provider: runpod
   width: 832
   height: 1216
-  steps: 20 # 25 -> 20: ~0.7s faster per image, near-identical quality with euler
+  steps: 25 # 20 was fast but hands/eyes started mangling, especially in full-body frames; +~0.7s is still inside the 5s budget
   cfg_scale: 7
   sampler_name: euler
   poll_interval_sec: 2.0
   poll_timeout_sec: 60
   quality_prompt: "masterpiece, best quality, absurdres, newest, highres, ultra detailed, sharp focus, detailed face, detailed eyes, eye_focus, looking_at_viewer, eye_contact, skin texture, depth of field"
-  negative_prompt: "lowres, (bad), worst quality, bad quality, bad anatomy, bad hands, extra digits, fewer digits, multiple views, extra, missing, text, error, jpeg artifacts, watermark, unfinished, displeasing, oldest, signature, username, scan, comic, greyscale, monochrome, blurry, blur, out of focus, motion blur, distant shot, far away, wide shot, long shot, full body, bad eyes, blurry eyes, asymmetrical eyes, deformed eyes, cross-eyed, lazy eye, 1boy, male_focus"
+  negative_prompt: "lowres, (bad), worst quality, bad quality, bad anatomy, (bad hands:1.2), (extra digits:1.2), fewer digits, extra fingers, missing fingers, fused fingers, six fingers, deformed hands, mutated hands, extra limbs, missing limbs, extra arms, extra legs, bad proportions, multiple views, extra, missing, text, error, jpeg artifacts, watermark, unfinished, displeasing, oldest, signature, username, scan, comic, greyscale, monochrome, blurry, blur, out of focus, motion blur, distant shot, far away, wide shot, long shot, full body, (bad eyes:1.2), blurry eyes, asymmetrical eyes, deformed eyes, cross-eyed, lazy eye, 1boy, male_focus"
 
 limits:
   text_per_min: 20

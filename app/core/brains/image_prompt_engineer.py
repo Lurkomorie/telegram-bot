@@ -1334,10 +1334,22 @@ def assemble_final_prompt(
         )
         negative_prompt = f"{negative_prompt}, {MALE_BODY_NEGATIVES}"
 
+    # The base negative bans wide framings to keep casual shots close — but when
+    # this scene explicitly asks for full_body (shibari, standing poses), those
+    # negatives fight the requested framing at full CFG and the anatomy loses.
+    if "full_body" in prompt_tags:
+        wide_framing_negatives = {"full body", "distant shot", "far away", "wide shot", "long shot"}
+        negative_prompt = ", ".join(
+            t.strip() for t in negative_prompt.split(",")
+            if t.strip().lower() not in wide_framing_negatives
+        )
+
     if prompt_tags & _NEGATIVE_EMOTION_TAGS:
         smile_tags = {t.strip().lower() for t in _SMILE_SUPPRESSION.split(",")}
         deduped = [t for t in deduped if t.strip().lower() not in smile_tags]
-        negative_prompt = f"{negative_base_prompt}, {_SMILE_SUPPRESSION}"
+        # Extend the negative built so far — resetting from the base here used to
+        # silently undo the male-tag swap in angry sex scenes.
+        negative_prompt = f"{negative_prompt}, {_SMILE_SUPPRESSION}"
 
     positive_prompt = ", ".join(deduped)
 
