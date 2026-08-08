@@ -647,9 +647,22 @@ async def handle_unlock_blurred_image(callback: types.CallbackQuery):
                 reply_markup=refresh_keyboard
             )
         elif image_url:
+            # imagedelivery.net rejects unknown user agents, so fetch the
+            # original ourselves and send bytes instead of trusting Telegram's
+            # fetcher to get through.
+            import httpx
+            photo = image_url
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(image_url, headers={"User-Agent": "Mozilla/5.0"})
+                if resp.status_code == 200:
+                    photo = BufferedInputFile(
+                        strip_color_profile_safe(resp.content), filename="unlocked.png")
+            except Exception as fetch_error:
+                log_always(f"[UNLOCK-IMAGE] ⚠️ Download failed, sending by URL: {fetch_error}")
             await bot.send_photo(
                 chat_id=callback.message.chat.id,
-                photo=image_url,
+                photo=photo,
                 caption=stored_caption,
                 parse_mode="MarkdownV2" if stored_caption else None,
                 reply_markup=refresh_keyboard

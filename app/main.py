@@ -813,10 +813,10 @@ async def image_callback(request: Request):
                 with get_db() as db:
                     user_language = crud.get_user_language(db, job_user_id)
 
-                # Blur/unlock flow requires a private media cache chat to store original file_id
-                if not settings.MEDIA_CACHE_CHAT_ID:
-                    print("[IMAGE-CALLBACK] ❌ MEDIA_CACHE_CHAT_ID not configured, skipping blur flow")
-                    should_blur = False
+                # Preferred original storage is the private media cache chat
+                # (instant unlock via file_id). Without it we fall back to the
+                # legacy path: upload the original to Cloudflare and unlock by
+                # URL — slower by a couple of seconds, but the paywall works.
                 
                 # Get image data if we have URL but no data
                 actual_image_data = image_data
@@ -854,7 +854,34 @@ async def image_callback(request: Request):
                     
                     # Cache original in private Telegram channel ASYNC, store only file_id pointer.
                     async def _cache_blurred_original_async(img_data: bytes, jid: str, caption=None):
+                        def _store(jid, updates, caption):
+                            with get_db() as db:
+                                job = crud.get_image_job(db, jid)
+                                if not job:
+                                    return
+                                ext_data = dict(job.ext or {})
+                                for k in ("blurred_original_data", "blurred_original_url", "blurred_original_file_id"):
+                                    ext_data.pop(k, None)
+                                ext_data.update(updates)
+                                if caption:
+                                    ext_data["blurred_caption"] = caption
+                                job.ext = ext_data
+                                from sqlalchemy.orm.attributes import flag_modified
+                                flag_modified(job, "ext")
+                                db.commit()
+
                         if not settings.MEDIA_CACHE_CHAT_ID:
+                            # Legacy fallback: Cloudflare URL instead of a cached file_id.
+                            try:
+                                from app.core.cloudflare_upload import upload_to_cloudflare_tg
+                                cf = await upload_to_cloudflare_tg(img_data, f"blur_unlock_{jid}.png")
+                                if cf and cf.success and cf.image_url:
+                                    _store(jid, {"blurred_original_url": cf.image_url}, caption)
+                                    print(f"[IMAGE-CALLBACK] 🔓 Original cached in Cloudflare for unlock ({jid})")
+                                else:
+                                    print("[IMAGE-CALLBACK] ❌ Cloudflare fallback failed — unlock will not work for this photo")
+                            except Exception as e:
+                                print(f"[IMAGE-CALLBACK] ❌ Cloudflare fallback error: {e}")
                             return
                         try:
                             cache_file = BufferedInputFile(img_data, filename=f"blur_unlock_{jid}.png")
@@ -883,7 +910,9 @@ async def image_callback(request: Request):
                         except Exception as e:
                             print(f"[IMAGE-CALLBACK] ❌ Blurred-original Telegram cache error: {e}")
                     
-                    await _cache_blurred_original_async(actual_image_data, job_id_str, unlock_caption)
+                    from app.core.background_tasks import spawn
+                    spawn(_cache_blurred_original_async(actual_image_data, job_id_str, unlock_caption),
+                          name=f"blur-cache:{job_id_str}")
                 else:
                     print(f"[IMAGE-CALLBACK] ⚠️  Failed to blur image, sending original")
                     should_blur = False  # Fallback to original
