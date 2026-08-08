@@ -435,6 +435,8 @@ You are reaching out after a period of silence. Follow these rules:
 # GESTURES YOU JUST USED — DO NOT REPEAT OR REPHRASE THEM
 {listed}
 Move differently this turn: a different part of the body, a different rhythm.
+Also do NOT build yet another action around the same prop these gestures used
+(a towel, an orb, a phone, a glass...) — change the physical focus entirely.
 """
 
     # Build conversation context block based on whether we have a summary
