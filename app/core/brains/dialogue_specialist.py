@@ -420,6 +420,23 @@ You are reaching out after a period of silence. Follow these rules:
 {avoid_repeat_block}
 """
     
+    # The QA agent kept catching the same small tic: a gesture from the previous
+    # reply reused a turn later ("приподнимаю брови", "шаг вперёд", "провожу
+    # пальцем по ладони"). The anti-repeat block existed but only ran for
+    # auto-followups, so ordinary turns had nothing stopping it.
+    recent_actions = []
+    for message in _recent_assistant_messages(chat_history, limit=2):
+        recent_actions.extend(re.findall(r"_([^_]{6,120})_", message))
+    avoid_actions_block = ""
+    if recent_actions:
+        listed = "\n".join(f"- {a.strip()}" for a in recent_actions[:6])
+        avoid_actions_block = f"""
+
+# GESTURES YOU JUST USED — DO NOT REPEAT OR REPHRASE THEM
+{listed}
+Move differently this turn: a different part of the body, a different rhythm.
+"""
+
     # Build conversation context block based on whether we have a summary
     conversation_context = ""
     if context_summary and len(chat_history) > 4:
@@ -508,6 +525,7 @@ You don't know the user's name yet. Within the first few messages, naturally int
     
     full_system_prompt = (
         system_prompt
+        + avoid_actions_block
         + scenario_context
         + memory_context
         + state_context
