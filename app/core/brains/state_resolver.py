@@ -115,6 +115,17 @@ LAST 2 MESSAGES (VERBATIM):
         state_text = """No previous state - THIS IS THE FIRST MESSAGE.
 You MUST create a complete initial state by reading the conversation history above, especially the SYSTEM message.
 The SYSTEM message contains the scene description - extract location and infer appropriate clothing from it.
+
+location = WHERE SHE IS PHYSICALLY STANDING AT THIS MOMENT, not a place mentioned nearby.
+If the scene has her outdoors — on a doorstep, in the rain, on a street, by a car —
+then location is that outdoor spot. A house she is standing OUTSIDE of, asking to be
+let into, is NOT her location: "rain on the street outside your home" means
+location="street outside your home, at the door", never "living room".
+She has not gone inside, sat down or changed rooms unless the text says she did.
+
+Match the weather and time of day too: a rainy night scene keeps its rain in
+moodNotes, and her clothing is whatever that weather left her in (soaked, damp).
+
 CRITICAL: Do NOT use generic values like 'casual outfit' or 'indoor location'.
 Be SPECIFIC with colors and details: 'light blue sundress, white sandals' not 'casual outfit'.
 Extract location from SYSTEM message: if it says 'cozy cafe', use location="cozy cafe downtown" not "indoor location"."""
