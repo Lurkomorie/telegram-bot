@@ -56,9 +56,12 @@ def load_cache():
             # Load histories for this persona
             # Deterministic order: history translations are keyed by list
             # index, so the order must never depend on Postgres heap layout.
+            # created_at alone is not enough — several presets seeded all their
+            # stories in one batch share an identical timestamp, so id is the
+            # tie-break that keeps the order stable and identical across DBs.
             histories = db.query(PersonaHistoryStart).filter(
                 PersonaHistoryStart.persona_id == persona.id
-            ).order_by(PersonaHistoryStart.created_at).all()
+            ).order_by(PersonaHistoryStart.created_at, PersonaHistoryStart.id).all()
             
             history_list = []
             for history in histories:
