@@ -118,6 +118,21 @@ UNDRESSING_MARKERS = (
     "стягива", "расстёгива", "расстегива", "оголя",
 )
 
+# Physical restraints (a rope gift, cuffs) stay on her until someone actually
+# removes them. Without this the rope photo is followed by a rope-free photo,
+# which reads as the bot forgetting the gift one frame later.
+RESTRAINT_TAGS = {
+    "shibari", "kinbaku", "bondage", "rope_bondage", "tied_up", "bound",
+    "restrained", "bound_wrists", "bound_arms", "bound_legs", "rope",
+    "arms_behind_back", "handcuffs",
+}
+UNTIE_MARKERS = (
+    "untie", "unties", "untied", "unbind", "unbound", "cuts the rope",
+    "removes the rope", "takes the rope off", "loosens the rope", "sets her free",
+    "развяз", "распут", "освобожда", "освободи", "высвобо",
+    "снимает верёвк", "снимает веревк", "снял верёвк", "снял веревк",
+)
+
 REFUSAL_MARKERS = [
     # English
     "i won't",
@@ -235,6 +250,23 @@ def _detect_scene_change_intent(user_message: str, visual_actions: str) -> Dict[
 
 def _is_nude_tag(tag: str) -> bool:
     return any(part in NUDE_TAGS for part in tag.split("_")) or tag in NUDE_TAGS
+
+
+def _is_restraint_tag(tag: str) -> bool:
+    if tag in RESTRAINT_TAGS:
+        return True
+    parts = set(tag.split("_"))
+    return bool(parts & {"shibari", "bondage", "kinbaku", "tied"}) or tag.startswith("bound_")
+
+
+def _extract_restraint_tags(previous_image_prompt: Optional[str]) -> List[str]:
+    """Restraint tags from the previous image, kept whole for continuity."""
+    tags: List[str] = []
+    for raw_tag in _split_tags(previous_image_prompt or ""):
+        tag = _canonicalize_tag(raw_tag)
+        if tag and _is_restraint_tag(tag) and tag not in tags:
+            tags.append(tag)
+    return tags
 
 
 def _should_use_scene_lock(previous_image_meta: Optional[Dict[str, Any]]) -> bool:
@@ -808,6 +840,20 @@ def _build_image_context(
     scene_change_flags = _detect_scene_change_intent(user_message, visual_actions)
     scene_lock_enabled = _should_use_scene_lock(previous_image_meta)
     scene_lock = _extract_scene_lock_anchors(previous_image_prompt) if scene_lock_enabled else {"clothing": [], "environment": []}
+
+    # Restraints persist across photos — including right after a gift-purchase
+    # image, where the scene lock is deliberately off. Only an explicit untying
+    # (or getting dressed) ends the bound state.
+    restraint_carry = _extract_restraint_tags(previous_image_prompt)
+    untied_now = any(
+        marker in f"{user_message or ''} {dialogue_response or ''}".lower()
+        for marker in UNTIE_MARKERS
+    )
+    stay_bound = bool(restraint_carry) and not untied_now and not scene_change_flags["dressed_up"]
+    if stay_bound:
+        for tag in restraint_carry:
+            if tag not in mandatory_focus_tags:
+                mandatory_focus_tags.append(tag)
     
     # Build gift override section (top priority)
     gift_section = ""
@@ -857,6 +903,14 @@ Turns left: {max(0, int(control_orb_messages_left or 0))}
 If active, the character is under magical mind control and must comply with the user's visual command.
 """
 
+    restraint_section = ""
+    if stay_bound:
+        restraint_section = f"""
+# RESTRAINTS (persist until removed)
+She is still tied up from earlier: {", ".join(restraint_carry[:6])}.
+Keep these rope/bondage tags in the output until the text says she is untied.
+"""
+
     scene_lock_section = f"""
 # SCENE LOCK (maintain continuity unless explicitly changed this turn)
 Scene lock enabled: {"yes" if scene_lock_enabled else "no"}
@@ -900,10 +954,14 @@ Explicit location change detected: {"yes" if scene_change_flags["location_change
 {(scenario or "not specified").strip()[:400]}
 Carry its weather and lighting into the tags: rain means wet hair and wet skin,
 night means dim light, snow means cold. Skip it only if the scene has moved indoors.
-{action_truth_section}{control_orb_section}{scene_lock_section}{mood_hint}"""
-    
+{action_truth_section}{control_orb_section}{restraint_section}{scene_lock_section}{mood_hint}"""
+
     # She was nude last frame and nobody got dressed this turn -> still nude.
-    previously_nude = any(_is_nude_tag(t) for t in scene_lock.get("clothing", []))
+    # Read the previous prompt directly, not the scene lock: the lock is off
+    # right after a gift-purchase image, but her body state still carries over.
+    previously_nude = any(
+        _is_nude_tag(_canonicalize_tag(t)) for t in _split_tags(previous_image_prompt or "")
+    )
     stay_nude = previously_nude and not scene_change_flags["dressed_up"]
     # Or the text undresses her right now, whatever aiClothing still claims.
     force_nude = scene_change_flags["undressed_now"] and not scene_change_flags["dressed_up"]
@@ -914,6 +972,8 @@ night means dim light, snow means cold. Skip it only if the scene has moved indo
         "stay_nude": stay_nude,
         "force_nude": force_nude,
         "force_dressed": force_dressed,
+        "stay_bound": stay_bound,
+        "restraint_tags": restraint_carry,
         "expression_tags": expression_tags,
         "negative_expression": negative_expression,
         "scene_lock_enabled": scene_lock_enabled,

@@ -529,6 +529,9 @@ STICKY (change only when the conversation shows it changing): location, aiClothi
     (or names only what is still physically on her, e.g. 'completely naked except black stockings').
     It STAYS that way every following turn until she actually puts clothes back on.
     Never list a garment she already took off — the picture would put it back on her.
+  - Restraints are part of aiClothing: if she was tied with ropes, cuffed or blindfolded
+    (e.g. after a rope gift), aiClothing keeps naming it ('completely naked, tied with red ropes')
+    every turn until the conversation says she was untied or freed.
 LIVE (re-evaluate every single turn from the AI response): emotions, description, moodNotes.
   - These describe the present moment. Never copy them forward unchanged when the moment moved on.
 relationshipStage advances only on a real milestone, and never moves backwards:
