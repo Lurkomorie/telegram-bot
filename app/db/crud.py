@@ -1425,9 +1425,11 @@ def update_image_job_status(
 def get_persona_histories(db: Session, persona_id: UUID):
     """Get all history starts for a persona"""
     from app.db.models import PersonaHistoryStart
+    # Ordered by created_at: index-keyed history translations rely on a
+    # stable order, and heap order changes whenever a row is updated.
     return db.query(PersonaHistoryStart).filter(
         PersonaHistoryStart.persona_id == persona_id
-    ).all()
+    ).order_by(PersonaHistoryStart.created_at).all()
 
 
 def create_persona_history(

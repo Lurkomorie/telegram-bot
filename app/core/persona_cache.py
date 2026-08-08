@@ -54,9 +54,11 @@ def load_cache():
             _CACHE["by_id"][str(persona.id)] = persona_dict
             
             # Load histories for this persona
+            # Deterministic order: history translations are keyed by list
+            # index, so the order must never depend on Postgres heap layout.
             histories = db.query(PersonaHistoryStart).filter(
                 PersonaHistoryStart.persona_id == persona.id
-            ).all()
+            ).order_by(PersonaHistoryStart.created_at).all()
             
             history_list = []
             for history in histories:
